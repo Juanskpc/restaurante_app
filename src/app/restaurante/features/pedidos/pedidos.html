@@ -1,0 +1,378 @@
+<!-- ============================================================
+     POS — Vista de Pedidos del Restaurante
+     ============================================================ -->
+<div class="pos-layout">
+
+  <!-- ════════════════ PANEL CATEGORÍAS (desktop/tablet) ════════════════ -->
+  <aside class="cat-panel">
+    @for (cat of categorias(); track cat.id_categoria) {
+      <button class="cat-item"
+              [class.active]="cat.id_categoria === categoriaActiva()"
+              (click)="selectCategoria(cat.id_categoria)">
+        <span class="cat-icon">{{ cat.icono }}</span>
+        <span class="cat-label">{{ cat.nombre }}</span>
+      </button>
+    }
+  </aside>
+
+  <!-- ════════════════ PANEL PRODUCTOS (centro) ════════════════ -->
+  <section class="products-panel">
+    <!-- Barra de búsqueda -->
+    <div class="products-search">
+      <div class="search-wrapper">
+        <lucide-icon name="search" [size]="16" class="search-icon" />
+        <input class="search-input"
+               type="text"
+               placeholder="Buscar producto..."
+               [value]="searchTerm()"
+               (input)="searchTerm.set($any($event.target).value)" />
+      </div>
+    </div>
+
+    <!-- Categorías horizontales (móvil) -->
+    <div class="cat-scroll-mobile">
+      @for (cat of categorias(); track cat.id_categoria) {
+        <button class="cat-chip"
+                [class.active]="cat.id_categoria === categoriaActiva()"
+                (click)="selectCategoria(cat.id_categoria)">
+          <span>{{ cat.icono }}</span>
+          <span>{{ cat.nombre }}</span>
+        </button>
+      }
+    </div>
+
+    <!-- Título de sección -->
+    @if (categorias().length > 0) {
+      @for (cat of categorias(); track cat.id_categoria) {
+        @if (cat.id_categoria === categoriaActiva()) {
+          <div class="products-section-title">
+            {{ cat.icono }} {{ cat.nombre }} — {{ cat.total_productos }} productos
+          </div>
+        }
+      }
+    }
+
+    <!-- Grid de productos -->
+    <div class="products-grid">
+      @if (cargandoProductos()) {
+        @for (i of [1,2,3,4,5,6]; track i) {
+          <div class="product-card skeleton">
+            <div class="skeleton-icon"></div>
+            <div class="skeleton-text"></div>
+            <div class="skeleton-price"></div>
+          </div>
+        }
+      } @else {
+        @for (producto of productos(); track producto.id_producto) {
+          <button class="product-card"
+                  [class.popular]="producto.es_popular"
+                  (click)="agregarProducto(producto)">
+            @if (producto.es_popular) {
+              <span class="popular-badge">🔥</span>
+            }
+            <span class="product-emoji">{{ producto.icono }}</span>
+            <div class="product-name">{{ producto.nombre }}</div>
+            <div class="product-desc">{{ producto.descripcion }}</div>
+            <div class="product-price">{{ producto.precio | currency:'COP':'symbol-narrow':'1.0-0' }}</div>
+          </button>
+        }
+        @if (productos().length === 0) {
+          <div class="empty-products">
+            <span>🍽️</span>
+            <p>No hay productos en esta categoría</p>
+          </div>
+        }
+      }
+    </div>
+  </section>
+
+  <!-- ════════════════ PANEL ORDEN (derecha) ════════════════ -->
+  <aside class="order-panel" [class.open]="ordenPanelOpen()">
+    <!-- Header de la orden -->
+    <div class="order-header">
+      <div class="order-title">
+        <lucide-icon name="clipboard-list" [size]="18" />
+        PEDIDO
+      </div>
+      @if (totalItems() > 0) {
+        <span class="order-count">{{ totalItems() }} items</span>
+      }
+      <!-- Botón cerrar en móvil -->
+      <button class="order-close-btn" (click)="toggleOrdenPanel()">
+        <lucide-icon name="x" [size]="20" />
+      </button>
+    </div>
+
+    <!-- Campo de mesa -->
+    <div class="mesa-field">
+      <div class="order-type-switch" role="group" aria-label="Tipo de pedido">
+        <button class="type-btn"
+                [class.active]="tipoPedido() === 'MESA'"
+                (click)="seleccionarTipoPedido('MESA')">
+          <lucide-icon name="armchair" [size]="14" />
+          En mesa
+        </button>
+        <button class="type-btn"
+                [class.active]="tipoPedido() === 'LLEVAR'"
+                (click)="seleccionarTipoPedido('LLEVAR')">
+          <lucide-icon name="credit-card" [size]="14" />
+          Para llevar
+        </button>
+      </div>
+
+      @if (requiereMesa()) {
+        @if (mesas().length > 0) {
+          <select class="mesa-select"
+                  [class.error]="mesaRequeridaError()"
+                  [value]="mesaId() ?? ''"
+                  (change)="seleccionarMesa($any($event.target).value)">
+            <option value="">🪑 Seleccionar mesa...</option>
+            @for (m of mesas(); track m.id_mesa) {
+              <option [value]="m.id_mesa">🪑 {{ m.nombre }}</option>
+            }
+          </select>
+
+          @if (mesaRequeridaError()) {
+            <p class="mesa-error">Debes seleccionar una mesa para pedidos en mesa.</p>
+          }
+        } @else {
+          <input class="mesa-input"
+                 type="text"
+                 placeholder="🪑 Mesa..."
+                 readonly
+                 value="Cargando mesas..." />
+        }
+      } @else {
+        <div class="takeaway-info">
+          <lucide-icon name="check-circle" [size]="14" />
+          Pedido para llevar. No requiere mesa.
+        </div>
+      }
+    </div>
+
+    <!-- Items de la orden -->
+    <div class="order-items">
+      @if (itemsPagados().length > 0) {
+        <div class="paid-section-title">Ya pagados</div>
+        @for (item of itemsPagados(); track $index) {
+          <div class="order-item paid">
+            <div class="item-emoji">{{ item.icono }}</div>
+            <div class="item-info">
+              <div class="item-name">{{ item.nombre }}</div>
+              <div class="item-price paid-price">{{ item.precio_unitario | currency:'COP':'symbol-narrow':'1.0-0' }} c/u</div>
+              <div class="item-line-total paid-price">
+                x{{ item.cantidad }} = {{ item.precio_unitario * item.cantidad | currency:'COP':'symbol-narrow':'1.0-0' }}
+              </div>
+              @if (getExclusionNames(item)) {
+                <div class="item-exclusions">
+                  ❌ Sin: {{ getExclusionNames(item) }}
+                </div>
+              }
+            </div>
+            <div class="item-actions">
+              <span class="item-paid-tag">PAGADO</span>
+            </div>
+          </div>
+        }
+      }
+
+      @if (items().length === 0 && itemsPagados().length === 0) {
+        <div class="order-empty">
+          <span>🛒</span>
+          <p>Agrega productos al pedido</p>
+        </div>
+      } @else {
+        @if (items().length === 0 && itemsPagados().length > 0) {
+          <div class="order-empty-hint">Agrega nuevos productos para cobrar solo el adicional.</div>
+        }
+
+        @for (item of items(); track $index) {
+          <div class="order-item">
+            <div class="item-emoji">{{ item.icono }}</div>
+            <div class="item-info">
+              <div class="item-name">{{ item.nombre }}</div>
+              <div class="item-price">{{ item.precio_unitario | currency:'COP':'symbol-narrow':'1.0-0' }} c/u</div>
+              <div class="item-line-total">
+                x{{ item.cantidad }} = {{ item.precio_unitario * item.cantidad | currency:'COP':'symbol-narrow':'1.0-0' }}
+              </div>
+              @if (getExclusionNames(item)) {
+                <div class="item-exclusions">
+                  ❌ Sin: {{ getExclusionNames(item) }}
+                </div>
+              }
+            </div>
+            <div class="item-actions">
+              <!-- Botón personalizar ingredientes -->
+              @if (item.ingredientes.some(ing => ing.es_removible)) {
+                <button class="action-btn customize-btn"
+                        title="Personalizar ingredientes"
+                        (click)="abrirPersonalizacion(item)">
+                  <lucide-icon name="settings" [size]="14" />
+                </button>
+              }
+              <div class="item-qty">
+                <button class="qty-btn" (click)="decrementar(item)">
+                  <lucide-icon name="minus" [size]="14" />
+                </button>
+                <span class="qty-num">{{ item.cantidad }}</span>
+                <button class="qty-btn" (click)="incrementar(item)">
+                  <lucide-icon name="plus" [size]="14" />
+                </button>
+              </div>
+            </div>
+          </div>
+        }
+      }
+    </div>
+
+    <!-- Nota de la orden -->
+    <div class="note-box" (click)="notaInput.focus()">
+      <lucide-icon name="notebook-pen" [size]="16" />
+      <input #notaInput
+             class="note-input"
+             type="text"
+             placeholder="Nota especial..."
+             [value]="notaOrden()"
+             (input)="notaOrden.set($any($event.target).value)" />
+    </div>
+
+    <!-- Totales -->
+    @if (items().length > 0) {
+      <div class="order-totals">
+        @if (itemsPagados().length > 0) {
+          <div class="total-row paid">
+            <span>Ya pagado</span>
+            <span class="paid-value">{{ totalPagado() | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+          </div>
+        }
+        <div class="total-row final">
+          <span>{{ itemsPagados().length > 0 ? 'TOTAL ADICIONAL' : 'TOTAL' }}</span>
+          <span class="total-value">{{ total() | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+        </div>
+      </div>
+
+      <!-- Botones de acción -->
+      <div class="action-btns">
+        <div class="cash-box">
+          <label class="cash-label" for="pedido-efectivo-input">Efectivo recibido (opcional)</label>
+          <input id="pedido-efectivo-input"
+                 class="cash-input"
+                 type="text"
+                 inputmode="numeric"
+                 placeholder="Ej: 100.000"
+                 [value]="efectivoRecibidoInput()"
+                 (input)="setEfectivoRecibido($any($event.target).value)" />
+
+          @if (efectivoRecibido() !== null) {
+            @if (faltanteCobro()! > 0) {
+              <div class="cash-feedback error">
+                Faltan {{ faltanteCobro() | currency:'COP':'symbol-narrow':'1.0-0' }} para completar el pago.
+              </div>
+            } @else {
+              <div class="cash-feedback success">
+                Vuelta: {{ vueltaCobro() | currency:'COP':'symbol-narrow':'1.0-0' }}
+              </div>
+            }
+          }
+        </div>
+
+        <div class="primary-action-row">
+          <button class="btn-cash"
+                  [disabled]="enviando() || items().length === 0 || tipoPedido() === 'LLEVAR'"
+                  [title]="tipoPedido() === 'LLEVAR' ? 'Para llevar se cobra directamente' : 'Enviar pedido a caja'"
+                  (click)="enviarACaja()">
+            <lucide-icon name="credit-card" [size]="20" />
+            {{ enviando() && destinoEnvio() === 'CAJA' ? 'ENVIANDO...' : 'ENVIAR A CAJA' }}
+          </button>
+          <!--
+          <button class="btn-kitchen"
+                  [disabled]="enviando() || items().length === 0"
+                  (click)="enviarACocina()">
+            <lucide-icon name="flame" [size]="20" />
+            {{ enviando() && destinoEnvio() === 'COCINA' ? 'ENVIANDO...' : 'ENVIAR A COCINA' }}
+          </button>
+          -->
+        </div>
+        <div class="btn-row">
+          <button class="btn-secondary"
+                  [disabled]="enviando() || items().length === 0"
+                  (click)="cobrarPedido()">
+            <lucide-icon name="credit-card" [size]="16" />
+            {{ enviando() && destinoEnvio() === 'COBRAR' ? 'COBRANDO...' : 'Cobrar' }}
+          </button>
+          <button class="btn-secondary"
+                  [disabled]="items().length === 0 || enviando()"
+                  (click)="imprimirTicket()">
+            <lucide-icon name="printer" [size]="16" />
+            Imprimir
+          </button>
+          <button class="btn-secondary danger" (click)="limpiarOrden()">
+            <lucide-icon name="trash-2" [size]="16" />
+            Limpiar
+          </button>
+        </div>
+      </div>
+    }
+
+    @if (requiereMesa() && mesaId()) {
+      <div class="mesa-tools">
+        <button class="btn-secondary warning"
+                [disabled]="enviando() || ordenActivaId() !== null"
+                [title]="ordenActivaId() !== null ? 'Primero debes cobrar la cuenta de esta mesa' : 'Liberar mesa'"
+                (click)="liberarMesaActual()">
+          <lucide-icon name="door-open" [size]="16" />
+          Liberar mesa
+        </button>
+      </div>
+    }
+  </aside>
+
+</div>
+
+<!-- ═══════ FAB: Ver orden en móvil ═══════ -->
+@if (totalItems() > 0) {
+  <button class="fab-order" (click)="toggleOrdenPanel()">
+    <lucide-icon name="clipboard-list" [size]="22" />
+    <span class="fab-badge">{{ totalItems() }}</span>
+  </button>
+}
+
+<!-- ═══════ MODAL: Personalizar ingredientes ═══════ -->
+@if (itemEditando(); as editing) {
+  <div class="modal-overlay" (click)="cerrarPersonalizacion()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>{{ editing.icono }} {{ editing.nombre }}</h3>
+        <button class="modal-close" (click)="cerrarPersonalizacion()">
+          <lucide-icon name="x" [size]="20" />
+        </button>
+      </div>
+      <p class="modal-subtitle">Desmarca los ingredientes que no quieras:</p>
+      <div class="ingredients-list">
+        @for (ing of editing.ingredientes; track ing.id_ingrediente) {
+          @if (ing.es_removible) {
+            <label class="ingredient-toggle">
+              <input type="checkbox"
+                     [checked]="!exclusionesTemp().has(ing.id_ingrediente)"
+                     (change)="toggleExclusion(ing.id_ingrediente)" />
+              <span class="ingredient-name" [class.excluded]="exclusionesTemp().has(ing.id_ingrediente)">
+                {{ ing.nombre }}
+              </span>
+              @if (exclusionesTemp().has(ing.id_ingrediente)) {
+                <span class="excluded-tag">SIN</span>
+              }
+            </label>
+          } @else {
+            <div class="ingredient-fixed">
+              <span>{{ ing.nombre }}</span>
+              <span class="fixed-tag">Incluido</span>
+            </div>
+          }
+        }
+      </div>
+      <button class="modal-done" (click)="confirmarPersonalizacion()">
+        Listo
+      </button>
+    </div>
+  </div>
+}

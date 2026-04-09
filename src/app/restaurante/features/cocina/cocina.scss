@@ -1,0 +1,697 @@
+/* ============================================================
+   KDS — Kitchen Display System
+   Tema oscuro propio (no usa variables globales del tema claro).
+   ============================================================ */
+
+// ─── Host: ocupa todo el espacio del contenido ──────────────
+:host {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  flex: 1;
+  overflow: hidden;
+}
+
+// ─── Layout principal ───────────────────────────────────────
+.kds-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background-color: var(--color-bg);
+  color: var(--color-text-primary);
+  overflow: hidden;
+  font-family: var(--font-family);
+}
+
+// ─── Header ─────────────────────────────────────────────────
+.kds-header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 14px 24px;
+  background: var(--color-surface);
+  border-bottom: 2px solid var(--color-primary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
+}
+
+.kds-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-icon { font-size: 1.6rem; }
+
+.brand-name {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  white-space: nowrap;
+}
+
+.header-stats {
+  display: flex;
+  gap: 24px;
+  flex: 1;
+  justify-content: center;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.stat-num {
+  font-size: 1.9rem;
+  font-weight: 700;
+  line-height: 1;
+
+  &.pending-color   { color: var(--color-error); }
+  &.preparing-color { color: var(--color-warning); }
+  &.ready-color     { color: var(--color-success); }
+}
+
+.stat-lbl {
+  font-size: 0.6rem;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-hdr {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  font-size: 0.78rem;
+  font-family: var(--font-family);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--transition-fast);
+
+  &:hover { background: var(--color-border-strong); }
+
+  &.spinning lucide-icon { animation: spin 0.9s linear infinite; }
+}
+
+.btn-audio { gap: 8px; }
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+// ─── Kanban Board ───────────────────────────────────────────
+.kanban-board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  padding: 14px;
+  flex: 1;
+  overflow: hidden;
+
+  @media (max-width: 1100px) {
+    grid-template-columns: repeat(2, 1fr);
+    .col-ready { grid-column: 1 / -1; }
+  }
+
+  @media (max-width: 680px) {
+    grid-template-columns: 1fr;
+    overflow-y: auto;
+  }
+}
+
+.kanban-col {
+  background: var(--color-surface);
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+  transition: border-color var(--transition-normal);
+
+  &:hover { border-color: var(--color-border-strong); }
+}
+
+// ─── Column Headers ─────────────────────────────────────────
+.col-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 13px 18px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  flex-shrink: 0;
+}
+
+.col-pending   .col-header { background: var(--color-error); color: #fff; }
+.col-preparing .col-header { background: var(--color-warning); color: #fff; }
+.col-ready     .col-header { background: var(--color-success); color: #fff; }
+
+.col-count {
+  background: rgba(0, 0, 0, 0.15);
+  padding: 3px 11px;
+  border-radius: 20px;
+  font-size: 0.95rem;
+}
+
+// ─── Cards Container ────────────────────────────────────────
+.cards-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+
+  &::-webkit-scrollbar       { width: 5px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 3px; }
+}
+
+// ─── Empty State ────────────────────────────────────────────
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 30px 16px;
+  gap: 8px;
+  color: var(--color-text-secondary);
+  opacity: 0.7;
+
+  span { font-size: 2.6rem; }
+  p    { font-size: 0.85rem; text-align: center; margin: 0; }
+}
+
+// ─── Order Card ─────────────────────────────────────────────
+.order-card {
+  background: var(--color-surface);
+  border-radius: 12px;
+  border: 2px solid var(--color-border);
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-elevated);
+  }
+
+  // 10-15 min → borde naranja
+  &.priority-medium {
+    border-color: var(--color-warning);
+    background: var(--color-surface);
+    box-shadow: 0 0 0 1px var(--color-warning);
+  }
+
+  // > 15 min → borde rojo pulsante
+  &.priority-high {
+    border-color: var(--color-error);
+    background: var(--color-surface);
+    animation: pulseBorder 2s infinite;
+  }
+}
+
+@keyframes pulseBorder {
+  0%, 100% { border-color: var(--color-error); box-shadow: 0 0 0 2px var(--color-error); }
+  50%       { border-color: var(--color-error); box-shadow: 0 0 12px var(--color-error); }
+}
+
+// ─── Card Header ────────────────────────────────────────────
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.card-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.table-num {
+  font-size: 3rem;
+  font-weight: 900;
+  line-height: 1;
+  min-width: 44px;
+  color: var(--color-primary);
+
+  @media (max-width: 680px) { font-size: 2.2rem; }
+}
+
+.card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.order-num {
+  font-size: 1rem;
+  font-weight: 700;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.4px;
+  color: var(--color-text-primary);
+}
+
+.order-mesa {
+  font-size: 0.72rem;
+  color: var(--color-text-secondary);
+}
+
+.order-server {
+  font-size: 0.72rem;
+  color: var(--color-text-secondary);
+}
+
+// ─── Timer ──────────────────────────────────────────────────
+.card-timer {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.timer-val {
+  font-size: 2rem;
+  font-weight: 900;
+  font-family: 'Courier New', monospace;
+  line-height: 1;
+
+  &.t-normal   { color: var(--color-success); }
+  &.t-warning  { color: var(--color-warning); }
+  &.t-urgent   { color: var(--color-warning); }
+  &.t-critical { color: var(--color-error); animation: pulseText 1s infinite; }
+}
+
+.timer-lbl {
+  font-size: 0.58rem;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-top: 3px;
+}
+
+@keyframes pulseText {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
+}
+
+// ─── Card Body – Productos ───────────────────────────────────
+.card-body {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.product-item {
+  background: var(--color-bg-secondary);
+  border-radius: 8px;
+  padding: 11px 13px;
+  border-left: 4px solid var(--color-primary);
+}
+
+.product-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+
+.product-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.product-emoji { font-size: 1.35rem; flex-shrink: 0; }
+
+.product-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.product-qty {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  background: rgba(21, 101, 192, 0.12);
+  padding: 3px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+// ─── Modificaciones (exclusiones / notas) ───────────────────
+.mods {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mod {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  padding: 5px 10px;
+  border-radius: 5px;
+}
+
+.mod-remove {
+  background: var(--color-error-bg);
+  border-left: 3px solid var(--color-error);
+}
+
+.mod-note {
+  background: rgba(21, 101, 192, 0.1);
+  border-left: 3px solid var(--color-primary);
+}
+
+// ─── Nota de la orden ───────────────────────────────────────
+.card-nota {
+  margin: 0 14px 10px;
+  padding: 7px 11px;
+  background: rgba(21, 101, 192, 0.08);
+  border-left: 3px solid var(--color-primary);
+  border-radius: 5px;
+  font-size: 0.78rem;
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+
+// ─── Card Footer – Botones ───────────────────────────────────
+.card-footer {
+  display: flex;
+  gap: 8px;
+  padding: 10px 14px 14px;
+}
+
+.btn {
+  flex: 1;
+  padding: 13px 10px;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  font-family: var(--font-family);
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+
+  &:hover  { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15); }
+  &:active { transform: translateY(0); }
+}
+
+.btn-start     { background: var(--color-warning); color: #fff; }
+.btn-complete  { background: var(--color-success); color: #fff; }
+.btn-delivered { background: var(--color-primary); color: var(--color-on-primary); }
+
+.btn-undo {
+  background: var(--color-border-strong);
+  color: var(--color-text-primary);
+  flex: 0 0 50px;
+  padding: 13px 6px;
+  font-size: 1rem;
+}
+
+
+.cocina-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: var(--color-bg);
+}
+
+// ─── Header ────────────────────────────────────────────────
+.cocina-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md) var(--spacing-lg);
+  background: var(--color-surface);
+  border-bottom: 2px solid var(--color-primary);
+  flex-shrink: 0;
+}
+
+.cocina-title {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--color-primary);
+  letter-spacing: 0.05em;
+
+  lucide-icon { color: var(--color-primary); }
+}
+
+.cocina-stats {
+  flex: 1;
+}
+
+.stat-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+
+  &.empty {
+    background: var(--color-bg-secondary);
+    color: var(--color-text-secondary);
+  }
+}
+
+.btn-refresh {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: 7px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-family);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+
+  &:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+  }
+
+  &.spinning lucide-icon {
+    animation: spin 1s linear infinite;
+  }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+// ─── Estado vacío / cargando ────────────────────────────────
+.cocina-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  color: var(--color-text-secondary);
+  padding: var(--spacing-2xl);
+
+  .state-emoji { font-size: 3.5rem; }
+  .state-title { font-size: var(--font-size-lg); font-weight: 600; color: var(--color-text-primary); margin: 0; }
+  .state-sub   { font-size: var(--font-size-sm); margin: 0; text-align: center; }
+}
+
+.spinner { animation: spin 1.2s linear infinite; }
+
+// ─── Grid de órdenes ───────────────────────────────────────
+.ordenes-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--spacing-md);
+  padding: var(--spacing-lg);
+  overflow-y: auto;
+  align-content: start;
+
+  @media (min-width: 600px) {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  }
+}
+
+// ─── Tarjeta de orden ──────────────────────────────────────
+.orden-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+  transition: box-shadow var(--transition-fast);
+
+  &:hover { box-shadow: var(--shadow-elevated); }
+
+  &.urgente {
+    border-color: #ef4444;
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.15);
+  }
+}
+
+.orden-card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: 10px var(--spacing-md);
+  background: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.orden-numero {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  font-family: var(--font-family-mono, monospace);
+  color: var(--color-text-primary);
+  letter-spacing: 0.05em;
+}
+
+.orden-mesa {
+  flex: 1;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.orden-tiempo {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+
+  &.urgente-text { color: #ef4444; font-weight: 600; }
+}
+
+.orden-nota {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: 6px var(--spacing-md);
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  font-style: italic;
+  border-bottom: 1px solid var(--color-border);
+}
+
+// ─── Items dentro de la orden ──────────────────────────────
+.orden-items {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--color-border);
+}
+
+.item-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-surface);
+}
+
+.item-left {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  flex: 1;
+  min-width: 0;
+}
+
+.item-emoji { font-size: 1.3rem; flex-shrink: 0; line-height: 1.4; }
+
+.item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.item-nombre {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  line-height: 1.4;
+
+  strong { color: var(--color-primary); }
+}
+
+.item-excl {
+  font-size: var(--font-size-xs);
+  color: #ef4444;
+  line-height: 1.3;
+}
+
+.item-nota {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+
+// ─── Botón listo ───────────────────────────────────────────
+.btn-listo {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 12px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  font-family: var(--font-family);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
+
+  &:hover { opacity: 0.88; transform: scale(1.03); }
+  &:active { transform: scale(0.97); }
+}

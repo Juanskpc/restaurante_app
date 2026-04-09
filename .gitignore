@@ -1,0 +1,62 @@
+# Dependencias
+node_modules/
+
+# Build / Dist
+dist/
+tmp/
+out-tsc/
+.angular/
+
+# Caché
+.sass-cache/
+connect.lock
+libpeerconnections.log
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-workspace
+*.sublime-project
+
+# SO
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Variables de entorno / Seguridad
+.env
+.env.*
+!.env.example
+
+# Testing
+coverage/
+.nyc_output/
+
+# SSR
+.nitro/
+.output/
+
+# Misceláneos
+*.tgz
+*.zip
+*.tar.gz
+package-lock.json

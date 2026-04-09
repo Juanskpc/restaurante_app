@@ -1,0 +1,206 @@
+<!-- ================================================================
+     KDS — Kitchen Display System
+     ================================================================ -->
+<div class="kds-layout">
+
+  <!-- ═══════════════════ HEADER ═══════════════════ -->
+  <header class="kds-header">
+
+    <div class="kds-brand">
+      <span class="brand-icon">🍳</span>
+      <span class="brand-name">Zona de pedidos</span>
+    </div>
+
+    <div class="header-stats">
+      <div class="stat-item">
+        <span class="stat-num pending-color">{{ ordenesPendientes().length }}</span>
+        <span class="stat-lbl">Pendientes</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-num preparing-color">{{ ordenesPreparando().length }}</span>
+        <span class="stat-lbl">Preparando</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-num ready-color">{{ ordenesListas().length }}</span>
+        <span class="stat-lbl">Listos</span>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <button class="btn-hdr" (click)="loadOrdenes()" [class.spinning]="cargando()">
+        <lucide-icon name="rotate-cw" [size]="15" />
+        Actualizar
+      </button>
+      <button class="btn-hdr btn-audio" (click)="toggleAudio()">
+        {{ audioActivo() ? '🔔' : '🔕' }} {{ audioActivo() ? 'ON' : 'OFF' }}
+      </button>
+    </div>
+
+  </header>
+
+  <!-- ═══════════════════ KANBAN BOARD ═══════════════════ -->
+  <div class="kanban-board">
+
+    <!-- ──── PENDIENTE ──── -->
+    <div class="kanban-col col-pending">
+      <div class="col-header">
+        <span>🔴 Pendiente</span>
+        <span class="col-count">{{ ordenesPendientes().length }}</span>
+      </div>
+      <div class="cards-container">
+        @if (ordenesPendientes().length === 0) {
+          <div class="empty-state">
+            <span>✅</span>
+            <p>Sin pedidos pendientes</p>
+          </div>
+        }
+        @for (orden of ordenesPendientes(); track trackOrden($index, orden)) {
+          <ng-container [ngTemplateOutlet]="cardTpl"
+                        [ngTemplateOutletContext]="{orden}">
+          </ng-container>
+        }
+      </div>
+    </div>
+
+    <!-- ──── EN PREPARACIÓN ──── -->
+    <div class="kanban-col col-preparing">
+      <div class="col-header">
+        <span>🟠 En Preparación</span>
+        <span class="col-count">{{ ordenesPreparando().length }}</span>
+      </div>
+      <div class="cards-container">
+        @if (ordenesPreparando().length === 0) {
+          <div class="empty-state">
+            <span>👨‍🍳</span>
+            <p>Ninguno en preparación</p>
+          </div>
+        }
+        @for (orden of ordenesPreparando(); track trackOrden($index, orden)) {
+          <ng-container [ngTemplateOutlet]="cardTpl"
+                        [ngTemplateOutletContext]="{orden}">
+          </ng-container>
+        }
+      </div>
+    </div>
+
+    <!-- ──── LISTO ──── -->
+    <div class="kanban-col col-ready">
+      <div class="col-header">
+        <span>🟢 Listo</span>
+        <span class="col-count">{{ ordenesListas().length }}</span>
+      </div>
+      <div class="cards-container">
+        @if (ordenesListas().length === 0) {
+          <div class="empty-state">
+            <span>⏳</span>
+            <p>Ninguno listo aún</p>
+          </div>
+        }
+        @for (orden of ordenesListas(); track trackOrden($index, orden)) {
+          <ng-container [ngTemplateOutlet]="cardTpl"
+                        [ngTemplateOutletContext]="{orden}">
+          </ng-container>
+        }
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ================================================================
+     TEMPLATE REUTILIZABLE — Tarjeta de orden (sirve a las 3 columnas)
+     ================================================================ -->
+<ng-template #cardTpl let-orden="orden">
+  <div class="order-card"
+       [class.priority-medium]="getMinutos(orden.fecha_creacion) >= 10 && getMinutos(orden.fecha_creacion) < 15"
+       [class.priority-high]="getMinutos(orden.fecha_creacion) >= 15">
+
+    <!-- ── Cabecera de la tarjeta ── -->
+    <div class="card-header">
+      <div class="card-left">
+        <div class="table-num">{{ getNumeroMesa(orden) }}</div>
+        <div class="card-meta">
+          <div class="order-num">{{ orden.numero_orden }}</div>
+          <div class="order-mesa">{{ getNombreMesa(orden) }}</div>
+          <div class="order-server">👤 {{ getNombreMesero(orden) }}</div>
+        </div>
+      </div>
+      <div class="card-timer">
+        <div class="timer-val"
+             [class.t-normal]="timerClass(orden.fecha_creacion) === 'normal'"
+             [class.t-warning]="timerClass(orden.fecha_creacion) === 'warning'"
+             [class.t-urgent]="timerClass(orden.fecha_creacion) === 'urgent'"
+             [class.t-critical]="timerClass(orden.fecha_creacion) === 'critical'">
+          {{ tiempoLabel(orden.fecha_creacion) }}
+        </div>
+        <div class="timer-lbl">Esperando</div>
+      </div>
+    </div>
+
+    <!-- ── Productos ── -->
+    <div class="card-body">
+      @for (detalle of orden.detalles; track detalle.id_detalle) {
+        <div class="product-item">
+          <div class="product-header">
+            <div class="product-left">
+              <span class="product-emoji">{{ detalle.producto.icono }}</span>
+              <span class="product-name">{{ detalle.producto.nombre }}</span>
+            </div>
+            <span class="product-qty">×{{ detalle.cantidad }}</span>
+          </div>
+          @if (getExclusiones(detalle).length > 0) {
+            <div class="mods">
+              @for (excl of getExclusiones(detalle); track excl) {
+                <div class="mod mod-remove">
+                  <span>❌</span><span>Sin {{ excl }}</span>
+                </div>
+              }
+            </div>
+          }
+          @if (detalle.nota) {
+            <div class="mods">
+              <div class="mod mod-note">
+                <span>📝</span><span>{{ detalle.nota }}</span>
+              </div>
+            </div>
+          }
+        </div>
+      }
+    </div>
+
+    <!-- ── Nota de la orden ── -->
+    @if (orden.nota) {
+      <div class="card-nota">📋 {{ orden.nota }}</div>
+    }
+
+    <!-- ── Botones de acción (según estado) ── -->
+    <div class="card-footer">
+      @if (orden.estado_cocina === 'PENDIENTE') {
+        <button class="btn btn-start"
+                (click)="cambiarEstado(orden, 'EN_PREPARACION')">
+          Iniciar Preparación
+        </button>
+      }
+      @if (orden.estado_cocina === 'EN_PREPARACION') {
+        <button class="btn btn-undo"
+                title="Volver a Pendiente"
+                (click)="cambiarEstado(orden, 'PENDIENTE')">↩️</button>
+        <button class="btn btn-complete"
+                (click)="cambiarEstado(orden, 'LISTO')">
+          Marcar Listo ✓
+        </button>
+      }
+      @if (orden.estado_cocina === 'LISTO') {
+        <button class="btn btn-undo"
+                title="Volver a Preparación"
+                (click)="cambiarEstado(orden, 'EN_PREPARACION')">↩️</button>
+        <button class="btn btn-delivered"
+                (click)="cambiarEstado(orden, 'ENTREGADO')">
+          Entregado 🛎️
+        </button>
+      }
+    </div>
+
+  </div>
+</ng-template>
+

@@ -1,0 +1,316 @@
+<div class="users-page">
+  <header class="users-page__header">
+    <div>
+      <h1>Administracion de Usuarios</h1>
+      <p>Gestiona usuarios, roles y permisos por modulo para cada perfil del sistema.</p>
+    </div>
+  </header>
+
+  @if (errorMessage(); as error) {
+    <div class="users-page__error" role="alert">{{ error }}</div>
+  }
+
+  <nav class="tabs" aria-label="Navegacion de administracion de usuarios">
+    <button
+      type="button"
+      class="tabs__btn"
+      [class.tabs__btn--active]="activeTab() === 'usuarios'"
+      (click)="changeTab('usuarios')"
+    >
+      Usuarios
+    </button>
+    <button
+      type="button"
+      class="tabs__btn"
+      [class.tabs__btn--active]="activeTab() === 'roles'"
+      (click)="changeTab('roles')"
+    >
+      Roles y Permisos
+    </button>
+  </nav>
+
+  @if (activeTab() === 'usuarios') {
+    <section class="panel">
+      <div class="filters">
+        <label class="field">
+          <span>Buscar</span>
+          <input type="text" placeholder="Nombre, correo o identificacion" (input)="onSearch($any($event.target).value)">
+        </label>
+
+        <label class="field">
+          <span>Rol</span>
+          <select (change)="onRoleFilter($any($event.target).value)">
+            <option value="">Todos</option>
+            @for (rol of roles(); track rol.id_rol) {
+              <option [value]="rol.id_rol">{{ rol.descripcion }}</option>
+            }
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Estado</span>
+          <select (change)="onEstadoFilter($any($event.target).value)">
+            <option value="ALL">Todos</option>
+            <option value="A">Activos</option>
+            <option value="I">Inactivos</option>
+          </select>
+        </label>
+
+        <div class="filters__action">
+          <button type="button" class="btn btn--primary" (click)="openCreateModal()">+ Crear usuario</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Correo</th>
+              <th>Identificacion</th>
+              <th>Rol</th>
+              <th>Estado</th>
+              <th>Creacion</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            @if (loading()) {
+              <tr>
+                <td colspan="7" class="empty">Cargando usuarios...</td>
+              </tr>
+            } @else if (usuariosFiltrados().length === 0) {
+              <tr>
+                <td colspan="7" class="empty">No se encontraron usuarios con los filtros aplicados.</td>
+              </tr>
+            } @else {
+              @for (usuario of usuariosFiltrados(); track usuario.id_usuario) {
+                <tr>
+                  <td>
+                    <div class="name-cell">
+                      <strong>{{ usuario.nombre_completo }}</strong>
+                      @if (usuario.es_admin_principal) {
+                        <span class="badge badge--warning">Principal</span>
+                      }
+                    </div>
+                  </td>
+                  <td>{{ usuario.email }}</td>
+                  <td>{{ usuario.num_identificacion }}</td>
+                  <td>{{ rolDescripcion(usuario) }}</td>
+                  <td>
+                    <span class="badge" [ngClass]="usuario.estado === 'A' ? 'badge--success' : 'badge--muted'">
+                      {{ estadoLabel(usuario.estado) }}
+                    </span>
+                  </td>
+                  <td>{{ usuario.fecha_creacion | date: 'yyyy-MM-dd' }}</td>
+                  <td>
+                    <div class="actions">
+                      <button type="button" class="btn btn--outline" (click)="openEditModal(usuario)">Editar</button>
+                      <button type="button" class="btn btn--outline" (click)="toggleEstado(usuario)">
+                        {{ usuario.estado === 'A' ? 'Desactivar' : 'Activar' }}
+                      </button>
+                      <button type="button" class="btn btn--outline" (click)="verPermisosUsuario(usuario)">Permisos</button>
+                      <button type="button" class="btn btn--danger" (click)="deleteUsuario(usuario)">Eliminar</button>
+                    </div>
+                  </td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  }
+
+  @if (activeTab() === 'roles') {
+    <section class="panel">
+      <div class="roles-toolbar">
+        <label class="field">
+          <span>Seleccionar rol</span>
+          <select [value]="selectedRoleId() ?? ''" (change)="onRoleSelected($any($event.target).value)">
+            @for (rol of roles(); track rol.id_rol) {
+              <option [value]="rol.id_rol">{{ rol.descripcion }}</option>
+            }
+          </select>
+        </label>
+
+        <button type="button" class="btn btn--primary" [disabled]="saving() || !selectedRoleId()" (click)="savePermisosRol()">
+          {{ saving() ? 'Guardando...' : 'Guardar permisos' }}
+        </button>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Modulo</th>
+              <th>Ver</th>
+              <th>Crear</th>
+              <th>Editar</th>
+              <th>Eliminar</th>
+            </tr>
+          </thead>
+          <tbody>
+            @if (loadingPermisos()) {
+              <tr>
+                <td colspan="5" class="empty">Cargando matriz de permisos...</td>
+              </tr>
+            } @else if (permisosRol().length === 0) {
+              <tr>
+                <td colspan="5" class="empty">No hay modulos configurados para este rol.</td>
+              </tr>
+            } @else {
+              @for (permiso of permisosRol(); track permiso.id_nivel; let idx = $index) {
+                <tr>
+                  <td>{{ permiso.modulo | titlecase }}</td>
+                  <td><input type="checkbox" [checked]="permiso.puede_ver" (change)="updatePermiso(idx, 'puede_ver', $any($event.target).checked)"></td>
+                  <td><input type="checkbox" [checked]="permiso.puede_crear" (change)="updatePermiso(idx, 'puede_crear', $any($event.target).checked)"></td>
+                  <td><input type="checkbox" [checked]="permiso.puede_editar" (change)="updatePermiso(idx, 'puede_editar', $any($event.target).checked)"></td>
+                  <td><input type="checkbox" [checked]="permiso.puede_eliminar" (change)="updatePermiso(idx, 'puede_eliminar', $any($event.target).checked)"></td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  }
+
+  @if (showFormModal()) {
+    <div class="modal-backdrop" (click)="closeFormModal()"></div>
+    <section class="modal" role="dialog" aria-modal="true" aria-label="Formulario de usuario">
+      <header class="modal__header">
+        <h2>{{ isEditing() ? 'Editar usuario' : 'Crear usuario' }}</h2>
+        <button type="button" class="modal__close" (click)="closeFormModal()" aria-label="Cerrar">x</button>
+      </header>
+
+      <form class="modal__body" [formGroup]="userForm" (ngSubmit)="submitUserForm()">
+        <div class="grid-2">
+          <label class="field">
+            <span>Primer nombre *</span>
+            <input type="text" formControlName="primer_nombre">
+          </label>
+
+          <label class="field">
+            <span>Segundo nombre</span>
+            <input type="text" formControlName="segundo_nombre">
+          </label>
+
+          <label class="field">
+            <span>Primer apellido *</span>
+            <input type="text" formControlName="primer_apellido">
+          </label>
+
+          <label class="field">
+            <span>Segundo apellido</span>
+            <input type="text" formControlName="segundo_apellido">
+          </label>
+
+          <label class="field">
+            <span>Identificacion *</span>
+            <input type="text" formControlName="num_identificacion">
+          </label>
+
+          <label class="field">
+            <span>Correo *</span>
+            <input type="email" formControlName="email">
+          </label>
+
+          <label class="field">
+            <span>{{ isEditing() ? 'Nueva contrasena' : 'Contrasena *' }}</span>
+            <input type="password" formControlName="password" placeholder="Minimo 8 caracteres">
+          </label>
+
+          <label class="field">
+            <span>Confirmar contrasena</span>
+            <input type="password" formControlName="confirmPassword">
+          </label>
+
+          <label class="field">
+            <span>Rol *</span>
+            <select formControlName="id_rol">
+              @for (rol of roles(); track rol.id_rol) {
+                <option [value]="rol.id_rol">{{ rol.descripcion }}</option>
+              }
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Estado *</span>
+            <select formControlName="estado">
+              <option value="A">Activo</option>
+              <option value="I">Inactivo</option>
+            </select>
+          </label>
+        </div>
+
+        <label class="checkbox-row">
+          <input type="checkbox" formControlName="es_admin_principal">
+          <span>Marcar como administrador principal</span>
+        </label>
+
+        <p class="hint">Seguridad: no se puede eliminar o desactivar el administrador principal ni dejar el sistema sin administradores activos.</p>
+
+        <footer class="modal__footer">
+          <button type="button" class="btn btn--outline" (click)="closeFormModal()">Cancelar</button>
+          <button type="submit" class="btn btn--primary" [disabled]="saving()">
+            {{ saving() ? 'Guardando...' : 'Guardar' }}
+          </button>
+        </footer>
+      </form>
+    </section>
+  }
+
+  @if (showPermisosUsuarioModal()) {
+    <div class="modal-backdrop" (click)="closePermisosUsuarioModal()"></div>
+    <section class="modal modal--wide" role="dialog" aria-modal="true" aria-label="Permisos por usuario">
+      <header class="modal__header">
+        <h2>Permisos por Usuario</h2>
+        <button type="button" class="modal__close" (click)="closePermisosUsuarioModal()" aria-label="Cerrar">x</button>
+      </header>
+
+      <div class="modal__body">
+        @if (loadingDetalleUsuario()) {
+          <p class="empty">Cargando permisos del usuario...</p>
+        } @else if (selectedUsuarioPermisos(); as detalle) {
+          <p class="hint"><strong>{{ detalle.usuario.nombre_completo }}</strong> puede acceder a las siguientes vistas y acciones segun sus roles activos.</p>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Vista</th>
+                  <th>URL</th>
+                  <th>Roles</th>
+                  <th>Ver</th>
+                  <th>Crear</th>
+                  <th>Editar</th>
+                  <th>Eliminar</th>
+                </tr>
+              </thead>
+              <tbody>
+                @if (detalle.permisos_vista.length === 0) {
+                  <tr>
+                    <td colspan="7" class="empty">El usuario no tiene vistas asignadas por sus roles actuales.</td>
+                  </tr>
+                } @else {
+                  @for (item of detalle.permisos_vista; track item.id_nivel) {
+                    <tr>
+                      <td>{{ item.vista }}</td>
+                      <td>{{ item.url }}</td>
+                      <td>{{ item.roles.join(', ') }}</td>
+                      <td>{{ item.puede_ver ? 'Si' : 'No' }}</td>
+                      <td>{{ item.puede_crear ? 'Si' : 'No' }}</td>
+                      <td>{{ item.puede_editar ? 'Si' : 'No' }}</td>
+                      <td>{{ item.puede_eliminar ? 'Si' : 'No' }}</td>
+                    </tr>
+                  }
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+    </section>
+  }
+</div>

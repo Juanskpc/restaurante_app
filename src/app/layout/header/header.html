@@ -1,0 +1,54 @@
+<header class="app-header">
+  <div class="header-left">
+    <h1 class="header-title">{{ pageTitle() }}</h1>
+    <span class="header-date">
+      <lucide-icon name="calendar" [size]="14" />
+      {{ formattedDate }}
+    </span>
+  </div>
+
+  <div class="header-right">
+    <!-- Selector de negocio (sede) -->
+    @if (negocios().length > 1) {
+      <div class="negocio-selector" (click)="toggleSelector()">
+        <span class="negocio-nombre">{{ auth.negocio()?.nombre ?? 'Seleccionar' }}</span>
+        <lucide-icon name="chevron-down" [size]="16" />
+      </div>
+      @if (selectorOpen()) {
+        <div class="selector-overlay" (click)="toggleSelector()"></div>
+        <div class="selector-dropdown">
+          @for (neg of negocios(); track neg.id_negocio) {
+            <button class="selector-option"
+                    [class.active]="neg.id_negocio === auth.negocio()?.id_negocio"
+                    (click)="selectNegocio(neg.id_negocio)">
+              <span class="opt-name">{{ neg.nombre }}</span>
+              <span class="opt-tipo">{{ neg.tipo_negocio }}</span>
+            </button>
+          }
+        </div>
+      }
+    }
+
+    <!-- Separador -->
+    @if (negocios().length > 1) {
+      <span class="header-divider"></span>
+    }
+
+    <!-- Toggle de tema (temporalmente oculto) -->
+    <!--
+    <button class="header-btn" (click)="toggleTheme()" title="Cambiar tema">
+      @if (theme.theme() === 'dark') {
+        <lucide-icon name="sun" [size]="20" />
+      } @else {
+        <lucide-icon name="moon" [size]="20" />
+      }
+    </button>
+    -->
+
+    <!-- Notificaciones -->
+    <button class="header-btn notification-btn" title="Notificaciones">
+      <lucide-icon name="bell" [size]="20" />
+      <span class="notification-dot"></span>
+    </button>
+  </div>
+</header>

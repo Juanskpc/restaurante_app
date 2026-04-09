@@ -1,0 +1,262 @@
+<section class="inventory-layout">
+  <header class="inventory-header">
+    <div class="header-brand">
+      <lucide-icon name="package" [size]="20" />
+      <div>
+        <h1>Inventario</h1>
+        <p>Control de insumos y recetas del menu</p>
+      </div>
+    </div>
+
+    <div class="header-search">
+      <lucide-icon name="search" [size]="16" class="search-icon" />
+      <input
+        class="search-input"
+        type="text"
+        placeholder="Buscar insumo o categoria..."
+        [value]="searchTerm()"
+        (input)="searchTerm.set($any($event.target).value)"
+      />
+    </div>
+  </header>
+
+  @if (error()) {
+    <div class="state-card error">{{ error() }}</div>
+  }
+
+  <div class="inventory-main">
+    <div class="left-col">
+      <div class="kpi-grid">
+        <article class="kpi-card">
+          <div>
+            <span>Total Insumos</span>
+            <strong>{{ kpis().total_insumos }}</strong>
+          </div>
+          <lucide-icon name="package" [size]="22" />
+        </article>
+
+        <article class="kpi-card warn">
+          <div>
+            <span>Stock Bajo</span>
+            <strong>{{ kpis().stock_bajo }}</strong>
+          </div>
+          <lucide-icon name="receipt" [size]="22" />
+        </article>
+
+        <article class="kpi-card crit">
+          <div>
+            <span>Agotados</span>
+            <strong>{{ kpis().agotados }}</strong>
+          </div>
+          <lucide-icon name="x-circle" [size]="22" />
+        </article>
+      </div>
+
+      <div class="create-insumo-card">
+        <div class="create-insumo-head">
+          <h3>Agregar nuevo insumo</h3>
+          <p>Crea un insumo y define su unidad de medida base.</p>
+        </div>
+        <div class="create-insumo-form">
+          <input
+            class="create-insumo-input"
+            type="text"
+            placeholder="Ej: Queso mozzarella"
+            [value]="nuevoInsumoNombre()"
+            (input)="nuevoInsumoNombre.set($any($event.target).value)"
+            (keyup.enter)="crearInsumo()"
+          />
+
+          <select
+            class="create-insumo-select"
+            [value]="nuevaUnidadInsumo()"
+            (change)="nuevaUnidadInsumo.set($any($event.target).value)"
+          >
+            @for (u of unidades; track u) {
+              <option [value]="u">{{ u }}</option>
+            }
+          </select>
+
+          <button
+            class="create-insumo-btn"
+            [disabled]="creandoInsumo() || !nuevoInsumoNombre().trim()"
+            (click)="crearInsumo()"
+          >
+            @if (creandoInsumo()) {
+              <lucide-icon name="loader" [size]="14" class="spin" />
+            } @else {
+              <lucide-icon name="plus" [size]="14" />
+            }
+            Crear insumo
+          </button>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <div class="table-header">
+          <h3>Inventario en tiempo real</h3>
+          @if (cargando()) {
+            <span class="loading-inline">
+              <lucide-icon name="loader" [size]="14" class="spin" />
+              Cargando...
+            </span>
+          }
+        </div>
+
+        <div class="table-wrap">
+          <table class="inventory-table">
+            <thead>
+              <tr>
+                <th>Insumo</th>
+                <th>Categoria</th>
+                <th>Stock</th>
+                <th>Minimo</th>
+                <th>Estado</th>
+                <th class="col-actions">Ajuste rapido</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (insumo of insumosPaginados(); track trackInsumo($index, insumo)) {
+                <tr [class]="statusClass(insumo.status)">
+                  <td class="name-col">{{ insumo.nombre }}</td>
+                  <td>{{ insumo.categoria }}</td>
+                  <td>
+                    <div class="stock-cell">
+                      <div class="stock-top">
+                        <strong>{{ insumo.stock_actual }}</strong>
+                        <small>{{ insumo.unidad_medida }}</small>
+                        <span>{{ insumo.porcentaje_stock }}%</span>
+                      </div>
+                      <div class="stock-bar-bg">
+                        <div class="stock-bar-fill" [style.width.%]="insumo.porcentaje_stock"></div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>{{ insumo.stock_minimo }} {{ insumo.unidad_medida }}</td>
+                  <td>
+                    <span class="state-badge" [class]="statusClass(insumo.status)">
+                      {{ statusLabel(insumo.status) }}
+                    </span>
+                  </td>
+                  <td class="col-actions">
+                    <div class="stock-adjuster">
+                      <input
+                        class="adjust-qty-input"
+                        type="number"
+                        min="1"
+                        step="1"
+                        [value]="getCantidadAjuste(insumo.id_ingrediente)"
+                        [disabled]="guardando() === insumo.id_ingrediente"
+                        (input)="setCantidadAjuste(insumo.id_ingrediente, +$any($event.target).value || null)"
+                      />
+                      <button
+                        class="icon-btn"
+                        title="Restar"
+                        [disabled]="guardando() === insumo.id_ingrediente"
+                        (click)="ajustarStock(insumo, -1)"
+                      >
+                        <lucide-icon name="minus" [size]="14" />
+                      </button>
+                      <button
+                        class="icon-btn"
+                        title="Sumar"
+                        [disabled]="guardando() === insumo.id_ingrediente"
+                        (click)="ajustarStock(insumo, 1)"
+                      >
+                        <lucide-icon name="plus" [size]="14" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              }
+
+              @if (insumosFiltrados().length === 0) {
+                <tr>
+                  <td colspan="6" class="empty-row">No hay insumos para mostrar.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        @if (insumosFiltrados().length > 0) {
+          <div class="table-pagination">
+            <p class="page-info">
+              Mostrando {{ inicioPagina() }} - {{ finPagina() }} de {{ insumosFiltrados().length }}
+            </p>
+
+            <div class="page-controls">
+              <label class="page-size">
+                <span>Filas</span>
+                <select
+                  [value]="pageSize()"
+                  (change)="setPageSize(+$any($event.target).value)"
+                >
+                  <option [value]="10">10</option>
+                  <option [value]="15">15</option>
+                  <option [value]="25">25</option>
+                  <option [value]="50">50</option>
+                </select>
+              </label>
+
+              <button class="pager-btn" [disabled]="currentPage() <= 1" (click)="prevPage()">
+                Anterior
+              </button>
+              <span class="page-counter">{{ currentPage() }} / {{ totalPaginas() }}</span>
+              <button class="pager-btn" [disabled]="currentPage() >= totalPaginas()" (click)="nextPage()">
+                Siguiente
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+
+    <aside class="right-col">
+      <div class="panel-card">
+        <h3>Recetas de productos</h3>
+        <p>Selecciona un producto para ver su consumo de insumos por unidad vendida.</p>
+
+        <div class="product-list">
+          @for (p of productos(); track trackProducto($index, p)) {
+            <button class="product-item" [class.active]="productoActivo().id_producto === p.id_producto" (click)="selectProducto(p.id_producto)">
+              <span class="emoji">{{ p.icono }}</span>
+              <span class="name">{{ p.nombre }}</span>
+              <span class="price">{{ p.precio | currency:'COP':'symbol':'1.0-0' }}</span>
+            </button>
+          }
+        </div>
+
+        @if (productoActivo(); as producto) {
+          <div class="recipe-box">
+            <div class="recipe-head">
+              <h4>{{ producto.icono }} {{ producto.nombre }}</h4>
+              <span class="pill" [class.off]="!producto.disponible">{{ producto.disponible ? 'Disponible' : 'No disponible' }}</span>
+            </div>
+
+            @if (producto.receta.length === 0) {
+              <div class="recipe-empty">Este producto no tiene receta configurada.</div>
+            } @else {
+              @for (r of producto.receta; track r.id_ingrediente) {
+                <div class="recipe-row">
+                  <div>
+                    <strong>{{ r.nombre }}</strong>
+                    <small>{{ r.stock_actual }} {{ r.unidad_medida }} en stock</small>
+                  </div>
+                  <div class="recipe-right">
+                    <span>{{ r.porcion }} {{ r.unidad_medida }}</span>
+                    @if (r.alcanza_para !== null) {
+                      <small>alcanza para {{ r.alcanza_para }}</small>
+                    }
+                  </div>
+                </div>
+              }
+            }
+          </div>
+        } @else {
+          <div class="recipe-empty">No hay productos configurados.</div>
+        }
+      </div>
+    </aside>
+  </div>
+</section>

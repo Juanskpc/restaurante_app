@@ -1,0 +1,104 @@
+<!-- ============================================================
+     SIDEBAR DESKTOP / TABLET
+     ============================================================ -->
+<aside class="sidebar-desktop">
+  <!-- Logo -->
+  <div class="sidebar-logo">
+    <div class="logo-icon">
+      <lucide-icon name="chef-hat" [size]="24" />
+    </div>
+    <span class="logo-text">{{ auth.negocio()?.nombre ?? 'Restaurante' }}</span>
+  </div>
+
+  <!-- Navegación principal -->
+  <nav class="sidebar-nav">
+    <span class="nav-section-label">Principal</span>
+    @for (item of mainItems; track item.route) {
+      <a class="nav-item"
+         [routerLink]="item.route"
+         routerLinkActive="active"
+         [routerLinkActiveOptions]="item.route === '/dashboard' ? exactMatchOptions : prefixMatchOptions">
+        <lucide-icon [name]="item.icon" [size]="20" />
+        <span class="nav-label">{{ item.label }}</span>
+        @if (item.badge) {
+          <span class="nav-badge">{{ item.badge }}</span>
+        }
+      </a>
+    }
+
+    <span class="nav-section-label">Gestión</span>
+    @for (item of secondaryItems; track item.route) {
+      <a class="nav-item"
+         [routerLink]="item.route"
+         routerLinkActive="active"
+         [routerLinkActiveOptions]="prefixMatchOptions">
+        <lucide-icon [name]="item.icon" [size]="20" />
+        <span class="nav-label">{{ item.label }}</span>
+      </a>
+    }
+  </nav>
+
+  <!-- Usuario (pie del sidebar) -->
+  <div class="sidebar-user">
+    <div class="user-avatar">
+      {{ auth.usuario()?.primer_nombre?.charAt(0) ?? 'U' }}{{ auth.usuario()?.primer_apellido?.charAt(0) ?? '' }}
+    </div>
+    <div class="user-info">
+      <span class="user-name">{{ auth.usuario()?.primer_nombre ?? 'Usuario' }}</span>
+      <span class="user-role">{{ auth.rolPrincipal() }}</span>
+    </div>
+    <button class="btn-logout" (click)="onLogout()" title="Cerrar sesión">
+      <lucide-icon name="log-out" [size]="18" />
+    </button>
+  </div>
+</aside>
+
+<!-- ============================================================
+     BOTTOM NAV MÓVIL
+     ============================================================ -->
+<nav class="bottom-nav">
+  @for (item of mainItems; track item.route) {
+    <a class="bottom-nav-item"
+       [routerLink]="item.route"
+       routerLinkActive="active"
+       [routerLinkActiveOptions]="item.route === '/dashboard' ? exactMatchOptions : prefixMatchOptions">
+      <lucide-icon [name]="item.icon" [size]="22" />
+      <span>{{ item.label }}</span>
+      @if (item.badge) {
+        <span class="bottom-badge">{{ item.badge }}</span>
+      }
+    </a>
+  }
+
+  <!-- Botón "Más" -->
+  <button class="bottom-nav-item" [class.active]="moreMenuOpen()" (click)="toggleMoreMenu()">
+    <lucide-icon name="menu" [size]="22" />
+    <span>Más</span>
+  </button>
+</nav>
+
+<!-- Panel expandible "Más" (móvil) -->
+@if (moreMenuOpen()) {
+  <div class="more-overlay" (click)="closeMoreMenu()"></div>
+  <div class="more-panel">
+    <div class="more-header">
+      <span>Más opciones</span>
+      <button class="more-close" (click)="closeMoreMenu()">
+        <lucide-icon name="x" [size]="20" />
+      </button>
+    </div>
+    @for (item of secondaryItems; track item.route) {
+      <a class="more-item"
+         [routerLink]="item.route"
+         routerLinkActive="active"
+         (click)="closeMoreMenu()">
+        <lucide-icon [name]="item.icon" [size]="20" />
+        <span>{{ item.label }}</span>
+      </a>
+    }
+    <button class="more-item more-logout" (click)="onLogout()">
+      <lucide-icon name="log-out" [size]="20" />
+      <span>Cerrar sesión</span>
+    </button>
+  </div>
+}

@@ -1,0 +1,44 @@
+import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
+import { provideRouter } from '@angular/router';
+import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
+
+import { routes } from './app.routes';
+import { provideClientHydration, withEventReplay } from '@angular/platform-browser';
+import { authInterceptor } from './core/interceptors/auth.interceptor';
+
+// Lucide icons — registro global para standalone components
+import { LUCIDE_ICONS, LucideIconProvider } from 'lucide-angular';
+import {
+  ChefHat, LayoutDashboard, ClipboardList, UtensilsCrossed, Armchair,
+  Package, Users, ChartBar, Settings, LogOut, Menu, X,
+  Calendar, Sun, Moon, Bell, ChevronDown, ChevronRight,
+  DollarSign, Receipt, Star, TrendingUp, TrendingDown, ChartPie, Eye,
+  Search, Plus, Minus, Trash2, Printer, CreditCard, Flame, NotebookPen, Send,
+  CirclePlus, Pencil, Loader, Leaf, Folder, ToggleRight, ToggleLeft,
+  DoorOpen,
+  CheckCircle, XCircle, RotateCw, FolderPlus,
+} from 'lucide-angular';
+
+const icons = {
+  ChefHat, LayoutDashboard, ClipboardList, UtensilsCrossed, Armchair,
+  Package, Users, ChartBar, Settings, LogOut, Menu, X,
+  Calendar, Sun, Moon, Bell, ChevronDown, ChevronRight,
+  DollarSign, Receipt, Star, TrendingUp, TrendingDown, ChartPie, Eye,
+  Search, Plus, Minus, Trash2, Printer, CreditCard, Flame, NotebookPen, Send,
+  CirclePlus, Pencil, Loader, Leaf, Folder, ToggleRight, ToggleLeft,
+  DoorOpen,
+  CheckCircle, XCircle, RotateCw, FolderPlus,
+};
+
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideBrowserGlobalErrorListeners(),
+    provideRouter(routes),
+    provideHttpClient(
+      withFetch(),
+      withInterceptors([authInterceptor]),
+    ),
+    provideClientHydration(withEventReplay()),
+    { provide: LUCIDE_ICONS, multi: true, useValue: new LucideIconProvider(icons) },
+  ],
+};

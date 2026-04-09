@@ -1,0 +1,530 @@
+<!-- ================================================================
+     Menú — Gestión de categorías y productos del restaurante
+     ================================================================ -->
+<div class="menu-layout">
+
+  <!-- ═══════════════════ HEADER ═══════════════════ -->
+  <header class="menu-header">
+    <div class="header-brand">
+      <lucide-icon name="utensils-crossed" [size]="20" />
+      <span>Menú</span>
+    </div>
+
+    <div class="header-search">
+      <lucide-icon name="search" [size]="16" class="search-icon" />
+      <input
+        class="search-input"
+        type="text"
+        placeholder="Buscar productos..."
+        [value]="searchTerm()"
+        (input)="searchTerm.set($any($event.target).value)"
+      />
+    </div>
+
+    <div class="header-actions">
+      <button class="btn btn-secondary" (click)="abrirModalCat()">
+        <lucide-icon name="circle-plus" [size]="16" />
+        Nueva Categoría
+      </button>
+      <button class="btn btn-primary" (click)="abrirModalProd()">
+        <lucide-icon name="plus" [size]="16" />
+        Nuevo Producto
+      </button>
+    </div>
+  </header>
+
+  <!-- ═══════════════════ CUERPO ═══════════════════ -->
+  <div class="menu-body">
+
+    <!-- ──── SIDEBAR: Categorías ──── -->
+    <aside class="menu-sidebar">
+      <div class="sidebar-heading">Categorías</div>
+
+      <ul class="cat-list">
+        <!-- Opción "Todos" -->
+        <li
+          class="cat-item"
+          [class.active]="categoriaActiva() === null"
+          (click)="showTodos()"
+        >
+          <div class="cat-info">
+            <span class="cat-icon">🍽️</span>
+            <div class="cat-details">
+              <span class="cat-nombre">Todos los productos</span>
+            </div>
+          </div>
+        </li>
+
+        @for (cat of categorias(); track trackByCat($index, cat)) {
+          <li
+            class="cat-item"
+            [class.active]="categoriaActiva() === cat.id_categoria"
+            (click)="selectCategoria(cat.id_categoria)"
+          >
+            <div class="cat-info">
+              <span class="cat-icon">{{ cat.icono }}</span>
+              <div class="cat-details">
+                <span class="cat-nombre">{{ cat.nombre }}</span>
+                <span class="cat-count">{{ cat.total_productos }} productos</span>
+              </div>
+            </div>
+            <div class="cat-actions" (click)="$event.stopPropagation()">
+              <button class="icon-btn" (click)="abrirModalCat(cat)" title="Editar categoría">
+                <lucide-icon name="pencil" [size]="14" />
+              </button>
+              <button class="icon-btn icon-btn-danger" (click)="eliminarCategoria(cat, $event)" title="Eliminar categoría">
+                <lucide-icon name="trash-2" [size]="14" />
+              </button>
+            </div>
+          </li>
+        }
+      </ul>
+
+      <button class="add-cat-btn" (click)="abrirModalCat()">
+        <lucide-icon name="plus" [size]="16" />
+        Nueva Categoría
+      </button>
+    </aside>
+
+    <!-- ──── ÁREA PRINCIPAL: Productos ──── -->
+    <main class="menu-content">
+
+      <!-- Barra de filtros -->
+      <div class="content-bar">
+        <div class="content-title">
+          <span>{{ categoriaNombreActivo() }}</span>
+          <span class="count-badge">{{ productosFiltrados().length }}</span>
+        </div>
+        <div class="filter-bar">
+          <button class="filter-btn" [class.active]="filtro() === 'todos'"         (click)="setFiltro('todos')">Todos</button>
+          <button class="filter-btn" [class.active]="filtro() === 'disponibles'"   (click)="setFiltro('disponibles')">Disponibles</button>
+          <button class="filter-btn" [class.active]="filtro() === 'no_disponibles'"(click)="setFiltro('no_disponibles')">No Disponibles</button>
+        </div>
+      </div>
+
+      <!-- Estado de carga -->
+      @if (cargando()) {
+        <div class="state-container">
+          <lucide-icon name="loader" [size]="40" class="spinner" />
+          <p>Cargando productos...</p>
+        </div>
+      }
+
+      <!-- Productos grid -->
+      @if (!cargando()) {
+        @if (productosFiltrados().length === 0) {
+          <div class="state-container">
+            <span class="state-emoji">🍽️</span>
+            <h3 class="state-title">Sin productos</h3>
+            <p class="state-sub">Agrega el primer producto para esta categoría</p>
+            <button class="btn btn-primary" style="margin-top: 1rem" (click)="abrirModalProd()">
+              <lucide-icon name="plus" [size]="16" />
+              Agregar Producto
+            </button>
+          </div>
+        } @else {
+          <div class="products-grid">
+            @for (prod of productosFiltrados(); track trackByProd($index, prod)) {
+              <div class="product-card" [class.unavailable]="!prod.disponible">
+
+                <!-- Imagen / ícono del producto -->
+                <div class="product-img">
+                  @if (prod.imagen_url) {
+                    <img [src]="prod.imagen_url" [alt]="prod.nombre" />
+                  } @else {
+                    <span class="product-emoji">{{ prod.icono }}</span>
+                  }
+                  <!-- Badges -->
+                  <div class="badges">
+                    @if (prod.es_popular) {
+                      <span class="badge badge-popular">
+                        <lucide-icon name="star" [size]="10" /> Popular
+                      </span>
+                    }
+                    <span class="badge" [class.badge-available]="prod.disponible" [class.badge-unavailable]="!prod.disponible">
+                      {{ prod.disponible ? 'Disponible' : 'No Disponible' }}
+                    </span>
+                  </div>
+                </div>
+
+                <!-- Info del producto -->
+                <div class="product-info">
+                  <div class="product-top">
+                    <h3 class="product-name">{{ prod.nombre }}</h3>
+                    <div class="product-price">{{ prod.precio | currency:'COP':'symbol':'1.0-0' }}</div>
+                  </div>
+
+                  @if (prod.descripcion) {
+                    <p class="product-desc">{{ prod.descripcion }}</p>
+                  }
+
+                  <!-- Categoría -->
+                  <div class="product-meta">
+                    <span class="meta-chip">
+                      <span>{{ getCatIcono(prod.id_categoria) }}</span>
+                      {{ getCatNombre(prod.id_categoria) }}
+                    </span>
+                    @if (prod.ingredientes.length > 0) {
+                      <span class="meta-chip">
+                        <lucide-icon name="leaf" [size]="12" />
+                        {{ prod.ingredientes.length }} ingredientes
+                      </span>
+                    }
+                  </div>
+
+                  <!-- Acciones -->
+                  <div class="product-actions">
+                    <button
+                      class="action-toggle"
+                      [class.action-toggle-on]="prod.disponible"
+                      [class.action-toggle-off]="!prod.disponible"
+                      (click)="toggleDisponible(prod)"
+                      [title]="prod.disponible ? 'Marcar como no disponible' : 'Marcar como disponible'"
+                    >
+                      <lucide-icon [name]="prod.disponible ? 'toggle-right' : 'toggle-left'" [size]="16" />
+                      {{ prod.disponible ? 'Disponible' : 'No disponible' }}
+                    </button>
+                    <div class="action-btns">
+                      <button class="icon-btn" (click)="abrirModalProd(prod)" title="Editar producto">
+                        <lucide-icon name="pencil" [size]="15" />
+                      </button>
+                      <button class="icon-btn icon-btn-danger" (click)="eliminarProducto(prod)" title="Eliminar producto">
+                        <lucide-icon name="trash-2" [size]="15" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            }
+          </div>
+        }
+      }
+
+    </main>
+  </div>
+</div>
+
+<!-- ================================================================
+     MODAL — Categoría (crear / editar)
+     ================================================================ -->
+@if (modalCatOpen()) {
+  <div class="modal-overlay" (click)="cerrarModalCat()">
+    <div class="modal" (click)="$event.stopPropagation()">
+
+      <div class="modal-header">
+        <h2 class="modal-title">
+          <lucide-icon name="folder" [size]="20" />
+          {{ editandoCatId() ? 'Editar Categoría' : 'Nueva Categoría' }}
+        </h2>
+        <button class="close-btn" (click)="cerrarModalCat()">
+          <lucide-icon name="x" [size]="20" />
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Ícono + Nombre en fila -->
+        <div class="form-row">
+          <div class="form-group form-group-icon">
+            <label class="form-label">Ícono</label>
+            <input
+              class="form-input input-icon"
+              type="text"
+              maxlength="4"
+              placeholder="🍔"
+              [value]="catForm().icono"
+              (input)="updateCatField('icono', $any($event.target).value)"
+            />
+          </div>
+          <div class="form-group" style="flex:1">
+            <label class="form-label">Nombre <span class="required">*</span></label>
+            <input
+              class="form-input"
+              type="text"
+              placeholder="Ej: Hamburguesas"
+              [value]="catForm().nombre"
+              (input)="updateCatField('nombre', $any($event.target).value)"
+            />
+          </div>
+          <div class="form-group form-group-orden">
+            <label class="form-label">Orden</label>
+            <input
+              class="form-input"
+              type="number"
+              min="0"
+              placeholder="0"
+              [value]="catForm().orden"
+              (input)="updateCatField('orden', +$any($event.target).value)"
+            />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Descripción</label>
+          <input
+            class="form-input"
+            type="text"
+            placeholder="Descripción breve de la categoría"
+            [value]="catForm().descripcion"
+            (input)="updateCatField('descripcion', $any($event.target).value)"
+          />
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-ghost" (click)="cerrarModalCat()">Cancelar</button>
+        <button
+          class="btn btn-primary"
+          (click)="guardarCategoria()"
+          [disabled]="guardando() || !catForm().nombre.trim()"
+        >
+          @if (guardando()) { <lucide-icon name="loader" [size]="16" class="spinner" /> }
+          {{ editandoCatId() ? 'Guardar Cambios' : 'Crear Categoría' }}
+        </button>
+      </div>
+
+    </div>
+  </div>
+}
+
+<!-- ================================================================
+     MODAL — Producto (crear / editar)
+     ================================================================ -->
+@if (modalProdOpen()) {
+  <div class="modal-overlay" (click)="cerrarModalProd()">
+    <div class="modal modal-lg" (click)="$event.stopPropagation()">
+
+      <div class="modal-header">
+        <h2 class="modal-title">
+          <lucide-icon name="package" [size]="20" />
+          {{ editandoProdId() ? 'Editar Producto' : 'Nuevo Producto' }}
+        </h2>
+        <button class="close-btn" (click)="cerrarModalProd()">
+          <lucide-icon name="x" [size]="20" />
+        </button>
+      </div>
+
+      <div class="modal-body modal-scrollable">
+
+        <!-- ── Fila: Ícono + Nombre ── -->
+        <div class="form-row">
+          <div class="form-group form-group-icon">
+            <label class="form-label">Ícono</label>
+            <input
+              class="form-input input-icon"
+              type="text"
+              maxlength="4"
+              placeholder="🍔"
+              [value]="prodForm().icono"
+              (input)="updateProdField('icono', $any($event.target).value)"
+            />
+          </div>
+          <div class="form-group" style="flex:1">
+            <label class="form-label">Nombre del producto <span class="required">*</span></label>
+            <input
+              class="form-input"
+              type="text"
+              placeholder="Ej: Hamburguesa Clásica"
+              [value]="prodForm().nombre"
+              (input)="updateProdField('nombre', $any($event.target).value)"
+            />
+          </div>
+        </div>
+
+        <!-- ── Fila: Precio + Categoría + Opciones ── -->
+        <div class="form-row form-row-product-meta">
+          <div class="form-group form-group-price">
+            <label class="form-label">Precio <span class="required">*</span></label>
+            <input
+              class="form-input"
+              type="number"
+              min="0"
+              placeholder="18000"
+              [value]="prodForm().precio ?? ''"
+              (input)="updateProdField('precio', +$any($event.target).value || null)"
+            />
+          </div>
+          <div class="form-group form-group-category">
+            <label class="form-label">Categoría <span class="required">*</span></label>
+            <select
+              class="form-select"
+              [value]="prodForm().id_categoria ?? ''"
+              (change)="updateProdField('id_categoria', +$any($event.target).value || null)"
+            >
+              <option value="">Seleccionar categoría...</option>
+              @for (cat of categorias(); track cat.id_categoria) {
+                <option [value]="cat.id_categoria">{{ cat.icono }} {{ cat.nombre }}</option>
+              }
+            </select>
+          </div>
+          <div class="form-group form-group-toggles-inline">
+            <label class="form-label">Opciones</label>
+            <div class="toggles-row toggles-row-inline">
+              <label class="toggle-label">
+                <span>Popular</span>
+                <button
+                  type="button"
+                  class="toggle-btn"
+                  [class.toggle-on]="prodForm().es_popular"
+                  (click)="updateProdField('es_popular', !prodForm().es_popular)"
+                >
+                  <lucide-icon name="star" [size]="14" />
+                </button>
+              </label>
+              <label class="toggle-label">
+                <span>Disponible</span>
+                <button
+                  type="button"
+                  class="toggle-btn"
+                  [class.toggle-on]="prodForm().disponible"
+                  (click)="updateProdField('disponible', !prodForm().disponible)"
+                >
+                  <lucide-icon [name]="prodForm().disponible ? 'check-circle' : 'x-circle'" [size]="14" />
+                </button>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Descripción ── -->
+        <div class="form-group">
+          <label class="form-label">Descripción</label>
+          <textarea
+            class="form-textarea"
+            rows="2"
+            placeholder="Descripción breve del producto..."
+            [value]="prodForm().descripcion"
+            (input)="updateProdField('descripcion', $any($event.target).value)"
+          ></textarea>
+        </div>
+
+        <!-- ═══════════ INGREDIENTES ═══════════ -->
+        <div class="section-divider">
+          <div class="section-copy">
+            <div class="section-title">
+              <lucide-icon name="leaf" [size]="15" />
+              <span>Ingredientes y porciones</span>
+            </div>
+            <span class="section-hint">Se usan para descontar del inventario al crear un pedido</span>
+          </div>
+          <button class="add-ingred-btn add-ingred-btn-inline" (click)="agregarIngredienteForm()">
+            <lucide-icon name="plus" [size]="14" />
+            Agregar ingrediente
+          </button>
+        </div>
+
+        <!-- Tabla de ingredientes -->
+        <div class="ingred-table" [class.ingred-table-empty]="prodForm().ingredientes.length === 0">
+          <div class="ingred-head">
+            <span>Ingrediente</span>
+            <span>Porción</span>
+            <span>Unidad</span>
+            <span class="ingred-removible-head">Removible</span>
+            <span></span>
+          </div>
+          @if (prodForm().ingredientes.length > 0) {
+            @for (ing of prodForm().ingredientes; track trackByIdx($index)) {
+              <div class="ingred-row">
+                <!-- Selector ingrediente -->
+                <select
+                  class="form-select"
+                  [value]="ing.id_ingrediente ?? ''"
+                  (change)="actualizarIngredienteField($index, 'id_ingrediente', +$any($event.target).value || null)"
+                >
+                  <option value="">Seleccionar...</option>
+                  @for (base of ingredientesBase(); track base.id_ingrediente) {
+                    <option [value]="base.id_ingrediente">{{ base.nombre }} ({{ base.unidad_medida || 'und' }})</option>
+                  }
+                </select>
+                <!-- Porción -->
+                <input
+                  class="form-input"
+                  type="number"
+                  min="0"
+                  step="0.001"
+                  placeholder="0"
+                  [value]="ing.porcion ?? ''"
+                  (input)="actualizarIngredienteField($index, 'porcion', +$any($event.target).value || null)"
+                />
+                <!-- Unidad -->
+                <select
+                  class="form-select"
+                  [value]="ing.unidad_medida"
+                  (change)="actualizarIngredienteField($index, 'unidad_medida', $any($event.target).value)"
+                >
+                  @for (u of unidades; track u) {
+                    <option [value]="u">{{ u }}</option>
+                  }
+                </select>
+                <!-- Es removible -->
+                <div class="ingred-removible">
+                  <button
+                    type="button"
+                    class="toggle-btn toggle-sm"
+                    [class.toggle-on]="ing.es_removible"
+                    (click)="actualizarIngredienteField($index, 'es_removible', !ing.es_removible)"
+                    [title]="ing.es_removible ? 'El cliente puede excluirlo' : 'No se puede excluir'"
+                  >
+                    <lucide-icon [name]="ing.es_removible ? 'check-circle' : 'minus'" [size]="13" />
+                  </button>
+                </div>
+                <!-- Eliminar fila -->
+                <button class="icon-btn icon-btn-danger" (click)="eliminarIngredienteForm($index)">
+                  <lucide-icon name="x" [size]="14" />
+                </button>
+              </div>
+            }
+          } @else {
+            <div class="ingred-empty">
+              Agrega ingredientes para definir porciones de inventario.
+            </div>
+          }
+        </div>
+
+        <!-- Crear ingrediente nuevo directo desde aquí -->
+        <div class="new-ingred-row">
+          <lucide-icon name="circle-plus" [size]="14" class="new-ingred-icon" />
+          <input
+            class="form-input new-ingred-input"
+            type="text"
+            placeholder="Nuevo ingrediente (ej: Queso cheddar)..."
+            [value]="nuevoIngredNombre()"
+            (input)="nuevoIngredNombre.set($any($event.target).value)"
+            (keyup.enter)="crearIngredienteBase()"
+          />
+          <select
+            class="form-select new-ingred-unit"
+            [value]="nuevaUnidadIngred()"
+            (change)="nuevaUnidadIngred.set($any($event.target).value)"
+          >
+            @for (u of unidades; track u) {
+              <option [value]="u">{{ u }}</option>
+            }
+          </select>
+          <button
+            class="btn btn-secondary btn-sm"
+            (click)="crearIngredienteBase()"
+            [disabled]="creandoIngred() || !nuevoIngredNombre().trim()"
+          >
+            @if (creandoIngred()) { <lucide-icon name="loader" [size]="13" class="spinner" /> }
+            Crear
+          </button>
+        </div>
+
+      </div><!-- /modal-body -->
+
+      <div class="modal-footer">
+        <button class="btn btn-ghost" (click)="cerrarModalProd()">Cancelar</button>
+        <button
+          class="btn btn-primary"
+          (click)="guardarProducto()"
+          [disabled]="guardando() || !prodForm().nombre.trim() || !prodForm().precio || !prodForm().id_categoria"
+        >
+          @if (guardando()) { <lucide-icon name="loader" [size]="16" class="spinner" /> }
+          {{ editandoProdId() ? 'Guardar Cambios' : 'Crear Producto' }}
+        </button>
+      </div>
+
+    </div>
+  </div>
+}

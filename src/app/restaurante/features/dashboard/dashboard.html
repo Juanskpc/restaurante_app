@@ -1,0 +1,135 @@
+<section class="dashboard">
+
+  @if (cargando()) {
+    <div class="state-card">Cargando dashboard...</div>
+  }
+
+  @if (error()) {
+    <div class="state-card error">{{ error() }}</div>
+  }
+
+  @if (!cargando() && !error()) {
+
+  <!-- ======================== KPI CARDS ======================== -->
+  <div class="kpi-grid">
+    @for (kpi of kpis(); track kpi.label) {
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-label">{{ kpi.label }}</span>
+          <div class="kpi-icon">
+            <lucide-icon [name]="kpi.icon" [size]="20" />
+          </div>
+        </div>
+        <div class="kpi-body">
+          <span class="kpi-value">{{ kpi.value }}</span>
+          <span class="kpi-trend" [class.positive]="kpi.trendPositive" [class.negative]="!kpi.trendPositive">
+            @if (kpi.trendPositive) {
+              <lucide-icon name="trending-up" [size]="14" />
+            } @else {
+              <lucide-icon name="trending-down" [size]="14" />
+            }
+            {{ kpi.trend }} {{ kpi.trendLabel }}
+          </span>
+        </div>
+      </div>
+    }
+  </div>
+
+  <!-- ======================== CHARTS ROW ======================== -->
+  <div class="charts-row">
+    <div class="chart-card">
+      <div class="chart-header">
+        <h3>Ventas por Hora (hoy)</h3>
+      </div>
+
+      @if (ventasPorHora().length === 0) {
+        <div class="chart-placeholder">
+          <lucide-icon name="chart-bar" [size]="48" />
+          <p>Aun no hay ventas cobradas hoy</p>
+        </div>
+      } @else {
+        <div class="hourly-chart">
+          @for (point of ventasPorHora(); track point.hora) {
+            <div class="hour-row">
+              <span class="hour-label">{{ point.hora }}</span>
+              <div class="hour-bar-track">
+                <div class="hour-bar" [style.width.%]="hourWidth(point.total)"></div>
+              </div>
+              <span class="hour-total">{{ formatMoney(point.total) }}</span>
+            </div>
+          }
+        </div>
+      }
+    </div>
+
+    <div class="chart-card chart-card--small">
+      <div class="chart-header">
+        <h3>Estado de Cocina</h3>
+      </div>
+
+      <div class="ops-list">
+        <div class="ops-item pending">
+          <span>Pendiente</span>
+          <strong>{{ cocina().pendiente }}</strong>
+        </div>
+        <div class="ops-item progress">
+          <span>En preparacion</span>
+          <strong>{{ cocina().en_preparacion }}</strong>
+        </div>
+        <div class="ops-item ready">
+          <span>Listo</span>
+          <strong>{{ cocina().listo }}</strong>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================== RECENT ORDERS ======================== -->
+  <div class="orders-card">
+    <div class="orders-header">
+      <h3>Pedidos Recientes</h3>
+      <button class="btn btn--outline btn--sm">
+        <lucide-icon name="eye" [size]="16" />
+        Ver todos
+      </button>
+    </div>
+    <div class="orders-table-wrap">
+      <table class="orders-table">
+        <thead>
+          <tr>
+            <th>Pedido</th>
+            <th>Mesa</th>
+            <th>Items</th>
+            <th>Total</th>
+            <th>Estado</th>
+            <th>Hora</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (order of recentOrders(); track order.id) {
+            <tr>
+              <td class="order-id">{{ order.id }}</td>
+              <td>{{ order.mesa }}</td>
+              <td class="order-items">{{ order.items }}</td>
+              <td class="order-total">{{ formatMoney(order.total) }}</td>
+              <td>
+                <span class="order-badge" [class]="estadoClass(order.estado)">
+                  {{ order.estado }}
+                </span>
+              </td>
+              <td class="order-time">{{ order.hora }}</td>
+            </tr>
+          }
+
+          @if (recentOrders().length === 0) {
+            <tr>
+              <td colspan="6" class="empty-row">Aun no hay pedidos registrados.</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  }
+</section>

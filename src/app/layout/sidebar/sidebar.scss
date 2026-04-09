@@ -1,0 +1,421 @@
+// ============================================================
+// Sidebar — desktop, tablet, y bottom nav móvil
+// ============================================================
+
+// --- Variables locales ---
+$sidebar-width: 240px;
+$sidebar-collapsed: 64px;
+$bottom-nav-height: 64px;
+
+// ============================
+// SIDEBAR DESKTOP
+// ============================
+.sidebar-desktop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: $sidebar-width;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-bg-secondary, var(--color-surface));
+  border-right: 1px solid var(--color-border);
+  z-index: 100;
+  overflow-y: auto;
+  transition: width var(--transition-normal);
+}
+
+// --- Logo ---
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-lg) var(--spacing-md);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.logo-icon {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-hover));
+  color: var(--color-on-primary);
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+}
+
+.logo-text {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+// --- Navegación ---
+.sidebar-nav {
+  flex: 1;
+  padding: var(--spacing-sm) var(--spacing-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+}
+
+.nav-section-label {
+  display: block;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: var(--spacing-md) var(--spacing-sm) var(--spacing-xs);
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  transition: background-color var(--transition-fast),
+              color var(--transition-fast);
+  position: relative;
+  cursor: pointer;
+
+  &:hover {
+    background-color: var(--color-surface-elevated);
+    color: var(--color-text-primary);
+  }
+
+  &.active {
+    background-color: var(--color-primary);
+    color: var(--color-on-primary);
+
+    .nav-badge {
+      background-color: var(--color-on-primary);
+      color: var(--color-primary);
+    }
+  }
+}
+
+.nav-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-badge {
+  margin-left: auto;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: var(--radius-full);
+  background-color: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+// --- Usuario (pie del sidebar) ---
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  border-top: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.user-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-hover));
+  color: var(--color-on-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex: 1;
+}
+
+.user-name {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-role {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.btn-logout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: color var(--transition-fast), background-color var(--transition-fast);
+
+  &:hover {
+    background-color: var(--color-error-bg);
+    color: var(--color-error);
+  }
+}
+
+// ============================
+// BOTTOM NAV MÓVIL
+// ============================
+.bottom-nav {
+  display: none; // Oculto por defecto (desktop)
+}
+
+.more-overlay,
+.more-panel {
+  display: none;
+}
+
+// --- TABLET (sidebar colapsado) ---
+@media (max-width: 1023px) and (min-width: 768px) {
+  .sidebar-desktop {
+    width: $sidebar-collapsed;
+  }
+
+  .sidebar-logo {
+    justify-content: center;
+    padding: var(--spacing-md) var(--spacing-xs);
+  }
+
+  .logo-text {
+    display: none;
+  }
+
+  .nav-section-label {
+    display: none;
+  }
+
+  .nav-item {
+    justify-content: center;
+    padding: 12px;
+
+    .nav-label {
+      display: none;
+    }
+
+    .nav-badge {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      margin-left: 0;
+      min-width: 16px;
+      height: 16px;
+      font-size: 9px;
+      padding: 0 4px;
+    }
+  }
+
+  .sidebar-user {
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-sm);
+  }
+
+  .user-info,
+  .btn-logout {
+    display: none;
+  }
+}
+
+// --- MÓVIL (bottom nav) ---
+@media (max-width: 767px) {
+  .sidebar-desktop {
+    display: none;
+  }
+
+  .bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: $bottom-nav-height;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    background-color: var(--color-bg-secondary, var(--color-surface));
+    border-top: 1px solid var(--color-border);
+    z-index: 200;
+    padding: 0 var(--spacing-xs);
+    // Prevenir que el safe-area del iPhone tape el nav
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .bottom-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    flex: 1;
+    height: 100%;
+    padding: 6px 0;
+    color: var(--color-text-secondary);
+    text-decoration: none;
+    font-size: 10px;
+    font-weight: 500;
+    border: none;
+    background: none;
+    cursor: pointer;
+    position: relative;
+    transition: color var(--transition-fast);
+
+    &:hover,
+    &.active {
+      color: var(--color-primary);
+    }
+  }
+
+  .bottom-badge {
+    position: absolute;
+    top: 2px;
+    right: calc(50% - 18px);
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 700;
+    border-radius: var(--radius-full);
+    background-color: var(--color-primary);
+    color: var(--color-on-primary);
+  }
+
+  // --- Panel "Más" ---
+  .more-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 250;
+    animation: fadeIn 200ms ease;
+  }
+
+  .more-panel {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    bottom: $bottom-nav-height;
+    left: 0;
+    right: 0;
+    background-color: var(--color-surface);
+    border-top-left-radius: var(--radius-lg);
+    border-top-right-radius: var(--radius-lg);
+    z-index: 300;
+    padding: var(--spacing-sm) 0;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    animation: slideUp 200ms ease;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.2);
+  }
+
+  .more-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-weight: 600;
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+  }
+
+  .more-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: var(--radius-full);
+    background: transparent;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+
+    &:hover {
+      background-color: var(--color-surface-elevated);
+    }
+  }
+
+  .more-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: 12px var(--spacing-md);
+    color: var(--color-text-secondary);
+    text-decoration: none;
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    border: none;
+    background: none;
+    width: 100%;
+    cursor: pointer;
+    transition: background-color var(--transition-fast),
+                color var(--transition-fast);
+
+    &:hover,
+    &.active {
+      background-color: var(--color-surface-elevated);
+      color: var(--color-text-primary);
+    }
+
+    &.more-logout {
+      color: var(--color-error);
+      border-top: 1px solid var(--color-border);
+      margin-top: var(--spacing-xs);
+      padding-top: 14px;
+
+      &:hover {
+        background-color: var(--color-error-bg);
+      }
+    }
+  }
+}
+
+// --- Animaciones ---
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}

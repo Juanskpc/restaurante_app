@@ -1,0 +1,208 @@
+// ============================================================
+// Header — barra superior
+// ============================================================
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-md) var(--spacing-xl);
+  background-color: var(--color-bg-secondary, var(--color-surface));
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+  min-height: 64px;
+}
+
+// --- Lado izquierdo ---
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.header-title {
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.header-date {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  background-color: var(--color-surface-elevated);
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border);
+  text-transform: capitalize;
+}
+
+// --- Lado derecho ---
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  position: relative;
+}
+
+// --- Selector de negocio ---
+.negocio-selector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background-color: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  transition: border-color var(--transition-fast);
+  white-space: nowrap;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  &:hover {
+    border-color: var(--color-primary);
+  }
+}
+
+.negocio-nombre {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.selector-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+}
+
+.selector-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 240px;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-elevated);
+  z-index: 1000;
+  overflow: hidden;
+  padding: 4px;
+}
+
+.selector-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  border-radius: var(--radius-md);
+  transition: background-color var(--transition-fast);
+
+  &:hover {
+    background-color: var(--color-surface-elevated);
+  }
+
+  &.active {
+    background-color: var(--color-primary);
+
+    .opt-name { color: var(--color-on-primary); }
+    .opt-tipo { color: var(--color-on-primary); opacity: 0.7; }
+  }
+}
+
+.opt-name {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.opt-tipo {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.header-divider {
+  display: block;
+  width: 1px;
+  height: 24px;
+  background-color: var(--color-border);
+}
+
+.header-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background-color var(--transition-fast),
+              color var(--transition-fast),
+              border-color var(--transition-fast);
+  position: relative;
+
+  &:hover {
+    background-color: var(--color-surface-elevated);
+    color: var(--color-text-primary);
+    border-color: var(--color-border-strong, var(--color-border));
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+}
+
+.notification-btn {
+  position: relative;
+}
+
+.notification-dot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--color-primary);
+}
+
+// --- Tablet ---
+@media (max-width: 1023px) {
+  .app-header {
+    padding: var(--spacing-md);
+  }
+}
+
+// --- Móvil ---
+@media (max-width: 767px) {
+  .app-header {
+    padding: var(--spacing-sm) var(--spacing-md);
+    min-height: 56px;
+  }
+
+  .header-title {
+    font-size: var(--font-size-lg);
+  }
+
+  .header-date {
+    display: none;
+  }
+}

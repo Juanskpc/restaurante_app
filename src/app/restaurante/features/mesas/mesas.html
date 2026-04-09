@@ -1,0 +1,205 @@
+<section class="mesas-layout">
+  <header class="mesas-header">
+    <div class="brand">
+      <lucide-icon name="armchair" [size]="20" />
+      <div>
+        <h1>Mesas</h1>
+        <p>Gestion de salon en tiempo real</p>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <div class="plan">
+        <lucide-icon name="chart-pie" [size]="14" />
+        <span>{{ mesas().length }}/{{ maxMesas }} mesas</span>
+      </div>
+      <button class="btn-primary" (click)="openNuevaMesa()" [disabled]="mesas().length >= maxMesas">
+        <lucide-icon name="plus" [size]="16" />
+        Nueva Mesa
+      </button>
+    </div>
+  </header>
+
+  <div class="stats-strip">
+    <button class="chip" [class.active]="filtro() === 'all'" (click)="selectFilter('all')">Todas</button>
+    <button class="chip available" [class.active]="filtro() === 'available'" (click)="selectFilter('available')">Libres ({{ countAvailable() }})</button>
+    <button class="chip occupied" [class.active]="filtro() === 'occupied'" (click)="selectFilter('occupied')">Ocupadas ({{ countOccupied() }})</button>
+    <button class="chip payment" [class.active]="filtro() === 'payment'" (click)="selectFilter('payment')">Por cobrar ({{ countPayment() }})</button>
+    <button class="chip disabled" [class.active]="filtro() === 'disabled'" (click)="selectFilter('disabled')">Deshabilitadas</button>
+  </div>
+
+  @if (cargando()) {
+    <div class="state">Cargando mesas...</div>
+  }
+
+  @if (!cargando() && mesasFiltradas().length === 0) {
+    <div class="state">No hay mesas para este filtro.</div>
+  }
+
+  @if (!cargando() && mesasFiltradas().length > 0) {
+    <div class="grid">
+      @for (mesa of mesasFiltradas(); track mesa.id_mesa) {
+        <article class="mesa-card" [class]="'status-' + mesa.status" (click)="openMesa(mesa)">
+          <header class="mesa-card-header" [class]="'status-' + mesa.status">
+            <span>{{ mesa.nombre }}</span>
+            <div class="header-actions">
+              @if (mesa.status === 'occupied' || mesa.status === 'payment') {
+                <button class="quick-release-btn"
+                        [disabled]="!puedeLiberarMesa(mesa)"
+                        [title]="puedeLiberarMesa(mesa) ? 'Liberar mesa' : 'Primero debes cobrar la cuenta de la mesa'"
+                        (click)="liberarMesaDesdeCard(mesa, $event)">
+                  <lucide-icon name="door-open" [size]="14" />
+                </button>
+              }
+              <lucide-icon [name]="statusIcon(mesa.status)" [size]="16" />
+            </div>
+          </header>
+
+          <div class="mesa-card-body">
+            <div class="total">{{ mesa.order.total | currency:'COP':'symbol-narrow':'1.0-0' }}</div>
+            <div class="meta">{{ mesa.time || 'Sin uso' }}</div>
+            <span class="badge" [class]="'badge status-' + mesa.status">{{ statusLabel(mesa.status) }}</span>
+          </div>
+        </article>
+      }
+    </div>
+  }
+</section>
+
+@if (mesaActiva(); as mesa) {
+  <div class="overlay" (click)="closeMesa()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <header class="modal-header">
+        <div>
+          <h3>{{ mesa.nombre }}</h3>
+          <span class="status-tag" [class]="'status-' + mesa.status">{{ statusLabel(mesa.status) }}</span>
+        </div>
+        <button class="icon-btn" (click)="closeMesa()">
+          <lucide-icon name="x" [size]="18" />
+        </button>
+      </header>
+
+      <section class="modal-order">
+        <h4>Pedido actual</h4>
+        @if (mesa.order.items.length === 0) {
+          <p class="empty">Sin productos agregados</p>
+        } @else {
+          <div class="items">
+            @for (item of mesa.order.items; track $index) {
+              <div class="item-row">
+                <div class="item-main">
+                  <span class="item-name">{{ item.name }}</span>
+                  <span class="item-meta">{{ item.cantidad }} x {{ item.price | currency:'COP':'symbol':'1.0-0' }}</span>
+                </div>
+                <strong>{{ (item.price * item.cantidad) | currency:'COP':'symbol':'1.0-0' }}</strong>
+              </div>
+            }
+          </div>
+        }
+
+        <div class="total-row">
+          <span>Total</span>
+          <strong>{{ mesa.order.total | currency:'COP':'symbol':'1.0-0' }}</strong>
+        </div>
+
+        @if (mesa.status === 'payment') {
+          <div class="cash-box">
+            <label class="cash-label" for="mesa-efectivo-input">Efectivo recibido (opcional)</label>
+            <input id="mesa-efectivo-input"
+                   class="cash-input"
+                   type="text"
+                   inputmode="numeric"
+                   placeholder="Ej: 100.000"
+                   [value]="efectivoRecibidoInput()"
+                   (input)="setEfectivoRecibido($any($event.target).value)" />
+
+            @if (efectivoRecibido() !== null) {
+              @if (faltanteCobro()! > 0) {
+                <p class="cash-feedback error">
+                  Faltan {{ faltanteCobro() | currency:'COP':'symbol':'1.0-0' }} para completar el pago.
+                </p>
+              } @else {
+                <p class="cash-feedback success">
+                  Vuelta: {{ vueltaCobro() | currency:'COP':'symbol':'1.0-0' }}
+                </p>
+              }
+            }
+
+            @if (cobroError()) {
+              <p class="cash-feedback error">{{ cobroError() }}</p>
+            }
+          </div>
+        }
+      </section>
+
+      <section class="modal-actions">
+        <button class="btn-ghost" (click)="openEditarMesa(mesa)">
+          <lucide-icon name="pencil" [size]="16" /> Editar
+        </button>
+
+        @for (a of modalActions(mesa.status); track a.key) {
+          <button [class]="a.style === 'primary' ? 'btn-primary' : (a.style === 'warning' ? 'btn-warning' : 'btn-ghost')"
+                  (click)="runAction(a.key)"
+                  [disabled]="guardando() || (a.key === 'liberar' && !puedeLiberarMesa(mesa))"
+                  [title]="a.key === 'liberar' && !puedeLiberarMesa(mesa) ? 'Primero debes cobrar la cuenta de la mesa' : ''">
+            <lucide-icon [name]="a.icon" [size]="16" /> {{ a.label }}
+          </button>
+        }
+      </section>
+
+      <footer class="modal-footer">
+        <div class="modal-footer-actions">
+          @if (mesa.status === 'occupied' || mesa.status === 'payment') {
+            <button class="btn-warning"
+                    (click)="liberarMesaActual()"
+                    [disabled]="guardando() || !puedeLiberarMesa(mesa)"
+                    [title]="puedeLiberarMesa(mesa) ? 'Liberar mesa' : 'Primero debes cobrar la cuenta de la mesa'">
+              <lucide-icon name="door-open" [size]="16" />
+              Liberar mesa
+            </button>
+          }
+
+          <button class="btn-danger" (click)="toggleHabilitar()" [disabled]="guardando()">
+            <lucide-icon [name]="mesa.estado === 'A' ? 'x-circle' : 'check-circle'" [size]="16" />
+            {{ mesa.estado === 'A' ? 'Deshabilitar' : 'Habilitar' }} mesa
+          </button>
+        </div>
+      </footer>
+    </div>
+  </div>
+}
+
+@if (modalNuevaMesa()) {
+  <div class="overlay" (click)="closeNuevaMesa()">
+    <div class="modal modal-form" (click)="$event.stopPropagation()">
+      <header class="modal-header">
+        <h3>{{ editandoMesaId() ? 'Editar Mesa' : 'Nueva Mesa' }}</h3>
+        <button class="icon-btn" (click)="closeNuevaMesa()">
+          <lucide-icon name="x" [size]="18" />
+        </button>
+      </header>
+
+      <div class="form-grid">
+        <label>
+          Nombre
+          <input type="text" [ngModel]="formNombre()" (ngModelChange)="formNombre.set($event)" placeholder="Mesa 12" />
+        </label>
+        <label>
+          Numero
+          <input type="number" min="1" [ngModel]="formNumero()" (ngModelChange)="formNumero.set($event ? +$event : null)" />
+        </label>
+        <label>
+          Capacidad
+          <input type="number" min="1" max="20" [ngModel]="formCapacidad()" (ngModelChange)="formCapacidad.set(+$event || 1)" />
+        </label>
+      </div>
+
+      <footer class="modal-actions">
+        <button class="btn-ghost" (click)="closeNuevaMesa()">Cancelar</button>
+        <button class="btn-primary" (click)="saveMesa()" [disabled]="guardando() || !formNombre().trim() || !formNumero()">
+          {{ editandoMesaId() ? 'Guardar cambios' : 'Crear mesa' }}
+        </button>
+      </footer>
+    </div>
+  </div>
+}
