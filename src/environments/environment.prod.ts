@@ -1,8 +1,9 @@
 /**
  * Configuración de entorno — producción.
+ * Backend servido vía Nginx reverse proxy con SSL en escalapp.cloud.
  */
 export const environment = {
   production: true,
-  apiUrl: '/restaurante',
-  adminUrl: '/admin',
+  apiUrl: 'https://escalapp.cloud/restaurante',
+  adminUrl: 'https://dsm1cwmosama.cloudfront.net/admin',
 };
