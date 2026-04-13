@@ -1,5 +1,5 @@
 import { inject, PLATFORM_ID } from '@angular/core';
-import { CanActivateFn } from '@angular/router';
+import { CanActivateChildFn, CanActivateFn, Router } from '@angular/router';
 import { isPlatformBrowser } from '@angular/common';
 
 import { AuthService } from '../services/auth.service';
@@ -36,6 +36,17 @@ export const authGuard: CanActivateFn = async () => {
 
   // --- 1. Sesión existente en memoria → acceso inmediato ---
   if (authService.isAuthenticated()) {
+    if (authService.session()?.permisos_cargados !== true) {
+      const storedToken = authService.getAccessToken();
+      if (storedToken) {
+        const valid = await authService.validateAndSetToken(storedToken);
+        if (!valid) {
+          authService.logout();
+          return false;
+        }
+      }
+    }
+
     applyPaletteIfAvailable(authService, paletteService);
     return true;
   }
@@ -74,6 +85,42 @@ export const authGuard: CanActivateFn = async () => {
   // --- 4. Sin sesión ni token → redirigir ---
   redirectToAdmin(platformId);
   return false;
+};
+
+export const permissionGuard: CanActivateChildFn = (childRoute, state) => {
+  const authService = inject(AuthService);
+  const router = inject(Router);
+  const platformId = inject(PLATFORM_ID);
+
+  if (!isPlatformBrowser(platformId)) {
+    return true;
+  }
+
+  const requestedPath = resolveRequestedPath(childRoute.routeConfig?.path, state.url);
+  if (!requestedPath) {
+    return true;
+  }
+
+  // Ruta de diagnostico siempre disponible para evitar pantalla en blanco.
+  if (requestedPath === '/sin-acceso') {
+    return true;
+  }
+
+  if (authService.canAccessRoute(requestedPath)) {
+    return true;
+  }
+
+  const fallbackRoute = authService.getFirstAccessibleRoute();
+  if (fallbackRoute && fallbackRoute !== requestedPath) {
+    return router.parseUrl(fallbackRoute);
+  }
+
+  const diagnosticQuery = buildAccessIssueQuery(authService, requestedPath);
+  console.warn('[permissionGuard] Acceso denegado sin ruta alternativa.', diagnosticQuery);
+
+  return router.createUrlTree(['/sin-acceso'], {
+    queryParams: diagnosticQuery,
+  });
 };
 
 // ============================================================
@@ -120,4 +167,53 @@ function clearAdminSessionTransfer(): void {
   if (typeof window !== 'undefined') {
     window.name = '';
   }
+}
+
+function normalizeRoutePath(rawPath: string): string {
+  const withoutQuery = rawPath.split('?')[0]?.split('#')[0] ?? '';
+  const trimmed = withoutQuery.trim();
+  if (!trimmed) return '/';
+
+  const withSlash = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  return withSlash.replace(/\/+/g, '/').replace(/\/+$/, '') || '/';
+}
+
+function resolveRequestedPath(routePath: string | undefined, stateUrl: string): string | null {
+  if (routePath && routePath !== '**') {
+    return normalizeRoutePath(routePath);
+  }
+
+  const normalizedState = normalizeRoutePath(stateUrl);
+  const firstSegment = normalizedState.split('/').filter(Boolean)[0];
+  if (!firstSegment) return '/dashboard';
+  return `/${firstSegment}`;
+}
+
+function buildAccessIssueQuery(auth: AuthService, requestedPath: string): Record<string, string | number> {
+  const session = auth.session();
+  const negocio = auth.negocio();
+  const negocios = auth.negocios();
+  const permisosVista = auth.permisosVistaActivos();
+  const permisosConVista = permisosVista.filter((permiso) => permiso?.puede_ver && permiso?.url).length;
+
+  let motivo = 'SIN_RUTA_DISPONIBLE';
+
+  if (!session) {
+    motivo = 'SIN_SESION';
+  } else if (!negocio) {
+    motivo = 'SIN_NEGOCIO_ACTIVO';
+  } else if (session.permisos_cargados === true && permisosConVista === 0) {
+    motivo = 'SIN_PERMISOS_VISTA';
+  } else if (session.permisos_cargados === true && !auth.canAccessRoute(requestedPath)) {
+    motivo = 'RUTA_SIN_PERMISO';
+  }
+
+  return {
+    motivo,
+    ruta: requestedPath,
+    permisos_cargados: session?.permisos_cargados === true ? '1' : '0',
+    permisos_vista: permisosConVista,
+    total_negocios: negocios.length,
+    negocio: negocio?.id_negocio ?? '',
+  };
 }

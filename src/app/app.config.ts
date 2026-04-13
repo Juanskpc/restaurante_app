@@ -16,7 +16,7 @@ import {
   Search, Plus, Minus, Trash2, Printer, CreditCard, Flame, NotebookPen, Send,
   CirclePlus, Pencil, Loader, Leaf, Folder, ToggleRight, ToggleLeft,
   DoorOpen,
-  CheckCircle, XCircle, RotateCw, FolderPlus,
+  CheckCircle, XCircle, RotateCw, FolderPlus, Save,
 } from 'lucide-angular';
 
 const icons = {
@@ -27,7 +27,7 @@ const icons = {
   Search, Plus, Minus, Trash2, Printer, CreditCard, Flame, NotebookPen, Send,
   CirclePlus, Pencil, Loader, Leaf, Folder, ToggleRight, ToggleLeft,
   DoorOpen,
-  CheckCircle, XCircle, RotateCw, FolderPlus,
+  CheckCircle, XCircle, RotateCw, FolderPlus, Save,
 };
 
 export const appConfig: ApplicationConfig = {

@@ -1,0 +1,314 @@
+<section class="reportes-layout">
+  <header class="reportes-header">
+    <div class="header-brand">
+      <lucide-icon name="chart-bar" [size]="20" />
+      <div>
+        <h1>Reportes</h1>
+        <p>Analisis operativo con exportacion a Excel y PDF.</p>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <button class="action-btn" [disabled]="cargando()" (click)="recargar()">
+        @if (cargando()) {
+          <lucide-icon name="loader" [size]="14" class="spin" />
+        } @else {
+          <lucide-icon name="rotate-cw" [size]="14" />
+        }
+        Actualizar
+      </button>
+
+      <button
+        class="action-btn export"
+        [disabled]="!canExport() || exportando() !== null"
+        (click)="exportar('xlsx')"
+      >
+        @if (exportando() === 'xlsx') {
+          <lucide-icon name="loader" [size]="14" class="spin" />
+        } @else {
+          <lucide-icon name="folder-plus" [size]="14" />
+        }
+        Exportar Excel
+      </button>
+
+      <button
+        class="action-btn export"
+        [disabled]="!canExport() || exportando() !== null"
+        (click)="exportar('pdf')"
+      >
+        @if (exportando() === 'pdf') {
+          <lucide-icon name="loader" [size]="14" class="spin" />
+        } @else {
+          <lucide-icon name="printer" [size]="14" />
+        }
+        Exportar PDF
+      </button>
+    </div>
+  </header>
+
+  <section class="filters-card">
+    <label class="field">
+      <span>Tipo de reporte</span>
+      <select [value]="tipoSeleccionado()" (change)="setTipo($any($event.target).value)">
+        @for (tipo of tipoOptions; track tipo.value) {
+          <option [value]="tipo.value">{{ tipo.label }}</option>
+        }
+      </select>
+    </label>
+
+    <label class="field">
+      <span>Desde</span>
+      <input type="date" [value]="fechaDesdeInput()" (change)="setFechaDesde($any($event.target).value)" />
+    </label>
+
+    <label class="field">
+      <span>Hasta</span>
+      <input type="date" [value]="fechaHastaInput()" (change)="setFechaHasta($any($event.target).value)" />
+    </label>
+
+    <label class="field field-small">
+      <span>Filas</span>
+      <select [value]="pageSize()" (change)="setPageSize(+$any($event.target).value)">
+        <option [value]="10">10</option>
+        <option [value]="20">20</option>
+        <option [value]="50">50</option>
+        <option [value]="100">100</option>
+      </select>
+    </label>
+
+    <button class="apply-btn" [disabled]="cargando()" (click)="aplicarFiltros()">
+      <lucide-icon name="search" [size]="14" />
+      Aplicar filtros
+    </button>
+  </section>
+
+  <p class="report-description">{{ getTipoDescripcion() }}</p>
+
+  @if (warningPdf()) {
+    <div class="state-card warn">
+      El PDF funciona mejor para tablas compactas. Para reportes extensos se recomienda Excel.
+    </div>
+  }
+
+  @if (error()) {
+    <div class="state-card error">{{ error() }}</div>
+  }
+
+  <section class="summary-grid">
+    @for (item of summaryItems(); track trackSummary($index, item)) {
+      <article class="summary-card">
+        <span>{{ item.label }}</span>
+        <strong>{{ formatSummary(item) }}</strong>
+      </article>
+    }
+
+    @if (!cargando() && summaryItems().length === 0) {
+      <article class="summary-card empty">
+        <span>Sin resumen</span>
+        <strong>No hay datos en el rango seleccionado</strong>
+      </article>
+    }
+  </section>
+
+  <section class="table-card">
+    <div class="table-header">
+      <div>
+        <h3>{{ reporte()?.titulo ?? 'Reporte' }}</h3>
+        <p>
+          Mostrando {{ inicioPagina() }} - {{ finPagina() }} de {{ pagination().total }} registros
+        </p>
+      </div>
+
+      @if (cargando()) {
+        <span class="loading-inline">
+          <lucide-icon name="loader" [size]="14" class="spin" />
+          Cargando...
+        </span>
+      }
+    </div>
+
+    <div class="table-wrap">
+      <table class="report-table">
+        <thead>
+          <tr>
+            @for (column of columns(); track trackColumn($index, column)) {
+              <th>{{ column.label }}</th>
+            }
+            @if (esVentasPeriodo()) {
+              <th class="col-actions">Acciones</th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @if (!cargando() && rows().length === 0) {
+            <tr>
+              <td class="empty-row" [attr.colspan]="tableColspan() || 1">
+                No hay datos para mostrar con estos filtros.
+              </td>
+            </tr>
+          }
+
+          @for (row of rows(); track $index) {
+            <tr>
+              @for (column of columns(); track trackColumn($index, column)) {
+                <td>{{ formatCell(row[column.key], column.type) }}</td>
+              }
+              @if (esVentasPeriodo()) {
+                <td class="col-actions">
+                  <button class="table-action-btn" [disabled]="isDetalleLoading(row) || !puedeVerDetalle(row)" (click)="abrirDetallePedido(row)">
+                    @if (isDetalleLoading(row)) {
+                      <lucide-icon name="loader" [size]="13" class="spin" />
+                    } @else {
+                      <lucide-icon name="eye" [size]="13" />
+                    }
+                    Ver pedido
+                  </button>
+                </td>
+              }
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    @if (pagination().total > 0) {
+      <footer class="pagination-bar">
+        <span class="page-counter">Pagina {{ pagination().page }} / {{ pagination().total_pages }}</span>
+
+        <div class="page-actions">
+          <button class="pager-btn" [disabled]="pagination().page <= 1 || cargando()" (click)="prevPage()">
+            Anterior
+          </button>
+          <button
+            class="pager-btn"
+            [disabled]="pagination().page >= pagination().total_pages || cargando()"
+            (click)="nextPage()"
+          >
+            Siguiente
+          </button>
+        </div>
+      </footer>
+    }
+  </section>
+
+  @if (modalDetalleAbierto()) {
+    <div class="overlay">
+      <article class="detalle-modal">
+        <header class="detalle-header">
+          <div>
+            <h3>Detalle de pedido</h3>
+            @if (detallePedido(); as detalle) {
+              <p>{{ detalle.numero_orden }} · {{ formatDateValue(detalle.fecha_cierre) }}</p>
+            }
+          </div>
+
+          <button class="icon-btn" title="Cerrar" (click)="cerrarDetallePedido()">
+            <lucide-icon name="x" [size]="18" />
+          </button>
+        </header>
+
+        <div class="detalle-body-scroll">
+          @if (cargandoDetalle()) {
+            <div class="state-card">
+              <span class="loading-inline">
+                <lucide-icon name="loader" [size]="14" class="spin" />
+                Cargando trazabilidad del pedido...
+              </span>
+            </div>
+          }
+
+          @if (!cargandoDetalle() && detalleError()) {
+            <div class="state-card error">{{ detalleError() }}</div>
+          }
+
+          @if (!cargandoDetalle() && !detalleError() && detallePedido(); as detalle) {
+            <section class="detalle-meta-grid">
+              <article class="meta-card">
+                <span>Orden</span>
+                <strong>{{ detalle.numero_orden }}</strong>
+              </article>
+              <article class="meta-card">
+                <span>Mesero</span>
+                <strong>{{ detalle.mesero?.nombre || 'No registrado' }}</strong>
+              </article>
+              <article class="meta-card">
+                <span>Mesa</span>
+                <strong>{{ formatMesaLabel(detalle) }}</strong>
+              </article>
+              <article class="meta-card">
+                <span>Estado</span>
+                <strong>{{ formatEstadoLabel(detalle.estado) }}</strong>
+              </article>
+              <article class="meta-card">
+                <span>Estado cocina</span>
+                <strong>{{ formatEstadoLabel(detalle.estado_cocina) }}</strong>
+              </article>
+              <article class="meta-card">
+                <span>Fecha cierre</span>
+                <strong>{{ formatDateValue(detalle.fecha_cierre) }}</strong>
+              </article>
+            </section>
+
+            <section class="nota-box">
+              <h4>Nota general del pedido</h4>
+              <p>{{ detalle.nota_orden || 'Sin nota general.' }}</p>
+            </section>
+
+            <section class="items-box">
+              <h4>Items facturados</h4>
+
+              @if (detalle.items.length === 0) {
+                <div class="state-card">No hay items registrados en este pedido.</div>
+              }
+
+              @for (item of detalle.items; track trackDetalleItem($index, item)) {
+                <article class="item-card">
+                  <div class="item-main">
+                    <p class="item-title">
+                      <strong>{{ item.cantidad }}x {{ item.producto }}</strong>
+                      <span>{{ formatEstadoLabel(item.estado) }}</span>
+                    </p>
+                    <p class="item-pricing">
+                      {{ formatCurrency(item.precio_unitario) }} c/u · Subtotal {{ formatCurrency(item.subtotal) }}
+                    </p>
+
+                    @if (item.nota) {
+                      <p class="item-note">Nota del mesero: {{ item.nota }}</p>
+                    }
+
+                    @if (item.exclusiones.length > 0) {
+                      <div class="chips-row">
+                        @for (exclusion of item.exclusiones; track exclusion.id_ingrediente) {
+                          <span class="chip">Sin {{ exclusion.nombre }}</span>
+                        }
+                      </div>
+                    }
+                  </div>
+                </article>
+              }
+            </section>
+
+            <section class="totales-box">
+              <div>
+                <span>Subtotal</span>
+                <strong>{{ formatCurrency(detalle.totales.subtotal) }}</strong>
+              </div>
+              <div>
+                <span>Impuesto</span>
+                <strong>{{ formatCurrency(detalle.totales.impuesto) }}</strong>
+              </div>
+              <div>
+                <span>Total</span>
+                <strong>{{ formatCurrency(detalle.totales.total) }}</strong>
+              </div>
+            </section>
+          }
+        </div>
+
+        <footer class="detalle-footer">
+          <button class="pager-btn" (click)="cerrarDetallePedido()">Cerrar</button>
+        </footer>
+      </article>
+    </div>
+  }
+</section>

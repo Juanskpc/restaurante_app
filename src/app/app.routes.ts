@@ -1,6 +1,6 @@
 import { Routes } from '@angular/router';
 
-import { authGuard } from './core/guards/auth.guard';
+import { authGuard, permissionGuard } from './core/guards/auth.guard';
 import { LayoutComponent } from './layout/layout';
 
 export const routes: Routes = [
@@ -8,6 +8,7 @@ export const routes: Routes = [
     path: '',
     component: LayoutComponent,
     canActivate: [authGuard],
+    canActivateChild: [permissionGuard],
     children: [
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
       {
@@ -52,9 +53,25 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./restaurante/features/usuarios').then(m => m.UsuariosComponent),
       },
-      // { path: 'reportes',       loadComponent: () => import('./restaurante/features/reportes/reportes').then(m => m.ReportesComponent) },
-      // { path: 'configuracion',  loadComponent: () => import('./restaurante/features/configuracion/configuracion').then(m => m.ConfiguracionComponent) },
+      {
+        path: 'reportes',
+        title: 'Reportes',
+        loadComponent: () =>
+          import('./restaurante/features/reportes').then(m => m.ReportesComponent),
+      },
+      {
+        path: 'sin-acceso',
+        title: 'Sin acceso',
+        loadComponent: () =>
+          import('./restaurante/features/sin-acceso/sin-acceso').then(m => m.SinAccesoComponent),
+      },
+      {
+        path: 'configuracion',
+        title: 'Configuracion',
+        loadComponent: () =>
+          import('./restaurante/features/configuracion').then(m => m.ConfiguracionComponent),
+      },
     ],
   },
-  { path: '**', redirectTo: '' },
+  { path: '**', redirectTo: 'dashboard' },
 ];

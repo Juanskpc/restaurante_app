@@ -17,25 +17,92 @@ export interface UsuarioRestaurante {
   email: string;
 }
 
+export interface PermisoVistaRestaurante {
+  id_nivel: number;
+  vista: string;
+  url: string;
+  roles: string[];
+  puede_ver: boolean;
+  puede_crear: boolean;
+  puede_editar: boolean;
+  puede_eliminar: boolean;
+}
+
+export interface PermisoSubnivelRestaurante {
+  id_nivel: number;
+  codigo: string;
+  accion: string;
+  modulo_url: string;
+  roles: string[];
+  puede_ver: boolean;
+}
+
 export interface NegocioRestaurante {
   id_negocio: number;
   nombre: string;
   tipo_negocio: string | null;
   paleta: { id_paleta: number; nombre: string; colores: Record<string, string> } | null;
   roles: { id_rol: number; descripcion: string }[];
+  permisos_vista: PermisoVistaRestaurante[];
+  permisos_subnivel: PermisoSubnivelRestaurante[];
 }
 
 export interface SesionRestaurante {
   usuario: UsuarioRestaurante;
+  permisos_cargados?: boolean;
   negocio: NegocioRestaurante | null;
   negocios: NegocioRestaurante[];
   roles: { id_rol: number; descripcion: string }[];
   roles_globales: { id_rol: number; descripcion: string }[];
+  permisos_vista?: PermisoVistaRestaurante[];
+  permisos_subnivel?: PermisoSubnivelRestaurante[];
 }
 
 const TOKEN_KEY    = 'app_token';
 const SESSION_KEY  = 'app_session';
 const NEGOCIO_KEY  = 'app_negocio_activo';
+
+const APP_ROUTE_PRIORITY = [
+  '/dashboard',
+  '/pedidos',
+  '/cocina',
+  '/menu',
+  '/mesas',
+  '/inventario',
+  '/usuarios',
+  '/reportes',
+  '/configuracion',
+];
+
+const ROUTE_PERMISSION_ALIASES: Record<string, string[]> = {
+  '/dashboard': ['/dashboard'],
+  '/pedidos': ['/pedidos', '/pos', '/pos/pedidos'],
+  '/cocina': ['/cocina'],
+  '/menu': ['/menu', '/inventario/productos', '/inventario'],
+  '/mesas': ['/mesas', '/pos', '/pos/pedidos'],
+  '/inventario': ['/inventario'],
+  '/usuarios': ['/usuarios'],
+  '/reportes': ['/reportes'],
+  '/configuracion': ['/configuracion'],
+};
+
+function normalizeRoutePath(rawPath: string): string {
+  if (!rawPath) return '/';
+  const withoutQuery = rawPath.split('?')[0]?.split('#')[0]?.trim() ?? '';
+  if (!withoutQuery) return '/';
+
+  const withLeadingSlash = withoutQuery.startsWith('/') ? withoutQuery : `/${withoutQuery}`;
+  const normalized = withLeadingSlash.replace(/\/+/g, '/').replace(/\/+$/, '');
+  return normalized || '/';
+}
+
+function normalizePermissionCode(rawCode: string): string {
+  return String(rawCode || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^\/+/, '')
+    .replace(/\//g, '_');
+}
 
 /**
  * AuthService — Gestiona autenticación y sesión para la app de negocio.
@@ -80,6 +147,22 @@ export class AuthService {
     if (s.roles_globales?.length > 0) return s.roles_globales[0].descripcion;
     if (s.roles?.length > 0) return s.roles[0].descripcion;
     return 'Usuario';
+  });
+
+  readonly permisosVistaActivos = computed<PermisoVistaRestaurante[]>(() => {
+    const negocio = this.negocio();
+    if (negocio?.permisos_vista?.length) {
+      return negocio.permisos_vista;
+    }
+    return this.session()?.permisos_vista ?? [];
+  });
+
+  readonly permisosSubnivelActivos = computed<PermisoSubnivelRestaurante[]>(() => {
+    const negocio = this.negocio();
+    if (negocio?.permisos_subnivel?.length) {
+      return negocio.permisos_subnivel;
+    }
+    return this.session()?.permisos_subnivel ?? [];
   });
 
   constructor() {
@@ -142,6 +225,66 @@ export class AuthService {
     }
   }
 
+  canAccessRoute(routePath: string): boolean {
+    const session = this.session();
+    if (!session) return false;
+
+    // Compatibilidad con sesiones antiguas que no incluyen permisos.
+    if (session.permisos_cargados !== true) {
+      return true;
+    }
+
+    const allowedPaths = this.getAllowedPermissionPaths();
+    if (allowedPaths.size === 0) {
+      return false;
+    }
+
+    const normalizedRoute = normalizeRoutePath(routePath);
+    const candidates = ROUTE_PERMISSION_ALIASES[normalizedRoute] ?? [normalizedRoute];
+
+    return candidates.some((candidate) => {
+      const normalizedCandidate = normalizeRoutePath(candidate);
+
+      for (const allowed of allowedPaths) {
+        if (allowed === normalizedCandidate) return true;
+        if (allowed.startsWith(`${normalizedCandidate}/`)) return true;
+        if (normalizedCandidate.startsWith(`${allowed}/`)) return true;
+      }
+
+      return false;
+    });
+  }
+
+  getFirstAccessibleRoute(preferredRoutes: string[] = APP_ROUTE_PRIORITY): string | null {
+    for (const route of preferredRoutes) {
+      if (this.canAccessRoute(route)) {
+        return route;
+      }
+    }
+    return null;
+  }
+
+  getPermittedRoutesForSidebar(): string[] {
+    return APP_ROUTE_PRIORITY.filter((route) => this.canAccessRoute(route));
+  }
+
+  canAccessSubnivel(code: string): boolean {
+    const session = this.session();
+    if (!session) return false;
+
+    if (session.permisos_cargados !== true) {
+      return true;
+    }
+
+    const normalizedCode = normalizePermissionCode(code);
+    if (!normalizedCode) return false;
+
+    const permisos = this.permisosSubnivelActivos();
+    return permisos.some((permiso) =>
+      permiso?.puede_ver && normalizePermissionCode(permiso.codigo) === normalizedCode
+    );
+  }
+
   // ============================================================
   // Interno
   // ============================================================
@@ -187,5 +330,17 @@ export class AuthService {
     localStorage.removeItem(NEGOCIO_KEY);
     this.session.set(null);
     this._negocioIdx.set(0);
+  }
+
+  private getAllowedPermissionPaths(): Set<string> {
+    const permisos = this.permisosVistaActivos();
+    const result = new Set<string>();
+
+    for (const permiso of permisos) {
+      if (!permiso?.puede_ver || !permiso.url) continue;
+      result.add(normalizeRoutePath(permiso.url));
+    }
+
+    return result;
   }
 }

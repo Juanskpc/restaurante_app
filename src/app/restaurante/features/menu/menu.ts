@@ -2,12 +2,13 @@ import {
   Component, inject, signal, computed, effect,
   ChangeDetectionStrategy, OnInit, OnDestroy,
 } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { LucideAngularModule } from 'lucide-angular';
 import { FormsModule } from '@angular/forms';
 import { CurrencyPipe } from '@angular/common';
 
 import { AuthService } from '../../../core/services/auth.service';
+import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 import { environment } from '../../../../environments/environment';
 
 // ============================================================
@@ -65,7 +66,6 @@ export interface IngredienteForm {
   id_ingrediente: number | null;
   nombre: string;
   porcion: number | null;
-  unidad_medida: string;
   es_removible: boolean;
 }
 
@@ -95,6 +95,7 @@ interface ProdFormData {
 export class MenuComponent implements OnInit, OnDestroy {
   private readonly http = inject(HttpClient);
   private readonly auth = inject(AuthService);
+  private readonly uiFeedback = inject(UiFeedbackService);
 
   // ── Data ──────────────────────────────────────────────────
   readonly categorias       = signal<CategoriaAdmin[]>([]);
@@ -116,6 +117,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   // ── Modal: Producto ───────────────────────────────────────
   readonly modalProdOpen    = signal(false);
   readonly editandoProdId   = signal<number | null>(null);
+  readonly ingredientesModificados = signal(false);
   readonly prodForm         = signal<ProdFormData>({
     nombre: '', descripcion: '', precio: null, icono: '🍔',
     imagen_url: '', es_popular: false, disponible: true,
@@ -271,9 +273,10 @@ export class MenuComponent implements OnInit, OnDestroy {
       ...f,
       ingredientes: [
         ...f.ingredientes,
-        { id_ingrediente: null, nombre: '', porcion: null, unidad_medida: 'g', es_removible: true },
+        { id_ingrediente: null, nombre: '', porcion: null, es_removible: true },
       ],
     }));
+    this.ingredientesModificados.set(true);
   }
 
   eliminarIngredienteForm(index: number): void {
@@ -281,21 +284,47 @@ export class MenuComponent implements OnInit, OnDestroy {
       ...f,
       ingredientes: f.ingredientes.filter((_, i) => i !== index),
     }));
+    this.ingredientesModificados.set(true);
   }
 
   actualizarIngredienteField(index: number, campo: keyof IngredienteForm, valor: unknown): void {
     this.prodForm.update(f => {
       const ingredientes = f.ingredientes.map((ing, i) => {
         if (i !== index) return ing;
-        const updated = { ...ing, [campo]: valor };
-        if (campo === 'id_ingrediente') {
-          const base = this.ingredientesBase().find(b => b.id_ingrediente === Number(valor));
-          updated['nombre'] = base?.nombre ?? '';
-        }
-        return updated;
+        return { ...ing, [campo]: valor };
       });
       return { ...f, ingredientes };
     });
+    this.ingredientesModificados.set(true);
+  }
+
+  actualizarIngredienteSeleccion(index: number, nombreIngresado: string): void {
+    const nombreNormalizado = nombreIngresado.trim().toLowerCase();
+    const ingredienteBase = nombreNormalizado
+      ? this.ingredientesBase().find(base => base.nombre.trim().toLowerCase() === nombreNormalizado)
+      : null;
+
+    this.prodForm.update(f => {
+      const ingredientes = f.ingredientes.map((ing, i) => {
+        if (i !== index) return ing;
+        if (!nombreNormalizado) return { ...ing, id_ingrediente: null, nombre: '' };
+        if (ingredienteBase) {
+          return {
+            ...ing,
+            id_ingrediente: ingredienteBase.id_ingrediente,
+            nombre: ingredienteBase.nombre,
+          };
+        }
+        return { ...ing, id_ingrediente: null, nombre: nombreIngresado };
+      });
+      return { ...f, ingredientes };
+    });
+    this.ingredientesModificados.set(true);
+  }
+
+  mostrarOpcionesIngrediente(event: FocusEvent): void {
+    const input = event.target as (HTMLInputElement & { showPicker?: () => void }) | null;
+    input?.showPicker?.();
   }
 
   // ── Crear ingrediente base nuevo desde el modal ───────────
@@ -320,8 +349,13 @@ export class MenuComponent implements OnInit, OnDestroy {
         }
         this.nuevoIngredNombre.set('');
         this.creandoIngred.set(false);
+        this.uiFeedback.created('El insumo base fue creado correctamente.');
       },
-      error: () => this.creandoIngred.set(false),
+      error: (err: HttpErrorResponse) => {
+        this.creandoIngred.set(false);
+        const message = this.getHttpErrorMessage(err) || 'No se pudo crear el insumo.';
+        this.uiFeedback.error(message);
+      },
     });
   }
 
@@ -355,14 +389,34 @@ export class MenuComponent implements OnInit, OnDestroy {
       : this.http.post(`${environment.apiUrl}/carta/admin/categorias`, { id_negocio: id, ...form });
 
     req.subscribe({
-      next: () => { this.guardando.set(false); this.cerrarModalCat(); this.loadCategorias(); },
-      error: () => this.guardando.set(false),
+      next: () => {
+        this.guardando.set(false);
+        this.cerrarModalCat();
+        if (editId) {
+          this.uiFeedback.updated('Los datos de la categoria fueron actualizados.');
+        } else {
+          this.uiFeedback.created('La categoria fue creada correctamente.');
+        }
+        this.loadCategorias();
+      },
+      error: () => {
+        this.guardando.set(false);
+        this.uiFeedback.error('No fue posible guardar la categoria.');
+      },
     });
   }
 
-  eliminarCategoria(cat: CategoriaAdmin, event: Event): void {
+  async eliminarCategoria(cat: CategoriaAdmin, event: Event): Promise<void> {
     event.stopPropagation();
-    if (!confirm(`¿Eliminar la categoría "${cat.nombre}"? Todos sus productos serán desactivados.`)) return;
+    const confirmed = await this.uiFeedback.confirm({
+      title: 'Eliminar categoria',
+      message: `¿Eliminar la categoria "${cat.nombre}"? Todos sus productos seran desactivados.`,
+      confirmText: 'Eliminar',
+      cancelText: 'Cancelar',
+      tone: 'error',
+    });
+    if (!confirmed) return;
+
     this.http.delete(`${environment.apiUrl}/carta/admin/categorias/${cat.id_categoria}`)
       .subscribe({
         next: () => {
@@ -370,8 +424,10 @@ export class MenuComponent implements OnInit, OnDestroy {
             this.categoriaActiva.set(null);
             this.productos.set([]);
           }
+          this.uiFeedback.deleted('La categoria fue eliminada correctamente.');
           this.loadCategorias();
         },
+        error: () => this.uiFeedback.error('No fue posible eliminar la categoria.'),
       });
   }
 
@@ -394,12 +450,12 @@ export class MenuComponent implements OnInit, OnDestroy {
         ingredientes: prod.ingredientes.map(pi => ({
           id_producto_ingred: pi.id_producto_ingred,
           id_ingrediente:     pi.id_ingrediente,
-          nombre:             pi.nombre,
+          nombre:             pi.nombre || this.ingredientesBase().find(base => base.id_ingrediente === pi.id_ingrediente)?.nombre || '',
           porcion:            pi.porcion,
-          unidad_medida:      pi.unidad_medida ?? 'g',
           es_removible:       pi.es_removible,
         })),
       });
+      this.ingredientesModificados.set(false);
     } else {
       this.editandoProdId.set(null);
       this.prodForm.set({
@@ -407,6 +463,7 @@ export class MenuComponent implements OnInit, OnDestroy {
         imagen_url: '', es_popular: false, disponible: true,
         id_categoria: this.categoriaActiva(), ingredientes: [],
       });
+      this.ingredientesModificados.set(false);
     }
     this.modalProdOpen.set(true);
   }
@@ -418,8 +475,26 @@ export class MenuComponent implements OnInit, OnDestroy {
     const form = this.prodForm();
     if (!id || !form.nombre.trim() || !form.precio || !form.id_categoria) return;
 
+    const ingredientesInvalidos = form.ingredientes.filter(i => i.nombre.trim() && i.id_ingrediente == null);
+    if (ingredientesInvalidos.length > 0) {
+      void this.uiFeedback.alert({
+        title: 'Ingredientes invalidos',
+        message: 'Selecciona un ingrediente valido de la lista para cada fila.',
+        tone: 'warning',
+      });
+      return;
+    }
+
     this.guardando.set(true);
     const editId = this.editandoProdId();
+    const ingredientesPayload = form.ingredientes
+      .filter(i => i.id_ingrediente != null)
+      .map(i => ({
+        id_ingrediente: Number(i.id_ingrediente),
+        porcion:        i.porcion ?? 0,
+        es_removible:   i.es_removible,
+      }));
+
     const body = {
       id_negocio:   id,
       id_categoria: form.id_categoria,
@@ -430,14 +505,7 @@ export class MenuComponent implements OnInit, OnDestroy {
       imagen_url:   form.imagen_url,
       es_popular:   form.es_popular,
       disponible:   form.disponible,
-      ingredientes: form.ingredientes
-        .filter(i => i.id_ingrediente != null)
-        .map(i => ({
-          id_ingrediente: i.id_ingrediente,
-          porcion:        i.porcion ?? 0,
-          unidad_medida:  i.unidad_medida,
-          es_removible:   i.es_removible,
-        })),
+      ...(!editId || this.ingredientesModificados() ? { ingredientes: ingredientesPayload } : {}),
     };
 
     const req = editId
@@ -445,15 +513,50 @@ export class MenuComponent implements OnInit, OnDestroy {
       : this.http.post(`${environment.apiUrl}/carta/admin/productos`, body);
 
     req.subscribe({
-      next: () => { this.guardando.set(false); this.cerrarModalProd(); this.recargarVista(); },
-      error: () => this.guardando.set(false),
+      next: () => {
+        this.guardando.set(false);
+        this.ingredientesModificados.set(false);
+        this.cerrarModalProd();
+        if (editId) {
+          this.uiFeedback.updated('Los datos del producto fueron actualizados.');
+        } else {
+          this.uiFeedback.created('El producto fue creado correctamente.');
+        }
+        this.recargarVista();
+      },
+      error: () => {
+        this.guardando.set(false);
+        this.uiFeedback.error('No fue posible guardar el producto.');
+      },
     });
   }
 
-  eliminarProducto(prod: ProductoAdmin): void {
-    if (!confirm(`¿Eliminar el producto "${prod.nombre}"?`)) return;
+  private getHttpErrorMessage(err: HttpErrorResponse): string {
+    const message = err?.error?.message;
+    if (typeof message === 'string') {
+      return message.trim();
+    }
+    return '';
+  }
+
+  async eliminarProducto(prod: ProductoAdmin): Promise<void> {
+    const confirmed = await this.uiFeedback.confirm({
+      title: 'Eliminar producto',
+      message: `¿Eliminar el producto "${prod.nombre}"?`,
+      confirmText: 'Eliminar',
+      cancelText: 'Cancelar',
+      tone: 'error',
+    });
+    if (!confirmed) return;
+
     this.http.delete(`${environment.apiUrl}/carta/admin/productos/${prod.id_producto}`)
-      .subscribe({ next: () => this.recargarVista() });
+      .subscribe({
+        next: () => {
+          this.uiFeedback.deleted('El producto fue eliminado correctamente.');
+          this.recargarVista();
+        },
+        error: () => this.uiFeedback.error('No fue posible eliminar el producto.'),
+      });
   }
 
   toggleDisponible(prod: ProductoAdmin): void {
@@ -461,9 +564,13 @@ export class MenuComponent implements OnInit, OnDestroy {
       `${environment.apiUrl}/carta/admin/productos/${prod.id_producto}`,
       { disponible: !prod.disponible }
     ).subscribe({
-      next: () => this.productos.update(list =>
-        list.map(p => p.id_producto === prod.id_producto ? { ...p, disponible: !p.disponible } : p)
-      ),
+      next: () => {
+        this.productos.update(list =>
+          list.map(p => p.id_producto === prod.id_producto ? { ...p, disponible: !p.disponible } : p)
+        );
+        this.uiFeedback.updated('La disponibilidad del producto fue actualizada.');
+      },
+      error: () => this.uiFeedback.error('No fue posible actualizar la disponibilidad del producto.'),
     });
   }
 

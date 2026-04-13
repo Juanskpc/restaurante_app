@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   inject,
   signal,
 } from '@angular/core';
@@ -11,6 +12,8 @@ import { finalize } from 'rxjs';
 import { HttpErrorResponse } from '@angular/common/http';
 
 import { UsuariosService } from './usuarios.service';
+import { AuthService } from '../../../core/services/auth.service';
+import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 import {
   EstadoRegistro,
   PermisoModulo,
@@ -30,6 +33,8 @@ import {
 export class UsuariosComponent {
   private readonly fb = inject(FormBuilder);
   private readonly usuariosService = inject(UsuariosService);
+  private readonly auth = inject(AuthService);
+  private readonly uiFeedback = inject(UiFeedbackService);
 
   protected readonly activeTab = signal<'usuarios' | 'roles'>('usuarios');
   protected readonly loading = signal(false);
@@ -48,8 +53,21 @@ export class UsuariosComponent {
 
   protected readonly selectedRoleId = signal<number | null>(null);
   protected readonly permisosRol = signal<PermisoModulo[]>([]);
+  protected readonly permisosSnapshot = signal('[]');
 
   protected readonly selectedUsuarioPermisos = signal<UsuarioPermisosDetalle | null>(null);
+  protected readonly negocioId = computed(() => this.auth.negocio()?.id_negocio ?? null);
+  protected readonly selectedRoleDescripcion = computed(() => {
+    const roleId = this.selectedRoleId();
+    if (!roleId) return 'Rol';
+    return this.roles().find((rol) => rol.id_rol === roleId)?.descripcion ?? 'Rol';
+  });
+  protected readonly modulosConAccesoCount = computed(
+    () => this.permisosRol().filter((modulo) => modulo.puede_ver).length
+  );
+  protected readonly hasPermisosPendientes = computed(
+    () => this.serializePermisos(this.permisosRol()) !== this.permisosSnapshot()
+  );
 
   protected readonly userForm = this.fb.nonNullable.group({
     id_usuario: [0],
@@ -85,7 +103,22 @@ export class UsuariosComponent {
   });
 
   constructor() {
-    this.loadInitialData();
+    effect(() => {
+      const idNegocio = this.negocioId();
+
+      if (!idNegocio) {
+        this.roles.set([]);
+        this.usuarios.set([]);
+        this.selectedRoleId.set(null);
+        this.permisosRol.set([]);
+        this.permisosSnapshot.set('[]');
+        this.roleFilter.set(null);
+        return;
+      }
+
+      this.roleFilter.set(null);
+      this.loadInitialData(idNegocio);
+    });
   }
 
   protected changeTab(tab: 'usuarios' | 'roles'): void {
@@ -98,16 +131,20 @@ export class UsuariosComponent {
     }
   }
 
-  protected loadInitialData(): void {
+  protected loadInitialData(idNegocio: number): void {
     this.loading.set(true);
     this.errorMessage.set(null);
 
-    this.usuariosService.getRoles().subscribe({
+    this.usuariosService.getRoles({ idNegocio }).subscribe({
       next: (roles) => {
         this.roles.set(roles);
 
-        if (roles.length > 0 && !this.selectedRoleId()) {
-          this.selectedRoleId.set(roles[0].id_rol);
+        if (roles.length === 0) {
+          this.selectedRoleId.set(null);
+        } else {
+          const selected = this.selectedRoleId();
+          const exists = selected ? roles.some((rol) => rol.id_rol === selected) : false;
+          this.selectedRoleId.set(exists ? selected : roles[0].id_rol);
         }
 
         this.loadUsuarios();
@@ -120,10 +157,17 @@ export class UsuariosComponent {
   }
 
   protected loadUsuarios(): void {
+    const idNegocio = this.negocioId();
+    if (!idNegocio) {
+      this.loading.set(false);
+      this.usuarios.set([]);
+      return;
+    }
+
     this.loading.set(true);
     this.errorMessage.set(null);
 
-    this.usuariosService.getUsuarios().pipe(
+    this.usuariosService.getUsuarios({ idNegocio }).pipe(
       finalize(() => this.loading.set(false)),
     ).subscribe({
       next: (usuarios) => {
@@ -152,9 +196,22 @@ export class UsuariosComponent {
     this.estadoFilter.set((value || 'ALL') as EstadoRegistro | 'ALL');
   }
 
-  protected onRoleSelected(value: string): void {
+  protected async onRoleSelected(value: string): Promise<void> {
     const roleId = Number(value);
     if (!roleId) return;
+    if (roleId === this.selectedRoleId()) return;
+
+    if (this.hasPermisosPendientes()) {
+      const confirmed = await this.uiFeedback.confirm({
+        title: 'Cambios sin guardar',
+        message: 'Tienes cambios sin guardar para este rol. Si cambias de rol perderas el avance. ¿Deseas continuar?',
+        confirmText: 'Cambiar rol',
+        cancelText: 'Seguir editando',
+        tone: 'warning',
+      });
+
+      if (!confirmed) return;
+    }
 
     this.selectedRoleId.set(roleId);
     this.loadPermisosRol(roleId);
@@ -222,6 +279,12 @@ export class UsuariosComponent {
       }
     }
 
+    const idNegocio = this.negocioId();
+    if (!idNegocio) {
+      this.errorMessage.set('No se encontro un negocio activo para asignar el usuario.');
+      return;
+    }
+
     const payload: UsuarioAdminPayload = {
       primer_nombre: formValue.primer_nombre.trim(),
       segundo_nombre: formValue.segundo_nombre?.trim() || null,
@@ -230,6 +293,7 @@ export class UsuariosComponent {
       num_identificacion: formValue.num_identificacion.trim(),
       email: formValue.email.trim().toLowerCase(),
       id_rol: Number(formValue.id_rol),
+      id_negocio: idNegocio,
       estado: formValue.estado,
       es_admin_principal: Boolean(formValue.es_admin_principal),
     };
@@ -249,11 +313,16 @@ export class UsuariosComponent {
       finalize(() => this.saving.set(false)),
     ).subscribe({
       next: () => {
+        if (isCreate) {
+          this.uiFeedback.created('Usuario creado correctamente.');
+        } else {
+          this.uiFeedback.updated('Los datos del usuario fueron actualizados.');
+        }
         this.closeFormModal();
         this.loadUsuarios();
       },
       error: (error) => {
-        this.errorMessage.set(this.extractError(error, 'No fue posible guardar el usuario.'));
+        this.handleError(error, 'No fue posible guardar el usuario.');
       },
     });
   }
@@ -262,59 +331,141 @@ export class UsuariosComponent {
     const estadoNuevo: EstadoRegistro = usuario.estado === 'A' ? 'I' : 'A';
 
     this.usuariosService.setEstadoUsuario(usuario.id_usuario, estadoNuevo).subscribe({
-      next: () => this.loadUsuarios(),
+      next: () => {
+        if (estadoNuevo === 'I') {
+          this.uiFeedback.inactivated('El usuario fue inactivado correctamente.');
+        } else {
+          this.uiFeedback.activated('El usuario fue activado correctamente.');
+        }
+        this.loadUsuarios();
+      },
       error: (error) => {
-        this.errorMessage.set(this.extractError(error, 'No fue posible actualizar el estado del usuario.'));
+        this.handleError(error, 'No fue posible actualizar el estado del usuario.');
       },
     });
   }
 
-  protected deleteUsuario(usuario: UsuarioAdmin): void {
-    const confirmed = window.confirm(`Seguro que deseas eliminar a ${usuario.nombre_completo}?`);
+  protected async deleteUsuario(usuario: UsuarioAdmin): Promise<void> {
+    const confirmed = await this.uiFeedback.confirm({
+      title: 'Eliminar usuario',
+      message: `Seguro que deseas eliminar a ${usuario.nombre_completo}? Esta accion no se puede deshacer.`,
+      confirmText: 'Eliminar',
+      cancelText: 'Cancelar',
+      tone: 'error',
+    });
+
     if (!confirmed) return;
 
     this.usuariosService.deleteUsuario(usuario.id_usuario).subscribe({
-      next: () => this.loadUsuarios(),
+      next: () => {
+        this.uiFeedback.deleted('El usuario fue eliminado correctamente.');
+        this.loadUsuarios();
+      },
       error: (error) => {
-        this.errorMessage.set(this.extractError(error, 'No fue posible eliminar el usuario.'));
+        this.handleError(error, 'No fue posible eliminar el usuario.');
       },
     });
   }
 
   protected loadPermisosRol(idRol: number): void {
+    const idNegocio = this.negocioId();
+    if (!idNegocio) {
+      this.permisosRol.set([]);
+      return;
+    }
+
     this.loadingPermisos.set(true);
 
-    this.usuariosService.getPermisosRol(idRol).pipe(
+    this.usuariosService.getPermisosRol(idRol, idNegocio).pipe(
       finalize(() => this.loadingPermisos.set(false)),
     ).subscribe({
       next: (matriz) => {
-        this.permisosRol.set(matriz.modulos);
+        const permisos =
+          (matriz.modulos ?? []).map((modulo) => ({
+            ...modulo,
+            puede_ver: Boolean(modulo.puede_ver),
+            puede_crear: false,
+            puede_editar: false,
+            puede_eliminar: false,
+            subniveles: (modulo.subniveles ?? []).map((subnivel) => ({
+              ...subnivel,
+              puede_ver: Boolean(subnivel.puede_ver),
+            })),
+          }));
+
+        this.permisosRol.set(permisos);
+        this.permisosSnapshot.set(this.serializePermisos(permisos));
       },
       error: (error) => {
-        this.errorMessage.set(this.extractError(error, 'No fue posible cargar la matriz de permisos.'));
+        this.handleError(error, 'No fue posible cargar la matriz de permisos.');
       },
     });
   }
 
-  protected updatePermiso(index: number, key: keyof PermisoModulo, checked: boolean): void {
-    this.permisosRol.update((rows) => rows.map((row, i) => i === index ? { ...row, [key]: checked } : row));
+  protected updateModuloAcceso(index: number, checked: boolean): void {
+    this.permisosRol.update((rows) => rows.map((row, i) => i === index
+      ? {
+        ...row,
+        puede_ver: checked,
+        puede_crear: false,
+        puede_editar: false,
+        puede_eliminar: false,
+        subniveles: (row.subniveles ?? []).map((subnivel) => ({
+          ...subnivel,
+          puede_ver: checked ? subnivel.puede_ver : false,
+        })),
+      }
+      : row));
+  }
+
+  protected updateSubnivelAcceso(moduleIndex: number, subIndex: number, checked: boolean): void {
+    this.permisosRol.update((rows) => rows.map((row, rowIndex) => {
+      if (rowIndex !== moduleIndex) return row;
+
+      const subniveles = (row.subniveles ?? []).map((subnivel, currentSubIndex) =>
+        currentSubIndex === subIndex
+          ? { ...subnivel, puede_ver: checked }
+          : subnivel
+      );
+
+      return {
+        ...row,
+        puede_ver: checked ? true : row.puede_ver,
+        subniveles,
+      };
+    }));
   }
 
   protected savePermisosRol(): void {
     const idRol = this.selectedRoleId();
-    if (!idRol) return;
+    const idNegocio = this.negocioId();
+    if (!idRol || !idNegocio) return;
 
     this.saving.set(true);
     this.errorMessage.set(null);
 
-    this.usuariosService.savePermisosRol(idRol, this.permisosRol()).pipe(
+    const payload = this.permisosRol().map((modulo) => ({
+      ...modulo,
+      puede_ver: Boolean(modulo.puede_ver),
+      puede_crear: false,
+      puede_editar: false,
+      puede_eliminar: false,
+      subniveles: (modulo.subniveles ?? []).map((subnivel) => ({
+        ...subnivel,
+        puede_ver: Boolean(modulo.puede_ver) && Boolean(subnivel.puede_ver),
+      })),
+    }));
+
+    this.usuariosService.savePermisosRol(idRol, idNegocio, payload).pipe(
       finalize(() => this.saving.set(false)),
     ).subscribe({
       next: () => {
+        this.permisosSnapshot.set(this.serializePermisos(payload));
+        this.uiFeedback.updated('Los permisos del rol fueron actualizados correctamente.');
         this.loadPermisosRol(idRol);
       },
       error: (error) => {
-        this.errorMessage.set(this.extractError(error, 'No fue posible guardar permisos del rol.'));
+        this.handleError(error, 'No fue posible guardar permisos del rol.');
       },
     });
   }
@@ -332,7 +483,7 @@ export class UsuariosComponent {
       error: (error) => {
         this.showPermisosUsuarioModal.set(false);
         this.selectedUsuarioPermisos.set(null);
-        this.errorMessage.set(this.extractError(error, 'No fue posible consultar los permisos del usuario.'));
+        this.handleError(error, 'No fue posible consultar los permisos del usuario.');
       },
     });
   }
@@ -348,6 +499,29 @@ export class UsuariosComponent {
 
   protected estadoLabel(estado: EstadoRegistro): string {
     return estado === 'A' ? 'Activo' : 'Inactivo';
+  }
+
+  private serializePermisos(modulos: PermisoModulo[]): string {
+    const normalized = [...modulos]
+      .map((modulo) => ({
+        id_nivel: modulo.id_nivel,
+        puede_ver: Boolean(modulo.puede_ver),
+        subniveles: [...(modulo.subniveles ?? [])]
+          .map((subnivel) => ({
+            id_nivel: subnivel.id_nivel,
+            puede_ver: Boolean(subnivel.puede_ver),
+          }))
+          .sort((a, b) => a.id_nivel - b.id_nivel),
+      }))
+      .sort((a, b) => a.id_nivel - b.id_nivel);
+
+    return JSON.stringify(normalized);
+  }
+
+  private handleError(error: unknown, fallback: string): void {
+    const message = this.extractError(error, fallback);
+    this.errorMessage.set(message);
+    this.uiFeedback.error(message);
   }
 
   private extractError(error: unknown, fallback: string): string {

@@ -2,12 +2,13 @@ import {
   Component, inject, signal, computed, effect,
   ChangeDetectionStrategy, OnInit, OnDestroy, PLATFORM_ID,
 } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { LucideAngularModule } from 'lucide-angular';
 import { FormsModule } from '@angular/forms';
 import { CurrencyPipe, isPlatformBrowser } from '@angular/common';
 
 import { AuthService } from '../../../core/services/auth.service';
+import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 import { environment } from '../../../../environments/environment';
 
 // ============================================================
@@ -90,6 +91,17 @@ interface OrdenApi {
 type DestinoEnvio = 'COCINA' | 'CAJA' | 'COBRAR';
 type TipoPedido = 'MESA' | 'LLEVAR';
 
+interface ItemOrdenCache {
+  id_producto: number;
+  nombre: string;
+  icono: string;
+  precio_unitario: number;
+  cantidad: number;
+  exclusiones: number[];
+  exclusionesNombres?: string[];
+  nota?: string;
+}
+
 /**
  * PedidosComponent — Vista POS (Point of Sale) del restaurante.
  *
@@ -107,8 +119,12 @@ type TipoPedido = 'MESA' | 'LLEVAR';
 export class PedidosComponent implements OnInit, OnDestroy {
   private readonly http = inject(HttpClient);
   private readonly auth = inject(AuthService);
+  private readonly uiFeedback = inject(UiFeedbackService);
   private readonly platformId = inject(PLATFORM_ID);
   private readonly isBrowser = isPlatformBrowser(this.platformId);
+  private readonly paidItemsStorageKey = 'pedidos_items_pagados_mesa_v1';
+  private readonly mobileBreakpoint = 992;
+  private readonly onResize = () => this.updateViewportState();
 
   // --- Estado ---
   readonly categorias = signal<Categoria[]>([]);
@@ -117,6 +133,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
   readonly items = signal<ItemOrden[]>([]);
   readonly searchTerm = signal('');
   readonly mesas = signal<Mesa[]>([]);
+  readonly cargandoMesas = signal(true);
   readonly mesaId = signal<number | null>(null);
   readonly ordenActivaId = signal<number | null>(null);
   readonly itemsBaseOrdenActiva = signal<ItemOrden[]>([]);
@@ -129,6 +146,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
   readonly efectivoRecibidoInput = signal('');
   readonly cargandoProductos = signal(false);
   readonly ordenPanelOpen = signal(false);
+  readonly isMobileViewport = signal(this.isBrowser ? window.innerWidth < this.mobileBreakpoint : false);
 
   // Para modal de personalización de ingredientes
   readonly itemEditando = signal<ItemOrden | null>(null);
@@ -159,6 +177,10 @@ export class PedidosComponent implements OnInit, OnDestroy {
 
   readonly negocioId = computed(() => this.auth.negocio()?.id_negocio ?? null);
   readonly requiereMesa = computed(() => this.tipoPedido() === 'MESA');
+  readonly canUsarParaLlevar = computed(() => this.auth.canAccessSubnivel('pedidos_para_llevar'));
+  readonly canCobrarPedido = computed(() => this.auth.canAccessSubnivel('pedidos_cobrar'));
+  readonly canImprimirPedido = computed(() => this.auth.canAccessSubnivel('pedidos_imprimir'));
+  readonly canEnviarCocina = computed(() => this.auth.canAccessSubnivel('pedidos_enviar_cocina'));
   readonly efectivoRecibido = computed(() => this.parseMonto(this.efectivoRecibidoInput()));
   readonly faltanteCobro = computed(() => {
     const recibido = this.efectivoRecibido();
@@ -181,13 +203,39 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.searchTimer = setTimeout(() => this.ejecutarBusqueda(term.trim()), 300);
   });
 
+  private readonly tipoPedidoPermissionEffect = effect(() => {
+    if (!this.canUsarParaLlevar() && this.tipoPedido() === 'LLEVAR') {
+      this.tipoPedido.set('MESA');
+    }
+  });
+
   ngOnInit(): void {
+    this.updateViewportState();
+    if (this.isBrowser) {
+      window.addEventListener('resize', this.onResize);
+    }
+
+    this.hidratarItemsPagadosMesa();
     this.loadCategorias();
     this.loadMesas();
   }
 
   ngOnDestroy(): void {
     if (this.searchTimer) clearTimeout(this.searchTimer);
+    if (this.isBrowser) {
+      window.removeEventListener('resize', this.onResize);
+    }
+  }
+
+  private updateViewportState(): void {
+    if (!this.isBrowser) return;
+
+    const isMobile = window.innerWidth < this.mobileBreakpoint;
+    this.isMobileViewport.set(isMobile);
+
+    if (!isMobile) {
+      this.ordenPanelOpen.set(false);
+    }
   }
 
   // ===================== Carga de datos =====================
@@ -198,7 +246,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.http.get<{ success: boolean; data: Categoria[] }>(
       `${environment.apiUrl}/carta/categorias?id_negocio=${id}`
     ).subscribe({
-      next: res => {
+      next: async (res) => {
         const cats = res?.data ?? [];
         this.categorias.set(cats);
         if (cats.length > 0) {
@@ -231,11 +279,22 @@ export class PedidosComponent implements OnInit, OnDestroy {
 
   private loadMesas(): void {
     const id = this.negocioId();
-    if (!id) return;
+    if (!id) {
+      this.cargandoMesas.set(false);
+      return;
+    }
+    this.cargandoMesas.set(true);
     this.http.get<{ success: boolean; data: Mesa[] }>(
       `${environment.apiUrl}/mesas?id_negocio=${id}`
     ).subscribe({
-      next: res => this.mesas.set(res?.data ?? []),
+      next: res => {
+        this.mesas.set(res?.data ?? []);
+        this.cargandoMesas.set(false);
+      },
+      error: () => {
+        this.mesas.set([]);
+        this.cargandoMesas.set(false);
+      },
     });
   }
 
@@ -307,9 +366,15 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.items.set(this.items().filter(i => i !== item));
   }
 
-  limpiarOrden(confirmarUsuario = true): void {
-    if (confirmarUsuario && this.isBrowser) {
-      const confirmada = window.confirm('¿Deseas limpiar el pedido actual? Esta acción no se puede deshacer.');
+  async limpiarOrden(confirmarUsuario = true): Promise<void> {
+    if (confirmarUsuario) {
+      const confirmada = await this.uiFeedback.confirm({
+        title: 'Limpiar pedido',
+        message: '¿Deseas limpiar el pedido actual? Esta accion no se puede deshacer.',
+        confirmText: 'Limpiar',
+        cancelText: 'Cancelar',
+        tone: 'warning',
+      });
       if (!confirmada) return;
     }
 
@@ -322,7 +387,16 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.efectivoRecibidoInput.set('');
   }
 
-  seleccionarTipoPedido(tipo: TipoPedido): void {
+  async seleccionarTipoPedido(tipo: TipoPedido): Promise<void> {
+    if (tipo === 'LLEVAR' && !this.canUsarParaLlevar()) {
+      await this.uiFeedback.alert({
+        title: 'Acceso restringido',
+        message: 'Tu rol no tiene permiso para usar pedidos para llevar.',
+        tone: 'warning',
+      });
+      return;
+    }
+
     this.tipoPedido.set(tipo);
     this.mesaRequeridaError.set(false);
     if (tipo === 'LLEVAR') {
@@ -383,7 +457,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.http.get<{ success: boolean; data: OrdenApi[] }>(
       `${environment.apiUrl}/pedidos/abiertas?id_negocio=${idNegocio}`
     ).subscribe({
-      next: res => {
+      next: async (res) => {
         const ordenes = res?.data ?? [];
         const ordenMesa = ordenes.find(o => o.id_mesa === idMesa);
 
@@ -405,10 +479,14 @@ export class PedidosComponent implements OnInit, OnDestroy {
           return;
         }
 
-          if (this.isBrowser && itemsPrevios.length > 0) {
-            const confirmarReemplazo = window.confirm(
-              'La mesa seleccionada ya tiene un pedido abierto. ¿Deseas cargarlo? Se reemplazará el pedido actual en pantalla.'
-            );
+          if (itemsPrevios.length > 0) {
+            const confirmarReemplazo = await this.uiFeedback.confirm({
+              title: 'Pedido existente en mesa',
+              message: 'La mesa seleccionada ya tiene un pedido abierto. ¿Deseas cargarlo? Se reemplazara el pedido actual en pantalla.',
+              confirmText: 'Cargar pedido',
+              cancelText: 'Conservar actual',
+              tone: 'warning',
+            });
 
             if (!confirmarReemplazo) {
               restaurarEstadoPrevio();
@@ -570,17 +648,34 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.enviarPedido('COBRAR');
   }
 
-  private enviarPedido(destino: DestinoEnvio): void {
-    if (this.items().length === 0 || this.enviando()) return;
+  private enviarPedido(destino: DestinoEnvio, permitirStockNegativo = false, esReintentoStock = false): void {
+    if (this.items().length === 0 || (this.enviando() && !esReintentoStock)) return;
+
+    if (this.requiereMesa() && this.mesas().length === 0) {
+      this.mesaRequeridaError.set(true);
+      void this.uiFeedback.alert({
+        title: 'Mesas no configuradas',
+        message: 'No hay mesas configuradas. Crea una mesa para continuar con el pedido en mesa.',
+        tone: 'warning',
+      });
+      return;
+    }
 
     if (this.requiereMesa() && !this.mesaId()) {
       this.mesaRequeridaError.set(true);
+      void this.uiFeedback.alert({
+        title: 'Mesa requerida',
+        message: 'Debes seleccionar una mesa para continuar.',
+        tone: 'warning',
+      });
       return;
     }
 
     this.mesaRequeridaError.set(false);
-    this.enviando.set(true);
-    this.destinoEnvio.set(destino);
+    if (!esReintentoStock) {
+      this.enviando.set(true);
+      this.destinoEnvio.set(destino);
+    }
 
     const idOrdenActiva = this.requiereMesa() ? this.ordenActivaId() : null;
     if (idOrdenActiva) {
@@ -597,6 +692,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
           id_negocio: this.negocioId(),
           nota: this.notaOrden() || null,
           porcentaje_impuesto: 0,
+          permitir_stock_negativo: permitirStockNegativo,
           items: this.mapItemsPayload(itemsNuevos),
         }
       ).subscribe({
@@ -609,7 +705,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
           this.itemsBaseOrdenActiva.set(this.cloneItems(this.items()));
           this.procesarDestinoEnvio(destino, idOrdenActiva);
         },
-        error: () => this.resetEstadoEnvio(),
+        error: (err: HttpErrorResponse) => void this.manejarErrorEnvio(err, destino, permitirStockNegativo),
       });
       return;
     }
@@ -619,6 +715,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
       id_mesa: this.requiereMesa() ? (this.mesaId() || null) : null,
       nota: this.notaOrden() || null,
       porcentaje_impuesto: 0,
+      permitir_stock_negativo: permitirStockNegativo,
       items: this.mapItemsPayload(this.items()),
     };
 
@@ -640,7 +737,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
 
         this.procesarDestinoEnvio(destino, idOrden);
       },
-      error: () => this.resetEstadoEnvio(),
+      error: (err: HttpErrorResponse) => void this.manejarErrorEnvio(err, destino, permitirStockNegativo),
     });
   }
 
@@ -650,7 +747,8 @@ export class PedidosComponent implements OnInit, OnDestroy {
         `${environment.apiUrl}/pedidos/${idOrden}/enviar-cocina`, {}
       ).subscribe({
         next: () => {
-          this.limpiarOrden(false);
+          this.uiFeedback.success('El pedido fue enviado a cocina correctamente.', 'Pedido enviado');
+          void this.limpiarOrden(false);
           this.resetEstadoEnvio();
         },
         error: () => this.resetEstadoEnvio(),
@@ -663,24 +761,28 @@ export class PedidosComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.completarCobroPedido(idOrden);
+    void this.completarCobroPedido(idOrden);
   }
 
-  private completarCobroPedido(idOrden: number): void {
+  private async completarCobroPedido(idOrden: number): Promise<void> {
     const recibido = this.efectivoRecibido();
     if (recibido !== null && recibido < this.total()) {
-      if (this.isBrowser) {
-        window.alert(
-          `Faltan ${this.formatCurrency(this.total() - recibido)} para completar el pago.`
-        );
-      }
+      await this.uiFeedback.alert({
+        title: 'Pago incompleto',
+        message: `Faltan ${this.formatCurrency(this.total() - recibido)} para completar el pago.`,
+        tone: 'warning',
+      });
       this.resetEstadoEnvio();
       return;
     }
 
-    const deseaImprimir = this.isBrowser
-      ? window.confirm('Cobro confirmado. ¿Deseas imprimir la factura?')
-      : false;
+    const deseaImprimir = await this.uiFeedback.confirm({
+      title: 'Cobro confirmado',
+      message: '¿Deseas imprimir la factura?',
+      confirmText: 'Imprimir',
+      cancelText: 'Omitir',
+      tone: 'info',
+    });
 
     if (deseaImprimir) {
       this.imprimirTicket();
@@ -711,6 +813,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
           ).subscribe({
             next: () => {
               this.loadMesas();
+              this.uiFeedback.success('El cobro de la mesa se registro correctamente.', 'Cobro exitoso');
               this.resetEstadoEnvio();
             },
             error: () => {
@@ -721,11 +824,15 @@ export class PedidosComponent implements OnInit, OnDestroy {
           return;
         }
 
-        this.limpiarOrden(false);
+        void this.limpiarOrden(false);
         this.loadMesas();
+        this.uiFeedback.success('El cobro se registro correctamente.', 'Cobro exitoso');
         this.resetEstadoEnvio();
       },
-      error: () => this.resetEstadoEnvio(),
+      error: (err: HttpErrorResponse) => {
+        this.uiFeedback.error(this.getHttpErrorMessage(err) || 'No se pudo completar el cobro.');
+        this.resetEstadoEnvio();
+      },
     });
   }
 
@@ -815,7 +922,8 @@ export class PedidosComponent implements OnInit, OnDestroy {
       { estado_servicio: 'POR_COBRAR' }
     ).subscribe({
       next: () => {
-        this.limpiarOrden(false);
+        void this.limpiarOrden(false);
+        this.uiFeedback.updated('La mesa quedo marcada para cobro.');
         this.resetEstadoEnvio();
       },
       error: () => this.resetEstadoEnvio(),
@@ -827,25 +935,29 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.destinoEnvio.set(null);
   }
 
-  liberarMesaActual(): void {
+  async liberarMesaActual(): Promise<void> {
     if (!this.requiereMesa() || this.enviando()) return;
 
     const idMesa = this.mesaId();
     if (!idMesa) return;
 
     if (this.ordenActivaId() !== null) {
-      if (this.isBrowser) {
-        window.alert('No se puede liberar la mesa porque tiene una cuenta pendiente de cobro.');
-      }
+      await this.uiFeedback.alert({
+        title: 'No se puede liberar la mesa',
+        message: 'No se puede liberar la mesa porque tiene una cuenta pendiente de cobro.',
+        tone: 'warning',
+      });
       return;
     }
 
-    if (this.isBrowser) {
-      const confirmar = window.confirm(
-        '¿Deseas liberar esta mesa?'
-      );
-      if (!confirmar) return;
-    }
+    const confirmar = await this.uiFeedback.confirm({
+      title: 'Liberar mesa',
+      message: '¿Deseas liberar esta mesa?',
+      confirmText: 'Liberar',
+      cancelText: 'Cancelar',
+      tone: 'warning',
+    });
+    if (!confirmar) return;
 
     this.enviando.set(true);
     this.destinoEnvio.set(null);
@@ -856,15 +968,14 @@ export class PedidosComponent implements OnInit, OnDestroy {
     ).subscribe({
       next: () => {
         this.limpiarItemsPagadosMesa(idMesa);
-        this.limpiarOrden(false);
+        void this.limpiarOrden(false);
         this.loadMesas();
+        this.uiFeedback.success('La mesa fue liberada correctamente.', 'Mesa liberada');
         this.resetEstadoEnvio();
       },
       error: (err: unknown) => {
-        if (this.isBrowser) {
-          const apiMessage = (err as { error?: { message?: string } })?.error?.message;
-          window.alert(apiMessage || 'No se pudo liberar la mesa.');
-        }
+        const apiMessage = (err as { error?: { message?: string } })?.error?.message;
+        this.uiFeedback.error(apiMessage || 'No se pudo liberar la mesa.');
         this.resetEstadoEnvio();
       },
     });
@@ -885,6 +996,8 @@ export class PedidosComponent implements OnInit, OnDestroy {
         [idMesa]: Array.from(merged.values()),
       };
     });
+
+    this.persistirItemsPagadosMesa();
   }
 
   private limpiarItemsPagadosMesa(idMesa: number): void {
@@ -895,6 +1008,125 @@ export class PedidosComponent implements OnInit, OnDestroy {
       delete next[idMesa];
       return next;
     });
+
+    this.persistirItemsPagadosMesa();
+  }
+
+  private async manejarErrorEnvio(err: HttpErrorResponse, destino: DestinoEnvio, permitirStockNegativo: boolean): Promise<void> {
+    if (!permitirStockNegativo && this.esErrorStockInsuficiente(err)) {
+      const confirmarNegativo = await this.uiFeedback.confirm({
+        title: 'Stock insuficiente',
+        message: this.getMensajeConfirmacionStockNegativo(err),
+        confirmText: 'Facturar de todas formas',
+        cancelText: 'Revisar pedido',
+        tone: 'warning',
+      });
+      if (confirmarNegativo) {
+        this.enviarPedido(destino, true, true);
+        return;
+      }
+    }
+
+    this.uiFeedback.error(this.getHttpErrorMessage(err) || 'No se pudo enviar el pedido.');
+    this.resetEstadoEnvio();
+  }
+
+  private esErrorStockInsuficiente(err: HttpErrorResponse): boolean {
+    const code = err?.error?.code || err?.error?.errors?.code;
+    if (code === 'STOCK_INSUFICIENTE') return true;
+
+    const message = this.getHttpErrorMessage(err).toLowerCase();
+    return message.includes('stock insuficiente') || message.includes('stock');
+  }
+
+  private getMensajeConfirmacionStockNegativo(err: HttpErrorResponse): string {
+    const message = this.getHttpErrorMessage(err) || 'No hay stock suficiente para uno o más ingredientes.';
+    const faltantesRaw = Array.isArray(err?.error?.errors)
+      ? err.error.errors
+      : (Array.isArray(err?.error?.errors?.faltantes) ? err.error.errors.faltantes : []);
+    const faltantes = faltantesRaw.length > 0
+      ? faltantesRaw
+          .slice(0, 4)
+          .map((item: { nombre?: string; faltante?: number }) => {
+            const nombre = item?.nombre || 'Ingrediente';
+            const faltante = Number(item?.faltante ?? 0);
+            return `- ${nombre}: faltan ${faltante.toFixed(3)}`;
+          })
+          .join('\n')
+      : '';
+
+    return `${message}${faltantes ? `\n\n${faltantes}` : ''}\n\n¿Deseas facturar de todas formas? El stock quedará en negativo.`;
+  }
+
+  private getHttpErrorMessage(err: HttpErrorResponse): string {
+    const message = err?.error?.message;
+    if (typeof message === 'string') {
+      return message.trim();
+    }
+    return '';
+  }
+
+  private hidratarItemsPagadosMesa(): void {
+    if (!this.isBrowser) return;
+
+    try {
+      const raw = window.localStorage.getItem(this.paidItemsStorageKey);
+      if (!raw) return;
+
+      const parsed = JSON.parse(raw) as Record<string, ItemOrdenCache[]>;
+      const hydrated: Record<number, ItemOrden[]> = {};
+
+      for (const [mesaKey, items] of Object.entries(parsed)) {
+        const idMesa = Number(mesaKey);
+        if (!Number.isInteger(idMesa) || idMesa <= 0 || !Array.isArray(items)) continue;
+
+        hydrated[idMesa] = items.map((item) => ({
+          id_producto: Number(item.id_producto ?? 0),
+          nombre: item.nombre ?? 'Producto',
+          icono: item.icono ?? '✅',
+          precio_unitario: Number(item.precio_unitario ?? 0),
+          cantidad: Math.max(1, Number(item.cantidad ?? 1)),
+          ingredientes: [],
+          exclusiones: new Set<number>(Array.isArray(item.exclusiones) ? item.exclusiones : []),
+          exclusionesNombres: Array.isArray(item.exclusionesNombres) ? item.exclusionesNombres : undefined,
+          nota: item.nota ?? '',
+        }));
+      }
+
+      this.itemsPagadosPorMesa.set(hydrated);
+    } catch {
+      this.itemsPagadosPorMesa.set({});
+    }
+  }
+
+  private persistirItemsPagadosMesa(): void {
+    if (!this.isBrowser) return;
+
+    try {
+      const serializable: Record<number, ItemOrdenCache[]> = {};
+
+      for (const [mesaKey, items] of Object.entries(this.itemsPagadosPorMesa())) {
+        const idMesa = Number(mesaKey);
+        if (!Number.isInteger(idMesa) || idMesa <= 0 || !Array.isArray(items) || items.length === 0) {
+          continue;
+        }
+
+        serializable[idMesa] = items.map((item) => ({
+          id_producto: item.id_producto,
+          nombre: item.nombre,
+          icono: item.icono,
+          precio_unitario: item.precio_unitario,
+          cantidad: item.cantidad,
+          exclusiones: Array.from(item.exclusiones),
+          exclusionesNombres: item.exclusionesNombres,
+          nota: item.nota,
+        }));
+      }
+
+      window.localStorage.setItem(this.paidItemsStorageKey, JSON.stringify(serializable));
+    } catch {
+      // No-op: el cache es auxiliar y no debe romper el flujo de pedidos.
+    }
   }
 
   private mesaSeleccionadaEstaDisponible(idMesa: number): boolean {
@@ -953,7 +1185,11 @@ export class PedidosComponent implements OnInit, OnDestroy {
   private imprimirTicketFallback(ticketHtml: string): void {
     const popup = window.open('', '_blank', 'noopener,noreferrer,width=420,height=700');
     if (!popup) {
-      window.alert('No se pudo abrir la impresión. Habilita ventanas emergentes para continuar.');
+      void this.uiFeedback.alert({
+        title: 'No se pudo abrir la impresion',
+        message: 'Habilita ventanas emergentes para continuar con la impresion.',
+        tone: 'error',
+      });
       return;
     }
 

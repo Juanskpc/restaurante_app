@@ -846,11 +846,11 @@
 .ingred-head,
 .ingred-row {
   display: grid;
-  grid-template-columns: 1fr 80px 72px 56px 32px;
+  grid-template-columns: 1fr 86px 56px 32px;
   gap: var(--spacing-xs);
   align-items: center;
   padding: 6px var(--spacing-sm);
-  min-width: 500px;
+  min-width: 420px;
 }
 
 .ingred-head {
@@ -1015,7 +1015,7 @@
 
   .ingred-head,
   .ingred-row {
-    grid-template-columns: minmax(120px, 1fr) 70px 64px 48px 28px;
+    grid-template-columns: minmax(140px, 1fr) 74px 48px 28px;
     padding: 6px 8px;
   }
 

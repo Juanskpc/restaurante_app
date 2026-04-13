@@ -2,7 +2,7 @@
   <header class="users-page__header">
     <div>
       <h1>Administracion de Usuarios</h1>
-      <p>Gestiona usuarios, roles y permisos por modulo para cada perfil del sistema.</p>
+      <p>Gestiona usuarios, roles y acceso por modulo para cada perfil del sistema.</p>
     </div>
   </header>
 
@@ -109,7 +109,6 @@
                       <button type="button" class="btn btn--outline" (click)="toggleEstado(usuario)">
                         {{ usuario.estado === 'A' ? 'Desactivar' : 'Activar' }}
                       </button>
-                      <button type="button" class="btn btn--outline" (click)="verPermisosUsuario(usuario)">Permisos</button>
                       <button type="button" class="btn btn--danger" (click)="deleteUsuario(usuario)">Eliminar</button>
                     </div>
                   </td>
@@ -123,61 +122,88 @@
   }
 
   @if (activeTab() === 'roles') {
-    <section class="panel">
-      <div class="roles-toolbar">
-        <label class="field">
+    <section class="panel panel--roles">
+      <div class="roles-toolbar roles-toolbar--top">
+        <div class="field">
           <span>Seleccionar rol</span>
-          <select [value]="selectedRoleId() ?? ''" (change)="onRoleSelected($any($event.target).value)">
-            @for (rol of roles(); track rol.id_rol) {
-              <option [value]="rol.id_rol">{{ rol.descripcion }}</option>
-            }
-          </select>
-        </label>
+          <strong>{{ selectedRoleDescripcion() }}</strong>
+        </div>
+
+        <div class="roles-toolbar__meta">
+          <span class="role-chip">{{ selectedRoleDescripcion() }}</span>
+          <span class="role-chip role-chip--muted">
+            {{ modulosConAccesoCount() }} / {{ permisosRol().length }} modulos activos
+          </span>
+          @if (hasPermisosPendientes()) {
+            <span class="role-chip role-chip--warning">Cambios sin guardar</span>
+          }
+        </div>
 
         <button type="button" class="btn btn--primary" [disabled]="saving() || !selectedRoleId()" (click)="savePermisosRol()">
           {{ saving() ? 'Guardando...' : 'Guardar permisos' }}
         </button>
       </div>
 
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Modulo</th>
-              <th>Ver</th>
-              <th>Crear</th>
-              <th>Editar</th>
-              <th>Eliminar</th>
-            </tr>
-          </thead>
-          <tbody>
-            @if (loadingPermisos()) {
-              <tr>
-                <td colspan="5" class="empty">Cargando matriz de permisos...</td>
-              </tr>
-            } @else if (permisosRol().length === 0) {
-              <tr>
-                <td colspan="5" class="empty">No hay modulos configurados para este rol.</td>
-              </tr>
-            } @else {
-              @for (permiso of permisosRol(); track permiso.id_nivel; let idx = $index) {
-                <tr>
-                  <td>{{ permiso.modulo | titlecase }}</td>
-                  <td><input type="checkbox" [checked]="permiso.puede_ver" (change)="updatePermiso(idx, 'puede_ver', $any($event.target).checked)"></td>
-                  <td><input type="checkbox" [checked]="permiso.puede_crear" (change)="updatePermiso(idx, 'puede_crear', $any($event.target).checked)"></td>
-                  <td><input type="checkbox" [checked]="permiso.puede_editar" (change)="updatePermiso(idx, 'puede_editar', $any($event.target).checked)"></td>
-                  <td><input type="checkbox" [checked]="permiso.puede_eliminar" (change)="updatePermiso(idx, 'puede_eliminar', $any($event.target).checked)"></td>
-                </tr>
-              }
-            }
-          </tbody>
-        </table>
+      <div class="roles-quick-list">
+        @for (rol of roles(); track rol.id_rol) {
+          <button
+            type="button"
+            class="role-pill"
+            [class.role-pill--active]="rol.id_rol === selectedRoleId()"
+            (click)="onRoleSelected('' + rol.id_rol)"
+          >
+            {{ rol.descripcion }}
+          </button>
+        }
       </div>
+
+      @if (loadingPermisos()) {
+        <div class="roles-state">Cargando matriz de permisos...</div>
+      } @else if (permisosRol().length === 0) {
+        <div class="roles-state">No hay modulos configurados para este rol.</div>
+      } @else {
+        <div class="roles-modules-grid">
+          @for (permiso of permisosRol(); track permiso.id_nivel; let idx = $index) {
+            <article class="module-card" [class.module-card--enabled]="permiso.puede_ver">
+              <div class="module-card__header">
+                <h4>{{ permiso.modulo | titlecase }}</h4>
+
+                <label class="module-toggle">
+                  <input
+                    type="checkbox"
+                    [checked]="permiso.puede_ver"
+                    (change)="updateModuloAcceso(idx, $any($event.target).checked)"
+                  >
+                  <span>{{ permiso.puede_ver ? 'Activo' : 'Sin acceso' }}</span>
+                </label>
+              </div>
+
+              @if ((permiso.subniveles ?? []).length > 0) {
+                <div class="sublevels-list">
+                  <h5>Subniveles</h5>
+
+                  @for (subnivel of permiso.subniveles ?? []; track subnivel.id_nivel; let subIdx = $index) {
+                    <label class="sublevel-toggle" [class.sublevel-toggle--disabled]="!permiso.puede_ver">
+                      <input
+                        type="checkbox"
+                        [checked]="subnivel.puede_ver"
+                        [disabled]="!permiso.puede_ver"
+                        (change)="updateSubnivelAcceso(idx, subIdx, $any($event.target).checked)"
+                      >
+                      <span>{{ subnivel.accion }}</span>
+                    </label>
+                  }
+                </div>
+              }
+            </article>
+          }
+        </div>
+      }
     </section>
   }
 
   @if (showFormModal()) {
-    <div class="modal-backdrop" (click)="closeFormModal()"></div>
+    <div class="modal-backdrop"></div>
     <section class="modal" role="dialog" aria-modal="true" aria-label="Formulario de usuario">
       <header class="modal__header">
         <h2>{{ isEditing() ? 'Editar usuario' : 'Crear usuario' }}</h2>
@@ -262,7 +288,7 @@
   }
 
   @if (showPermisosUsuarioModal()) {
-    <div class="modal-backdrop" (click)="closePermisosUsuarioModal()"></div>
+    <div class="modal-backdrop"></div>
     <section class="modal modal--wide" role="dialog" aria-modal="true" aria-label="Permisos por usuario">
       <header class="modal__header">
         <h2>Permisos por Usuario</h2>

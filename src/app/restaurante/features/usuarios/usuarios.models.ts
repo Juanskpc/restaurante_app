@@ -59,10 +59,19 @@ export interface UsuarioAdminPayload {
 export interface PermisoModulo {
   id_nivel: number;
   modulo: string;
+  url?: string | null;
   puede_ver: boolean;
   puede_crear: boolean;
   puede_editar: boolean;
   puede_eliminar: boolean;
+  subniveles?: PermisoSubnivel[];
+}
+
+export interface PermisoSubnivel {
+  id_nivel: number;
+  codigo: string;
+  accion: string;
+  puede_ver: boolean;
 }
 
 export interface RolPermisosMatriz {

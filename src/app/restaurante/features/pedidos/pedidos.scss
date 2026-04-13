@@ -441,6 +441,18 @@
   font-weight: 600;
 }
 
+.mesa-empty-state {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  border: 1px dashed color-mix(in srgb, var(--color-warning) 55%, var(--color-border));
+  background: color-mix(in srgb, var(--color-warning) 10%, var(--color-surface));
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
 .takeaway-info {
   display: flex;
   align-items: center;
@@ -701,7 +713,7 @@
   gap: var(--spacing-sm);
 
   @media (min-width: 992px) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   }
 }
 
@@ -796,8 +808,33 @@
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 
-.btn-row {
+.btn-release {
   display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  width: 100%;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--color-warning) 65%, var(--color-border));
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-base);
+  font-weight: 700;
+  font-family: var(--font-family);
+  cursor: pointer;
+  background: color-mix(in srgb, var(--color-warning) 12%, var(--color-surface));
+  color: var(--color-text-primary);
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--color-warning) 18%, var(--color-surface));
+    border-color: var(--color-warning);
+  }
+
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+}
+
+.btn-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: var(--spacing-sm);
 }
 
@@ -846,10 +883,6 @@
       background: color-mix(in srgb, var(--color-warning) 12%, var(--color-surface));
     }
   }
-}
-
-.mesa-tools {
-  padding: 0 var(--spacing-md) var(--spacing-md);
 }
 
 // ─── FAB: Ver orden en móvil ────────────────────────────────

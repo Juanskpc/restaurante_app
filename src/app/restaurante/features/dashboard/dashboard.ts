@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { Router } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
 
 import { AuthService } from '../../../core/services/auth.service';
@@ -54,6 +55,7 @@ interface DashboardResumenApi {
 export class DashboardComponent {
   private readonly http = inject(HttpClient);
   private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
 
   readonly cargando = signal(false);
   readonly error = signal('');
@@ -157,5 +159,9 @@ export class DashboardComponent {
       cobrado: 'badge-muted',
     };
     return map[estado] ?? '';
+  }
+
+  goToReportes(): void {
+    void this.router.navigate(['/reportes']);
   }
 }

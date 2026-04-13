@@ -52,6 +52,7 @@
         </article>
       </div>
 
+      @if (canAgregarInsumo()) {
       <div class="create-insumo-card">
         <div class="create-insumo-head">
           <h3>Agregar nuevo insumo</h3>
@@ -91,6 +92,7 @@
           </button>
         </div>
       </div>
+      }
 
       <div class="table-card">
         <div class="table-header">
@@ -112,7 +114,9 @@
                 <th>Stock</th>
                 <th>Minimo</th>
                 <th>Estado</th>
+                @if (canAjusteRapido()) {
                 <th class="col-actions">Ajuste rapido</th>
+                }
               </tr>
             </thead>
             <tbody>
@@ -138,6 +142,7 @@
                       {{ statusLabel(insumo.status) }}
                     </span>
                   </td>
+                  @if (canAjusteRapido()) {
                   <td class="col-actions">
                     <div class="stock-adjuster">
                       <input
@@ -167,12 +172,13 @@
                       </button>
                     </div>
                   </td>
+                  }
                 </tr>
               }
 
               @if (insumosFiltrados().length === 0) {
                 <tr>
-                  <td colspan="6" class="empty-row">No hay insumos para mostrar.</td>
+                  <td [attr.colspan]="tableColspan()" class="empty-row">No hay insumos para mostrar.</td>
                 </tr>
               }
             </tbody>

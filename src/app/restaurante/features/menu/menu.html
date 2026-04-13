@@ -209,7 +209,7 @@
      MODAL — Categoría (crear / editar)
      ================================================================ -->
 @if (modalCatOpen()) {
-  <div class="modal-overlay" (click)="cerrarModalCat()">
+  <div class="modal-overlay">
     <div class="modal" (click)="$event.stopPropagation()">
 
       <div class="modal-header">
@@ -291,7 +291,7 @@
      MODAL — Producto (crear / editar)
      ================================================================ -->
 @if (modalProdOpen()) {
-  <div class="modal-overlay" (click)="cerrarModalProd()">
+  <div class="modal-overlay">
     <div class="modal modal-lg" (click)="$event.stopPropagation()">
 
       <div class="modal-header">
@@ -418,24 +418,30 @@
           <div class="ingred-head">
             <span>Ingrediente</span>
             <span>Porción</span>
-            <span>Unidad</span>
             <span class="ingred-removible-head">Removible</span>
             <span></span>
           </div>
+          <datalist id="ingredientes-base-list">
+            @for (base of ingredientesBase(); track base.id_ingrediente) {
+              <option
+                [value]="base.nombre"
+                [label]="base.nombre + ' (' + (base.unidad_medida || 'und') + ')'"
+              ></option>
+            }
+          </datalist>
           @if (prodForm().ingredientes.length > 0) {
             @for (ing of prodForm().ingredientes; track trackByIdx($index)) {
               <div class="ingred-row">
-                <!-- Selector ingrediente -->
-                <select
-                  class="form-select"
-                  [value]="ing.id_ingrediente ?? ''"
-                  (change)="actualizarIngredienteField($index, 'id_ingrediente', +$any($event.target).value || null)"
-                >
-                  <option value="">Seleccionar...</option>
-                  @for (base of ingredientesBase(); track base.id_ingrediente) {
-                    <option [value]="base.id_ingrediente">{{ base.nombre }} ({{ base.unidad_medida || 'und' }})</option>
-                  }
-                </select>
+                <!-- Selector ingrediente con autocomplete -->
+                <input
+                  class="form-input"
+                  type="text"
+                  list="ingredientes-base-list"
+                  placeholder="Seleccionar ingrediente..."
+                  [value]="ing.nombre"
+                  (focus)="mostrarOpcionesIngrediente($event)"
+                  (input)="actualizarIngredienteSeleccion($index, $any($event.target).value)"
+                />
                 <!-- Porción -->
                 <input
                   class="form-input"
@@ -446,16 +452,6 @@
                   [value]="ing.porcion ?? ''"
                   (input)="actualizarIngredienteField($index, 'porcion', +$any($event.target).value || null)"
                 />
-                <!-- Unidad -->
-                <select
-                  class="form-select"
-                  [value]="ing.unidad_medida"
-                  (change)="actualizarIngredienteField($index, 'unidad_medida', $any($event.target).value)"
-                >
-                  @for (u of unidades; track u) {
-                    <option [value]="u">{{ u }}</option>
-                  }
-                </select>
                 <!-- Es removible -->
                 <div class="ingred-removible">
                   <button

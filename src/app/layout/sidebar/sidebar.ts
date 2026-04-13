@@ -1,4 +1,4 @@
-import { Component, inject, signal, HostListener } from '@angular/core';
+import { Component, computed, inject, signal, HostListener } from '@angular/core';
 import { RouterLink, RouterLinkActive, IsActiveMatchOptions } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
 
@@ -39,11 +39,15 @@ export class SidebarComponent {
     { icon: 'settings',          label: 'Configuración',   route: '/configuracion',   section: 'secondary' },
   ];
 
+  readonly navItemsPermitidos = computed(() =>
+    this.navItems.filter((item) => this.auth.canAccessRoute(item.route))
+  );
+
   /** Items principales (bottom nav). */
-  readonly mainItems = this.navItems.filter(i => i.section === 'main');
+  readonly mainItems = computed(() => this.navItemsPermitidos().filter(i => i.section === 'main'));
 
   /** Items secundarios (gestión). */
-  readonly secondaryItems = this.navItems.filter(i => i.section === 'secondary');
+  readonly secondaryItems = computed(() => this.navItemsPermitidos().filter(i => i.section === 'secondary'));
 
   /** Match options: compara solo el path, ignora queryParams y fragment. */
   readonly exactMatchOptions: IsActiveMatchOptions = {

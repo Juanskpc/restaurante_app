@@ -27,6 +27,7 @@ export class UsuariosService {
   getUsuarios(filters?: {
     search?: string;
     idRol?: number | null;
+    idNegocio?: number | null;
     estado?: EstadoRegistro | 'ALL';
   }): Observable<UsuarioAdmin[]> {
     let params = new HttpParams();
@@ -37,6 +38,9 @@ export class UsuariosService {
     if (filters?.idRol) {
       params = params.set('id_rol', String(filters.idRol));
     }
+    if (filters?.idNegocio) {
+      params = params.set('id_negocio', String(filters.idNegocio));
+    }
     if (filters?.estado) {
       params = params.set('estado', filters.estado);
     }
@@ -46,9 +50,15 @@ export class UsuariosService {
       .pipe(map((res) => res.data ?? []));
   }
 
-  getRoles(): Observable<RolAdminOption[]> {
+  getRoles(filters?: { idNegocio?: number | null }): Observable<RolAdminOption[]> {
+    let params = new HttpParams();
+
+    if (filters?.idNegocio) {
+      params = params.set('id_negocio', String(filters.idNegocio));
+    }
+
     return this.http
-      .get<RolesAdminResponse>(`${this.adminApi}/roles/admin/lista`)
+      .get<RolesAdminResponse>(`${this.adminApi}/roles/admin/lista`, { params })
       .pipe(map((res) => res.data ?? []));
   }
 
@@ -68,14 +78,19 @@ export class UsuariosService {
     return this.http.delete<AdminOkResponse>(`${this.adminApi}/usuarios/admin/${idUsuario}`);
   }
 
-  getPermisosRol(idRol: number): Observable<RolPermisosMatriz> {
+  getPermisosRol(idRol: number, idNegocio: number): Observable<RolPermisosMatriz> {
+    const params = new HttpParams().set('id_negocio', String(idNegocio));
+
     return this.http
-      .get<RolPermisosResponse>(`${this.adminApi}/roles/admin/${idRol}/permisos`)
+      .get<RolPermisosResponse>(`${this.adminApi}/roles/admin/${idRol}/permisos`, { params })
       .pipe(map((res) => res.data!));
   }
 
-  savePermisosRol(idRol: number, modulos: PermisoModulo[]): Observable<AdminOkResponse> {
-    return this.http.put<AdminOkResponse>(`${this.adminApi}/roles/admin/${idRol}/permisos`, { modulos });
+  savePermisosRol(idRol: number, idNegocio: number, modulos: PermisoModulo[]): Observable<AdminOkResponse> {
+    return this.http.put<AdminOkResponse>(`${this.adminApi}/roles/admin/${idRol}/permisos`, {
+      id_negocio: idNegocio,
+      modulos,
+    });
   }
 
   getPermisosUsuario(idUsuario: number): Observable<UsuarioPermisosDetalle> {

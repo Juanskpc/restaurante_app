@@ -1,0 +1,106 @@
+<section class="config-page">
+  <header class="config-header">
+    <div>
+      <h1>Configuracion del negocio</h1>
+      <p>Administra los datos principales de tu restaurante y su estilo visual.</p>
+    </div>
+
+    <button
+      type="button"
+      class="btn-save"
+      [disabled]="saving() || loading() || !canEdit()"
+      (click)="guardarConfiguracion()"
+    >
+      @if (saving()) {
+        <lucide-icon name="loader" [size]="16" class="spin" />
+        Guardando...
+      } @else {
+        <lucide-icon name="save" [size]="16" />
+        Guardar cambios
+      }
+    </button>
+  </header>
+
+  @if (errorMessage(); as error) {
+    <div class="state state--error">{{ error }}</div>
+  }
+
+  @if (successMessage(); as success) {
+    <div class="state state--ok">{{ success }}</div>
+  }
+
+  @if (loading()) {
+    <div class="state">Cargando configuracion...</div>
+  } @else if (configuracion(); as config) {
+    <form class="config-grid" [formGroup]="form" (ngSubmit)="guardarConfiguracion()">
+      <article class="panel">
+        <h2>Informacion general</h2>
+
+        <label class="field">
+          <span>Nombre comercial *</span>
+          <input type="text" formControlName="nombre" placeholder="Ej: Restaurante Central" />
+        </label>
+
+        <label class="field">
+          <span>NIT</span>
+          <input type="text" formControlName="nit" placeholder="Ej: 900123456-7" />
+        </label>
+
+        <label class="field">
+          <span>Correo de contacto</span>
+          <input type="email" formControlName="email_contacto" placeholder="contacto@negocio.com" />
+        </label>
+
+        <label class="field">
+          <span>Telefono</span>
+          <input type="text" formControlName="telefono" placeholder="Ej: 3001234567" />
+        </label>
+
+        <div class="meta-grid">
+          <div>
+            <span class="meta-label">Tipo de negocio</span>
+            <strong>{{ config.tipo_negocio || 'Restaurante' }}</strong>
+          </div>
+          <div>
+            <span class="meta-label">ID negocio</span>
+            <strong>#{{ config.id_negocio }}</strong>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel">
+        <h2>Paleta de color</h2>
+        <p class="hint">Selecciona una paleta para aplicar la identidad visual del negocio.</p>
+
+        <div class="palette-grid">
+          @for (paleta of paletas(); track paleta.id_paleta) {
+            <button
+              type="button"
+              class="palette-card"
+              [class.palette-card--active]="form.controls.id_paleta.value === paleta.id_paleta"
+              (click)="seleccionarPaleta(paleta.id_paleta)"
+            >
+              <div class="palette-preview">
+                <span [style.background]="paleta.colores['color-primary']"></span>
+                <span [style.background]="paleta.colores['color-bg']"></span>
+                <span [style.background]="paleta.colores['color-surface']"></span>
+                <span [style.background]="paleta.colores['color-success']"></span>
+              </div>
+
+              <div class="palette-meta">
+                <strong>{{ paleta.nombre }}</strong>
+                <small>{{ paleta.descripcion || 'Paleta de color' }}</small>
+              </div>
+            </button>
+          }
+        </div>
+      </article>
+    </form>
+
+    @if (!canEdit()) {
+      <div class="state state--warn">
+        Tu usuario no tiene permisos de administrador para editar esta configuracion.
+      </div>
+    }
+  }
+</section>

@@ -42,6 +42,7 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
+  flex-wrap: wrap;
 }
 
 .plan {
@@ -54,6 +55,21 @@
   color: var(--color-primary);
   font-size: var(--font-size-sm);
   font-weight: 600;
+}
+
+.btn-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .stats-strip {
@@ -83,6 +99,7 @@
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: var(--spacing-md);
   overflow: auto;
+  padding-top: 4px;
   padding-bottom: var(--spacing-md);
 }
 
@@ -246,10 +263,14 @@
 
 .modal {
   width: min(560px, 100%);
+  max-height: min(92dvh, 820px);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-elevated);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .modal-form {
@@ -262,6 +283,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-shrink: 0;
 
   h3 {
     margin: 0;
@@ -284,6 +306,17 @@
   padding: 3px 10px;
 }
 
+.modal-body-scroll {
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.modal-body-scroll-form {
+  padding: var(--spacing-md);
+}
+
 .modal-order {
   padding: var(--spacing-md);
 
@@ -301,6 +334,15 @@
   overflow: auto;
 }
 
+.items-section-title {
+  margin: 10px 0 6px;
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .item-row {
   display: flex;
   justify-content: space-between;
@@ -312,6 +354,10 @@
   &:last-child {
     border-bottom: none;
   }
+
+  &.paid {
+    background: color-mix(in srgb, var(--color-bg-secondary) 75%, var(--color-surface));
+  }
 }
 
 .item-main {
@@ -320,9 +366,25 @@
   min-width: 0;
 }
 
+.item-main-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .item-name {
   color: var(--color-text-primary);
   font-weight: 600;
+}
+
+.paid-tag {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-success);
+  border: 1px solid color-mix(in srgb, var(--color-success) 45%, var(--color-border));
+  border-radius: var(--radius-full);
+  padding: 1px 7px;
 }
 
 .item-meta {
@@ -335,6 +397,10 @@
   display: flex;
   justify-content: space-between;
   color: var(--color-text-primary);
+
+  &.paid {
+    color: var(--color-success);
+  }
 }
 
 .empty {
@@ -394,6 +460,46 @@
   padding: 0 var(--spacing-md) var(--spacing-md);
 }
 
+.modal-form-footer {
+  flex-shrink: 0;
+  border-top: 1px solid var(--color-border);
+  padding: var(--spacing-sm) var(--spacing-md) var(--spacing-md);
+  background: var(--color-surface);
+}
+
+.modal-block {
+  margin: 0 var(--spacing-md) var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+}
+
+.modal-block-head {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-border);
+
+  h4 {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+  }
+
+  p {
+    margin: 4px 0 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+  }
+}
+
+.modal-actions-order,
+.modal-actions-admin {
+  padding: 10px 12px 12px;
+}
+
+.modal-block-admin {
+  background: var(--color-surface);
+}
+
 .modal-footer {
   padding: 0 var(--spacing-md) var(--spacing-md);
 }
@@ -440,7 +546,6 @@
 }
 
 .form-grid {
-  padding: var(--spacing-md);
   display: grid;
   gap: var(--spacing-sm);
 
@@ -457,5 +562,23 @@
     padding: 8px 10px;
     background: var(--color-bg);
     color: var(--color-text-primary);
+  }
+}
+
+@media (max-width: 767px) {
+  .overlay {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: var(--spacing-sm);
+    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px) + var(--spacing-sm));
+  }
+
+  .modal,
+  .modal-form {
+    width: 100%;
+    max-width: 100%;
+    max-height: calc(100dvh - 64px - env(safe-area-inset-bottom, 0px) - (var(--spacing-sm) * 2));
+    border-radius: 16px 16px 0 0;
   }
 }

@@ -8,6 +8,10 @@
   </div>
 
   <div class="header-right">
+    @if (selectorOpen() || notificationsOpen()) {
+      <div class="header-overlay" (click)="closeSelector(); closeNotifications()"></div>
+    }
+
     <!-- Selector de negocio (sede) -->
     @if (negocios().length > 1) {
       <div class="negocio-selector" (click)="toggleSelector()">
@@ -15,12 +19,12 @@
         <lucide-icon name="chevron-down" [size]="16" />
       </div>
       @if (selectorOpen()) {
-        <div class="selector-overlay" (click)="toggleSelector()"></div>
         <div class="selector-dropdown">
           @for (neg of negocios(); track neg.id_negocio) {
-            <button class="selector-option"
+            <button type="button"
+                    class="selector-option"
                     [class.active]="neg.id_negocio === auth.negocio()?.id_negocio"
-                    (click)="selectNegocio(neg.id_negocio)">
+                    (click)="selectNegocio(neg.id_negocio); $event.stopPropagation()">
               <span class="opt-name">{{ neg.nombre }}</span>
               <span class="opt-tipo">{{ neg.tipo_negocio }}</span>
             </button>
@@ -46,9 +50,46 @@
     -->
 
     <!-- Notificaciones -->
-    <button class="header-btn notification-btn" title="Notificaciones">
+    <button
+      type="button"
+      class="header-btn notification-btn"
+      title="Notificaciones"
+      [attr.aria-expanded]="notificationsOpen()"
+      (click)="toggleNotifications()"
+    >
       <lucide-icon name="bell" [size]="20" />
-      <span class="notification-dot"></span>
+      @if (stockNotificationsCount() > 0) {
+        <span class="notification-dot">{{ stockNotificationsCount() }}</span>
+      }
     </button>
+
+    @if (notificationsOpen()) {
+      <section class="notification-dropdown" aria-label="Insumos sin stock">
+        <header class="notification-dropdown__header">
+          <h3>Alertas de inventario</h3>
+          <span>{{ stockNotificationsCount() }}</span>
+        </header>
+
+        @if (stockNotifications().length === 0) {
+          <p class="notification-empty">No hay insumos sin stock.</p>
+        } @else {
+          <div class="notification-list">
+            @for (notificacion of stockNotifications(); track notificacion.id_ingrediente) {
+              <article class="notification-item">
+                <div class="notification-item__content">
+                  <strong>{{ notificacion.nombre }}</strong>
+                  <span>{{ stockLabel(notificacion) }}</span>
+                </div>
+
+                <div class="notification-item__actions">
+                  <button type="button" class="btn-inline" (click)="verNotificacion(notificacion)">Ver</button>
+                  <button type="button" class="btn-inline btn-inline--danger" (click)="eliminarNotificacion(notificacion.id_ingrediente)">Eliminar</button>
+                </div>
+              </article>
+            }
+          </div>
+        }
+      </section>
+    }
   </div>
 </header>

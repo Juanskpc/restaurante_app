@@ -1,10 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { CurrencyPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
 
 import { AuthService } from '../../../core/services/auth.service';
+import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 import { environment } from '../../../../environments/environment';
 
 interface InventarioKpis {
@@ -59,6 +60,7 @@ interface InventarioResumen {
 export class InventarioComponent {
   private readonly http = inject(HttpClient);
   private readonly auth = inject(AuthService);
+  private readonly uiFeedback = inject(UiFeedbackService);
 
   readonly cargando = signal(false);
   readonly guardando = signal<number | null>(null);
@@ -86,6 +88,9 @@ export class InventarioComponent {
   readonly unidades = ['g', 'kg', 'ml', 'l', 'und', 'oz', 'taza', 'cdta', 'cda'];
 
   readonly negocioId = computed(() => this.auth.negocio()?.id_negocio ?? null);
+  readonly canAgregarInsumo = computed(() => this.auth.canAccessSubnivel('inventario_agregar_insumo'));
+  readonly canAjusteRapido = computed(() => this.auth.canAccessSubnivel('inventario_ajuste_rapido'));
+  readonly tableColspan = computed(() => this.canAjusteRapido() ? 6 : 5);
 
   readonly insumosFiltrados = computed(() => {
     const term = this.searchTerm().trim().toLowerCase();
@@ -201,6 +206,8 @@ export class InventarioComponent {
   }
 
   ajustarStock(insumo: InventarioInsumo, direction: 1 | -1): void {
+    if (!this.canAjusteRapido()) return;
+
     const idNegocio = this.negocioId();
     if (!idNegocio || this.guardando()) return;
 
@@ -217,15 +224,19 @@ export class InventarioComponent {
     ).subscribe({
       next: () => {
         this.guardando.set(null);
+        this.uiFeedback.updated('El stock fue ajustado correctamente.');
         this.loadInventario(idNegocio);
       },
       error: () => {
         this.guardando.set(null);
+        this.uiFeedback.error('No fue posible ajustar el stock del insumo.');
       },
     });
   }
 
   crearInsumo(): void {
+    if (!this.canAgregarInsumo()) return;
+
     const idNegocio = this.negocioId();
     const nombre = this.nuevoInsumoNombre().trim();
     if (!idNegocio || !nombre || this.creandoInsumo()) return;
@@ -243,12 +254,23 @@ export class InventarioComponent {
       next: () => {
         this.creandoInsumo.set(false);
         this.nuevoInsumoNombre.set('');
+        this.uiFeedback.created('El insumo fue creado correctamente.');
         this.loadInventario(idNegocio);
       },
-      error: () => {
+      error: (err: HttpErrorResponse) => {
         this.creandoInsumo.set(false);
+        const message = this.getHttpErrorMessage(err) || 'No se pudo crear el insumo.';
+        this.uiFeedback.error(message);
       },
     });
+  }
+
+  private getHttpErrorMessage(err: HttpErrorResponse): string {
+    const message = err?.error?.message;
+    if (typeof message === 'string') {
+      return message.trim();
+    }
+    return '';
   }
 
   statusLabel(status: InventarioInsumo['status']): string {

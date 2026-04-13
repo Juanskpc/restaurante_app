@@ -13,7 +13,7 @@
   <!-- Navegación principal -->
   <nav class="sidebar-nav">
     <span class="nav-section-label">Principal</span>
-    @for (item of mainItems; track item.route) {
+    @for (item of mainItems(); track item.route) {
       <a class="nav-item"
          [routerLink]="item.route"
          routerLinkActive="active"
@@ -27,7 +27,7 @@
     }
 
     <span class="nav-section-label">Gestión</span>
-    @for (item of secondaryItems; track item.route) {
+    @for (item of secondaryItems(); track item.route) {
       <a class="nav-item"
          [routerLink]="item.route"
          routerLinkActive="active"
@@ -57,7 +57,7 @@
      BOTTOM NAV MÓVIL
      ============================================================ -->
 <nav class="bottom-nav">
-  @for (item of mainItems; track item.route) {
+  @for (item of mainItems(); track item.route) {
     <a class="bottom-nav-item"
        [routerLink]="item.route"
        routerLinkActive="active"
@@ -87,7 +87,7 @@
         <lucide-icon name="x" [size]="20" />
       </button>
     </div>
-    @for (item of secondaryItems; track item.route) {
+    @for (item of secondaryItems(); track item.route) {
       <a class="more-item"
          [routerLink]="item.route"
          routerLinkActive="active"

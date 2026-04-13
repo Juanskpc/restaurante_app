@@ -1,0 +1,56 @@
+<section class="feedback-stack" aria-live="polite" aria-atomic="false">
+  @for (toast of toasts(); track toast.id) {
+    <article class="feedback-toast" [ngClass]="toneClass(toast.tone)">
+      <div class="feedback-toast__content">
+        <strong>{{ toast.title }}</strong>
+        <p>{{ toast.message }}</p>
+      </div>
+
+      <button
+        type="button"
+        class="feedback-toast__close"
+        (click)="dismissToast(toast.id)"
+        aria-label="Cerrar mensaje"
+      >
+        x
+      </button>
+
+      <span class="feedback-toast__bar" [style.animation-duration.ms]="toast.durationMs"></span>
+    </article>
+  }
+</section>
+
+@if (dialog(); as currentDialog) {
+  <div class="feedback-dialog-backdrop" (click)="dismissDialogBackdrop()"></div>
+
+  <section
+    class="feedback-dialog"
+    [ngClass]="toneClass(currentDialog.tone)"
+    role="alertdialog"
+    aria-modal="true"
+    [attr.aria-label]="currentDialog.title"
+  >
+    <header class="feedback-dialog__header">
+      <h3>{{ currentDialog.title }}</h3>
+    </header>
+
+    <p class="feedback-dialog__message">{{ currentDialog.message }}</p>
+
+    <footer class="feedback-dialog__actions">
+      @if (currentDialog.kind === 'confirm') {
+        <button type="button" class="feedback-btn feedback-btn--ghost" (click)="cancelDialog()">
+          {{ currentDialog.cancelText || 'Cancelar' }}
+        </button>
+      }
+
+      <button
+        type="button"
+        class="feedback-btn"
+        [ngClass]="currentDialog.tone === 'error' ? 'feedback-btn--danger' : 'feedback-btn--primary'"
+        (click)="acceptDialog()"
+      >
+        {{ currentDialog.confirmText }}
+      </button>
+    </footer>
+  </section>
+}

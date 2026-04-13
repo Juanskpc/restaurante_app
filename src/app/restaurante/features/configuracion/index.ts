@@ -1,0 +1,1 @@
+export { ConfiguracionComponent } from './configuracion';

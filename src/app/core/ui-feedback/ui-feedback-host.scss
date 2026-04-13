@@ -1,0 +1,232 @@
+:host {
+  pointer-events: none;
+}
+
+.feedback-stack {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 1200;
+  display: grid;
+  gap: 0.65rem;
+  width: min(360px, calc(100vw - 2rem));
+}
+
+.feedback-toast {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.75rem;
+  align-items: start;
+  border-radius: 14px;
+  padding: 0.8rem 0.9rem 0.95rem;
+  background:
+    linear-gradient(140deg, color-mix(in srgb, var(--feedback-accent) 9%, var(--color-surface)), var(--color-surface-elevated));
+  border: 1px solid color-mix(in srgb, var(--feedback-accent) 34%, var(--color-border));
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.16);
+  color: var(--color-text-primary);
+  pointer-events: auto;
+  overflow: hidden;
+  animation: feedback-toast-in 180ms ease-out;
+}
+
+.feedback-toast__content {
+  min-width: 0;
+}
+
+.feedback-toast__content strong {
+  display: block;
+  margin-bottom: 0.2rem;
+  font-size: 0.92rem;
+  letter-spacing: 0.01em;
+}
+
+.feedback-toast__content p {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.4;
+  color: var(--color-text-secondary);
+}
+
+.feedback-toast__close {
+  width: 1.6rem;
+  height: 1.6rem;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--feedback-accent) 18%, transparent);
+  color: var(--feedback-accent);
+  cursor: pointer;
+  transition: transform var(--transition-fast), background-color var(--transition-fast);
+}
+
+.feedback-toast__close:hover {
+  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--feedback-accent) 26%, transparent);
+}
+
+.feedback-toast__bar {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(90deg, var(--feedback-accent), color-mix(in srgb, var(--feedback-accent) 35%, var(--color-surface)));
+  transform-origin: left;
+  animation: feedback-toast-life linear forwards;
+  animation-duration: 3.6s;
+}
+
+.feedback-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1290;
+  background:
+    radial-gradient(circle at 20% 15%, color-mix(in srgb, var(--color-primary) 16%, transparent), transparent 55%),
+    rgba(5, 10, 20, 0.46);
+  backdrop-filter: blur(5px);
+  pointer-events: auto;
+}
+
+.feedback-dialog {
+  position: fixed;
+  z-index: 1300;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(460px, calc(100vw - 2rem));
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--feedback-accent) 32%, var(--color-border));
+  background:
+    linear-gradient(150deg, color-mix(in srgb, var(--feedback-accent) 12%, var(--color-surface-elevated)), var(--color-surface));
+  box-shadow: 0 30px 70px rgba(3, 6, 14, 0.35);
+  padding: 1.15rem 1.2rem;
+  color: var(--color-text-primary);
+  pointer-events: auto;
+  animation: feedback-dialog-in 180ms ease-out;
+}
+
+.feedback-dialog__header h3 {
+  margin: 0;
+  font-size: 1rem;
+  letter-spacing: 0.01em;
+}
+
+.feedback-dialog__message {
+  margin: 0.7rem 0 1.1rem;
+  color: var(--color-text-secondary);
+  font-size: 0.92rem;
+  white-space: pre-line;
+}
+
+.feedback-dialog__actions {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: flex-end;
+}
+
+.feedback-btn {
+  border: 0;
+  border-radius: 10px;
+  padding: 0.55rem 0.95rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform var(--transition-fast), filter var(--transition-fast);
+}
+
+.feedback-btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.03);
+}
+
+.feedback-btn--primary {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.feedback-btn--danger {
+  background: var(--color-error);
+  color: #fff;
+}
+
+.feedback-btn--ghost {
+  background: transparent;
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+}
+
+.tone-success {
+  --feedback-accent: var(--color-success);
+}
+
+.tone-info {
+  --feedback-accent: var(--color-primary);
+}
+
+.tone-warning {
+  --feedback-accent: var(--color-warning);
+}
+
+.tone-error {
+  --feedback-accent: var(--color-error);
+}
+
+@keyframes feedback-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes feedback-toast-life {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes feedback-dialog-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 8px));
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}
+
+@media (max-width: 640px) {
+  .feedback-stack {
+    top: auto;
+    right: 0.75rem;
+    left: 0.75rem;
+    bottom: 0.8rem;
+    width: auto;
+  }
+
+  .feedback-toast {
+    padding-bottom: 0.9rem;
+  }
+
+  .feedback-dialog {
+    width: calc(100vw - 1.25rem);
+    border-radius: 14px;
+    padding: 1rem;
+  }
+
+  .feedback-dialog__actions {
+    flex-wrap: wrap;
+  }
+
+  .feedback-btn {
+    flex: 1 1 auto;
+    min-width: 140px;
+  }
+}

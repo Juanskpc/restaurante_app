@@ -1,0 +1,59 @@
+<section class="access-page">
+  <article class="access-card">
+    <h1>No fue posible ingresar al modulo</h1>
+    <p class="lead">{{ issueDescription() }}</p>
+
+    <div class="diagnostic-grid">
+      <div class="diagnostic-item">
+        <span>Motivo detectado</span>
+        <strong>{{ issueLabel() }}</strong>
+      </div>
+
+      <div class="diagnostic-item">
+        <span>Ruta solicitada</span>
+        <strong>{{ issueInfo().ruta }}</strong>
+      </div>
+
+      <div class="diagnostic-item">
+        <span>Negocio activo</span>
+        <strong>{{ negocioActivoNombre() }}</strong>
+      </div>
+
+      <div class="diagnostic-item">
+        <span>Negocios en sesion</span>
+        <strong>{{ totalNegocios() }}</strong>
+      </div>
+
+      <div class="diagnostic-item">
+        <span>Permisos cargados</span>
+        <strong>{{ permisosCargadosTexto() }}</strong>
+      </div>
+
+      <div class="diagnostic-item">
+        <span>Modulos con permiso de vista</span>
+        <strong>{{ permisosVistaActivosCount() }}</strong>
+      </div>
+    </div>
+
+    <p class="hint">
+      Si esperabas ver informacion del restaurante, revisa que el usuario tenga permisos de vista
+      en al menos un modulo y que el negocio activo sea el correcto.
+    </p>
+
+    <div class="actions">
+      @if (firstAccessibleRoute(); as route) {
+        <button type="button" class="btn btn--primary" (click)="openFirstAccessibleRoute()">
+          Ir al modulo disponible ({{ route }})
+        </button>
+      }
+
+      <button type="button" class="btn btn--ghost" (click)="revalidateSession()" [disabled]="revalidando()">
+        {{ revalidando() ? 'Validando sesion...' : 'Revalidar sesion' }}
+      </button>
+
+      <button type="button" class="btn btn--danger" (click)="goToLogin()">
+        Volver al login
+      </button>
+    </div>
+  </article>
+</section>

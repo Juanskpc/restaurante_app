@@ -87,6 +87,7 @@
   </section>
 
   <!-- ════════════════ PANEL ORDEN (derecha) ════════════════ -->
+  @if (!isMobileViewport() || ordenPanelOpen()) {
   <aside class="order-panel" [class.open]="ordenPanelOpen()">
     <!-- Header de la orden -->
     <div class="order-header">
@@ -112,12 +113,14 @@
           <lucide-icon name="armchair" [size]="14" />
           En mesa
         </button>
+        @if (canUsarParaLlevar()) {
         <button class="type-btn"
                 [class.active]="tipoPedido() === 'LLEVAR'"
                 (click)="seleccionarTipoPedido('LLEVAR')">
           <lucide-icon name="credit-card" [size]="14" />
           Para llevar
         </button>
+        }
       </div>
 
       @if (requiereMesa()) {
@@ -135,12 +138,21 @@
           @if (mesaRequeridaError()) {
             <p class="mesa-error">Debes seleccionar una mesa para pedidos en mesa.</p>
           }
-        } @else {
+        } @else if (cargandoMesas()) {
           <input class="mesa-input"
                  type="text"
                  placeholder="🪑 Mesa..."
                  readonly
                  value="Cargando mesas..." />
+        } @else {
+          <div class="mesa-empty-state">
+            <lucide-icon name="armchair" [size]="14" />
+            No hay mesas configuradas. Crea una mesa para continuar.
+          </div>
+
+          @if (mesaRequeridaError()) {
+            <p class="mesa-error">Debes crear o seleccionar una mesa para pedidos en mesa.</p>
+          }
         }
       } @else {
         <div class="takeaway-info">
@@ -284,28 +296,41 @@
             <lucide-icon name="credit-card" [size]="20" />
             {{ enviando() && destinoEnvio() === 'CAJA' ? 'ENVIANDO...' : 'ENVIAR A CAJA' }}
           </button>
-          <!--
-          <button class="btn-kitchen"
-                  [disabled]="enviando() || items().length === 0"
-                  (click)="enviarACocina()">
-            <lucide-icon name="flame" [size]="20" />
-            {{ enviando() && destinoEnvio() === 'COCINA' ? 'ENVIANDO...' : 'ENVIAR A COCINA' }}
-          </button>
-          -->
+          @if (canEnviarCocina()) {
+            <button class="btn-kitchen"
+                    [disabled]="enviando() || items().length === 0"
+                    (click)="enviarACocina()">
+              <lucide-icon name="flame" [size]="20" />
+              {{ enviando() && destinoEnvio() === 'COCINA' ? 'ENVIANDO...' : 'ENVIAR A COCINA' }}
+            </button>
+          }
+          @if (requiereMesa() && mesaId()) {
+            <button class="btn-release"
+                    [disabled]="enviando() || ordenActivaId() !== null"
+                    [title]="ordenActivaId() !== null ? 'Primero debes cobrar la cuenta de esta mesa' : 'Liberar mesa'"
+                    (click)="liberarMesaActual()">
+              <lucide-icon name="door-open" [size]="20" />
+              Liberar mesa
+            </button>
+          }
         </div>
         <div class="btn-row">
+          @if (canCobrarPedido()) {
           <button class="btn-secondary"
                   [disabled]="enviando() || items().length === 0"
                   (click)="cobrarPedido()">
             <lucide-icon name="credit-card" [size]="16" />
             {{ enviando() && destinoEnvio() === 'COBRAR' ? 'COBRANDO...' : 'Cobrar' }}
           </button>
+          }
+          @if (canImprimirPedido()) {
           <button class="btn-secondary"
                   [disabled]="items().length === 0 || enviando()"
                   (click)="imprimirTicket()">
             <lucide-icon name="printer" [size]="16" />
             Imprimir
           </button>
+          }
           <button class="btn-secondary danger" (click)="limpiarOrden()">
             <lucide-icon name="trash-2" [size]="16" />
             Limpiar
@@ -313,19 +338,8 @@
         </div>
       </div>
     }
-
-    @if (requiereMesa() && mesaId()) {
-      <div class="mesa-tools">
-        <button class="btn-secondary warning"
-                [disabled]="enviando() || ordenActivaId() !== null"
-                [title]="ordenActivaId() !== null ? 'Primero debes cobrar la cuenta de esta mesa' : 'Liberar mesa'"
-                (click)="liberarMesaActual()">
-          <lucide-icon name="door-open" [size]="16" />
-          Liberar mesa
-        </button>
-      </div>
-    }
   </aside>
+  }
 
 </div>
 
@@ -339,7 +353,7 @@
 
 <!-- ═══════ MODAL: Personalizar ingredientes ═══════ -->
 @if (itemEditando(); as editing) {
-  <div class="modal-overlay" (click)="cerrarPersonalizacion()">
+  <div class="modal-overlay">
     <div class="modal-content" (click)="$event.stopPropagation()">
       <div class="modal-header">
         <h3>{{ editing.icono }} {{ editing.nombre }}</h3>

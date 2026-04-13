@@ -12,7 +12,7 @@ import { DOCUMENT, isPlatformBrowser } from '@angular/common';
 /**
  * Modos de tema soportados.
  * - 'light' / 'dark': elección explícita del usuario.
- * - 'system': sigue la preferencia del sistema operativo.
+ * - 'system': compatibilidad legacy para instalaciones antiguas.
  */
 export type ThemeMode = 'light' | 'dark' | 'system';
 
@@ -37,7 +37,7 @@ export class ThemeService {
   // --- Señales de estado ---
 
   /** Preferencia de tema elegida por el usuario. */
-  readonly theme = signal<ThemeMode>('system');
+  readonly theme = signal<ThemeMode>('light');
 
   /** Preferencia detectada del sistema operativo. */
   private readonly systemPreference = signal<'light' | 'dark'>('light');
@@ -81,10 +81,9 @@ export class ThemeService {
     });
 
     // 2. Leer preferencia guardada
-    const stored = localStorage.getItem(STORAGE_KEY) as ThemeMode | null;
-    if (stored && ['light', 'dark', 'system'].includes(stored)) {
-      this.theme.set(stored);
-    }
+    // Evitar fallback a 'system' u oscuro persistido: el modo por defecto del aplicativo es claro.
+    this.theme.set('light');
+    localStorage.setItem(STORAGE_KEY, 'light');
   }
 
   /** Alterna entre light ↔ dark (ignora 'system' al alternar). */
