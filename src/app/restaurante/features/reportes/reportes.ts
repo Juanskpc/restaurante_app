@@ -141,8 +141,8 @@ export class ReportesComponent {
   readonly tipoOptions: ReportTypeOption[] = [
     {
       value: 'ventas_periodo',
-      label: 'Ventas por periodo',
-      description: 'Detalle por orden cobrada.',
+      label: 'Ventas por pedido',
+      description: 'Detalle por pedido cobrado.',
     },
     {
       value: 'productos_mas_vendidos',

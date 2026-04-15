@@ -295,20 +295,19 @@
     position: fixed;
     left: 0;
     right: 0;
-    bottom: 8px;
-    z-index: 260;
+    bottom: 0;
+    z-index: 340;
     width: 100%;
     min-width: 100%;
-    height: min(86dvh, calc(100dvh - 24px));
-    transform: translateY(calc(100% + 24px));
+    height: min(92dvh, calc(100dvh - 8px));
+    transform: translateY(calc(100% + 18px));
     transition: transform 0.3s ease;
     border-left: none;
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.25);
 
     @media (max-width: 767px) {
-      bottom: calc(64px + env(safe-area-inset-bottom, 0px) + 8px);
-      height: min(86dvh, calc(100dvh - 88px - env(safe-area-inset-bottom, 0px)));
+      height: calc(100dvh - 4px);
     }
 
     &.open {
@@ -370,8 +369,48 @@
 
 .order-type-switch {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+
+  &.single-option {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 991px) {
+  .mesa-field.compact-single-type {
+    grid-template-columns: minmax(118px, 0.9fr) minmax(0, 1.1fr);
+    align-items: start;
+
+    .order-type-switch {
+      grid-column: 1;
+    }
+
+    .mesa-select,
+    .mesa-input {
+      grid-column: 2;
+      min-width: 0;
+    }
+
+    .mesa-error,
+    .mesa-empty-state {
+      grid-column: 1 / -1;
+    }
+  }
+}
+
+@media (max-width: 560px) {
+  .mesa-field.compact-single-type {
+    grid-template-columns: 1fr;
+
+    .order-type-switch,
+    .mesa-select,
+    .mesa-input,
+    .mesa-error,
+    .mesa-empty-state {
+      grid-column: auto;
+    }
+  }
 }
 
 .type-btn {
@@ -476,6 +515,12 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-sm);
+}
+
+@media (max-width: 991px) {
+  .order-items {
+    min-height: 0;
+  }
 }
 
 .order-empty {
@@ -883,6 +928,12 @@
       background: color-mix(in srgb, var(--color-warning) 12%, var(--color-surface));
     }
   }
+
+  &.inline-clean {
+    padding: 14px;
+    font-size: var(--font-size-base);
+    font-weight: 700;
+  }
 }
 
 // ─── FAB: Ver orden en móvil ────────────────────────────────
@@ -920,9 +971,12 @@
 @media (max-width: 767px) {
   .order-items {
     padding: 8px var(--spacing-md);
+    min-height: 0;
   }
 
   .action-btns {
+    gap: var(--spacing-xs);
+    padding: var(--spacing-sm) var(--spacing-md);
     padding-bottom: calc(var(--spacing-sm) + env(safe-area-inset-bottom, 0px));
   }
 }
@@ -949,7 +1003,7 @@
 .modal-overlay {
   position: fixed;
   inset: 0;
-  z-index: 200;
+  z-index: 1300;
   display: flex;
   align-items: center;
   justify-content: center;

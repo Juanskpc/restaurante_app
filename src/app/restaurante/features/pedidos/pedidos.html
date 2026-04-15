@@ -105,8 +105,11 @@
     </div>
 
     <!-- Campo de mesa -->
-    <div class="mesa-field">
-      <div class="order-type-switch" role="group" aria-label="Tipo de pedido">
+    <div class="mesa-field" [class.compact-single-type]="!canUsarParaLlevar() && requiereMesa()">
+      <div class="order-type-switch"
+           [class.single-option]="!canUsarParaLlevar()"
+           role="group"
+           aria-label="Tipo de pedido">
         <button class="type-btn"
                 [class.active]="tipoPedido() === 'MESA'"
                 (click)="seleccionarTipoPedido('MESA')">
@@ -313,7 +316,14 @@
               Liberar mesa
             </button>
           }
+          @if (!canCobrarPedido() && !canImprimirPedido()) {
+            <button class="btn-secondary danger inline-clean" (click)="limpiarOrden()">
+              <lucide-icon name="trash-2" [size]="16" />
+              Limpiar
+            </button>
+          }
         </div>
+        @if (canCobrarPedido() || canImprimirPedido()) {
         <div class="btn-row">
           @if (canCobrarPedido()) {
           <button class="btn-secondary"
@@ -336,6 +346,7 @@
             Limpiar
           </button>
         </div>
+        }
       </div>
     }
   </aside>

@@ -8,6 +8,7 @@
   gap: var(--spacing-md);
   padding: var(--spacing-md);
   background: var(--color-bg);
+  min-width: 0;
 }
 
 .inventory-header {
@@ -38,7 +39,7 @@
 
 .header-search {
   position: relative;
-  min-width: 280px;
+  min-width: 0;
   max-width: 420px;
   width: 100%;
 }
@@ -85,17 +86,24 @@
   display: grid;
   grid-template-columns: 2fr 1fr;
   gap: var(--spacing-md);
+  min-width: 0;
 
   @media (max-width: 1100px) {
     grid-template-columns: 1fr;
   }
 }
 
+.left-col,
+.right-col {
+  min-width: 0;
+}
+
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--spacing-sm);
   margin-bottom: var(--spacing-sm);
+  width: 100%;
 
   @media (max-width: 700px) {
     grid-template-columns: 1fr;
@@ -110,6 +118,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
 
   span {
     display: block;
@@ -213,6 +224,8 @@
   background: var(--color-surface);
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .table-header {
@@ -247,9 +260,10 @@
 }
 
 .table-wrap {
-  max-height: clamp(340px, 54vh, 640px);
-  overflow: auto;
-  overscroll-behavior: contain;
+  max-height: none;
+  overflow-x: auto;
+  overflow-y: visible;
+  overscroll-behavior: auto;
 }
 
 .table-pagination {
@@ -321,7 +335,8 @@
 }
 
 .inventory-table {
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
 
   th,
@@ -512,10 +527,6 @@
 }
 
 @media (max-width: 700px) {
-  .table-wrap {
-    max-height: 60vh;
-  }
-
   .table-pagination {
     align-items: stretch;
   }
