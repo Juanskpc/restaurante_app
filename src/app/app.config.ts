@@ -15,7 +15,7 @@ import {
   DollarSign, Receipt, Star, TrendingUp, TrendingDown, ChartPie, Eye,
   Search, Plus, Minus, Trash2, Printer, CreditCard, Flame, NotebookPen, Send,
   CirclePlus, Pencil, Loader, Leaf, Folder, ToggleRight, ToggleLeft,
-  DoorOpen,
+  DoorOpen, Clock3,
   CheckCircle, XCircle, RotateCw, FolderPlus, Save,
 } from 'lucide-angular';
 
@@ -26,7 +26,7 @@ const icons = {
   DollarSign, Receipt, Star, TrendingUp, TrendingDown, ChartPie, Eye,
   Search, Plus, Minus, Trash2, Printer, CreditCard, Flame, NotebookPen, Send,
   CirclePlus, Pencil, Loader, Leaf, Folder, ToggleRight, ToggleLeft,
-  DoorOpen,
+  DoorOpen, Clock3,
   CheckCircle, XCircle, RotateCw, FolderPlus, Save,
 };
 
