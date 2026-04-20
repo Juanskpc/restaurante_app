@@ -5,7 +5,6 @@ import {
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { LucideAngularModule } from 'lucide-angular';
 import { FormsModule } from '@angular/forms';
-import { CurrencyPipe } from '@angular/common';
 
 import { AuthService } from '../../../core/services/auth.service';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
@@ -81,13 +80,21 @@ interface ProdFormData {
   ingredientes: IngredienteForm[];
 }
 
+function normalizeSearchValue(value: string): string {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
 // ============================================================
 // Component
 // ============================================================
 
 @Component({
   selector: 'app-menu',
-  imports: [LucideAngularModule, FormsModule, CurrencyPipe],
+  imports: [LucideAngularModule, FormsModule],
   templateUrl: './menu.html',
   styleUrl: './menu.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -144,6 +151,10 @@ export class MenuComponent implements OnInit, OnDestroy {
     const id = this.categoriaActiva();
     if (!id) return 'Todos los Productos';
     return this.categorias().find(c => c.id_categoria === id)?.nombre ?? '';
+  });
+
+  private readonly priceFormatter = new Intl.NumberFormat('es-CO', {
+    maximumFractionDigits: 0,
   });
 
   readonly unidades = ['g', 'kg', 'ml', 'l', 'und', 'oz', 'taza', 'cdta', 'cda'];
@@ -247,7 +258,7 @@ export class MenuComponent implements OnInit, OnDestroy {
     if (!id) return;
     this.cargando.set(true);
     this.http.get<{ success: boolean; data: ProductoAdmin[] }>(
-      `${environment.apiUrl}/carta/buscar?id_negocio=${id}&q=${encodeURIComponent(term)}`
+      `${environment.apiUrl}/carta/buscar?id_negocio=${id}&include_disabled=1&q=${encodeURIComponent(term)}`
     ).subscribe({
       next: res => { this.productos.set(res?.data ?? []); this.cargando.set(false); },
       error: () => this.cargando.set(false),
@@ -299,9 +310,9 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   actualizarIngredienteSeleccion(index: number, nombreIngresado: string): void {
-    const nombreNormalizado = nombreIngresado.trim().toLowerCase();
+    const nombreNormalizado = normalizeSearchValue(nombreIngresado);
     const ingredienteBase = nombreNormalizado
-      ? this.ingredientesBase().find(base => base.nombre.trim().toLowerCase() === nombreNormalizado)
+      ? this.ingredientesBase().find(base => normalizeSearchValue(base.nombre) === nombreNormalizado)
       : null;
 
     this.prodForm.update(f => {
@@ -586,6 +597,14 @@ export class MenuComponent implements OnInit, OnDestroy {
 
   getCatIcono(idCat: number): string {
     return this.categorias().find(c => c.id_categoria === idCat)?.icono ?? '🍽️';
+  }
+
+  formatPrice(value: number): string {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) {
+      return '$ 0';
+    }
+    return `$ ${this.priceFormatter.format(numericValue)}`;
   }
 
   trackByCat(_: number, c: CategoriaAdmin): number { return c.id_categoria; }

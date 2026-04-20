@@ -1,5 +1,4 @@
 import { Component, ChangeDetectionStrategy, computed, effect, inject, signal } from '@angular/core';
-import { CurrencyPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
 
@@ -17,7 +16,7 @@ interface ItemPagadoMesa {
 
 @Component({
   selector: 'app-mesas',
-  imports: [LucideAngularModule, CurrencyPipe, FormsModule],
+  imports: [LucideAngularModule, FormsModule],
   templateUrl: './mesas.html',
   styleUrl: './mesas.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -37,8 +36,6 @@ export class MesasComponent {
   readonly modalNuevaMesa = signal(false);
   readonly editandoMesaId = signal<number | null>(null);
   readonly formNombre = signal('');
-  readonly formNumero = signal<number | null>(null);
-  readonly formCapacidad = signal<number>(4);
   readonly efectivoRecibidoInput = signal('');
   readonly cobroError = signal('');
   readonly itemsPagadosPorMesa = signal<Record<number, ItemPagadoMesa[]>>({});
@@ -46,10 +43,13 @@ export class MesasComponent {
   readonly negocioId = computed(() => this.auth.negocio()?.id_negocio ?? null);
   readonly canCrearMesa = computed(() => this.auth.canAccessSubnivel('mesas_nueva_mesa'));
   readonly canAccionesPedido = computed(() => this.auth.canAccessSubnivel('mesas_acciones_pedido'));
+  readonly canImprimirPedido = computed(() => this.auth.canAccessSubnivel('pedidos_imprimir'));
   readonly canAdministracionMesa = computed(() => this.auth.canAccessSubnivel('mesas_administracion'));
-  readonly canVerBloquesAccionMesa = computed(() => this.canAccionesPedido() || this.canAdministracionMesa());
 
   readonly maxMesas = 24;
+  private readonly moneyFormatter = new Intl.NumberFormat('es-CO', {
+    maximumFractionDigits: 0,
+  });
 
   readonly mesasFiltradas = computed(() => {
     const f = this.filtro();
@@ -143,8 +143,6 @@ export class MesasComponent {
 
     this.editandoMesaId.set(null);
     this.formNombre.set('');
-    this.formNumero.set(this.nextNumero());
-    this.formCapacidad.set(4);
     this.modalNuevaMesa.set(true);
   }
 
@@ -153,8 +151,6 @@ export class MesasComponent {
 
     this.editandoMesaId.set(mesa.id_mesa);
     this.formNombre.set(mesa.nombre);
-    this.formNumero.set(mesa.numero);
-    this.formCapacidad.set(mesa.capacidad);
     this.modalNuevaMesa.set(true);
   }
 
@@ -165,17 +161,20 @@ export class MesasComponent {
   saveMesa(): void {
     const idNegocio = this.negocioId();
     const nombre = this.formNombre().trim();
-    const numero = this.formNumero();
-    const capacidad = this.formCapacidad();
+    const editingId = this.editandoMesaId();
 
-    if (!idNegocio || !nombre || !numero || capacidad < 1) return;
+    if (!nombre) return;
+    if (!editingId && !idNegocio) return;
 
     this.guardando.set(true);
 
-    const editingId = this.editandoMesaId();
     const req = editingId
-      ? this.mesasApi.editarMesa(editingId, { nombre, numero, capacidad })
-      : this.mesasApi.crearMesa({ id_negocio: idNegocio, nombre, numero, capacidad });
+      ? this.mesasApi.editarMesa(editingId, { nombre })
+      : this.mesasApi.crearMesa({
+          id_negocio: idNegocio!,
+          nombre,
+          numero: this.nextNumero(),
+        });
 
     req.subscribe({
       next: () => {
@@ -244,7 +243,7 @@ export class MesasComponent {
     const recibido = this.efectivoRecibido();
     if (recibido !== null && recibido < mesa.order.total) {
       const faltante = mesa.order.total - recibido;
-      this.cobroError.set(`Faltan ${new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(faltante)} para completar el pago.`);
+      this.cobroError.set(`Faltan ${this.formatMoney(faltante)} para completar el pago.`);
       return;
     }
 
@@ -369,30 +368,188 @@ export class MesasComponent {
 
   modalActions(status: MesaCardStatus): Array<{ key: string; label: string; style: 'primary' | 'warning' | 'ghost'; icon: string }> {
     if (status === 'available') {
+      if (!this.canAccionesPedido()) return [];
       return [{ key: 'abrir', label: 'Reservar mesa', style: 'primary', icon: 'circle-plus' }];
     }
+
     if (status === 'occupied') {
-      return [
-        { key: 'cuenta', label: 'Marcar por cobrar', style: 'warning', icon: 'receipt' },
-        { key: 'liberar', label: 'Liberar mesa', style: 'ghost', icon: 'door-open' },
-      ];
+      const actions: Array<{ key: string; label: string; style: 'primary' | 'warning' | 'ghost'; icon: string }> = [];
+      if (this.canAccionesPedido()) {
+        actions.push({ key: 'cuenta', label: 'Marcar por cobrar', style: 'warning', icon: 'receipt' });
+      }
+      if (this.canImprimirPedido()) {
+        actions.push({ key: 'imprimir', label: 'Imprimir', style: 'ghost', icon: 'printer' });
+      }
+      if (this.canAccionesPedido()) {
+        actions.push({ key: 'liberar', label: 'Liberar mesa', style: 'ghost', icon: 'door-open' });
+      }
+      return actions;
     }
+
     if (status === 'payment') {
-      return [
-        { key: 'cobrar', label: 'Confirmar Cobro', style: 'primary', icon: 'credit-card' },
-        { key: 'liberar', label: 'Liberar mesa', style: 'ghost', icon: 'door-open' },
-      ];
+      const actions: Array<{ key: string; label: string; style: 'primary' | 'warning' | 'ghost'; icon: string }> = [];
+      if (this.canAccionesPedido()) {
+        actions.push({ key: 'cobrar', label: 'Confirmar Cobro', style: 'primary', icon: 'credit-card' });
+      }
+      if (this.canImprimirPedido()) {
+        actions.push({ key: 'imprimir', label: 'Imprimir', style: 'ghost', icon: 'printer' });
+      }
+      if (this.canAccionesPedido()) {
+        actions.push({ key: 'liberar', label: 'Liberar mesa', style: 'ghost', icon: 'door-open' });
+      }
+      return actions;
     }
+
     return [];
   }
 
   runAction(action: string): void {
+    if (action === 'imprimir') {
+      if (!this.canImprimirPedido()) return;
+      this.imprimirResumenMesa();
+      return;
+    }
+
     if (!this.canAccionesPedido()) return;
 
     if (action === 'abrir') this.abrirMesa();
     if (action === 'cuenta') this.pedirCuenta();
     if (action === 'cobrar') this.confirmarCobro();
     if (action === 'liberar') this.liberarMesaActual();
+  }
+
+  formatMoney(value: number): string {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) {
+      return '$ 0';
+    }
+    return `$ ${this.moneyFormatter.format(numericValue)}`;
+  }
+
+  getMesaTimeLabel(mesa: MesaDashboard): string {
+    if (mesa.time) return mesa.time;
+    if (mesa.status === 'occupied' || mesa.status === 'payment') return '0 min';
+    return 'Sin uso';
+  }
+
+  puedeVerBloquesAccionMesa(mesa: MesaDashboard): boolean {
+    return this.modalActions(mesa.status).length > 0 || (this.canAdministracionMesa() && mesa.status === 'available');
+  }
+
+  imprimirResumenMesa(): void {
+    const mesa = this.mesaActiva();
+    if (!mesa || typeof window === 'undefined') return;
+
+    const itemsPendientes = mesa.order.items ?? [];
+    const itemsPagados = this.itemsPagadosMesaActiva();
+
+    if (itemsPendientes.length === 0 && itemsPagados.length === 0) {
+      void this.uiFeedback.alert({
+        title: 'No hay items para imprimir',
+        message: 'La mesa no tiene productos para generar el comprobante.',
+        tone: 'warning',
+      });
+      return;
+    }
+
+    const popup = window.open('', '_blank', 'noopener,noreferrer,width=420,height=700');
+    if (!popup) {
+      void this.uiFeedback.alert({
+        title: 'No se pudo abrir la impresion',
+        message: 'Habilita ventanas emergentes para continuar con la impresion.',
+        tone: 'error',
+      });
+      return;
+    }
+
+    const fecha = new Date();
+    const pagadosHtml = itemsPagados
+      .map((item) => `<tr><td>${this.escapeHtml(item.name)}</td><td>${item.cantidad}</td><td>${this.formatMoney(item.price * item.cantidad)}</td></tr>`)
+      .join('');
+    const pendientesHtml = itemsPendientes
+      .map((item) => `<tr><td>${this.escapeHtml(item.name)}</td><td>${item.cantidad}</td><td>${this.formatMoney(item.price * item.cantidad)}</td></tr>`)
+      .join('');
+
+    const ticketHtml = `
+      <!doctype html>
+      <html lang="es">
+      <head>
+        <meta charset="utf-8" />
+        <title>Comprobante mesa</title>
+        <style>
+          body { font-family: 'Segoe UI', Tahoma, sans-serif; margin: 16px; color: #111; }
+          h1, h2 { margin: 0 0 8px; }
+          .meta { margin-bottom: 12px; font-size: 12px; color: #555; }
+          table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+          th, td { border-bottom: 1px solid #ddd; padding: 6px; font-size: 12px; text-align: left; }
+          th:last-child, td:last-child { text-align: right; }
+          .section { margin-top: 14px; }
+          .totals { margin-top: 14px; font-weight: 700; }
+        </style>
+      </head>
+      <body>
+        <h1>Mesa ${this.escapeHtml(mesa.nombre)}</h1>
+        <div class="meta">Fecha: ${this.escapeHtml(this.formatDateTime(fecha))}</div>
+
+        ${itemsPagados.length > 0 ? `
+        <div class="section">
+          <h2>Ya pagados</h2>
+          <table>
+            <thead><tr><th>Producto</th><th>Cant.</th><th>Total</th></tr></thead>
+            <tbody>${pagadosHtml}</tbody>
+          </table>
+        </div>
+        ` : ''}
+
+        ${itemsPendientes.length > 0 ? `
+        <div class="section">
+          <h2>Pendientes</h2>
+          <table>
+            <thead><tr><th>Producto</th><th>Cant.</th><th>Total</th></tr></thead>
+            <tbody>${pendientesHtml}</tbody>
+          </table>
+        </div>
+        ` : ''}
+
+        <div class="totals">Total pendiente: ${this.formatMoney(mesa.order.total)}</div>
+      </body>
+      </html>
+    `;
+
+    popup.document.open();
+    popup.document.write(ticketHtml);
+    popup.document.close();
+
+    let printed = false;
+    const runPrint = () => {
+      if (printed) return;
+      printed = true;
+      popup.focus();
+      popup.print();
+      setTimeout(() => popup.close(), 600);
+    };
+
+    popup.addEventListener('load', runPrint, { once: true });
+    setTimeout(runPrint, 500);
+  }
+
+  private escapeHtml(value: string): string {
+    return value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  private formatDateTime(value: Date): string {
+    return new Intl.DateTimeFormat('es-CO', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(value);
   }
 
   private nextNumero(): number {

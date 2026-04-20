@@ -142,7 +142,7 @@
                       </span>
                     }
                     <span class="badge" [class.badge-available]="prod.disponible" [class.badge-unavailable]="!prod.disponible">
-                      {{ prod.disponible ? 'Disponible' : 'No Disponible' }}
+                      {{ prod.disponible ? 'Disponible' : 'Deshabilitado' }}
                     </span>
                   </div>
                 </div>
@@ -151,7 +151,7 @@
                 <div class="product-info">
                   <div class="product-top">
                     <h3 class="product-name">{{ prod.nombre }}</h3>
-                    <div class="product-price">{{ prod.precio | currency:'COP':'symbol':'1.0-0' }}</div>
+                    <div class="product-price">{{ formatPrice(prod.precio) }}</div>
                   </div>
 
                   @if (prod.descripcion) {
@@ -182,7 +182,7 @@
                       [title]="prod.disponible ? 'Marcar como no disponible' : 'Marcar como disponible'"
                     >
                       <lucide-icon [name]="prod.disponible ? 'toggle-right' : 'toggle-left'" [size]="16" />
-                      {{ prod.disponible ? 'Disponible' : 'No disponible' }}
+                      {{ prod.disponible ? 'Disponible' : 'Deshabilitado' }}
                     </button>
                     <div class="action-btns">
                       <button class="icon-btn" (click)="abrirModalProd(prod)" title="Editar producto">
@@ -434,12 +434,15 @@
               <div class="ingred-row">
                 <!-- Selector ingrediente con autocomplete -->
                 <input
-                  class="form-input"
+                  class="form-input ingred-input"
+                  [class.ingred-input-selected]="ing.id_ingrediente !== null"
                   type="text"
                   list="ingredientes-base-list"
-                  placeholder="Seleccionar ingrediente..."
+                  [placeholder]="ing.id_ingrediente !== null ? 'Ingrediente seleccionado' : 'Seleccionar ingrediente...'"
                   [value]="ing.nombre"
-                  (focus)="mostrarOpcionesIngrediente($event)"
+                  [readonly]="ing.id_ingrediente !== null"
+                  [title]="ing.id_ingrediente !== null ? 'Ingrediente seleccionado. Elimina la fila para cambiarlo.' : ''"
+                  (focus)="ing.id_ingrediente === null && mostrarOpcionesIngrediente($event)"
                   (input)="actualizarIngredienteSeleccion($index, $any($event.target).value)"
                 />
                 <!-- Porción -->
@@ -480,10 +483,12 @@
         <!-- Crear ingrediente nuevo directo desde aquí -->
         <div class="new-ingred-row">
           <lucide-icon name="circle-plus" [size]="14" class="new-ingred-icon" />
+          <label class="new-ingred-label" for="nuevo-ingrediente-input">Nuevo ingrediente</label>
           <input
             class="form-input new-ingred-input"
+            id="nuevo-ingrediente-input"
             type="text"
-            placeholder="Nuevo ingrediente (ej: Queso cheddar)..."
+            placeholder="Ej: Queso cheddar"
             [value]="nuevoIngredNombre()"
             (input)="nuevoIngredNombre.set($any($event.target).value)"
             (keyup.enter)="crearIngredienteBase()"

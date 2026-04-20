@@ -9,10 +9,6 @@
     </div>
 
     <div class="header-right">
-      <div class="plan">
-        <lucide-icon name="chart-pie" [size]="14" />
-        <span>{{ mesas().length }}/{{ maxMesas }} mesas</span>
-      </div>
       <button class="btn-ghost btn-refresh"
               (click)="actualizarMesas()"
               [disabled]="cargando() || guardando()"
@@ -55,8 +51,7 @@
               @if (mesa.status === 'occupied' || mesa.status === 'payment') {
               @if (canAccionesPedido()) {
                 <button class="quick-release-btn"
-                        [disabled]="!puedeLiberarMesa(mesa)"
-                        [title]="puedeLiberarMesa(mesa) ? 'Liberar mesa' : 'Primero debes cobrar la cuenta de la mesa'"
+                        title="Liberar mesa"
                         (click)="liberarMesaDesdeCard(mesa, $event)">
                   <lucide-icon name="door-open" [size]="14" />
                 </button>
@@ -67,8 +62,11 @@
           </header>
 
           <div class="mesa-card-body">
-            <div class="total">{{ mesa.order.total | currency:'COP':'symbol-narrow':'1.0-0' }}</div>
-            <div class="meta">{{ mesa.time || 'Sin uso' }}</div>
+            <div class="total">{{ formatMoney(mesa.order.total) }}</div>
+            <div class="meta">
+              <lucide-icon name="clock-3" [size]="13" />
+              <span>{{ getMesaTimeLabel(mesa) }}</span>
+            </div>
             <span class="badge" [class]="'badge status-' + mesa.status">{{ statusLabel(mesa.status) }}</span>
           </div>
         </article>
@@ -105,9 +103,9 @@
                       <span class="item-name">{{ item.name }}</span>
                       <span class="paid-tag">PAGADO</span>
                     </div>
-                    <span class="item-meta">{{ item.cantidad }} x {{ item.price | currency:'COP':'symbol':'1.0-0' }}</span>
+                    <span class="item-meta">{{ item.cantidad }} x {{ formatMoney(item.price) }}</span>
                   </div>
-                  <strong>{{ (item.price * item.cantidad) | currency:'COP':'symbol':'1.0-0' }}</strong>
+                  <strong>{{ formatMoney(item.price * item.cantidad) }}</strong>
                 </div>
               }
             </div>
@@ -120,9 +118,9 @@
                 <div class="item-row">
                   <div class="item-main">
                     <span class="item-name">{{ item.name }}</span>
-                    <span class="item-meta">{{ item.cantidad }} x {{ item.price | currency:'COP':'symbol':'1.0-0' }}</span>
+                    <span class="item-meta">{{ item.cantidad }} x {{ formatMoney(item.price) }}</span>
                   </div>
-                  <strong>{{ (item.price * item.cantidad) | currency:'COP':'symbol':'1.0-0' }}</strong>
+                  <strong>{{ formatMoney(item.price * item.cantidad) }}</strong>
                 </div>
               }
             </div>
@@ -135,13 +133,13 @@
           @if (itemsPagadosMesaActiva().length > 0) {
             <div class="total-row paid">
               <span>Total pagado</span>
-              <strong>{{ totalPagadoMesaActiva() | currency:'COP':'symbol':'1.0-0' }}</strong>
+              <strong>{{ formatMoney(totalPagadoMesaActiva()) }}</strong>
             </div>
           }
 
           <div class="total-row">
             <span>Total pendiente</span>
-            <strong>{{ mesa.order.total | currency:'COP':'symbol':'1.0-0' }}</strong>
+            <strong>{{ formatMoney(mesa.order.total) }}</strong>
           </div>
 
           @if (mesa.status === 'payment') {
@@ -158,11 +156,11 @@
               @if (efectivoRecibido() !== null) {
                 @if (faltanteCobro()! > 0) {
                   <p class="cash-feedback error">
-                    Faltan {{ faltanteCobro() | currency:'COP':'symbol':'1.0-0' }} para completar el pago.
+                    Faltan {{ formatMoney(faltanteCobro()!) }} para completar el pago.
                   </p>
                 } @else {
                   <p class="cash-feedback success">
-                    Vuelta: {{ vueltaCobro() | currency:'COP':'symbol':'1.0-0' }}
+                    Vuelta: {{ formatMoney(vueltaCobro()!) }}
                   </p>
                 }
               }
@@ -174,7 +172,7 @@
           }
         </section>
 
-        @if (canAccionesPedido()) {
+        @if (modalActions(mesa.status).length > 0) {
         <section class="modal-block">
           <div class="modal-block-head">
             <h4>Acciones del pedido</h4>
@@ -187,8 +185,7 @@
             @for (a of modalActions(mesa.status); track a.key) {
               <button [class]="a.style === 'primary' ? 'btn-primary' : (a.style === 'warning' ? 'btn-warning' : 'btn-ghost')"
                       (click)="runAction(a.key)"
-                      [disabled]="guardando() || (a.key === 'liberar' && !puedeLiberarMesa(mesa))"
-                      [title]="a.key === 'liberar' && !puedeLiberarMesa(mesa) ? 'Primero debes cobrar la cuenta de la mesa' : ''">
+                      [disabled]="guardando()">
                 <lucide-icon [name]="a.icon" [size]="16" /> {{ a.label }}
               </button>
             }
@@ -196,11 +193,11 @@
         </section>
         }
 
-        @if (canAdministracionMesa()) {
+        @if (canAdministracionMesa() && mesa.status === 'available') {
         <section class="modal-block modal-block-admin">
           <div class="modal-block-head">
             <h4>Administracion de mesa</h4>
-            <p>Ajusta nombre, numero, capacidad y disponibilidad.</p>
+            <p>Ajusta nombre y disponibilidad de la mesa.</p>
           </div>
 
           <div class="modal-actions modal-actions-admin">
@@ -215,7 +212,7 @@
         </section>
         }
 
-        @if (!canVerBloquesAccionMesa()) {
+        @if (!puedeVerBloquesAccionMesa(mesa)) {
           <section class="modal-block">
             <div class="modal-block-head">
               <h4>Sin acciones disponibles</h4>
@@ -244,20 +241,15 @@
             Nombre
             <input type="text" [ngModel]="formNombre()" (ngModelChange)="formNombre.set($event)" placeholder="Mesa 12" />
           </label>
-          <label>
-            Numero
-            <input type="number" min="1" [ngModel]="formNumero()" (ngModelChange)="formNumero.set($event ? +$event : null)" />
-          </label>
-          <label>
-            Capacidad
-            <input type="number" min="1" max="20" [ngModel]="formCapacidad()" (ngModelChange)="formCapacidad.set(+$event || 1)" />
-          </label>
+          @if (!editandoMesaId()) {
+            <small>El numero de mesa se asigna automaticamente en orden consecutivo.</small>
+          }
         </div>
       </div>
 
       <footer class="modal-actions modal-form-footer">
         <button class="btn-ghost" (click)="closeNuevaMesa()">Cancelar</button>
-        <button class="btn-primary" (click)="saveMesa()" [disabled]="guardando() || !formNombre().trim() || !formNumero()">
+        <button class="btn-primary" (click)="saveMesa()" [disabled]="guardando() || !formNombre().trim()">
           {{ editandoMesaId() ? 'Guardar cambios' : 'Crear mesa' }}
         </button>
       </footer>

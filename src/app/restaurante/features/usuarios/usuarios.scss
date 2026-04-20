@@ -71,6 +71,10 @@
   justify-content: flex-end;
 }
 
+.btn-create-user {
+  min-width: 180px;
+}
+
 .field {
   display: flex;
   flex-direction: column;
@@ -92,6 +96,43 @@
   border-radius: var(--radius-sm);
   padding: 10px 12px;
   font: inherit;
+}
+
+.field-error {
+  color: var(--color-error);
+  font-size: var(--font-size-xs);
+  line-height: 1.35;
+}
+
+.field--password {
+  align-self: stretch;
+}
+
+.password-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+
+  input {
+    padding-right: 78px;
+  }
+}
+
+.password-toggle {
+  position: absolute;
+  right: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--color-primary);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+
+  &:hover {
+    background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  }
 }
 
 .table-wrap {
@@ -443,6 +484,14 @@ th {
 
   .filters {
     grid-template-columns: 1fr;
+  }
+
+  .filters__action {
+    justify-content: stretch;
+  }
+
+  .btn-create-user {
+    width: 100%;
   }
 
   .roles-toolbar {

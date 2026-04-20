@@ -97,12 +97,27 @@
       <div class="table-card">
         <div class="table-header">
           <h3>Inventario en tiempo real</h3>
-          @if (cargando()) {
-            <span class="loading-inline">
-              <lucide-icon name="loader" [size]="14" class="spin" />
-              Cargando...
-            </span>
-          }
+          <div class="table-header-tools">
+            <div class="stock-filters" aria-label="Filtros de inventario">
+              <button class="stock-filter-btn"
+                      [class.active]="stockFilter() === 'normal'"
+                      (click)="setStockFilter('normal')">
+                Normal
+              </button>
+              <button class="stock-filter-btn"
+                      [class.active]="stockFilter() === 'agotado'"
+                      (click)="setStockFilter('agotado')">
+                Agotado
+              </button>
+            </div>
+
+            @if (cargando()) {
+              <span class="loading-inline">
+                <lucide-icon name="loader" [size]="14" class="spin" />
+                Cargando...
+              </span>
+            }
+          </div>
         </div>
 
         <div class="table-wrap">
@@ -228,7 +243,7 @@
             <button class="product-item" [class.active]="productoActivo().id_producto === p.id_producto" (click)="selectProducto(p.id_producto)">
               <span class="emoji">{{ p.icono }}</span>
               <span class="name">{{ p.nombre }}</span>
-              <span class="price">{{ p.precio | currency:'COP':'symbol':'1.0-0' }}</span>
+              <span class="price">{{ formatMoney(p.precio) }}</span>
             </button>
           }
         </div>

@@ -23,6 +23,21 @@ import {
   UsuarioPermisosDetalle,
 } from './usuarios.models';
 
+const NAME_PATTERN = /^[\p{L}' .-]+$/u;
+const IDENT_PATTERN = /^[0-9A-Za-z._-]+$/;
+
+type UserFormControlName =
+  | 'primer_nombre'
+  | 'segundo_nombre'
+  | 'primer_apellido'
+  | 'segundo_apellido'
+  | 'num_identificacion'
+  | 'email'
+  | 'password'
+  | 'confirmPassword'
+  | 'id_rol'
+  | 'estado';
+
 @Component({
   selector: 'app-usuarios',
   imports: [ReactiveFormsModule, DatePipe, NgClass, TitleCasePipe],
@@ -43,6 +58,8 @@ export class UsuariosComponent {
   protected readonly saving = signal(false);
   protected readonly showFormModal = signal(false);
   protected readonly showPermisosUsuarioModal = signal(false);
+  protected readonly showPassword = signal(false);
+  protected readonly showConfirmPassword = signal(false);
   protected readonly errorMessage = signal<string | null>(null);
 
   protected readonly usuarios = signal<UsuarioAdmin[]>([]);
@@ -57,27 +74,32 @@ export class UsuariosComponent {
 
   protected readonly selectedUsuarioPermisos = signal<UsuarioPermisosDetalle | null>(null);
   protected readonly negocioId = computed(() => this.auth.negocio()?.id_negocio ?? null);
-  protected readonly selectedRoleDescripcion = computed(() => {
-    const roleId = this.selectedRoleId();
-    if (!roleId) return 'Rol';
-    return this.roles().find((rol) => rol.id_rol === roleId)?.descripcion ?? 'Rol';
-  });
   protected readonly modulosConAccesoCount = computed(
     () => this.permisosRol().filter((modulo) => modulo.puede_ver).length
   );
   protected readonly hasPermisosPendientes = computed(
     () => this.serializePermisos(this.permisosRol()) !== this.permisosSnapshot()
   );
+  protected readonly passwordMismatch = computed(() => {
+    const password = this.userForm.controls.password.value;
+    const confirm = this.userForm.controls.confirmPassword.value;
+
+    if (!password && !confirm) {
+      return false;
+    }
+
+    return password !== confirm;
+  });
 
   protected readonly userForm = this.fb.nonNullable.group({
     id_usuario: [0],
-    primer_nombre: ['', [Validators.required, Validators.maxLength(100)]],
-    segundo_nombre: [''],
-    primer_apellido: ['', [Validators.required, Validators.maxLength(100)]],
-    segundo_apellido: [''],
-    num_identificacion: ['', [Validators.required, Validators.maxLength(50)]],
-    email: ['', [Validators.required, Validators.email]],
-    password: ['', [Validators.minLength(8)]],
+    primer_nombre: ['', [Validators.required, Validators.maxLength(100), Validators.pattern(NAME_PATTERN)]],
+    segundo_nombre: ['', [Validators.maxLength(100), Validators.pattern(NAME_PATTERN)]],
+    primer_apellido: ['', [Validators.required, Validators.maxLength(100), Validators.pattern(NAME_PATTERN)]],
+    segundo_apellido: ['', [Validators.maxLength(100), Validators.pattern(NAME_PATTERN)]],
+    num_identificacion: ['', [Validators.required, Validators.minLength(4), Validators.maxLength(50), Validators.pattern(IDENT_PATTERN)]],
+    email: ['', [Validators.required, Validators.email, Validators.maxLength(255)]],
+    password: ['', [Validators.minLength(8), Validators.maxLength(120)]],
     confirmPassword: [''],
     id_rol: [0, [Validators.required, Validators.min(1)]],
     estado: ['A' as EstadoRegistro, [Validators.required]],
@@ -233,6 +255,8 @@ export class UsuariosComponent {
       es_admin_principal: false,
     });
 
+    this.resetPasswordVisibility();
+    this.errorMessage.set(null);
     this.showFormModal.set(true);
   }
 
@@ -252,28 +276,102 @@ export class UsuariosComponent {
       es_admin_principal: usuario.es_admin_principal,
     });
 
+    this.resetPasswordVisibility();
+    this.errorMessage.set(null);
     this.showFormModal.set(true);
   }
 
   protected closeFormModal(): void {
     this.showFormModal.set(false);
     this.userForm.markAsPristine();
+    this.resetPasswordVisibility();
+  }
+
+  protected togglePasswordVisibility(): void {
+    this.showPassword.update((value) => !value);
+  }
+
+  protected toggleConfirmPasswordVisibility(): void {
+    this.showConfirmPassword.update((value) => !value);
+  }
+
+  protected markControlAsTouched(controlName: UserFormControlName): void {
+    this.userForm.controls[controlName].markAsTouched();
+  }
+
+  protected hasControlError(controlName: UserFormControlName): boolean {
+    const control = this.userForm.controls[controlName];
+    const interacted = control.touched || control.dirty;
+    if (!interacted) return false;
+
+    if (controlName === 'password' && !this.isEditing() && !String(control.value || '').trim()) {
+      return true;
+    }
+
+    return control.invalid;
+  }
+
+  protected controlError(controlName: UserFormControlName): string | null {
+    const control = this.userForm.controls[controlName];
+    const errors = control.errors;
+
+    if (controlName === 'password' && !this.isEditing() && !String(control.value || '').trim()) {
+      return 'La contrasena es obligatoria para crear el usuario.';
+    }
+
+    if (!errors) return null;
+
+    if (errors['required']) {
+      return 'Este campo es obligatorio.';
+    }
+
+    if (errors['email']) {
+      return 'Ingresa un correo electronico valido.';
+    }
+
+    if (errors['minlength']) {
+      return `Debe tener al menos ${errors['minlength'].requiredLength} caracteres.`;
+    }
+
+    if (errors['maxlength']) {
+      return `Debe tener maximo ${errors['maxlength'].requiredLength} caracteres.`;
+    }
+
+    if (errors['min']) {
+      return 'Selecciona un rol valido.';
+    }
+
+    if (errors['pattern']) {
+      if (controlName === 'num_identificacion') {
+        return 'Usa solo letras, numeros, punto, guion o guion bajo.';
+      }
+
+      return 'Formato invalido para este campo.';
+    }
+
+    return 'Valor invalido.';
+  }
+
+  protected shouldShowPasswordMismatch(): boolean {
+    if (!this.passwordMismatch()) return false;
+
+    return this.userForm.controls.password.touched
+      || this.userForm.controls.confirmPassword.touched;
   }
 
   protected submitUserForm(): void {
     this.userForm.markAllAsTouched();
-    if (this.userForm.invalid) return;
-
     const formValue = this.userForm.getRawValue();
     const isCreate = formValue.id_usuario === 0;
 
-    if (isCreate && !formValue.password) {
-      this.errorMessage.set('La contrasena es obligatoria para crear un usuario.');
+    if (this.userForm.invalid || (isCreate && !String(formValue.password || '').trim())) {
+      this.errorMessage.set('Revisa los campos del formulario antes de guardar.');
       return;
     }
 
     if (formValue.password || formValue.confirmPassword) {
       if (formValue.password !== formValue.confirmPassword) {
+        this.userForm.controls.confirmPassword.markAsTouched();
         this.errorMessage.set('La contrasena y su confirmacion no coinciden.');
         return;
       }
@@ -327,8 +425,20 @@ export class UsuariosComponent {
     });
   }
 
-  protected toggleEstado(usuario: UsuarioAdmin): void {
+  protected async toggleEstado(usuario: UsuarioAdmin): Promise<void> {
     const estadoNuevo: EstadoRegistro = usuario.estado === 'A' ? 'I' : 'A';
+
+    const confirmed = await this.uiFeedback.confirm({
+      title: estadoNuevo === 'I' ? 'Inactivar usuario' : 'Activar usuario',
+      message: estadoNuevo === 'I'
+        ? `Se inactivara a ${usuario.nombre_completo}. ¿Deseas continuar?`
+        : `Se activara a ${usuario.nombre_completo}. ¿Deseas continuar?`,
+      confirmText: estadoNuevo === 'I' ? 'Inactivar' : 'Activar',
+      cancelText: 'Cancelar',
+      tone: estadoNuevo === 'I' ? 'warning' : 'info',
+    });
+
+    if (!confirmed) return;
 
     this.usuariosService.setEstadoUsuario(usuario.id_usuario, estadoNuevo).subscribe({
       next: () => {
@@ -527,5 +637,10 @@ export class UsuariosComponent {
   private extractError(error: unknown, fallback: string): string {
     const httpError = error as HttpErrorResponse;
     return httpError?.error?.message || fallback;
+  }
+
+  private resetPasswordVisibility(): void {
+    this.showPassword.set(false);
+    this.showConfirmPassword.set(false);
   }
 }

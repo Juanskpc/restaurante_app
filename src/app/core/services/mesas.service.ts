@@ -49,7 +49,7 @@ export class MesasService {
     );
   }
 
-  crearMesa(payload: { id_negocio: number; nombre: string; numero: number; capacidad: number }): Observable<{ success: boolean; data: MesaBase }> {
+  crearMesa(payload: { id_negocio: number; nombre: string; numero?: number; capacidad?: number }): Observable<{ success: boolean; data: MesaBase }> {
     return this.http.post<{ success: boolean; data: MesaBase }>(`${environment.apiUrl}/mesas`, payload);
   }
 

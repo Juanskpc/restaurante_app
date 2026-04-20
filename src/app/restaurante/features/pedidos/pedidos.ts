@@ -479,20 +479,20 @@ export class PedidosComponent implements OnInit, OnDestroy {
           return;
         }
 
-          if (itemsPrevios.length > 0) {
-            const confirmarReemplazo = await this.uiFeedback.confirm({
-              title: 'Pedido existente en mesa',
-              message: 'La mesa seleccionada ya tiene un pedido abierto. ¿Deseas cargarlo? Se reemplazara el pedido actual en pantalla.',
-              confirmText: 'Cargar pedido',
-              cancelText: 'Conservar actual',
-              tone: 'warning',
-            });
+        const confirmarReemplazo = await this.uiFeedback.confirm({
+          title: 'Pedido existente en mesa',
+          message: itemsPrevios.length > 0
+            ? 'La mesa seleccionada ya tiene un pedido abierto. ¿Deseas cargarlo? Se reemplazara el pedido actual en pantalla.'
+            : 'La mesa seleccionada ya tiene un pedido abierto. ¿Deseas cargar ese pedido en pantalla?',
+          confirmText: 'Cargar pedido',
+          cancelText: itemsPrevios.length > 0 ? 'Conservar actual' : 'Cancelar',
+          tone: 'warning',
+        });
 
-            if (!confirmarReemplazo) {
-              restaurarEstadoPrevio();
-              return;
-            }
-          }
+        if (!confirmarReemplazo) {
+          restaurarEstadoPrevio();
+          return;
+        }
 
         this.http.get<{ success: boolean; data: OrdenApi }>(
           `${environment.apiUrl}/pedidos/${ordenMesa.id_orden}`

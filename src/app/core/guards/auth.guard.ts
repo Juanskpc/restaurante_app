@@ -4,6 +4,7 @@ import { isPlatformBrowser } from '@angular/common';
 
 import { AuthService } from '../services/auth.service';
 import { PaletteService } from '../theme/palette.service';
+import { environment } from '../../../environments/environment';
 
 type AdminSessionTransfer = {
   source: string;
@@ -37,13 +38,10 @@ export const authGuard: CanActivateFn = async () => {
   // --- 1. Sesión existente en memoria → acceso inmediato ---
   if (authService.isAuthenticated()) {
     if (authService.session()?.permisos_cargados !== true) {
-      const storedToken = authService.getAccessToken();
-      if (storedToken) {
-        const valid = await authService.validateAndSetToken(storedToken);
-        if (!valid) {
-          authService.logout();
-          return false;
-        }
+      const valid = await refreshSessionFromStoredToken(authService, paletteService);
+      if (!valid) {
+        authService.logout();
+        return false;
       }
     }
 
@@ -72,7 +70,7 @@ export const authGuard: CanActivateFn = async () => {
   // --- 3. Token en localStorage propio (refresh de página) ---
   const storedToken = authService.getAccessToken();
   if (storedToken) {
-    const valid = await authService.validateAndSetToken(storedToken);
+    const valid = await refreshSessionFromStoredToken(authService, paletteService);
     if (valid) {
       applyPaletteIfAvailable(authService, paletteService);
       return true;
@@ -91,12 +89,33 @@ export const permissionGuard: CanActivateChildFn = (childRoute, state) => {
   const authService = inject(AuthService);
   const router = inject(Router);
   const platformId = inject(PLATFORM_ID);
+  const paletteService = inject(PaletteService);
 
   if (!isPlatformBrowser(platformId)) {
     return true;
   }
 
-  const requestedPath = resolveRequestedPath(childRoute.routeConfig?.path, state.url);
+  if (authService.getAccessToken()) {
+    return refreshSessionFromStoredToken(authService, paletteService).then((valid) => {
+      if (!valid) {
+        authService.logout();
+        return false;
+      }
+
+      return evaluateRoutePermission(authService, router, childRoute.routeConfig?.path, state.url);
+    });
+  }
+
+  return evaluateRoutePermission(authService, router, childRoute.routeConfig?.path, state.url);
+};
+
+function evaluateRoutePermission(
+  authService: AuthService,
+  router: Router,
+  routePath: string | undefined,
+  stateUrl: string,
+) {
+  const requestedPath = resolveRequestedPath(routePath, stateUrl);
   if (!requestedPath) {
     return true;
   }
@@ -121,7 +140,7 @@ export const permissionGuard: CanActivateChildFn = (childRoute, state) => {
   return router.createUrlTree(['/sin-acceso'], {
     queryParams: diagnosticQuery,
   });
-};
+}
 
 // ============================================================
 // Helpers
@@ -137,9 +156,30 @@ function applyPaletteIfAvailable(
   }
 }
 
+async function refreshSessionFromStoredToken(
+  auth: AuthService,
+  palette: PaletteService,
+): Promise<boolean> {
+  const storedToken = auth.getAccessToken();
+  if (!storedToken) return false;
+
+  const activeNegocioId = auth.negocio()?.id_negocio ?? null;
+  const valid = await auth.validateAndSetToken(storedToken);
+  if (!valid) {
+    return false;
+  }
+
+  if (activeNegocioId) {
+    auth.setNegocioActivo(activeNegocioId);
+  }
+
+  applyPaletteIfAvailable(auth, palette);
+  return true;
+}
+
 function redirectToAdmin(platformId: object): void {
   if (isPlatformBrowser(platformId)) {
-    const adminUrl = 'http://localhost:4002';
+    const adminUrl = environment.adminUrl ?? 'http://localhost:4002';
     window.location.href = `${adminUrl}/auth/login`;
   }
 }

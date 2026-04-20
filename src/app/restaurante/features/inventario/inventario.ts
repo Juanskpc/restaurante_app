@@ -1,6 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { CurrencyPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
 
@@ -50,9 +49,11 @@ interface InventarioResumen {
   productos: InventarioProducto[];
 }
 
+type InventarioStockFilter = 'all' | 'agotado' | 'normal';
+
 @Component({
   selector: 'app-inventario',
-  imports: [LucideAngularModule, FormsModule, CurrencyPipe],
+  imports: [LucideAngularModule, FormsModule],
   templateUrl: './inventario.html',
   styleUrl: './inventario.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -76,6 +77,7 @@ export class InventarioComponent {
   readonly productos = signal<InventarioProducto[]>([]);
 
   readonly searchTerm = signal('');
+  readonly stockFilter = signal<InventarioStockFilter>('all');
   readonly productoActivoId = signal<number | null>(null);
   readonly currentPage = signal(1);
   readonly pageSize = signal(15);
@@ -91,12 +93,24 @@ export class InventarioComponent {
   readonly canAgregarInsumo = computed(() => this.auth.canAccessSubnivel('inventario_agregar_insumo'));
   readonly canAjusteRapido = computed(() => this.auth.canAccessSubnivel('inventario_ajuste_rapido'));
   readonly tableColspan = computed(() => this.canAjusteRapido() ? 6 : 5);
+  private readonly moneyFormatter = new Intl.NumberFormat('es-CO', {
+    maximumFractionDigits: 0,
+  });
 
   readonly insumosFiltrados = computed(() => {
-    const term = this.searchTerm().trim().toLowerCase();
-    if (!term) return this.insumos();
+    let list = this.insumos();
+    const stockFilter = this.stockFilter();
 
-    return this.insumos().filter((i) =>
+    if (stockFilter === 'agotado') {
+      list = list.filter((i) => i.status === 'agotado');
+    } else if (stockFilter === 'normal') {
+      list = list.filter((i) => i.status === 'ok');
+    }
+
+    const term = this.searchTerm().trim().toLowerCase();
+    if (!term) return list;
+
+    return list.filter((i) =>
       i.nombre.toLowerCase().includes(term) ||
       i.categoria.toLowerCase().includes(term)
     );
@@ -175,6 +189,11 @@ export class InventarioComponent {
 
   selectProducto(idProducto: number): void {
     this.productoActivoId.set(idProducto);
+  }
+
+  setStockFilter(filter: InventarioStockFilter): void {
+    this.stockFilter.update((current) => current === filter ? 'all' : filter);
+    this.currentPage.set(1);
   }
 
   setPageSize(value: number): void {
@@ -283,6 +302,14 @@ export class InventarioComponent {
     if (status === 'agotado') return 'status-crit';
     if (status === 'bajo') return 'status-warn';
     return 'status-ok';
+  }
+
+  formatMoney(value: number): string {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) {
+      return '$ 0';
+    }
+    return `$ ${this.moneyFormatter.format(numericValue)}`;
   }
 
   trackInsumo(_: number, insumo: InventarioInsumo): number {

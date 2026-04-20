@@ -57,7 +57,7 @@
         </label>
 
         <div class="filters__action">
-          <button type="button" class="btn btn--primary" (click)="openCreateModal()">+ Crear usuario</button>
+          <button type="button" class="btn btn--primary btn-create-user" (click)="openCreateModal()">+ Crear usuario</button>
         </div>
       </div>
 
@@ -124,13 +124,7 @@
   @if (activeTab() === 'roles') {
     <section class="panel panel--roles">
       <div class="roles-toolbar roles-toolbar--top">
-        <div class="field">
-          <span>Seleccionar rol</span>
-          <strong>{{ selectedRoleDescripcion() }}</strong>
-        </div>
-
         <div class="roles-toolbar__meta">
-          <span class="role-chip">{{ selectedRoleDescripcion() }}</span>
           <span class="role-chip role-chip--muted">
             {{ modulosConAccesoCount() }} / {{ permisosRol().length }} modulos activos
           </span>
@@ -214,59 +208,108 @@
         <div class="grid-2">
           <label class="field">
             <span>Primer nombre *</span>
-            <input type="text" formControlName="primer_nombre">
+            <input type="text" formControlName="primer_nombre" (blur)="markControlAsTouched('primer_nombre')">
+            @if (hasControlError('primer_nombre')) {
+              <small class="field-error">{{ controlError('primer_nombre') }}</small>
+            }
           </label>
 
           <label class="field">
             <span>Segundo nombre</span>
-            <input type="text" formControlName="segundo_nombre">
+            <input type="text" formControlName="segundo_nombre" (blur)="markControlAsTouched('segundo_nombre')">
+            @if (hasControlError('segundo_nombre')) {
+              <small class="field-error">{{ controlError('segundo_nombre') }}</small>
+            }
           </label>
 
           <label class="field">
             <span>Primer apellido *</span>
-            <input type="text" formControlName="primer_apellido">
+            <input type="text" formControlName="primer_apellido" (blur)="markControlAsTouched('primer_apellido')">
+            @if (hasControlError('primer_apellido')) {
+              <small class="field-error">{{ controlError('primer_apellido') }}</small>
+            }
           </label>
 
           <label class="field">
             <span>Segundo apellido</span>
-            <input type="text" formControlName="segundo_apellido">
+            <input type="text" formControlName="segundo_apellido" (blur)="markControlAsTouched('segundo_apellido')">
+            @if (hasControlError('segundo_apellido')) {
+              <small class="field-error">{{ controlError('segundo_apellido') }}</small>
+            }
           </label>
 
           <label class="field">
             <span>Identificacion *</span>
-            <input type="text" formControlName="num_identificacion">
+            <input type="text" formControlName="num_identificacion" (blur)="markControlAsTouched('num_identificacion')">
+            @if (hasControlError('num_identificacion')) {
+              <small class="field-error">{{ controlError('num_identificacion') }}</small>
+            }
           </label>
 
           <label class="field">
             <span>Correo *</span>
-            <input type="email" formControlName="email">
+            <input type="email" formControlName="email" (blur)="markControlAsTouched('email')">
+            @if (hasControlError('email')) {
+              <small class="field-error">{{ controlError('email') }}</small>
+            }
           </label>
 
-          <label class="field">
+          <label class="field field--password">
             <span>{{ isEditing() ? 'Nueva contrasena' : 'Contrasena *' }}</span>
-            <input type="password" formControlName="password" placeholder="Minimo 8 caracteres">
+            <div class="password-input-wrap">
+              <input
+                [type]="showPassword() ? 'text' : 'password'"
+                formControlName="password"
+                placeholder="Minimo 8 caracteres"
+                (blur)="markControlAsTouched('password')"
+              >
+              <button type="button" class="password-toggle" (click)="togglePasswordVisibility()">
+                {{ showPassword() ? 'Ocultar' : 'Ver' }}
+              </button>
+            </div>
+            @if (hasControlError('password')) {
+              <small class="field-error">{{ controlError('password') }}</small>
+            }
           </label>
 
-          <label class="field">
+          <label class="field field--password">
             <span>Confirmar contrasena</span>
-            <input type="password" formControlName="confirmPassword">
+            <div class="password-input-wrap">
+              <input
+                [type]="showConfirmPassword() ? 'text' : 'password'"
+                formControlName="confirmPassword"
+                (blur)="markControlAsTouched('confirmPassword')"
+              >
+              <button type="button" class="password-toggle" (click)="toggleConfirmPasswordVisibility()">
+                {{ showConfirmPassword() ? 'Ocultar' : 'Ver' }}
+              </button>
+            </div>
+            @if (shouldShowPasswordMismatch()) {
+              <small class="field-error">Las contrasenas no coinciden.</small>
+            }
           </label>
 
           <label class="field">
             <span>Rol *</span>
-            <select formControlName="id_rol">
+            <select formControlName="id_rol" (blur)="markControlAsTouched('id_rol')">
               @for (rol of roles(); track rol.id_rol) {
                 <option [value]="rol.id_rol">{{ rol.descripcion }}</option>
               }
             </select>
+            @if (hasControlError('id_rol')) {
+              <small class="field-error">{{ controlError('id_rol') }}</small>
+            }
           </label>
 
           <label class="field">
             <span>Estado *</span>
-            <select formControlName="estado">
+            <select formControlName="estado" (blur)="markControlAsTouched('estado')">
               <option value="A">Activo</option>
               <option value="I">Inactivo</option>
             </select>
+            @if (hasControlError('estado')) {
+              <small class="field-error">{{ controlError('estado') }}</small>
+            }
           </label>
         </div>
 
