@@ -33,6 +33,7 @@ export class SidebarComponent {
     { icon: 'flame',             label: 'Cocina',          route: '/cocina',          section: 'main' },
     { icon: 'utensils-crossed',  label: 'Menú',            route: '/menu',            section: 'main' },
     { icon: 'armchair',          label: 'Mesas',           route: '/mesas',           section: 'secondary' },
+    { icon: 'wallet',            label: 'Caja',            route: '/caja',            section: 'secondary' },
     { icon: 'package',           label: 'Inventario',      route: '/inventario',      section: 'secondary' },
     { icon: 'users',             label: 'Personal',        route: '/usuarios',        section: 'secondary' },
     { icon: 'chart-bar',          label: 'Reportes',        route: '/reportes',        section: 'secondary' },

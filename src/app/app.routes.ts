@@ -5,6 +5,12 @@ import { LayoutComponent } from './layout/layout';
 
 export const routes: Routes = [
   {
+    path: 'auth/callback',
+    title: 'Acceso',
+    loadComponent: () =>
+      import('./features/auth-callback/auth-callback').then(m => m.AuthCallbackComponent),
+  },
+  {
     path: '',
     component: LayoutComponent,
     canActivate: [authGuard],
@@ -58,6 +64,12 @@ export const routes: Routes = [
         title: 'Reportes',
         loadComponent: () =>
           import('./restaurante/features/reportes').then(m => m.ReportesComponent),
+      },
+      {
+        path: 'caja',
+        title: 'Caja',
+        loadComponent: () =>
+          import('./restaurante/features/caja/caja').then(m => m.CajaComponent),
       },
       {
         path: 'sin-acceso',

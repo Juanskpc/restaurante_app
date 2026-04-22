@@ -68,6 +68,7 @@ const APP_ROUTE_PRIORITY = [
   '/cocina',
   '/menu',
   '/mesas',
+  '/caja',
   '/inventario',
   '/usuarios',
   '/reportes',
@@ -80,6 +81,7 @@ const ROUTE_PERMISSION_ALIASES: Record<string, string[]> = {
   '/cocina': ['/cocina'],
   '/menu': ['/menu', '/inventario/productos', '/inventario'],
   '/mesas': ['/mesas', '/pos', '/pos/pedidos'],
+  '/caja': ['/caja'],
   '/inventario': ['/inventario'],
   '/usuarios': ['/usuarios'],
   '/reportes': ['/reportes'],
@@ -208,6 +210,29 @@ export class AuthService {
 
       if (res?.success && res.data) {
         this.setSession(token, res.data);
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Canjea un código de acceso de un solo uso (emitido por el admin_app)
+   * y persiste la sesión local.
+   */
+  async canjearCodigo(code: string): Promise<boolean> {
+    try {
+      const res = await firstValueFrom(
+        this.http.post<{ success: boolean; data: SesionRestaurante & { token: string } }>(
+          `${environment.apiUrl}/auth/canjear-codigo`,
+          { code }
+        )
+      );
+      if (res?.success && res.data?.token) {
+        const { token, ...sessionData } = res.data;
+        this.setSession(token, sessionData as SesionRestaurante);
         return true;
       }
       return false;

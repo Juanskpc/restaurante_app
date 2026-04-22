@@ -1,0 +1,228 @@
+<section class="caja-page">
+  <header class="caja-header">
+    <div>
+      <h1>Caja</h1>
+      <p class="subtitle">Control del turno operativo: apertura, movimientos y cierre.</p>
+    </div>
+    <div class="header-actions">
+      @if (!caja() && puedeAbrir()) {
+        <button class="btn btn-primary" (click)="abrirModal('apertura')">
+          <lucide-icon name="play" size="18" />
+          Abrir caja
+        </button>
+      }
+      @if (caja() && puedeMovimiento()) {
+        <button class="btn btn-outline" (click)="abrirModal('movimiento')">
+          <lucide-icon name="plus-circle" size="18" />
+          Movimiento
+        </button>
+      }
+      @if (caja() && puedeCerrar()) {
+        <button class="btn btn-danger" (click)="abrirModal('cierre')">
+          <lucide-icon name="square" size="18" />
+          Cerrar caja
+        </button>
+      }
+    </div>
+  </header>
+
+  @if (cargando()) {
+    <div class="estado">Cargando…</div>
+  } @else if (!caja()) {
+    <div class="caja-vacia">
+      <lucide-icon name="wallet" size="48" />
+      <h2>No hay caja abierta</h2>
+      <p>Para tomar pedidos y cobrar, primero abre la caja del turno.</p>
+    </div>
+  } @else {
+    <article class="caja-card">
+      <div class="caja-card__row">
+        <div>
+          <span class="label">Cajero</span>
+          <strong>{{ caja()!.usuario?.primer_nombre }} {{ caja()!.usuario?.primer_apellido }}</strong>
+        </div>
+        <div>
+          <span class="label">Apertura</span>
+          <strong>{{ caja()!.fecha_apertura | date:'short' }}</strong>
+        </div>
+        <div>
+          <span class="label">Monto apertura</span>
+          <strong>{{ caja()!.monto_apertura | currency:'COP':'symbol':'1.0-0' }}</strong>
+        </div>
+      </div>
+
+      <div class="totales">
+        <div class="total total--ingresos">
+          <lucide-icon name="trending-up" size="18" />
+          <div>
+            <span class="label">Ingresos</span>
+            <strong>{{ (caja()!.ingresos || 0) | currency:'COP':'symbol':'1.0-0' }}</strong>
+          </div>
+        </div>
+        <div class="total total--egresos">
+          <lucide-icon name="trending-down" size="18" />
+          <div>
+            <span class="label">Egresos</span>
+            <strong>{{ (caja()!.egresos || 0) | currency:'COP':'symbol':'1.0-0' }}</strong>
+          </div>
+        </div>
+        <div class="total total--esperado">
+          <lucide-icon name="banknote" size="18" />
+          <div>
+            <span class="label">Esperado en caja</span>
+            <strong>{{ (caja()!.monto_esperado || 0) | currency:'COP':'symbol':'1.0-0' }}</strong>
+          </div>
+        </div>
+      </div>
+
+      @if (caja()!.observaciones) {
+        <p class="obs">{{ caja()!.observaciones }}</p>
+      }
+    </article>
+
+    <section class="movimientos">
+      <h2>Movimientos del turno</h2>
+      @if (cargandoMovimientos()) {
+        <p class="estado">Cargando…</p>
+      } @else if (movimientos().length === 0) {
+        <p class="estado">Sin movimientos registrados aún.</p>
+      } @else {
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Tipo</th>
+              <th>Concepto</th>
+              <th>Usuario</th>
+              <th class="num">Monto</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (m of movimientos(); track m.id_movimiento) {
+              <tr>
+                <td>{{ m.fecha | date:'short' }}</td>
+                <td>
+                  <span class="badge" [class.badge--in]="m.tipo === 'INGRESO'" [class.badge--out]="m.tipo === 'EGRESO'">
+                    {{ m.tipo }}
+                  </span>
+                </td>
+                <td>
+                  {{ m.concepto || '—' }}
+                  @if (m.orden?.numero_orden) {
+                    <span class="ref"> · {{ m.orden!.numero_orden }}</span>
+                  }
+                </td>
+                <td>{{ m.usuario?.primer_nombre }} {{ m.usuario?.primer_apellido }}</td>
+                <td class="num">{{ m.monto | currency:'COP':'symbol':'1.0-0' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </section>
+  }
+
+  <!-- ── Modal: apertura ── -->
+  @if (modal() === 'apertura') {
+    <div class="modal" (click)="cerrarModal()">
+      <div class="modal__panel" (click)="$event.stopPropagation()">
+        <h2>Abrir caja</h2>
+        <p class="hint">Registra el dinero con el que inicia el turno.</p>
+        <label>
+          Monto de apertura
+          <input type="number" min="0" step="100"
+                 [ngModel]="montoApertura()"
+                 (ngModelChange)="montoApertura.set($event)" />
+        </label>
+        <label>
+          Observaciones (opcional)
+          <textarea rows="3"
+                    [ngModel]="obsApertura()"
+                    (ngModelChange)="obsApertura.set($event)"></textarea>
+        </label>
+        <div class="modal__actions">
+          <button class="btn btn-ghost" (click)="cerrarModal()" [disabled]="enviando()">Cancelar</button>
+          <button class="btn btn-primary" (click)="abrirCaja()" [disabled]="enviando()">
+            {{ enviando() ? 'Abriendo…' : 'Abrir caja' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- ── Modal: cierre ── -->
+  @if (modal() === 'cierre' && caja()) {
+    <div class="modal" (click)="cerrarModal()">
+      <div class="modal__panel" (click)="$event.stopPropagation()">
+        <h2>Cerrar caja</h2>
+        <div class="resumen-cierre">
+          <div><span>Apertura</span><strong>{{ caja()!.monto_apertura | currency:'COP':'symbol':'1.0-0' }}</strong></div>
+          <div><span>Ingresos</span><strong>{{ (caja()!.ingresos || 0) | currency:'COP':'symbol':'1.0-0' }}</strong></div>
+          <div><span>Egresos</span><strong>{{ (caja()!.egresos || 0) | currency:'COP':'symbol':'1.0-0' }}</strong></div>
+          <div class="row-esperado"><span>Esperado en caja</span><strong>{{ (caja()!.monto_esperado || 0) | currency:'COP':'symbol':'1.0-0' }}</strong></div>
+        </div>
+        <label>
+          Monto contado físicamente (opcional)
+          <input type="number" min="0" step="100"
+                 [ngModel]="montoReportado()"
+                 (ngModelChange)="montoReportado.set($event)" />
+        </label>
+        @if (diferenciaCierre() !== null) {
+          <p class="diferencia"
+             [class.diferencia--ok]="diferenciaCierre() === 0"
+             [class.diferencia--up]="diferenciaCierre()! > 0"
+             [class.diferencia--down]="diferenciaCierre()! < 0">
+            Diferencia: {{ diferenciaCierre() | number:'1.0-0' }}
+          </p>
+        }
+        <label>
+          Observaciones (opcional)
+          <textarea rows="3"
+                    [ngModel]="obsCierre()"
+                    (ngModelChange)="obsCierre.set($event)"></textarea>
+        </label>
+        <div class="modal__actions">
+          <button class="btn btn-ghost" (click)="cerrarModal()" [disabled]="enviando()">Cancelar</button>
+          <button class="btn btn-danger" (click)="cerrarCaja()" [disabled]="enviando()">
+            {{ enviando() ? 'Cerrando…' : 'Cerrar caja' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- ── Modal: movimiento manual ── -->
+  @if (modal() === 'movimiento' && caja()) {
+    <div class="modal" (click)="cerrarModal()">
+      <div class="modal__panel" (click)="$event.stopPropagation()">
+        <h2>Registrar movimiento</h2>
+        <div class="seg-tabs">
+          <button type="button"
+                  [class.active]="movTipo() === 'INGRESO'"
+                  (click)="movTipo.set('INGRESO')">Ingreso</button>
+          <button type="button"
+                  [class.active]="movTipo() === 'EGRESO'"
+                  (click)="movTipo.set('EGRESO')">Egreso</button>
+        </div>
+        <label>
+          Monto
+          <input type="number" min="0" step="100"
+                 [ngModel]="movMonto()"
+                 (ngModelChange)="movMonto.set($event)" />
+        </label>
+        <label>
+          Concepto
+          <input type="text" maxlength="255" placeholder="Ej: propina, ajuste, retiro"
+                 [ngModel]="movConcepto()"
+                 (ngModelChange)="movConcepto.set($event)" />
+        </label>
+        <div class="modal__actions">
+          <button class="btn btn-ghost" (click)="cerrarModal()" [disabled]="enviando()">Cancelar</button>
+          <button class="btn btn-primary" (click)="registrarMovimiento()" [disabled]="enviando()">
+            {{ enviando() ? 'Registrando…' : 'Registrar' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+</section>

@@ -6,8 +6,10 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { LucideAngularModule } from 'lucide-angular';
 import { FormsModule } from '@angular/forms';
 import { CurrencyPipe, isPlatformBrowser } from '@angular/common';
+import { RouterLink } from '@angular/router';
 
 import { AuthService } from '../../../core/services/auth.service';
+import { CajaService } from '../../../core/services/caja.service';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 import { environment } from '../../../../environments/environment';
 
@@ -111,7 +113,7 @@ interface ItemOrdenCache {
  */
 @Component({
   selector: 'app-pedidos',
-  imports: [LucideAngularModule, FormsModule, CurrencyPipe],
+  imports: [LucideAngularModule, FormsModule, CurrencyPipe, RouterLink],
   templateUrl: './pedidos.html',
   styleUrl: './pedidos.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -119,6 +121,7 @@ interface ItemOrdenCache {
 export class PedidosComponent implements OnInit, OnDestroy {
   private readonly http = inject(HttpClient);
   private readonly auth = inject(AuthService);
+  private readonly cajaSvc = inject(CajaService);
   private readonly uiFeedback = inject(UiFeedbackService);
   private readonly platformId = inject(PLATFORM_ID);
   private readonly isBrowser = isPlatformBrowser(this.platformId);
@@ -177,6 +180,8 @@ export class PedidosComponent implements OnInit, OnDestroy {
 
   readonly negocioId = computed(() => this.auth.negocio()?.id_negocio ?? null);
   readonly requiereMesa = computed(() => this.tipoPedido() === 'MESA');
+  readonly cajaAbierta = this.cajaSvc.cajaAbierta;
+  readonly cajaCerrada = computed(() => this.cajaSvc.cajaAbierta() === null);
   readonly canUsarParaLlevar = computed(() => this.auth.canAccessSubnivel('pedidos_para_llevar'));
   readonly canCobrarPedido = computed(() => this.auth.canAccessSubnivel('pedidos_cobrar'));
   readonly canImprimirPedido = computed(() => this.auth.canAccessSubnivel('pedidos_imprimir'));
@@ -218,6 +223,8 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.hidratarItemsPagadosMesa();
     this.loadCategorias();
     this.loadMesas();
+    const idNeg = this.negocioId();
+    if (idNeg) this.cajaSvc.refrescar(idNeg).subscribe();
   }
 
   ngOnDestroy(): void {
@@ -651,6 +658,16 @@ export class PedidosComponent implements OnInit, OnDestroy {
   private enviarPedido(destino: DestinoEnvio, permitirStockNegativo = false, esReintentoStock = false): void {
     if (this.items().length === 0 || (this.enviando() && !esReintentoStock)) return;
 
+    if (this.cajaCerrada()) {
+      void this.uiFeedback.alert({
+        title: 'Caja cerrada',
+        message: 'La caja del turno está cerrada. Abre la caja desde el módulo "Caja" para tomar y cobrar pedidos.',
+        tone: 'warning',
+      });
+      this.resetEstadoEnvio();
+      return;
+    }
+
     if (this.requiereMesa() && this.mesas().length === 0) {
       this.mesaRequeridaError.set(true);
       void this.uiFeedback.alert({
@@ -830,6 +847,17 @@ export class PedidosComponent implements OnInit, OnDestroy {
         this.resetEstadoEnvio();
       },
       error: (err: HttpErrorResponse) => {
+        const codigo = err?.error?.errors?.code || err?.error?.code;
+        if (codigo === 'CAJA_CERRADA') {
+          this.cajaSvc.cajaAbierta.set(null);
+          void this.uiFeedback.alert({
+            title: 'Caja cerrada',
+            message: this.getHttpErrorMessage(err) || 'La caja se cerró antes de completar el cobro.',
+            tone: 'warning',
+          });
+          this.resetEstadoEnvio();
+          return;
+        }
         this.uiFeedback.error(this.getHttpErrorMessage(err) || 'No se pudo completar el cobro.');
         this.resetEstadoEnvio();
       },
@@ -1013,6 +1041,18 @@ export class PedidosComponent implements OnInit, OnDestroy {
   }
 
   private async manejarErrorEnvio(err: HttpErrorResponse, destino: DestinoEnvio, permitirStockNegativo: boolean): Promise<void> {
+    const codigo = err?.error?.errors?.code || err?.error?.code;
+    if (codigo === 'CAJA_CERRADA') {
+      this.cajaSvc.cajaAbierta.set(null);
+      await this.uiFeedback.alert({
+        title: 'Caja cerrada',
+        message: this.getHttpErrorMessage(err) || 'La caja se cerró mientras enviabas el pedido.',
+        tone: 'warning',
+      });
+      this.resetEstadoEnvio();
+      return;
+    }
+
     if (!permitirStockNegativo && this.esErrorStockInsuficiente(err)) {
       const confirmarNegativo = await this.uiFeedback.confirm({
         title: 'Stock insuficiente',

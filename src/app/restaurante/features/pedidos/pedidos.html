@@ -1,6 +1,17 @@
 <!-- ============================================================
      POS — Vista de Pedidos del Restaurante
      ============================================================ -->
+@if (cajaCerrada()) {
+  <div class="caja-cerrada-banner" role="alert">
+    <lucide-icon name="alert-triangle" [size]="18" />
+    <div class="caja-cerrada-banner__text">
+      <strong>Caja cerrada.</strong>
+      No se pueden tomar ni cobrar pedidos hasta abrir la caja del turno.
+    </div>
+    <a class="caja-cerrada-banner__cta" routerLink="/caja">Ir a Caja</a>
+  </div>
+}
+
 <div class="pos-layout">
 
   <!-- ════════════════ PANEL CATEGORÍAS (desktop/tablet) ════════════════ -->
