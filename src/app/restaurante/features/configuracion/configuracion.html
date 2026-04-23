@@ -102,5 +102,61 @@
         Tu usuario no tiene permisos de administrador para editar esta configuracion.
       </div>
     }
+
+    <!-- ── Opciones de pago ── -->
+    <article class="card" id="metodos-pago">
+      <header class="card-header">
+        <div>
+          <h2>Opciones de pago</h2>
+          <p>Define las formas de pago que aceptas. Los pedidos cobrados las usarán al cerrar.</p>
+        </div>
+      </header>
+
+      <div class="form-row metodo-pago-row">
+        <input class="input" type="text" maxlength="80" placeholder="Nombre del método (ej: Nequi, Bancolombia)"
+               [value]="nuevoMetodoNombre()"
+               (input)="nuevoMetodoNombre.set($any($event.target).value)"
+               (keydown.enter)="agregarMetodoPago()" />
+        <button type="button" class="btn btn-primary"
+                (click)="agregarMetodoPago()"
+                [disabled]="guardandoMetodo() || !nuevoMetodoNombre().trim()">
+          <lucide-icon name="circle-plus" [size]="16" /> Agregar
+        </button>
+      </div>
+
+      @if (errorMetodo()) {
+        <p class="msg msg--error">{{ errorMetodo() }}</p>
+      }
+
+      @if (cargandoMetodos()) {
+        <p class="muted">Cargando…</p>
+      } @else if (metodosPago().length === 0) {
+        <p class="muted">Aún no hay métodos de pago configurados.</p>
+      } @else {
+        <ul class="metodos-list">
+          @for (m of metodosPago(); track m.id_metodo_pago) {
+            <li>
+              @if (editandoMetodoId() === m.id_metodo_pago) {
+                <input class="input flex-1" type="text" maxlength="80"
+                       [value]="editandoMetodoNombre()"
+                       (input)="editandoMetodoNombre.set($any($event.target).value)"
+                       (keydown.enter)="guardarEdicionMetodo()" />
+                <button type="button" class="btn btn-primary"
+                        (click)="guardarEdicionMetodo()" [disabled]="guardandoMetodo()">Guardar</button>
+                <button type="button" class="btn btn-ghost" (click)="cancelarEdicionMetodo()">Cancelar</button>
+              } @else {
+                <strong class="flex-1">{{ m.nombre }}</strong>
+                <button type="button" class="btn btn-ghost" (click)="iniciarEdicionMetodo(m)" title="Editar">
+                  <lucide-icon name="pencil" [size]="14" />
+                </button>
+                <button type="button" class="btn btn-ghost" (click)="inactivarMetodo(m)" title="Eliminar">
+                  <lucide-icon name="trash-2" [size]="14" />
+                </button>
+              }
+            </li>
+          }
+        </ul>
+      }
+    </article>
   }
 </section>

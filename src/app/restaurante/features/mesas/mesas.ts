@@ -1,4 +1,5 @@
-import { Component, ChangeDetectionStrategy, computed, effect, inject, signal } from '@angular/core';
+import { Component, ChangeDetectionStrategy, computed, effect, inject, signal, PLATFORM_ID } from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
 
@@ -25,6 +26,8 @@ export class MesasComponent {
   private readonly auth = inject(AuthService);
   private readonly mesasApi = inject(MesasService);
   private readonly uiFeedback = inject(UiFeedbackService);
+  private readonly platformId = inject(PLATFORM_ID);
+  private readonly isBrowser = isPlatformBrowser(this.platformId);
   private readonly paidItemsStorageKey = 'pedidos_items_pagados_mesa_v1';
 
   readonly mesas = signal<MesaDashboard[]>([]);
@@ -39,6 +42,7 @@ export class MesasComponent {
   readonly efectivoRecibidoInput = signal('');
   readonly cobroError = signal('');
   readonly itemsPagadosPorMesa = signal<Record<number, ItemPagadoMesa[]>>({});
+
 
   readonly negocioId = computed(() => this.auth.negocio()?.id_negocio ?? null);
   readonly canCrearMesa = computed(() => this.auth.canAccessSubnivel('mesas_nueva_mesa'));
@@ -230,7 +234,7 @@ export class MesasComponent {
     });
   }
 
-  confirmarCobro(): void {
+  async confirmarCobro(): Promise<void> {
     const mesa = this.mesaActiva();
     if (!mesa) return;
 
@@ -245,6 +249,19 @@ export class MesasComponent {
       const faltante = mesa.order.total - recibido;
       this.cobroError.set(`Faltan ${this.formatMoney(faltante)} para completar el pago.`);
       return;
+    }
+
+    // Pregunta si imprimir tiquete antes de cerrar
+    const deseaImprimir = await this.uiFeedback.confirm({
+      title: 'Cobro confirmado',
+      message: '¿Deseas imprimir el tiquete?',
+      confirmText: 'Imprimir',
+      cancelText: 'Omitir',
+      tone: 'info',
+    });
+
+    if (deseaImprimir) {
+      this.imprimirResumenMesa();
     }
 
     this.guardando.set(true);
@@ -265,9 +282,9 @@ export class MesasComponent {
           },
         });
       },
-      error: () => {
+      error: (err: { error?: { message?: string } }) => {
         this.guardando.set(false);
-        this.uiFeedback.error('No fue posible confirmar el cobro de la mesa.');
+        this.uiFeedback.error(err?.error?.message || 'No fue posible confirmar el cobro de la mesa.');
       },
     });
   }
@@ -438,7 +455,7 @@ export class MesasComponent {
 
   imprimirResumenMesa(): void {
     const mesa = this.mesaActiva();
-    if (!mesa || typeof window === 'undefined') return;
+    if (!mesa || !this.isBrowser) return;
 
     const itemsPendientes = mesa.order.items ?? [];
     const itemsPagados = this.itemsPagadosMesaActiva();
@@ -452,6 +469,119 @@ export class MesasComponent {
       return;
     }
 
+    const ticketHtml = this.buildTicketHtml(mesa, itemsPendientes, itemsPagados, new Date());
+
+    // Estrategia preferida: iframe oculto en la misma pestaña (no requiere popup permission).
+    const frame = document.createElement('iframe');
+    frame.style.position = 'fixed';
+    frame.style.right = '0';
+    frame.style.bottom = '0';
+    frame.style.width = '0';
+    frame.style.height = '0';
+    frame.style.border = '0';
+    frame.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(frame);
+
+    const frameDoc = frame.contentDocument;
+    if (!frameDoc) {
+      frame.remove();
+      this.imprimirTicketFallback(ticketHtml);
+      return;
+    }
+
+    frameDoc.open();
+    frameDoc.write(ticketHtml);
+    frameDoc.close();
+
+    let printed = false;
+    const runPrint = () => {
+      if (printed) return;
+      const frameWindow = frame.contentWindow;
+      if (!frameWindow) return;
+      printed = true;
+      frameWindow.focus();
+      frameWindow.print();
+      setTimeout(() => frame.remove(), 500);
+    };
+
+    setTimeout(runPrint, 280);
+  }
+
+  private buildTicketHtml(
+    mesa: MesaDashboard,
+    itemsPendientes: ItemPagadoMesa[],
+    itemsPagados: ItemPagadoMesa[],
+    fecha: Date,
+  ): string {
+    const pagadosHtml = itemsPagados
+      .map((item) => `<tr><td>${this.escapeHtml(item.name)}</td><td>${item.cantidad}</td><td>${this.formatMoney(item.price * item.cantidad)}</td></tr>`)
+      .join('');
+    const pendientesHtml = itemsPendientes
+      .map((item) => `<tr><td>${this.escapeHtml(item.name)}</td><td>${item.cantidad}</td><td>${this.formatMoney(item.price * item.cantidad)}</td></tr>`)
+      .join('');
+
+    return `
+      <!doctype html>
+      <html lang="es">
+      <head>
+        <meta charset="utf-8" />
+        <title>Comprobante mesa</title>
+        <style>
+          @page { size: 80mm auto; margin: 6mm; }
+          * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, sans-serif; }
+          body { margin: 0; color: #111; background: #fff; }
+          .ticket { max-width: 280px; margin: 0 auto; font-size: 12px; }
+          .center { text-align: center; }
+          h1 { margin: 0; font-size: 16px; font-weight: 700; }
+          h2 { margin: 12px 0 6px; font-size: 13px; }
+          .meta { margin-top: 2px; color: #555; font-size: 11px; }
+          hr { border: 0; border-top: 1px dashed #aaa; margin: 10px 0; }
+          table { width: 100%; border-collapse: collapse; }
+          th, td { padding: 4px 0; vertical-align: top; }
+          th { font-size: 10px; text-transform: uppercase; color: #666; letter-spacing: 0.04em; }
+          th:last-child, td:last-child { text-align: right; }
+          .totals-row { display: flex; justify-content: space-between; margin-top: 6px; padding-top: 5px; border-top: 1px dashed #aaa; font-weight: 700; font-size: 14px; }
+          .footer { margin-top: 12px; text-align: center; font-size: 11px; color: #666; }
+        </style>
+      </head>
+      <body>
+        <div class="ticket">
+          <div class="center">
+            <h1>Mesa ${this.escapeHtml(mesa.nombre)}</h1>
+            <div class="meta">${this.escapeHtml(this.formatDateTime(fecha))}</div>
+          </div>
+
+          ${itemsPagados.length > 0 ? `
+            <hr />
+            <h2>Ya pagados</h2>
+            <table>
+              <thead><tr><th>Producto</th><th>Cant.</th><th>Total</th></tr></thead>
+              <tbody>${pagadosHtml}</tbody>
+            </table>
+          ` : ''}
+
+          ${itemsPendientes.length > 0 ? `
+            <hr />
+            <h2>Cuenta actual</h2>
+            <table>
+              <thead><tr><th>Producto</th><th>Cant.</th><th>Total</th></tr></thead>
+              <tbody>${pendientesHtml}</tbody>
+            </table>
+          ` : ''}
+
+          <div class="totals-row">
+            <span>TOTAL</span>
+            <span>${this.formatMoney(mesa.order.total)}</span>
+          </div>
+
+          <div class="footer">Gracias por tu compra</div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
+  private imprimirTicketFallback(ticketHtml: string): void {
     const popup = window.open('', '_blank', 'noopener,noreferrer,width=420,height=700');
     if (!popup) {
       void this.uiFeedback.alert({
@@ -461,76 +591,19 @@ export class MesasComponent {
       });
       return;
     }
-
-    const fecha = new Date();
-    const pagadosHtml = itemsPagados
-      .map((item) => `<tr><td>${this.escapeHtml(item.name)}</td><td>${item.cantidad}</td><td>${this.formatMoney(item.price * item.cantidad)}</td></tr>`)
-      .join('');
-    const pendientesHtml = itemsPendientes
-      .map((item) => `<tr><td>${this.escapeHtml(item.name)}</td><td>${item.cantidad}</td><td>${this.formatMoney(item.price * item.cantidad)}</td></tr>`)
-      .join('');
-
-    const ticketHtml = `
-      <!doctype html>
-      <html lang="es">
-      <head>
-        <meta charset="utf-8" />
-        <title>Comprobante mesa</title>
-        <style>
-          body { font-family: 'Segoe UI', Tahoma, sans-serif; margin: 16px; color: #111; }
-          h1, h2 { margin: 0 0 8px; }
-          .meta { margin-bottom: 12px; font-size: 12px; color: #555; }
-          table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-          th, td { border-bottom: 1px solid #ddd; padding: 6px; font-size: 12px; text-align: left; }
-          th:last-child, td:last-child { text-align: right; }
-          .section { margin-top: 14px; }
-          .totals { margin-top: 14px; font-weight: 700; }
-        </style>
-      </head>
-      <body>
-        <h1>Mesa ${this.escapeHtml(mesa.nombre)}</h1>
-        <div class="meta">Fecha: ${this.escapeHtml(this.formatDateTime(fecha))}</div>
-
-        ${itemsPagados.length > 0 ? `
-        <div class="section">
-          <h2>Ya pagados</h2>
-          <table>
-            <thead><tr><th>Producto</th><th>Cant.</th><th>Total</th></tr></thead>
-            <tbody>${pagadosHtml}</tbody>
-          </table>
-        </div>
-        ` : ''}
-
-        ${itemsPendientes.length > 0 ? `
-        <div class="section">
-          <h2>Pendientes</h2>
-          <table>
-            <thead><tr><th>Producto</th><th>Cant.</th><th>Total</th></tr></thead>
-            <tbody>${pendientesHtml}</tbody>
-          </table>
-        </div>
-        ` : ''}
-
-        <div class="totals">Total pendiente: ${this.formatMoney(mesa.order.total)}</div>
-      </body>
-      </html>
-    `;
-
     popup.document.open();
     popup.document.write(ticketHtml);
     popup.document.close();
-
     let printed = false;
-    const runPrint = () => {
+    const printPopup = () => {
       if (printed) return;
       printed = true;
       popup.focus();
       popup.print();
       setTimeout(() => popup.close(), 600);
     };
-
-    popup.addEventListener('load', runPrint, { once: true });
-    setTimeout(runPrint, 500);
+    popup.addEventListener('load', printPopup, { once: true });
+    setTimeout(printPopup, 500);
   }
 
   private escapeHtml(value: string): string {

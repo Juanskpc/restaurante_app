@@ -134,20 +134,38 @@
           <lucide-icon name="credit-card" [size]="14" />
           Para llevar
         </button>
+        <button class="type-btn"
+                [class.active]="tipoPedido() === 'DOMICILIO'"
+                (click)="seleccionarTipoPedido('DOMICILIO')">
+          <lucide-icon name="bike" [size]="14" />
+          Domicilio
+        </button>
         }
       </div>
 
       @if (requiereMesa()) {
         @if (mesas().length > 0) {
-          <select class="mesa-select"
-                  [class.error]="mesaRequeridaError()"
-                  [value]="mesaId() ?? ''"
-                  (change)="seleccionarMesa($any($event.target).value)">
-            <option value="">🪑 Seleccionar mesa...</option>
-            @for (m of mesas(); track m.id_mesa) {
-              <option [value]="m.id_mesa">🪑 {{ m.nombre }}</option>
-            }
-          </select>
+          <div class="mesa-pago-row">
+            <select class="mesa-select"
+                    [class.error]="mesaRequeridaError()"
+                    [value]="mesaId() ?? ''"
+                    (change)="seleccionarMesa($any($event.target).value)">
+              <option value="">🪑 Seleccionar mesa...</option>
+              @for (m of mesas(); track m.id_mesa) {
+                <option [value]="m.id_mesa">🪑 {{ m.nombre }}</option>
+              }
+            </select>
+
+            <select class="mesa-select"
+                    [value]="metodoPagoId() ?? ''"
+                    (change)="metodoPagoId.set($any($event.target).value ? +$any($event.target).value : null)"
+                    title="Forma de pago para el cobro">
+              <option value="">💳 Forma de pago...</option>
+              @for (mp of metodosPago(); track mp.id_metodo_pago) {
+                <option [value]="mp.id_metodo_pago">💳 {{ mp.nombre }}</option>
+              }
+            </select>
+          </div>
 
           @if (mesaRequeridaError()) {
             <p class="mesa-error">Debes seleccionar una mesa para pedidos en mesa.</p>
@@ -168,10 +186,41 @@
             <p class="mesa-error">Debes crear o seleccionar una mesa para pedidos en mesa.</p>
           }
         }
-      } @else {
+      } @else if (tipoPedido() === 'LLEVAR') {
         <div class="takeaway-info">
           <lucide-icon name="check-circle" [size]="14" />
           Pedido para llevar. No requiere mesa.
+        </div>
+        <select class="mesa-select"
+                [value]="metodoPagoId() ?? ''"
+                (change)="metodoPagoId.set($any($event.target).value ? +$any($event.target).value : null)"
+                title="Forma de pago para el cobro">
+          <option value="">💳 Forma de pago...</option>
+          @for (mp of metodosPago(); track mp.id_metodo_pago) {
+            <option [value]="mp.id_metodo_pago">💳 {{ mp.nombre }}</option>
+          }
+        </select>
+      } @else {
+        <div class="mesa-pago-row">
+          <button type="button" class="domicilio-btn"
+                  [class.ready]="domicilioListo()"
+                  (click)="abrirModalDomicilio()">
+            <lucide-icon name="bike" [size]="14" />
+            @if (domicilioListo()) {
+              {{ domContacto() }} · {{ domDireccion() }}
+            } @else {
+              Datos de domicilio…
+            }
+          </button>
+
+          <select class="mesa-select"
+                  [value]="metodoPagoId() ?? ''"
+                  (change)="metodoPagoId.set($any($event.target).value ? +$any($event.target).value : null)">
+            <option value="">💳 Forma de pago...</option>
+            @for (mp of metodosPago(); track mp.id_metodo_pago) {
+              <option [value]="mp.id_metodo_pago">💳 {{ mp.nombre }}</option>
+            }
+          </select>
         </div>
       }
     </div>
@@ -303,13 +352,23 @@
         </div>
 
         <div class="primary-action-row">
-          <button class="btn-cash"
-                  [disabled]="enviando() || items().length === 0 || tipoPedido() === 'LLEVAR'"
-                  [title]="tipoPedido() === 'LLEVAR' ? 'Para llevar se cobra directamente' : 'Enviar pedido a caja'"
-                  (click)="enviarACaja()">
-            <lucide-icon name="credit-card" [size]="20" />
-            {{ enviando() && destinoEnvio() === 'CAJA' ? 'ENVIANDO...' : 'ENVIAR A CAJA' }}
-          </button>
+          @if (tipoPedido() === 'MESA') {
+            <button class="btn-cash"
+                    [disabled]="enviando() || items().length === 0"
+                    title="Enviar pedido a caja"
+                    (click)="enviarACaja()">
+              <lucide-icon name="credit-card" [size]="20" />
+              {{ enviando() && destinoEnvio() === 'CAJA' ? 'ENVIANDO...' : 'ENVIAR A CAJA' }}
+            </button>
+          } @else {
+            <button class="btn-cash"
+                    [disabled]="enviando() || items().length === 0 || (tipoPedido() === 'DOMICILIO' && !domicilioListo())"
+                    [title]="tipoPedido() === 'DOMICILIO' && !domicilioListo() ? 'Completa los datos de domicilio' : 'Enviar pedido a despacho'"
+                    (click)="enviarADespacho()">
+              <lucide-icon name="bike" [size]="20" />
+              {{ enviando() && destinoEnvio() === 'DESPACHO' ? 'ENVIANDO...' : 'ENVIAR A DESPACHO' }}
+            </button>
+          }
           @if (canEnviarCocina()) {
             <button class="btn-kitchen"
                     [disabled]="enviando() || items().length === 0"

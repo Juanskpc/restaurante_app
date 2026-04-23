@@ -6,8 +6,9 @@ import { LucideAngularModule } from 'lucide-angular';
 import { AuthService } from '../../../core/services/auth.service';
 import { PaletteService } from '../../../core/theme/palette.service';
 import { PaletaColor } from '../../../core/theme/palette.model';
-import { ConfiguracionService } from './configuracion.service';
+import { ConfiguracionService, MetodoPago } from './configuracion.service';
 import { ConfiguracionNegocio } from './configuracion.models';
+import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 
 @Component({
   selector: 'app-configuracion',
@@ -21,6 +22,7 @@ export class ConfiguracionComponent {
   private readonly auth = inject(AuthService);
   private readonly paletteService = inject(PaletteService);
   private readonly configuracionService = inject(ConfiguracionService);
+  private readonly uiFeedback = inject(UiFeedbackService);
 
   readonly negocioActivoId = computed(() => this.auth.negocio()?.id_negocio ?? null);
   readonly loading = signal(false);
@@ -31,6 +33,15 @@ export class ConfiguracionComponent {
   readonly paletas = signal<PaletaColor[]>([]);
 
   readonly canEdit = computed(() => this.configuracion()?.can_edit === true);
+
+  // ── Métodos de pago ──
+  readonly metodosPago = signal<MetodoPago[]>([]);
+  readonly cargandoMetodos = signal(false);
+  readonly nuevoMetodoNombre = signal('');
+  readonly editandoMetodoId = signal<number | null>(null);
+  readonly editandoMetodoNombre = signal('');
+  readonly guardandoMetodo = signal(false);
+  readonly errorMetodo = signal<string | null>(null);
 
   readonly form = this.fb.group({
     nombre: this.fb.control('', {
@@ -62,6 +73,95 @@ export class ConfiguracionComponent {
 
       this.cargarCatalogos();
       this.cargarConfiguracion(idNegocio);
+      this.cargarMetodosPago(idNegocio);
+    });
+  }
+
+  // ── Métodos de pago ──
+  cargarMetodosPago(idNegocio: number): void {
+    this.cargandoMetodos.set(true);
+    this.errorMetodo.set(null);
+    this.configuracionService.listarMetodosPago(idNegocio).subscribe({
+      next: (rows) => { this.metodosPago.set(rows); this.cargandoMetodos.set(false); },
+      error: () => { this.metodosPago.set([]); this.cargandoMetodos.set(false); },
+    });
+  }
+
+  agregarMetodoPago(): void {
+    const idNegocio = this.negocioActivoId();
+    const nombre = this.nuevoMetodoNombre().trim();
+    if (!idNegocio || !nombre) return;
+    this.guardandoMetodo.set(true);
+    this.errorMetodo.set(null);
+    this.configuracionService.crearMetodoPago(idNegocio, nombre).subscribe({
+      next: () => {
+        this.guardandoMetodo.set(false);
+        this.nuevoMetodoNombre.set('');
+        this.uiFeedback.success(`"${nombre}" se agregó correctamente.`, 'Método creado');
+        this.cargarMetodosPago(idNegocio);
+      },
+      error: (e) => {
+        this.guardandoMetodo.set(false);
+        const msg = e?.error?.message || 'No se pudo crear el método de pago.';
+        this.errorMetodo.set(msg);
+        this.uiFeedback.error(msg);
+      },
+    });
+  }
+
+  iniciarEdicionMetodo(m: MetodoPago): void {
+    this.editandoMetodoId.set(m.id_metodo_pago);
+    this.editandoMetodoNombre.set(m.nombre);
+    this.errorMetodo.set(null);
+  }
+
+  cancelarEdicionMetodo(): void {
+    this.editandoMetodoId.set(null);
+    this.editandoMetodoNombre.set('');
+  }
+
+  guardarEdicionMetodo(): void {
+    const idNegocio = this.negocioActivoId();
+    const id = this.editandoMetodoId();
+    const nombre = this.editandoMetodoNombre().trim();
+    if (!idNegocio || !id || !nombre) return;
+    this.guardandoMetodo.set(true);
+    this.configuracionService.actualizarMetodoPago(id, idNegocio, nombre).subscribe({
+      next: () => {
+        this.guardandoMetodo.set(false);
+        this.uiFeedback.success(`Se actualizó a "${nombre}".`, 'Método actualizado');
+        this.cancelarEdicionMetodo();
+        this.cargarMetodosPago(idNegocio);
+      },
+      error: (e) => {
+        this.guardandoMetodo.set(false);
+        const msg = e?.error?.message || 'No se pudo actualizar.';
+        this.errorMetodo.set(msg);
+        this.uiFeedback.error(msg);
+      },
+    });
+  }
+
+  async inactivarMetodo(m: MetodoPago): Promise<void> {
+    const idNegocio = this.negocioActivoId();
+    if (!idNegocio) return;
+    const confirmar = await this.uiFeedback.confirm({
+      title: 'Eliminar método de pago',
+      message: `¿Estás seguro de eliminar "${m.nombre}"? No afectará pedidos ya cobrados.`,
+      confirmText: 'Eliminar',
+      cancelText: 'Cancelar',
+      tone: 'warning',
+    });
+    if (!confirmar) return;
+    this.configuracionService.inactivarMetodoPago(m.id_metodo_pago, idNegocio).subscribe({
+      next: () => {
+        this.uiFeedback.success(`"${m.nombre}" fue eliminado.`, 'Método eliminado');
+        this.cargarMetodosPago(idNegocio);
+      },
+      error: (e) => {
+        const msg = e?.error?.message || 'No se pudo eliminar el método.';
+        this.uiFeedback.error(msg);
+      },
     });
   }
 

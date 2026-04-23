@@ -69,7 +69,16 @@ export class MesasService {
     return this.http.patch<{ success: boolean; data: MesaBase }>(`${environment.apiUrl}/mesas/${idMesa}/liberar`, {});
   }
 
-  cerrarOrden(idOrden: number): Observable<{ success: boolean; data: unknown }> {
-    return this.http.patch<{ success: boolean; data: unknown }>(`${environment.apiUrl}/pedidos/${idOrden}/cerrar`, {});
+  cerrarOrden(idOrden: number, idMetodoPago?: number | null): Observable<{ success: boolean; data: unknown }> {
+    return this.http.patch<{ success: boolean; data: unknown }>(
+      `${environment.apiUrl}/pedidos/${idOrden}/cerrar`,
+      { id_metodo_pago: idMetodoPago || null },
+    );
+  }
+
+  listarMetodosPago(idNegocio: number): Observable<{ success: boolean; data: Array<{ id_metodo_pago: number; nombre: string }> }> {
+    return this.http.get<{ success: boolean; data: Array<{ id_metodo_pago: number; nombre: string }> }>(
+      `${environment.apiUrl}/metodos-pago?id_negocio=${idNegocio}`,
+    );
   }
 }

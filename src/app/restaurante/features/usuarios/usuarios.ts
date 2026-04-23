@@ -23,8 +23,10 @@ import {
   UsuarioPermisosDetalle,
 } from './usuarios.models';
 
-const NAME_PATTERN = /^[\p{L}' .-]+$/u;
+// Solo letras mayúsculas (incluye acentuadas mediante \p{Lu}) más espacios y separadores básicos.
+const NAME_PATTERN = /^[\p{Lu}' .-]+$/u;
 const IDENT_PATTERN = /^[0-9A-Za-z._-]+$/;
+const NAME_FIELDS = ['primer_nombre', 'segundo_nombre', 'primer_apellido', 'segundo_apellido'] as const;
 
 type UserFormControlName =
   | 'primer_nombre'
@@ -140,6 +142,16 @@ export class UsuariosComponent {
 
       this.roleFilter.set(null);
       this.loadInitialData(idNegocio);
+    });
+
+    // Auto-uppercase en los campos de nombre (no afecta otras validaciones).
+    NAME_FIELDS.forEach((field) => {
+      const ctrl = this.userForm.controls[field];
+      ctrl.valueChanges.subscribe((value) => {
+        if (typeof value !== 'string') return;
+        const upper = value.toUpperCase();
+        if (upper !== value) ctrl.setValue(upper, { emitEvent: false });
+      });
     });
   }
 

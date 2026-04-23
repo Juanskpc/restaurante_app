@@ -90,8 +90,14 @@ interface OrdenApi {
   detalles?: DetallePedidoApi[];
 }
 
-type DestinoEnvio = 'COCINA' | 'CAJA' | 'COBRAR';
-type TipoPedido = 'MESA' | 'LLEVAR';
+type DestinoEnvio = 'COCINA' | 'CAJA' | 'DESPACHO' | 'COBRAR';
+type TipoPedido = 'MESA' | 'LLEVAR' | 'DOMICILIO';
+
+interface DomiciliarioOpt {
+  id_usuario: number;
+  nombre: string;
+  telefono: string | null;
+}
 
 interface ItemOrdenCache {
   id_producto: number;
@@ -138,6 +144,23 @@ export class PedidosComponent implements OnInit, OnDestroy {
   readonly mesas = signal<Mesa[]>([]);
   readonly cargandoMesas = signal(true);
   readonly mesaId = signal<number | null>(null);
+  readonly metodosPago = signal<Array<{ id_metodo_pago: number; nombre: string }>>([]);
+  readonly metodoPagoId = signal<number | null>(null);
+
+  // Domicilio
+  readonly modalDomicilioAbierto = signal(false);
+  readonly domiciliarios = signal<DomiciliarioOpt[]>([]);
+  readonly domContacto = signal('');
+  readonly domTelefono = signal('');
+  readonly domDireccion = signal('');
+  readonly domNota = signal('');
+  readonly domDomiciliarioId = signal<number | null>(null);
+  readonly domicilioListo = computed(() =>
+    this.domContacto().trim().length > 0 &&
+    this.domTelefono().trim().length > 0 &&
+    this.domDireccion().trim().length > 0 &&
+    this.domDomiciliarioId() !== null
+  );
   readonly ordenActivaId = signal<number | null>(null);
   readonly itemsBaseOrdenActiva = signal<ItemOrden[]>([]);
   readonly itemsPagadosPorMesa = signal<Record<number, ItemOrden[]>>({});
@@ -223,8 +246,48 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.hidratarItemsPagadosMesa();
     this.loadCategorias();
     this.loadMesas();
+    this.loadMetodosPago();
+    this.loadDomiciliarios();
     const idNeg = this.negocioId();
     if (idNeg) this.cajaSvc.refrescar(idNeg).subscribe();
+  }
+
+  private loadMetodosPago(): void {
+    const id = this.negocioId();
+    if (!id) return;
+    this.http.get<{ success: boolean; data: Array<{ id_metodo_pago: number; nombre: string }> }>(
+      `${environment.apiUrl}/metodos-pago?id_negocio=${id}`
+    ).subscribe({
+      next: (res) => this.metodosPago.set(res?.data ?? []),
+      error: () => this.metodosPago.set([]),
+    });
+  }
+
+  private loadDomiciliarios(): void {
+    const id = this.negocioId();
+    if (!id) return;
+    this.http.get<{ success: boolean; data: DomiciliarioOpt[] }>(
+      `${environment.apiUrl}/domiciliarios?id_negocio=${id}`
+    ).subscribe({
+      next: (res) => this.domiciliarios.set(res?.data ?? []),
+      error: () => this.domiciliarios.set([]),
+    });
+  }
+
+  abrirModalDomicilio(): void { this.modalDomicilioAbierto.set(true); }
+  cerrarModalDomicilio(): void { this.modalDomicilioAbierto.set(false); }
+  setDomCampo(campo: 'contacto' | 'telefono' | 'direccion' | 'nota', valor: string): void {
+    if (campo === 'contacto')  this.domContacto.set(valor);
+    if (campo === 'telefono')  this.domTelefono.set(valor);
+    if (campo === 'direccion') this.domDireccion.set(valor);
+    if (campo === 'nota')      this.domNota.set(valor);
+  }
+  setDomDomiciliario(id: string | number | null): void {
+    this.domDomiciliarioId.set(id ? Number(id) : null);
+  }
+  confirmarDomicilio(): void {
+    if (!this.domicilioListo()) return;
+    this.modalDomicilioAbierto.set(false);
   }
 
   ngOnDestroy(): void {
@@ -406,10 +469,18 @@ export class PedidosComponent implements OnInit, OnDestroy {
 
     this.tipoPedido.set(tipo);
     this.mesaRequeridaError.set(false);
-    if (tipo === 'LLEVAR') {
+    if (tipo !== 'MESA') {
       this.ordenActivaId.set(null);
       this.itemsBaseOrdenActiva.set([]);
       this.mesaId.set(null);
+    }
+    if (tipo !== 'DOMICILIO') {
+      // Limpia datos del modal cuando se sale de domicilio
+      this.domContacto.set('');
+      this.domTelefono.set('');
+      this.domDireccion.set('');
+      this.domNota.set('');
+      this.domDomiciliarioId.set(null);
     }
   }
 
@@ -651,6 +722,10 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.enviarPedido('CAJA');
   }
 
+  enviarADespacho(): void {
+    this.enviarPedido('DESPACHO');
+  }
+
   cobrarPedido(): void {
     this.enviarPedido('COBRAR');
   }
@@ -727,14 +802,23 @@ export class PedidosComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const body = {
+    const tipo = this.tipoPedido();
+    const body: Record<string, unknown> = {
       id_negocio: this.negocioId(),
-      id_mesa: this.requiereMesa() ? (this.mesaId() || null) : null,
+      id_mesa: tipo === 'MESA' ? (this.mesaId() || null) : null,
       nota: this.notaOrden() || null,
       porcentaje_impuesto: 0,
       permitir_stock_negativo: permitirStockNegativo,
       items: this.mapItemsPayload(this.items()),
+      tipo_pedido: tipo,
     };
+    if (tipo === 'DOMICILIO') {
+      body['contacto_nombre']    = this.domContacto().trim() || null;
+      body['contacto_telefono']  = this.domTelefono().trim() || null;
+      body['direccion_domicilio'] = this.domDireccion().trim() || null;
+      body['nota_domicilio']     = this.domNota().trim() || null;
+      body['id_domiciliario']    = this.domDomiciliarioId();
+    }
 
     this.http.post<{ success: boolean; data?: { id_orden?: number } }>(
       `${environment.apiUrl}/pedidos`,
@@ -778,6 +862,21 @@ export class PedidosComponent implements OnInit, OnDestroy {
       return;
     }
 
+    if (destino === 'DESPACHO') {
+      // Para LLEVAR/DOMICILIO: enviar a cocina y dejar disponible en módulo Despacho.
+      this.http.patch(
+        `${environment.apiUrl}/pedidos/${idOrden}/enviar-cocina`, {}
+      ).subscribe({
+        next: () => {
+          this.uiFeedback.success('El pedido fue enviado a despacho.', 'Pedido enviado');
+          void this.limpiarOrden(false);
+          this.resetEstadoEnvio();
+        },
+        error: () => this.resetEstadoEnvio(),
+      });
+      return;
+    }
+
     void this.completarCobroPedido(idOrden);
   }
 
@@ -807,7 +906,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
 
     this.http.patch(
       `${environment.apiUrl}/pedidos/${idOrden}/cerrar`,
-      {}
+      { id_metodo_pago: this.metodoPagoId() || null }
     ).subscribe({
       next: () => {
         if (this.requiereMesa()) {

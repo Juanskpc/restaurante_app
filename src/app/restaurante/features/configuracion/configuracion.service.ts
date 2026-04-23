@@ -37,4 +37,41 @@ export class ConfiguracionService {
       .get<ApiResponse<PaletaColor[]>>(`${environment.apiUrl}/paletas`)
       .pipe(map((res) => res.data ?? []));
   }
+
+  // ── Métodos de pago ──
+  listarMetodosPago(idNegocio: number, incluirInactivos = false): Observable<MetodoPago[]> {
+    let params = new HttpParams().set('id_negocio', String(idNegocio));
+    if (incluirInactivos) params = params.set('incluir_inactivos', 'true');
+    return this.http
+      .get<ApiResponse<MetodoPago[]>>(`${environment.apiUrl}/metodos-pago`, { params })
+      .pipe(map((res) => res.data ?? []));
+  }
+
+  crearMetodoPago(idNegocio: number, nombre: string): Observable<MetodoPago> {
+    return this.http
+      .post<ApiResponse<MetodoPago>>(`${environment.apiUrl}/metodos-pago`, { id_negocio: idNegocio, nombre })
+      .pipe(map((res) => res.data));
+  }
+
+  actualizarMetodoPago(idMetodo: number, idNegocio: number, nombre: string): Observable<MetodoPago> {
+    return this.http
+      .put<ApiResponse<MetodoPago>>(`${environment.apiUrl}/metodos-pago/${idMetodo}`, { id_negocio: idNegocio, nombre })
+      .pipe(map((res) => res.data));
+  }
+
+  inactivarMetodoPago(idMetodo: number, idNegocio: number): Observable<MetodoPago> {
+    return this.http
+      .patch<ApiResponse<MetodoPago>>(
+        `${environment.apiUrl}/metodos-pago/${idMetodo}/inactivar?id_negocio=${idNegocio}`, {}
+      )
+      .pipe(map((res) => res.data));
+  }
+}
+
+export interface MetodoPago {
+  id_metodo_pago: number;
+  id_negocio: number;
+  nombre: string;
+  estado: 'A' | 'I';
+  fecha_creacion: string;
 }
