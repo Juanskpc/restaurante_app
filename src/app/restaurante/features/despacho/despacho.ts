@@ -22,6 +22,7 @@ interface DetalleDespacho {
 export interface PedidoDespacho {
   id_orden: number;
   numero_orden: string;
+  id_metodo_pago?: number | null;
   tipo_pedido: TipoPedido;
   total: number;
   fecha_creacion: string;
@@ -63,8 +64,6 @@ export class DespachoComponent implements OnInit {
   readonly filtro = signal<FiltroTipo>('TODOS');
   readonly pedidoActivo = signal<PedidoDespacho | null>(null);
   readonly cobrandoId = signal<number | null>(null);
-  readonly metodosPago = signal<Array<{ id_metodo_pago: number; nombre: string }>>([]);
-  readonly metodoPagoPorOrden = signal<Record<number, number | null>>({});
 
   readonly negocioId = computed(() => this.auth.negocio()?.id_negocio ?? null);
   readonly puedeVerTodos = computed(() => this.auth.canAccessSubnivel('despacho_ver_todos'));
@@ -85,20 +84,7 @@ export class DespachoComponent implements OnInit {
   );
 
   ngOnInit(): void {
-    this.loadMetodosPago();
     this.cargar();
-  }
-
-  private loadMetodosPago(): void {
-    const id = this.negocioId();
-    if (!id) return;
-
-    this.http.get<{ success: boolean; data: Array<{ id_metodo_pago: number; nombre: string }> }>(
-      `${environment.apiUrl}/metodos-pago?id_negocio=${id}`
-    ).subscribe({
-      next: (res) => this.metodosPago.set(res?.data ?? []),
-      error: () => this.metodosPago.set([]),
-    });
   }
 
   cargar(): void {
@@ -234,11 +220,11 @@ export class DespachoComponent implements OnInit {
     event.stopPropagation();
     if (this.cobrandoId() !== null) return;
 
-    const idMetodoPago = this.metodoPagoPorOrden()[p.id_orden] ?? null;
+    const idMetodoPago = p.id_metodo_pago ?? null;
     if (!idMetodoPago) {
       void this.uiFeedback.alert({
         title: 'Forma de pago requerida',
-        message: 'Selecciona una forma de pago antes de registrar el cobro.',
+        message: 'Este pedido no tiene forma de pago registrada. Defínela desde Pedidos antes de cobrar en Despacho.',
         tone: 'warning',
       });
       return;
@@ -269,17 +255,5 @@ export class DespachoComponent implements OnInit {
         this.cobrandoId.set(null);
       },
     });
-  }
-
-  setMetodoPagoOrden(idOrden: number, rawValue: string): void {
-    const parsed = rawValue ? Number(rawValue) : null;
-    this.metodoPagoPorOrden.update((actual) => ({
-      ...actual,
-      [idOrden]: parsed,
-    }));
-  }
-
-  metodoPagoOrden(idOrden: number): number | null {
-    return this.metodoPagoPorOrden()[idOrden] ?? null;
   }
 }

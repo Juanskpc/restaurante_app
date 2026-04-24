@@ -813,6 +813,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
         `${environment.apiUrl}/pedidos/${idOrdenActiva}/agregar-items`,
         {
           id_negocio: this.negocioId(),
+          id_metodo_pago: this.metodoPagoId(),
           nota: this.notaOrden() || null,
           porcentaje_impuesto: 0,
           permitir_stock_negativo: permitirStockNegativo,
@@ -836,6 +837,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
     const tipo = this.tipoPedido();
     const body: Record<string, unknown> = {
       id_negocio: this.negocioId(),
+      id_metodo_pago: this.metodoPagoId(),
       id_mesa: tipo === 'MESA' ? (this.mesaId() || null) : null,
       nota: this.notaOrden() || null,
       porcentaje_impuesto: 0,

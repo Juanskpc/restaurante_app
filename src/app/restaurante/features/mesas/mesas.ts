@@ -406,7 +406,7 @@ export class MesasComponent {
     if (status === 'payment') {
       const actions: Array<{ key: string; label: string; style: 'primary' | 'warning' | 'ghost'; icon: string }> = [];
       if (this.canAccionesPedido()) {
-        actions.push({ key: 'cobrar', label: 'Confirmar Cobro', style: 'primary', icon: 'credit-card' });
+        actions.push({ key: 'cobrar', label: 'Cobro', style: 'ghost', icon: 'credit-card' });
       }
       if (this.canImprimirPedido()) {
         actions.push({ key: 'imprimir', label: 'Imprimir', style: 'ghost', icon: 'printer' });
@@ -513,11 +513,25 @@ export class MesasComponent {
     itemsPagados: ItemPagadoMesa[],
     fecha: Date,
   ): string {
-    const pagadosHtml = itemsPagados
-      .map((item) => `<tr><td>${this.escapeHtml(item.name)}</td><td>${item.cantidad}</td><td>${this.formatMoney(item.price * item.cantidad)}</td></tr>`)
-      .join('');
-    const pendientesHtml = itemsPendientes
-      .map((item) => `<tr><td>${this.escapeHtml(item.name)}</td><td>${item.cantidad}</td><td>${this.formatMoney(item.price * item.cantidad)}</td></tr>`)
+    const negocioNombre = this.escapeHtml(this.auth.negocio()?.nombre ?? 'Negocio');
+    const usuarioNombre = this.escapeHtml(this.auth.usuario()?.nombre_completo ?? 'Usuario');
+    const fechaTexto = this.escapeHtml(this.formatDateTime(fecha));
+    const tipoPedido = 'En mesa';
+    const mesaTexto = this.escapeHtml(mesa.nombre);
+    const itemsTicket = itemsPendientes.length > 0 ? itemsPendientes : itemsPagados;
+
+    const filasItems = itemsTicket
+      .map((item) => {
+        const totalLinea = item.cantidad * item.price;
+        return `
+          <tr>
+            <td>${item.cantidad}</td>
+            <td>${this.escapeHtml(item.name)}</td>
+            <td>${this.formatCurrency(item.price)}</td>
+            <td class="text-right">${this.formatCurrency(totalLinea)}</td>
+          </tr>
+        `;
+      })
       .join('');
 
     return `
@@ -525,56 +539,162 @@ export class MesasComponent {
       <html lang="es">
       <head>
         <meta charset="utf-8" />
-        <title>Comprobante mesa</title>
+        <title>Ticket pedido</title>
         <style>
-          @page { size: 80mm auto; margin: 6mm; }
-          * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, sans-serif; }
-          body { margin: 0; color: #111; background: #fff; }
-          .ticket { max-width: 280px; margin: 0 auto; font-size: 12px; }
-          .center { text-align: center; }
-          h1 { margin: 0; font-size: 16px; font-weight: 700; }
-          h2 { margin: 12px 0 6px; font-size: 13px; }
-          .meta { margin-top: 2px; color: #555; font-size: 11px; }
-          hr { border: 0; border-top: 1px dashed #aaa; margin: 10px 0; }
-          table { width: 100%; border-collapse: collapse; }
-          th, td { padding: 4px 0; vertical-align: top; }
-          th { font-size: 10px; text-transform: uppercase; color: #666; letter-spacing: 0.04em; }
-          th:last-child, td:last-child { text-align: right; }
-          .totals-row { display: flex; justify-content: space-between; margin-top: 6px; padding-top: 5px; border-top: 1px dashed #aaa; font-weight: 700; font-size: 14px; }
-          .footer { margin-top: 12px; text-align: center; font-size: 11px; color: #666; }
+          @page {
+            size: 80mm auto;
+            margin: 6mm;
+          }
+
+          * {
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+          }
+
+          body {
+            margin: 0;
+            color: #111;
+            background: #fff;
+          }
+
+          .ticket {
+            max-width: 280px;
+            margin: 0 auto;
+            font-size: 12px;
+          }
+
+          .center {
+            text-align: center;
+          }
+
+          .title {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 700;
+          }
+
+          .meta {
+            margin-top: 2px;
+            color: #555;
+          }
+
+          hr {
+            border: 0;
+            border-top: 1px dashed #aaa;
+            margin: 10px 0;
+          }
+
+          table {
+            width: 100%;
+            border-collapse: collapse;
+          }
+
+          th,
+          td {
+            padding: 4px 0;
+            vertical-align: top;
+          }
+
+          th {
+            font-size: 10px;
+            text-transform: uppercase;
+            color: #666;
+            letter-spacing: 0.04em;
+          }
+
+          .text-right {
+            text-align: right;
+          }
+
+          .totals {
+            margin-top: 8px;
+          }
+
+          .totals-row {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 3px;
+          }
+
+          .totals-row.total {
+            margin-top: 7px;
+            padding-top: 5px;
+            border-top: 1px dashed #aaa;
+            font-weight: 700;
+            font-size: 14px;
+          }
+
+          .footer {
+            margin-top: 12px;
+            text-align: center;
+            font-size: 11px;
+            color: #666;
+          }
+
+          @media print {
+            * {
+              color: #000 !important;
+              font-weight: 700 !important;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            .title,
+            .totals-row.total {
+              font-weight: 900 !important;
+            }
+            h1, h2, th {
+              font-weight: 900 !important;
+            }
+            hr {
+              border-top-color: #000 !important;
+              border-top-style: solid !important;
+            }
+            .meta,
+            .footer {
+              color: #000 !important;
+              font-weight: 700 !important;
+            }
+          }
         </style>
       </head>
       <body>
         <div class="ticket">
           <div class="center">
-            <h1>Mesa ${this.escapeHtml(mesa.nombre)}</h1>
-            <div class="meta">${this.escapeHtml(this.formatDateTime(fecha))}</div>
+            <h1 class="title">${negocioNombre}</h1>
+            <div class="meta">${fechaTexto}</div>
+            <div class="meta">Atiende: ${usuarioNombre}</div>
+            <div class="meta">Tipo: ${tipoPedido}</div>
+            <div class="meta">Mesa: ${mesaTexto}</div>
           </div>
 
-          ${itemsPagados.length > 0 ? `
-            <hr />
-            <h2>Ya pagados</h2>
-            <table>
-              <thead><tr><th>Producto</th><th>Cant.</th><th>Total</th></tr></thead>
-              <tbody>${pagadosHtml}</tbody>
-            </table>
-          ` : ''}
+          <hr />
 
-          ${itemsPendientes.length > 0 ? `
-            <hr />
-            <h2>Cuenta actual</h2>
-            <table>
-              <thead><tr><th>Producto</th><th>Cant.</th><th>Total</th></tr></thead>
-              <tbody>${pendientesHtml}</tbody>
-            </table>
-          ` : ''}
+          <table>
+            <thead>
+              <tr>
+                <th>Cant</th>
+                <th>Producto</th>
+                <th>Unit</th>
+                <th class="text-right">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filasItems}
+            </tbody>
+          </table>
 
-          <div class="totals-row">
-            <span>TOTAL</span>
-            <span>${this.formatMoney(mesa.order.total)}</span>
+          <hr />
+
+          <div class="totals">
+            <div class="totals-row total">
+              <span>TOTAL</span>
+              <span>${this.formatCurrency(mesa.order.total)}</span>
+            </div>
           </div>
 
-          <div class="footer">Gracias por tu compra</div>
+          <div class="footer">
+            Gracias por tu compra
+          </div>
         </div>
       </body>
       </html>
@@ -622,6 +742,15 @@ export class MesasComponent {
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
+      second: '2-digit',
+    }).format(value);
+  }
+
+  private formatCurrency(value: number): string {
+    return new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'COP',
+      maximumFractionDigits: 0,
     }).format(value);
   }
 

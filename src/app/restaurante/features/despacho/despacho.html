@@ -236,24 +236,6 @@
             </span>
           </div>
 
-          @if (esPendientePago(p)) {
-            <div class="info-row">
-              <span class="info-label">
-                <lucide-icon name="credit-card" [size]="14" />
-                Forma de pago
-              </span>
-              <span class="info-val">
-                <select class="metodo-pago-select"
-                        [value]="metodoPagoOrden(p.id_orden) ?? ''"
-                        (change)="setMetodoPagoOrden(p.id_orden, $any($event.target).value)">
-                  <option value="">Seleccionar...</option>
-                  @for (mp of metodosPago(); track mp.id_metodo_pago) {
-                    <option [value]="mp.id_metodo_pago">{{ mp.nombre }}</option>
-                  }
-                </select>
-              </span>
-            </div>
-          }
         </div>
 
         @if ((p.detalles ?? []).length > 0) {
@@ -280,9 +262,9 @@
 
       <footer class="modal-actions">
         @if (esPendientePago(p)) {
-          <button class="btn-cobrar"
+          <button class="btn-secondary"
                   (click)="cobrar(p, $event)"
-                  [disabled]="cobrandoId() === p.id_orden || !metodoPagoOrden(p.id_orden)">
+                  [disabled]="cobrandoId() === p.id_orden">
             <lucide-icon name="banknote" [size]="16" />
             {{ cobrandoId() === p.id_orden ? 'Cobrando...' : 'Cobrar' }}
           </button>

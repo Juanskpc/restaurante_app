@@ -408,7 +408,7 @@
         @if (canCobrarPedido() || canImprimirPedido()) {
         <div class="btn-row">
           @if (canCobrarPedido()) {
-          <button class="btn-cobrar"
+          <button class="btn-secondary"
                   [disabled]="enviando() || items().length === 0"
                   (click)="cobrarPedido()">
             <lucide-icon name="banknote" [size]="16" />
