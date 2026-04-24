@@ -146,6 +146,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
   readonly mesaId = signal<number | null>(null);
   readonly metodosPago = signal<Array<{ id_metodo_pago: number; nombre: string }>>([]);
   readonly metodoPagoId = signal<number | null>(null);
+  readonly metodoPagoRequeridoError = signal(false);
 
   // Domicilio
   readonly modalDomicilioAbierto = signal(false);
@@ -455,6 +456,8 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.mesaId.set(null);
     this.notaOrden.set('');
     this.mesaRequeridaError.set(false);
+    this.metodoPagoId.set(null);
+    this.metodoPagoRequeridoError.set(false);
     this.efectivoRecibidoInput.set('');
   }
 
@@ -507,6 +510,11 @@ export class PedidosComponent implements OnInit, OnDestroy {
       this.items.set([]);
       this.notaOrden.set('');
     }
+  }
+
+  seleccionarMetodoPago(rawValue: string): void {
+    this.metodoPagoId.set(rawValue ? +rawValue : null);
+    this.metodoPagoRequeridoError.set(false);
   }
 
   setEfectivoRecibido(rawValue: string): void {
@@ -775,7 +783,18 @@ export class PedidosComponent implements OnInit, OnDestroy {
       return;
     }
 
+    if (!this.metodoPagoId()) {
+      this.metodoPagoRequeridoError.set(true);
+      void this.uiFeedback.alert({
+        title: 'Forma de pago requerida',
+        message: 'Debes seleccionar una forma de pago para registrar el pedido.',
+        tone: 'warning',
+      });
+      return;
+    }
+
     this.mesaRequeridaError.set(false);
+    this.metodoPagoRequeridoError.set(false);
     if (!esReintentoStock) {
       this.enviando.set(true);
       this.destinoEnvio.set(destino);
@@ -896,7 +915,8 @@ export class PedidosComponent implements OnInit, OnDestroy {
 
       if (cobrar) {
         this.http.patch(
-          `${environment.apiUrl}/pedidos/${idOrden}/marcar-pagado`, {}
+          `${environment.apiUrl}/pedidos/${idOrden}/marcar-pagado`,
+          { id_metodo_pago: this.metodoPagoId() }
         ).subscribe({
           next: () => enviarCocina(),
           error: () => this.resetEstadoEnvio(),

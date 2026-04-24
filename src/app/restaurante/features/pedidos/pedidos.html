@@ -158,7 +158,8 @@
 
             <select class="mesa-select"
                     [value]="metodoPagoId() ?? ''"
-                    (change)="metodoPagoId.set($any($event.target).value ? +$any($event.target).value : null)"
+                    [class.error]="metodoPagoRequeridoError()"
+                    (change)="seleccionarMetodoPago($any($event.target).value)"
                     title="Forma de pago para el cobro">
               <option value="">{{ isMobileViewport() ? '💳 Pago...' : '💳 Forma de pago...' }}</option>
               @for (mp of metodosPago(); track mp.id_metodo_pago) {
@@ -194,7 +195,8 @@
           </div>
           <select class="mesa-select"
                   [value]="metodoPagoId() ?? ''"
-                  (change)="metodoPagoId.set($any($event.target).value ? +$any($event.target).value : null)"
+                  [class.error]="metodoPagoRequeridoError()"
+                  (change)="seleccionarMetodoPago($any($event.target).value)"
                   title="Forma de pago para el cobro">
             <option value="">{{ isMobileViewport() ? '💳 Pago...' : '💳 Forma de pago...' }}</option>
             @for (mp of metodosPago(); track mp.id_metodo_pago) {
@@ -220,13 +222,18 @@
 
           <select class="mesa-select"
                   [value]="metodoPagoId() ?? ''"
-                  (change)="metodoPagoId.set($any($event.target).value ? +$any($event.target).value : null)">
+                  [class.error]="metodoPagoRequeridoError()"
+                  (change)="seleccionarMetodoPago($any($event.target).value)">
             <option value="">{{ isMobileViewport() ? '💳 Pago...' : '💳 Forma de pago...' }}</option>
             @for (mp of metodosPago(); track mp.id_metodo_pago) {
               <option [value]="mp.id_metodo_pago">💳 {{ mp.nombre }}</option>
             }
           </select>
         </div>
+      }
+
+      @if (metodoPagoRequeridoError()) {
+        <p class="mesa-error">Debes seleccionar una forma de pago.</p>
       }
     </div>
 

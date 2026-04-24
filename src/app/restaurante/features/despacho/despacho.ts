@@ -63,9 +63,12 @@ export class DespachoComponent implements OnInit {
   readonly filtro = signal<FiltroTipo>('TODOS');
   readonly pedidoActivo = signal<PedidoDespacho | null>(null);
   readonly cobrandoId = signal<number | null>(null);
+  readonly metodosPago = signal<Array<{ id_metodo_pago: number; nombre: string }>>([]);
+  readonly metodoPagoPorOrden = signal<Record<number, number | null>>({});
 
   readonly negocioId = computed(() => this.auth.negocio()?.id_negocio ?? null);
   readonly puedeVerTodos = computed(() => this.auth.canAccessSubnivel('despacho_ver_todos'));
+  readonly puedeCancelarNoPagados = computed(() => this.auth.canAccessSubnivel('despacho_cancelar_no_pagado'));
 
   readonly pedidosFiltrados = computed(() => {
     const f = this.filtro();
@@ -82,7 +85,20 @@ export class DespachoComponent implements OnInit {
   );
 
   ngOnInit(): void {
+    this.loadMetodosPago();
     this.cargar();
+  }
+
+  private loadMetodosPago(): void {
+    const id = this.negocioId();
+    if (!id) return;
+
+    this.http.get<{ success: boolean; data: Array<{ id_metodo_pago: number; nombre: string }> }>(
+      `${environment.apiUrl}/metodos-pago?id_negocio=${id}`
+    ).subscribe({
+      next: (res) => this.metodosPago.set(res?.data ?? []),
+      error: () => this.metodosPago.set([]),
+    });
   }
 
   cargar(): void {
@@ -179,6 +195,15 @@ export class DespachoComponent implements OnInit {
   async eliminarPedido(p: PedidoDespacho, event: Event): Promise<void> {
     event.stopPropagation();
 
+    if (!this.puedeCancelarNoPagados()) {
+      await this.uiFeedback.alert({
+        title: 'Acceso restringido',
+        message: 'Tu rol no tiene permiso para eliminar pedidos pendientes de pago.',
+        tone: 'warning',
+      });
+      return;
+    }
+
     const confirmar = await this.uiFeedback.confirm({
       title: 'Eliminar pedido',
       message: `Se cancelará el pedido ${p.numero_orden}. Esta acción no se puede deshacer.`,
@@ -208,10 +233,22 @@ export class DespachoComponent implements OnInit {
   cobrar(p: PedidoDespacho, event: Event): void {
     event.stopPropagation();
     if (this.cobrandoId() !== null) return;
+
+    const idMetodoPago = this.metodoPagoPorOrden()[p.id_orden] ?? null;
+    if (!idMetodoPago) {
+      void this.uiFeedback.alert({
+        title: 'Forma de pago requerida',
+        message: 'Selecciona una forma de pago antes de registrar el cobro.',
+        tone: 'warning',
+      });
+      return;
+    }
+
     this.cobrandoId.set(p.id_orden);
 
     this.http.patch<{ success: boolean }>(
-      `${environment.apiUrl}/pedidos/${p.id_orden}/marcar-pagado`, {}
+      `${environment.apiUrl}/pedidos/${p.id_orden}/marcar-pagado`,
+      { id_metodo_pago: idMetodoPago }
     ).subscribe({
       next: (res) => {
         if (res?.success) {
@@ -232,5 +269,17 @@ export class DespachoComponent implements OnInit {
         this.cobrandoId.set(null);
       },
     });
+  }
+
+  setMetodoPagoOrden(idOrden: number, rawValue: string): void {
+    const parsed = rawValue ? Number(rawValue) : null;
+    this.metodoPagoPorOrden.update((actual) => ({
+      ...actual,
+      [idOrden]: parsed,
+    }));
+  }
+
+  metodoPagoOrden(idOrden: number): number | null {
+    return this.metodoPagoPorOrden()[idOrden] ?? null;
   }
 }

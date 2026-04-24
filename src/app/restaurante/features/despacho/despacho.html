@@ -73,11 +73,17 @@
                 {{ tipoLabel(p.tipo_pedido) }}
               </span>
               @if (esPendientePago(p)) {
-                <button type="button" class="card-action danger"
-                        title="Eliminar pedido"
-                        (click)="eliminarPedido(p, $event)">
-                  <lucide-icon name="x-circle" [size]="16" />
-                </button>
+                @if (puedeCancelarNoPagados()) {
+                  <button type="button" class="card-action danger"
+                          title="Eliminar pedido"
+                          (click)="eliminarPedido(p, $event)">
+                    <lucide-icon name="x-circle" [size]="16" />
+                  </button>
+                } @else {
+                  <span class="card-action blocked" title="Sin permiso para eliminar pendientes de pago">
+                    <lucide-icon name="lock" [size]="16" />
+                  </span>
+                }
               } @else {
                 <button type="button" class="card-action"
                         title="Finalizar y limpiar pedido"
@@ -229,6 +235,25 @@
               </span>
             </span>
           </div>
+
+          @if (esPendientePago(p)) {
+            <div class="info-row">
+              <span class="info-label">
+                <lucide-icon name="credit-card" [size]="14" />
+                Forma de pago
+              </span>
+              <span class="info-val">
+                <select class="metodo-pago-select"
+                        [value]="metodoPagoOrden(p.id_orden) ?? ''"
+                        (change)="setMetodoPagoOrden(p.id_orden, $any($event.target).value)">
+                  <option value="">Seleccionar...</option>
+                  @for (mp of metodosPago(); track mp.id_metodo_pago) {
+                    <option [value]="mp.id_metodo_pago">{{ mp.nombre }}</option>
+                  }
+                </select>
+              </span>
+            </div>
+          }
         </div>
 
         @if ((p.detalles ?? []).length > 0) {
@@ -257,14 +282,16 @@
         @if (esPendientePago(p)) {
           <button class="btn-cobrar"
                   (click)="cobrar(p, $event)"
-                  [disabled]="cobrandoId() === p.id_orden">
+                  [disabled]="cobrandoId() === p.id_orden || !metodoPagoOrden(p.id_orden)">
             <lucide-icon name="banknote" [size]="16" />
             {{ cobrandoId() === p.id_orden ? 'Cobrando...' : 'Cobrar' }}
           </button>
-          <button class="btn-danger" (click)="eliminarPedido(p, $event)">
-            <lucide-icon name="x-circle" [size]="16" />
-            Eliminar
-          </button>
+          @if (puedeCancelarNoPagados()) {
+            <button class="btn-danger" (click)="eliminarPedido(p, $event)">
+              <lucide-icon name="x-circle" [size]="16" />
+              Eliminar
+            </button>
+          }
         } @else {
           <button class="btn-finalizar" (click)="limpiarPedido(p, $event)">
             <lucide-icon name="trash-2" [size]="16" />
