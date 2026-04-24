@@ -30,6 +30,7 @@ export class SidebarComponent {
   readonly navItems: NavItem[] = [
     { icon: 'layout-dashboard',  label: 'Dashboard',      route: '/dashboard',      section: 'main' },
     { icon: 'clipboard-list',    label: 'Pedidos',         route: '/pedidos',         badge: 0, section: 'main' },
+    { icon: 'bike',              label: 'Despacho',        route: '/despacho',        section: 'main' },
     { icon: 'flame',             label: 'Cocina',          route: '/cocina',          section: 'main' },
     { icon: 'utensils-crossed',  label: 'Menú',            route: '/menu',            section: 'main' },
     { icon: 'armchair',          label: 'Mesas',           route: '/mesas',           section: 'secondary' },

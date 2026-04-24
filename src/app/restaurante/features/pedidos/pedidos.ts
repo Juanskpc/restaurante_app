@@ -180,6 +180,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
   readonly exclusionesTemp = signal<Set<number>>(new Set());
 
   // Debounce para búsqueda en vivo
+  private readonly cobrarAlDespachar = signal(false);
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
 
   // --- Computed ---
@@ -722,7 +723,18 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.enviarPedido('CAJA');
   }
 
-  enviarADespacho(): void {
+  async enviarADespacho(): Promise<void> {
+    if (this.items().length === 0) return;
+
+    const cobrar = await this.uiFeedback.confirm({
+      title: 'Enviar a despacho',
+      message: '¿El cliente ya pagó o deseas cobrar ahora antes de despachar?',
+      confirmText: 'Cobrar ahora',
+      cancelText: 'Enviar sin cobrar',
+      tone: 'info',
+    });
+
+    this.cobrarAlDespachar.set(cobrar);
     this.enviarPedido('DESPACHO');
   }
 
@@ -863,17 +875,35 @@ export class PedidosComponent implements OnInit, OnDestroy {
     }
 
     if (destino === 'DESPACHO') {
-      // Para LLEVAR/DOMICILIO: enviar a cocina y dejar disponible en módulo Despacho.
-      this.http.patch(
-        `${environment.apiUrl}/pedidos/${idOrden}/enviar-cocina`, {}
-      ).subscribe({
-        next: () => {
-          this.uiFeedback.success('El pedido fue enviado a despacho.', 'Pedido enviado');
-          void this.limpiarOrden(false);
-          this.resetEstadoEnvio();
-        },
-        error: () => this.resetEstadoEnvio(),
-      });
+      const cobrar = this.cobrarAlDespachar();
+      this.cobrarAlDespachar.set(false);
+
+      const enviarCocina = () => {
+        this.http.patch(
+          `${environment.apiUrl}/pedidos/${idOrden}/enviar-cocina`, {}
+        ).subscribe({
+          next: () => {
+            const msg = cobrar
+              ? 'El pedido fue cobrado y enviado a despacho.'
+              : 'El pedido fue enviado a despacho.';
+            this.uiFeedback.success(msg, 'Pedido enviado');
+            void this.limpiarOrden(false);
+            this.resetEstadoEnvio();
+          },
+          error: () => this.resetEstadoEnvio(),
+        });
+      };
+
+      if (cobrar) {
+        this.http.patch(
+          `${environment.apiUrl}/pedidos/${idOrden}/marcar-pagado`, {}
+        ).subscribe({
+          next: () => enviarCocina(),
+          error: () => this.resetEstadoEnvio(),
+        });
+      } else {
+        enviarCocina();
+      }
       return;
     }
 

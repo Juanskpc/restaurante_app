@@ -65,6 +65,7 @@ const NEGOCIO_KEY  = 'app_negocio_activo';
 const APP_ROUTE_PRIORITY = [
   '/dashboard',
   '/pedidos',
+  '/despacho',
   '/cocina',
   '/menu',
   '/mesas',
@@ -78,6 +79,7 @@ const APP_ROUTE_PRIORITY = [
 const ROUTE_PERMISSION_ALIASES: Record<string, string[]> = {
   '/dashboard': ['/dashboard'],
   '/pedidos': ['/pedidos', '/pos', '/pos/pedidos'],
+  '/despacho': ['/despacho'],
   '/cocina': ['/cocina'],
   '/menu': ['/menu', '/inventario/productos', '/inventario'],
   '/mesas': ['/mesas', '/pos', '/pos/pedidos'],

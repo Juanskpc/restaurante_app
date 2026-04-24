@@ -30,6 +30,12 @@ export const routes: Routes = [
           import('./restaurante/features/pedidos/pedidos').then(m => m.PedidosComponent),
       },
       {
+        path: 'despacho',
+        title: 'Despacho',
+        loadComponent: () =>
+          import('./restaurante/features/despacho/despacho').then(m => m.DespachoComponent),
+      },
+      {
         path: 'cocina',
         title: 'Cocina',
         loadComponent: () =>

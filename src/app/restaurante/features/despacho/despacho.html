@@ -1,0 +1,265 @@
+<section class="despacho-layout">
+  <header class="despacho-header">
+    <div class="brand">
+      <lucide-icon name="bike" [size]="20" />
+      <div>
+        <h1>Despacho</h1>
+        <p>
+          @if (puedeVerTodos()) {
+            Pedidos para llevar y domicilio del negocio
+          } @else {
+            Pedidos asignados a ti
+          }
+        </p>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <button class="btn-ghost btn-refresh"
+              (click)="cargar()"
+              [disabled]="cargando()"
+              title="Actualizar">
+        <lucide-icon name="rotate-cw" [size]="16" [class.spin]="cargando()" />
+        Actualizar
+      </button>
+    </div>
+  </header>
+
+  <div class="stats-strip">
+    <button class="chip" [class.active]="filtro() === 'TODOS'"
+            (click)="seleccionarFiltro('TODOS')">
+      Todos ({{ pedidos().length }})
+    </button>
+    <button class="chip" [class.active]="filtro() === 'LLEVAR'"
+            (click)="seleccionarFiltro('LLEVAR')">
+      <lucide-icon name="shopping-bag" [size]="13" />
+      Para llevar ({{ countLlevar() }})
+    </button>
+    <button class="chip" [class.active]="filtro() === 'DOMICILIO'"
+            (click)="seleccionarFiltro('DOMICILIO')">
+      <lucide-icon name="bike" [size]="13" />
+      Domicilio ({{ countDomicilio() }})
+    </button>
+  </div>
+
+  @if (cargando()) {
+    <div class="state">Cargando pedidos...</div>
+  }
+
+  @if (!cargando() && pedidosFiltrados().length === 0) {
+    <div class="state empty">
+      <lucide-icon name="bike" [size]="32" />
+      <p>No hay pedidos de despacho activos.</p>
+      @if (!puedeVerTodos()) {
+        <small>Solo ves los pedidos asignados a ti. Pide a un administrador habilitar "Ver todos" en tu rol si necesitas ver el resto.</small>
+      }
+    </div>
+  }
+
+  @if (!cargando() && pedidosFiltrados().length > 0) {
+    <div class="grid">
+      @for (p of pedidosFiltrados(); track p.id_orden) {
+        <article class="despacho-card" [class]="'tipo-' + p.tipo_pedido"
+                 (click)="abrirPedido(p)">
+          <header class="card-top">
+            <span class="orden-num">{{ p.numero_orden }}</span>
+            <span class="tipo-tag" [class]="'tipo-' + p.tipo_pedido">
+              @if (p.tipo_pedido === 'DOMICILIO') {
+                <lucide-icon name="bike" [size]="12" />
+              } @else {
+                <lucide-icon name="shopping-bag" [size]="12" />
+              }
+              {{ tipoLabel(p.tipo_pedido) }}
+            </span>
+          </header>
+
+          <div class="card-body">
+            @if (p.contacto_nombre) {
+              <div class="row">
+                <lucide-icon name="user" [size]="13" />
+                <span class="ellipsis">{{ p.contacto_nombre }}</span>
+              </div>
+            }
+            @if (p.tipo_pedido === 'DOMICILIO' && p.direccion_domicilio) {
+              <div class="row muted">
+                <lucide-icon name="map-pin" [size]="13" />
+                <span class="ellipsis">{{ p.direccion_domicilio }}</span>
+              </div>
+            }
+            <div class="row muted">
+              <lucide-icon name="clock-3" [size]="13" />
+              <span>{{ p.fecha_creacion | date:'shortTime' }}</span>
+              <span class="dot">·</span>
+              <span>{{ itemsResumen(p) }}</span>
+            </div>
+          </div>
+
+          <footer class="card-bottom">
+            <span class="total">{{ p.total | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+            <span class="pago-badge" [class.pagado]="!esPendientePago(p)">
+              @if (esPendientePago(p)) {
+                <lucide-icon name="clock-3" [size]="11" />
+                Pendiente
+              } @else {
+                <lucide-icon name="check-circle" [size]="11" />
+                Pagado
+              }
+            </span>
+          </footer>
+          @if (puedeVerTodos() && p.domiciliario) {
+            <div class="dom-name" [title]="'Domiciliario: ' + domiciliarioNombre(p)">
+              <lucide-icon name="bike" [size]="12" />
+              {{ domiciliarioNombre(p) }}
+            </div>
+          }
+        </article>
+      }
+    </div>
+  }
+</section>
+
+<!-- ═══════ MODAL: Detalle de pedido para despacho ═══════ -->
+@if (pedidoActivo(); as p) {
+  <div class="overlay" (click)="cerrarPedido()">
+    <div class="modal despacho-modal" (click)="$event.stopPropagation()">
+      <header class="modal-header">
+        <div class="modal-title">
+          <span class="orden-num">{{ p.numero_orden }}</span>
+          <span class="tipo-tag" [class]="'tipo-' + p.tipo_pedido">
+            @if (p.tipo_pedido === 'DOMICILIO') {
+              <lucide-icon name="bike" [size]="12" />
+            } @else {
+              <lucide-icon name="shopping-bag" [size]="12" />
+            }
+            {{ tipoLabel(p.tipo_pedido) }}
+          </span>
+        </div>
+        <button class="icon-btn" (click)="cerrarPedido()" title="Cerrar">
+          <lucide-icon name="x" [size]="18" />
+        </button>
+      </header>
+
+      <div class="modal-body">
+        <div class="info-grid">
+          <div class="info-row">
+            <span class="info-label">
+              <lucide-icon name="user" [size]="14" />
+              Contacto
+            </span>
+            <span class="info-val">{{ p.contacto_nombre || 'Sin nombre' }}</span>
+          </div>
+
+          <div class="info-row">
+            <span class="info-label">
+              <lucide-icon name="phone" [size]="14" />
+              Teléfono
+            </span>
+            @if (p.contacto_telefono; as tel) {
+              <a class="info-val tel-link"
+                 [href]="telHref(tel)"
+                 [attr.aria-disabled]="!telHref(tel)">
+                {{ tel }}
+              </a>
+            } @else {
+              <span class="info-val muted">No registrado</span>
+            }
+          </div>
+
+          @if (p.tipo_pedido === 'DOMICILIO') {
+            <div class="info-row">
+              <span class="info-label">
+                <lucide-icon name="map-pin" [size]="14" />
+                Dirección
+              </span>
+              <span class="info-val">
+                {{ p.direccion_domicilio || 'No registrada' }}
+              </span>
+            </div>
+          }
+
+          <div class="info-row">
+            <span class="info-label">
+              <lucide-icon name="sticky-note" [size]="14" />
+              Nota
+            </span>
+            <span class="info-val">
+              {{ p.nota_domicilio || 'Sin nota' }}
+            </span>
+          </div>
+
+          @if (puedeVerTodos()) {
+            <div class="info-row">
+              <span class="info-label">
+                <lucide-icon name="bike" [size]="14" />
+                Domiciliario
+              </span>
+              <span class="info-val">{{ domiciliarioNombre(p) }}</span>
+            </div>
+          }
+
+          <div class="info-row">
+            <span class="info-label">
+              <lucide-icon name="wallet" [size]="14" />
+              Pago
+            </span>
+            <span class="info-val">
+              <span class="pago-badge" [class.pagado]="!esPendientePago(p)">
+                @if (esPendientePago(p)) {
+                  <lucide-icon name="clock-3" [size]="12" />
+                  Pendiente de pago
+                } @else {
+                  <lucide-icon name="check-circle" [size]="12" />
+                  Pagado
+                }
+              </span>
+            </span>
+          </div>
+        </div>
+
+        @if ((p.detalles ?? []).length > 0) {
+          <div class="items-section">
+            <h4>Productos</h4>
+            <ul class="items-list">
+              @for (d of p.detalles ?? []; track $index) {
+                <li>
+                  <span class="qty">{{ d.cantidad }}×</span>
+                  <span class="nombre">{{ d.producto?.nombre || '(Producto)' }}</span>
+                  <span class="line-total">
+                    {{ d.cantidad * d.precio_unitario | currency:'COP':'symbol-narrow':'1.0-0' }}
+                  </span>
+                </li>
+              }
+            </ul>
+            <div class="items-total">
+              <span>Total</span>
+              <strong>{{ p.total | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+            </div>
+          </div>
+        }
+      </div>
+
+      <footer class="modal-actions">
+        @if (esPendientePago(p)) {
+          <button class="btn-cobrar"
+                  (click)="cobrar(p, $event)"
+                  [disabled]="cobrandoId() === p.id_orden">
+            <lucide-icon name="banknote" [size]="16" />
+            {{ cobrandoId() === p.id_orden ? 'Cobrando...' : 'Cobrar' }}
+          </button>
+        }
+        @if (telHref(p.contacto_telefono); as href) {
+          <a class="btn-call" [href]="href">
+            <lucide-icon name="phone-call" [size]="16" />
+            Llamar
+          </a>
+        } @else {
+          <button class="btn-call disabled" disabled>
+            <lucide-icon name="phone-call" [size]="16" />
+            Sin teléfono
+          </button>
+        }
+        <button class="btn-secondary" (click)="cerrarPedido()">Cerrar</button>
+      </footer>
+    </div>
+  </div>
+}
