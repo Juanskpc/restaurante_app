@@ -6,7 +6,7 @@
   position: fixed;
   top: 1rem;
   right: 1rem;
-  z-index: 1200;
+  z-index: 2000;
   display: grid;
   gap: 0.65rem;
   width: min(360px, calc(100vw - 2rem));
@@ -79,7 +79,7 @@
 .feedback-dialog-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 1290;
+  z-index: 2090;
   background:
     radial-gradient(circle at 20% 15%, color-mix(in srgb, var(--color-primary) 16%, transparent), transparent 55%),
     rgba(5, 10, 20, 0.46);
@@ -89,7 +89,7 @@
 
 .feedback-dialog {
   position: fixed;
-  z-index: 1300;
+  z-index: 2100;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);

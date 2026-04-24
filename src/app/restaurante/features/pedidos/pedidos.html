@@ -401,10 +401,10 @@
         @if (canCobrarPedido() || canImprimirPedido()) {
         <div class="btn-row">
           @if (canCobrarPedido()) {
-          <button class="btn-secondary"
+          <button class="btn-cobrar"
                   [disabled]="enviando() || items().length === 0"
                   (click)="cobrarPedido()">
-            <lucide-icon name="credit-card" [size]="16" />
+            <lucide-icon name="banknote" [size]="16" />
             {{ enviando() && destinoEnvio() === 'COBRAR' ? 'COBRANDO...' : 'Cobrar' }}
           </button>
           }

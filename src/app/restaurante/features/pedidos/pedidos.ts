@@ -1516,6 +1516,33 @@ export class PedidosComponent implements OnInit, OnDestroy {
             font-size: 11px;
             color: #666;
           }
+
+          @media print {
+            * {
+              color: #000 !important;
+              font-weight: 700 !important;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            .title,
+            .totals-row.total {
+              font-weight: 900 !important;
+            }
+            h1, h2, th {
+              font-weight: 900 !important;
+            }
+            hr {
+              border-top-color: #000 !important;
+              border-top-style: solid !important;
+            }
+            .meta,
+            .item-meta,
+            .footer,
+            .ticket-note {
+              color: #000 !important;
+              font-weight: 700 !important;
+            }
+          }
         </style>
       </head>
       <body>

@@ -127,7 +127,7 @@ export class DespachoComponent implements OnInit {
 
   tipoLabel(tipo: TipoPedido): string {
     if (tipo === 'DOMICILIO') return 'Domicilio';
-    if (tipo === 'LLEVAR') return 'Para llevar';
+    if (tipo === 'LLEVAR') return 'Llevar';
     return 'En mesa';
   }
 
@@ -145,6 +145,64 @@ export class DespachoComponent implements OnInit {
 
   esPendientePago(p: PedidoDespacho): boolean {
     return (p.estado_pago ?? 'pendiente_pago') === 'pendiente_pago';
+  }
+
+  async limpiarPedido(p: PedidoDespacho, event: Event): Promise<void> {
+    event.stopPropagation();
+
+    const confirmar = await this.uiFeedback.confirm({
+      title: 'Marcar como entregado',
+      message: `El pedido ${p.numero_orden} quedará finalizado y se removerá del módulo de despacho.`,
+      confirmText: 'Finalizar',
+      cancelText: 'Cancelar',
+      tone: 'info',
+    });
+    if (!confirmar) return;
+
+    this.http.patch<{ success: boolean }>(
+      `${environment.apiUrl}/pedidos/${p.id_orden}/cerrar`, {}
+    ).subscribe({
+      next: (res) => {
+        if (res?.success) {
+          this.pedidos.update(lista => lista.filter(ord => ord.id_orden !== p.id_orden));
+          if (this.pedidoActivo()?.id_orden === p.id_orden) this.pedidoActivo.set(null);
+          this.uiFeedback.success('Pedido finalizado correctamente.', 'Entregado');
+        }
+      },
+      error: (err) => {
+        const msg = err?.error?.message;
+        this.uiFeedback.error(msg || 'No se pudo finalizar el pedido.');
+      },
+    });
+  }
+
+  async eliminarPedido(p: PedidoDespacho, event: Event): Promise<void> {
+    event.stopPropagation();
+
+    const confirmar = await this.uiFeedback.confirm({
+      title: 'Eliminar pedido',
+      message: `Se cancelará el pedido ${p.numero_orden}. Esta acción no se puede deshacer.`,
+      confirmText: 'Eliminar',
+      cancelText: 'Cancelar',
+      tone: 'warning',
+    });
+    if (!confirmar) return;
+
+    this.http.patch<{ success: boolean }>(
+      `${environment.apiUrl}/pedidos/${p.id_orden}/cancelar`, {}
+    ).subscribe({
+      next: (res) => {
+        if (res?.success) {
+          this.pedidos.update(lista => lista.filter(ord => ord.id_orden !== p.id_orden));
+          if (this.pedidoActivo()?.id_orden === p.id_orden) this.pedidoActivo.set(null);
+          this.uiFeedback.success('Pedido eliminado correctamente.', 'Eliminado');
+        }
+      },
+      error: (err) => {
+        const msg = err?.error?.message;
+        this.uiFeedback.error(msg || 'No se pudo eliminar el pedido.');
+      },
+    });
   }
 
   cobrar(p: PedidoDespacho, event: Event): void {

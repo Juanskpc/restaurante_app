@@ -923,6 +923,27 @@
   }
 }
 
+.btn-cobrar {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: var(--color-success);
+  color: #fff;
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  font-family: var(--font-family);
+  cursor: pointer;
+  transition: opacity var(--transition-fast);
+
+  &:hover:not(:disabled) { opacity: 0.88; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+}
+
 // ─── FAB: Ver orden en móvil ────────────────────────────────
 .fab-order {
   position: fixed;
@@ -1143,22 +1164,30 @@
   gap: .75rem;
   padding: .75rem 1rem;
   margin: 0 1rem 1rem;
-  background: #fef3c7;
-  color: #92400e;
-  border: 1px solid #fcd34d;
-  border-radius: .6rem;
+  background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface));
+  color: var(--color-text-primary);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 40%, var(--color-border));
+  border-radius: var(--radius-md);
   font-size: .9rem;
 
-  lucide-icon { flex: 0 0 auto; }
-  &__text { flex: 1; }
+  lucide-icon {
+    flex: 0 0 auto;
+    color: var(--color-primary);
+  }
+  &__text {
+    flex: 1;
+    strong { color: var(--color-primary); }
+  }
   &__cta {
     flex: 0 0 auto;
-    padding: .35rem .75rem;
-    background: #92400e; color: #fff;
-    border-radius: .4rem;
+    padding: .4rem .85rem;
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+    border-radius: var(--radius-sm);
     font-weight: 600; font-size: .85rem;
     text-decoration: none;
-    &:hover { background: #78350f; }
+    transition: background var(--transition-fast);
+    &:hover { background: var(--color-primary-hover); }
   }
 }
 

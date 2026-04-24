@@ -110,6 +110,12 @@ export class UsuariosComponent {
 
   protected readonly isEditing = computed(() => this.userForm.controls.id_usuario.value > 0);
 
+  protected readonly hayFiltrosActivos = computed(() =>
+    this.searchTerm().trim().length > 0 ||
+    this.roleFilter() !== null ||
+    this.estadoFilter() !== 'ALL'
+  );
+
   protected readonly usuariosFiltrados = computed(() => {
     const rol = this.roleFilter();
     const estado = this.estadoFilter();
@@ -228,6 +234,12 @@ export class UsuariosComponent {
 
   protected onEstadoFilter(value: string): void {
     this.estadoFilter.set((value || 'ALL') as EstadoRegistro | 'ALL');
+  }
+
+  protected limpiarFiltros(): void {
+    this.searchTerm.set('');
+    this.roleFilter.set(null);
+    this.estadoFilter.set('ALL');
   }
 
   protected async onRoleSelected(value: string): Promise<void> {

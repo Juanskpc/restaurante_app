@@ -19,7 +19,7 @@
       }
       @if (caja() && puedeCerrar()) {
         <button class="btn btn-danger" (click)="abrirModal('cierre')">
-          <lucide-icon name="square" size="18" />
+          <lucide-icon name="dollar-sign" size="18" />
           Cerrar caja
         </button>
       }
@@ -38,16 +38,16 @@
     <article class="caja-card">
       <div class="caja-card__row">
         <div>
-          <span class="label">Cajero</span>
+          <span class="label">Usuario</span>
           <strong>{{ caja()!.usuario?.primer_nombre }} {{ caja()!.usuario?.primer_apellido }}</strong>
         </div>
         <div>
           <span class="label">Apertura</span>
-          <strong>{{ caja()!.fecha_apertura | date:'short' }}</strong>
+          <strong>{{ caja()!.fecha_apertura | date:'dd/MM/yyyy HH:mm' }}</strong>
         </div>
         <div>
           <span class="label">Monto apertura</span>
-          <strong>{{ caja()!.monto_apertura | currency:'COP':'symbol':'1.0-0' }}</strong>
+          <strong>{{ caja()!.monto_apertura | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
         </div>
       </div>
 
@@ -56,21 +56,21 @@
           <lucide-icon name="trending-up" size="18" />
           <div>
             <span class="label">Ingresos</span>
-            <strong>{{ (caja()!.ingresos || 0) | currency:'COP':'symbol':'1.0-0' }}</strong>
+            <strong>{{ (caja()!.ingresos || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
           </div>
         </div>
         <div class="total total--egresos">
           <lucide-icon name="trending-down" size="18" />
           <div>
             <span class="label">Egresos</span>
-            <strong>{{ (caja()!.egresos || 0) | currency:'COP':'symbol':'1.0-0' }}</strong>
+            <strong>{{ (caja()!.egresos || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
           </div>
         </div>
         <div class="total total--esperado">
           <lucide-icon name="banknote" size="18" />
           <div>
             <span class="label">Esperado en caja</span>
-            <strong>{{ (caja()!.monto_esperado || 0) | currency:'COP':'symbol':'1.0-0' }}</strong>
+            <strong>{{ (caja()!.monto_esperado || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
           </div>
         </div>
       </div>
@@ -100,7 +100,7 @@
           <tbody>
             @for (m of movimientos(); track m.id_movimiento) {
               <tr>
-                <td>{{ m.fecha | date:'short' }}</td>
+                <td>{{ m.fecha | date:'dd/MM/yyyy HH:mm' }}</td>
                 <td>
                   <span class="badge" [class.badge--in]="m.tipo === 'INGRESO'" [class.badge--out]="m.tipo === 'EGRESO'">
                     {{ m.tipo }}
@@ -113,7 +113,7 @@
                   }
                 </td>
                 <td>{{ m.usuario?.primer_nombre }} {{ m.usuario?.primer_apellido }}</td>
-                <td class="num">{{ m.monto | currency:'COP':'symbol':'1.0-0' }}</td>
+                <td class="num">{{ m.monto | currency:'COP':'symbol-narrow':'1.0-0' }}</td>
               </tr>
             }
           </tbody>
@@ -156,10 +156,10 @@
       <div class="modal__panel" (click)="$event.stopPropagation()">
         <h2>Cerrar caja</h2>
         <div class="resumen-cierre">
-          <div><span>Apertura</span><strong>{{ caja()!.monto_apertura | currency:'COP':'symbol':'1.0-0' }}</strong></div>
-          <div><span>Ingresos</span><strong>{{ (caja()!.ingresos || 0) | currency:'COP':'symbol':'1.0-0' }}</strong></div>
-          <div><span>Egresos</span><strong>{{ (caja()!.egresos || 0) | currency:'COP':'symbol':'1.0-0' }}</strong></div>
-          <div class="row-esperado"><span>Esperado en caja</span><strong>{{ (caja()!.monto_esperado || 0) | currency:'COP':'symbol':'1.0-0' }}</strong></div>
+          <div><span>Apertura</span><strong>{{ caja()!.monto_apertura | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
+          <div><span>Ingresos</span><strong>{{ (caja()!.ingresos || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
+          <div><span>Egresos</span><strong>{{ (caja()!.egresos || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
+          <div class="row-esperado"><span>Esperado en caja</span><strong>{{ (caja()!.monto_esperado || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
         </div>
         <label>
           Monto contado físicamente (opcional)

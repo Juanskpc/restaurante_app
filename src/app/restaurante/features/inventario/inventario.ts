@@ -92,7 +92,19 @@ export class InventarioComponent {
   readonly negocioId = computed(() => this.auth.negocio()?.id_negocio ?? null);
   readonly canAgregarInsumo = computed(() => this.auth.canAccessSubnivel('inventario_agregar_insumo'));
   readonly canAjusteRapido = computed(() => this.auth.canAccessSubnivel('inventario_ajuste_rapido'));
-  readonly tableColspan = computed(() => this.canAjusteRapido() ? 6 : 5);
+  readonly canGestionarInsumo = computed(() => this.auth.canAccessSubnivel('inventario_gestionar_insumo'));
+  readonly tableColspan = computed(() => {
+    let base = 5;
+    if (this.canAjusteRapido()) base += 1;
+    if (this.canGestionarInsumo()) base += 1;
+    return base;
+  });
+
+  // Edit modal state
+  readonly editandoInsumo = signal<InventarioInsumo | null>(null);
+  readonly editNombre = signal('');
+  readonly editUnidad = signal('g');
+  readonly guardandoEdicion = signal(false);
   private readonly moneyFormatter = new Intl.NumberFormat('es-CO', {
     maximumFractionDigits: 0,
   });
@@ -249,6 +261,78 @@ export class InventarioComponent {
       error: () => {
         this.guardando.set(null);
         this.uiFeedback.error('No fue posible ajustar el stock del insumo.');
+      },
+    });
+  }
+
+  abrirEditarInsumo(insumo: InventarioInsumo): void {
+    if (!this.canGestionarInsumo()) return;
+    this.editandoInsumo.set(insumo);
+    this.editNombre.set(insumo.nombre);
+    this.editUnidad.set(insumo.unidad_medida || 'g');
+  }
+
+  cerrarEditarInsumo(): void {
+    if (this.guardandoEdicion()) return;
+    this.editandoInsumo.set(null);
+  }
+
+  guardarEdicionInsumo(): void {
+    if (!this.canGestionarInsumo()) return;
+    const insumo = this.editandoInsumo();
+    const idNegocio = this.negocioId();
+    if (!insumo || !idNegocio) return;
+
+    const nombre = this.editNombre().trim();
+    const unidad = this.editUnidad().trim();
+    if (!nombre) {
+      this.uiFeedback.error('El nombre es obligatorio.');
+      return;
+    }
+
+    this.guardandoEdicion.set(true);
+    this.http.put(
+      `${environment.apiUrl}/carta/admin/ingredientes/${insumo.id_ingrediente}`,
+      { nombre, unidad_medida: unidad }
+    ).subscribe({
+      next: () => {
+        this.guardandoEdicion.set(false);
+        this.editandoInsumo.set(null);
+        this.uiFeedback.updated('El insumo fue actualizado correctamente.');
+        this.loadInventario(idNegocio);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.guardandoEdicion.set(false);
+        const msg = this.getHttpErrorMessage(err) || 'No se pudo actualizar el insumo.';
+        this.uiFeedback.error(msg);
+      },
+    });
+  }
+
+  async eliminarInsumo(insumo: InventarioInsumo): Promise<void> {
+    if (!this.canGestionarInsumo()) return;
+    const idNegocio = this.negocioId();
+    if (!idNegocio) return;
+
+    const confirmado = await this.uiFeedback.confirm({
+      title: 'Eliminar insumo',
+      message: `Se eliminará "${insumo.nombre}". Las recetas que lo usen dejarán de consumirlo. ¿Deseas continuar?`,
+      confirmText: 'Eliminar',
+      cancelText: 'Cancelar',
+      tone: 'warning',
+    });
+    if (!confirmado) return;
+
+    this.http.delete(
+      `${environment.apiUrl}/carta/admin/ingredientes/${insumo.id_ingrediente}`
+    ).subscribe({
+      next: () => {
+        this.uiFeedback.deleted('El insumo fue eliminado correctamente.');
+        this.loadInventario(idNegocio);
+      },
+      error: (err: HttpErrorResponse) => {
+        const msg = this.getHttpErrorMessage(err) || 'No se pudo eliminar el insumo.';
+        this.uiFeedback.error(msg);
       },
     });
   }

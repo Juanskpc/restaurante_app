@@ -1,7 +1,8 @@
 import {
-  ChangeDetectionStrategy, Component, OnInit, computed, inject, signal,
+  ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, inject, signal,
+  PLATFORM_ID,
 } from '@angular/core';
-import { CurrencyPipe, DatePipe, DecimalPipe } from '@angular/common';
+import { CurrencyPipe, DatePipe, DecimalPipe, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
 
@@ -19,10 +20,12 @@ type ModalActivo = null | 'apertura' | 'cierre' | 'movimiento';
   styleUrl: './caja.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class CajaComponent implements OnInit {
+export class CajaComponent implements OnInit, OnDestroy {
   private readonly auth = inject(AuthService);
   private readonly cajaSvc = inject(CajaService);
   private readonly ui = inject(UiFeedbackService);
+  private readonly platformId = inject(PLATFORM_ID);
+  private readonly isBrowser = isPlatformBrowser(this.platformId);
 
   readonly caja = this.cajaSvc.cajaAbierta;
   readonly cargando = this.cajaSvc.cargando;
@@ -105,11 +108,22 @@ export class CajaComponent implements OnInit {
       this.movConcepto.set('');
     }
     this.modal.set(modal);
+    this.toggleBodyScroll(true);
   }
 
   cerrarModal(): void {
     if (this.enviando()) return;
     this.modal.set(null);
+    this.toggleBodyScroll(false);
+  }
+
+  ngOnDestroy(): void {
+    this.toggleBodyScroll(false);
+  }
+
+  private toggleBodyScroll(lock: boolean): void {
+    if (!this.isBrowser) return;
+    document.body.style.overflow = lock ? 'hidden' : '';
   }
 
   // ── Acciones ──

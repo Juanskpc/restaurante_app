@@ -34,12 +34,15 @@
       <div class="filters">
         <label class="field">
           <span>Buscar</span>
-          <input type="text" placeholder="Nombre, correo o identificacion" (input)="onSearch($any($event.target).value)">
+          <input type="text" placeholder="Nombre, correo o identificacion"
+                 [value]="searchTerm()"
+                 (input)="onSearch($any($event.target).value)">
         </label>
 
         <label class="field">
           <span>Rol</span>
-          <select (change)="onRoleFilter($any($event.target).value)">
+          <select [value]="roleFilter() ?? ''"
+                  (change)="onRoleFilter($any($event.target).value)">
             <option value="">Todos</option>
             @for (rol of roles(); track rol.id_rol) {
               <option [value]="rol.id_rol">{{ rol.descripcion }}</option>
@@ -49,7 +52,8 @@
 
         <label class="field">
           <span>Estado</span>
-          <select (change)="onEstadoFilter($any($event.target).value)">
+          <select [value]="estadoFilter()"
+                  (change)="onEstadoFilter($any($event.target).value)">
             <option value="ALL">Todos</option>
             <option value="A">Activos</option>
             <option value="I">Inactivos</option>
@@ -57,6 +61,11 @@
         </label>
 
         <div class="filters__action">
+          @if (hayFiltrosActivos()) {
+            <button type="button" class="btn btn--outline" (click)="limpiarFiltros()">
+              Limpiar filtros
+            </button>
+          }
           <button type="button" class="btn btn--primary btn-create-user" (click)="openCreateModal()">+ Crear usuario</button>
         </div>
       </div>

@@ -63,14 +63,29 @@
                  (click)="abrirPedido(p)">
           <header class="card-top">
             <span class="orden-num">{{ p.numero_orden }}</span>
-            <span class="tipo-tag" [class]="'tipo-' + p.tipo_pedido">
-              @if (p.tipo_pedido === 'DOMICILIO') {
-                <lucide-icon name="bike" [size]="12" />
+            <div class="card-top-right">
+              <span class="tipo-tag" [class]="'tipo-' + p.tipo_pedido">
+                @if (p.tipo_pedido === 'DOMICILIO') {
+                  <lucide-icon name="bike" [size]="12" />
+                } @else {
+                  <lucide-icon name="shopping-bag" [size]="12" />
+                }
+                {{ tipoLabel(p.tipo_pedido) }}
+              </span>
+              @if (esPendientePago(p)) {
+                <button type="button" class="card-action danger"
+                        title="Eliminar pedido"
+                        (click)="eliminarPedido(p, $event)">
+                  <lucide-icon name="x-circle" [size]="16" />
+                </button>
               } @else {
-                <lucide-icon name="shopping-bag" [size]="12" />
+                <button type="button" class="card-action"
+                        title="Finalizar y limpiar pedido"
+                        (click)="limpiarPedido(p, $event)">
+                  <lucide-icon name="trash-2" [size]="16" />
+                </button>
               }
-              {{ tipoLabel(p.tipo_pedido) }}
-            </span>
+            </div>
           </header>
 
           <div class="card-body">
@@ -246,6 +261,15 @@
             <lucide-icon name="banknote" [size]="16" />
             {{ cobrandoId() === p.id_orden ? 'Cobrando...' : 'Cobrar' }}
           </button>
+          <button class="btn-danger" (click)="eliminarPedido(p, $event)">
+            <lucide-icon name="x-circle" [size]="16" />
+            Eliminar
+          </button>
+        } @else {
+          <button class="btn-finalizar" (click)="limpiarPedido(p, $event)">
+            <lucide-icon name="trash-2" [size]="16" />
+            Finalizar
+          </button>
         }
         @if (telHref(p.contacto_telefono); as href) {
           <a class="btn-call" [href]="href">
@@ -258,7 +282,7 @@
             Sin teléfono
           </button>
         }
-        <button class="btn-secondary" (click)="cerrarPedido()">Cerrar</button>
+        <!-- <button class="btn-secondary" (click)="cerrarPedido()">Cerrar</button> -->
       </footer>
     </div>
   </div>
