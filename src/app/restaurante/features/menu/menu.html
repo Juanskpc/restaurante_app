@@ -413,6 +413,82 @@
           </button>
         </div>
 
+        <!-- Panel: copiar receta de otro producto -->
+        <div class="copy-recipe-panel">
+          @if (!copiarRecetaOpen()) {
+            <button class="copy-recipe-trigger" type="button" (click)="abrirPanelCopiar()">
+              <lucide-icon name="copy" [size]="13" />
+              Copiar receta de otro producto
+            </button>
+          } @else {
+            <div class="copy-recipe-inner">
+              <div class="copy-recipe-header">
+                <span class="copy-recipe-title">
+                  <lucide-icon name="copy" [size]="13" />
+                  Copiar receta de
+                </span>
+                <button class="icon-btn" type="button" (click)="cerrarPanelCopiar()" title="Cancelar">
+                  <lucide-icon name="x" [size]="13" />
+                </button>
+              </div>
+              <div class="copy-recipe-controls">
+                @if (cargandoParaCopiar()) {
+                  <div class="copy-recipe-loading">
+                    <lucide-icon name="loader" [size]="14" class="spinner" />
+                    <span>Cargando productos...</span>
+                  </div>
+                } @else {
+                  <select
+                    class="form-select"
+                    [value]="copiarDesdeId() ?? ''"
+                    (change)="copiarDesdeId.set(+$any($event.target).value || null)"
+                  >
+                    <option value="">Seleccionar producto origen...</option>
+                    @for (p of productosParaCopiar(); track p.id_producto) {
+                      @if (p.id_producto !== editandoProdId()) {
+                        <option [value]="p.id_producto">
+                          {{ p.icono }} {{ p.nombre }} ({{ p.ingredientes.length }} ingredientes)
+                        </option>
+                      }
+                    }
+                  </select>
+                  <div class="copy-factor-row">
+                    <span class="copy-factor-label">Factor ×</span>
+                    <input
+                      class="form-input copy-factor-input"
+                      type="number"
+                      min="0.01"
+                      step="0.05"
+                      placeholder="1"
+                      [value]="factorEscala()"
+                      (input)="factorEscala.set(+$any($event.target).value || 1)"
+                    />
+                    <div class="copy-factor-presets">
+                      @for (f of factoresPreset; track f) {
+                        <button
+                          type="button"
+                          class="preset-btn"
+                          [class.preset-btn-active]="factorEscala() === f"
+                          (click)="factorEscala.set(f)"
+                        >×{{ f }}</button>
+                      }
+                    </div>
+                  </div>
+                  <button
+                    class="btn btn-primary btn-sm copy-recipe-apply"
+                    type="button"
+                    [disabled]="!copiarDesdeId()"
+                    (click)="aplicarRecetaBase()"
+                  >
+                    <lucide-icon name="check" [size]="13" />
+                    Aplicar ingredientes
+                  </button>
+                }
+              </div>
+            </div>
+          }
+        </div>
+
         <!-- Tabla de ingredientes -->
         <div class="ingred-table" [class.ingred-table-empty]="prodForm().ingredientes.length === 0">
           <div class="ingred-head">

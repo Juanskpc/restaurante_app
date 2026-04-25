@@ -136,6 +136,14 @@ export class MenuComponent implements OnInit, OnDestroy {
   readonly nuevaUnidadIngred = signal('g');
   readonly creandoIngred     = signal(false);
 
+  // ── Copiar receta desde otro producto ────────────────────
+  readonly copiarRecetaOpen    = signal(false);
+  readonly copiarDesdeId       = signal<number | null>(null);
+  readonly factorEscala        = signal<number>(1);
+  readonly productosParaCopiar = signal<ProductoAdmin[]>([]);
+  readonly cargandoParaCopiar  = signal(false);
+  readonly factoresPreset      = [0.5, 0.75, 1, 1.5, 2];
+
   // ── Computed ──────────────────────────────────────────────
   readonly negocioId = computed(() => this.auth.negocio()?.id_negocio ?? null);
 
@@ -151,6 +159,12 @@ export class MenuComponent implements OnInit, OnDestroy {
     const id = this.categoriaActiva();
     if (!id) return 'Todos los Productos';
     return this.categorias().find(c => c.id_categoria === id)?.nombre ?? '';
+  });
+
+  readonly productoOrigenSeleccionado = computed(() => {
+    const id = this.copiarDesdeId();
+    if (!id) return null;
+    return this.productosParaCopiar().find(p => p.id_producto === id) ?? null;
   });
 
   private readonly priceFormatter = new Intl.NumberFormat('es-CO', {
@@ -338,6 +352,60 @@ export class MenuComponent implements OnInit, OnDestroy {
     input?.showPicker?.();
   }
 
+  // ── Copiar receta desde otro producto ─────────────────────
+
+  abrirPanelCopiar(): void {
+    if (this.productosParaCopiar().length === 0 && !this.cargandoParaCopiar()) {
+      this.cargarProductosParaCopiar();
+    }
+    this.copiarRecetaOpen.set(true);
+  }
+
+  cerrarPanelCopiar(): void {
+    this.copiarRecetaOpen.set(false);
+    this.copiarDesdeId.set(null);
+    this.factorEscala.set(1);
+  }
+
+  aplicarRecetaBase(): void {
+    const origen = this.productoOrigenSeleccionado();
+    if (!origen?.ingredientes.length) return;
+
+    const factor = this.factorEscala() || 1;
+    const ingredientes: IngredienteForm[] = origen.ingredientes.map(pi => ({
+      id_producto_ingred: undefined,
+      id_ingrediente:     pi.id_ingrediente,
+      nombre:             pi.nombre
+                          || this.ingredientesBase().find(b => b.id_ingrediente === pi.id_ingrediente)?.nombre
+                          || '',
+      porcion:            pi.porcion > 0
+                          ? Math.round(pi.porcion * factor * 1000) / 1000
+                          : null,
+      es_removible:       pi.es_removible,
+    }));
+
+    this.prodForm.update(f => ({ ...f, ingredientes }));
+    this.ingredientesModificados.set(true);
+    this.cerrarPanelCopiar();
+  }
+
+  private cargarProductosParaCopiar(): void {
+    const id = this.negocioId();
+    if (!id) return;
+    this.cargandoParaCopiar.set(true);
+    this.http.get<{ success: boolean; data: ProductoAdmin[] }>(
+      `${environment.apiUrl}/carta/admin/productos?id_negocio=${id}`
+    ).subscribe({
+      next: res => {
+        this.productosParaCopiar.set(
+          (res?.data ?? []).filter(p => p.ingredientes.length > 0)
+        );
+        this.cargandoParaCopiar.set(false);
+      },
+      error: () => this.cargandoParaCopiar.set(false),
+    });
+  }
+
   // ── Crear ingrediente base nuevo desde el modal ───────────
 
   crearIngredienteBase(): void {
@@ -479,7 +547,10 @@ export class MenuComponent implements OnInit, OnDestroy {
     this.modalProdOpen.set(true);
   }
 
-  cerrarModalProd(): void { this.modalProdOpen.set(false); }
+  cerrarModalProd(): void {
+    this.modalProdOpen.set(false);
+    this.cerrarPanelCopiar();
+  }
 
   guardarProducto(): void {
     const id   = this.negocioId();
