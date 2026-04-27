@@ -57,6 +57,8 @@ export class DashboardComponent {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
 
+  readonly planActivo = computed(() => this.auth.planActivo());
+
   readonly cargando = signal(false);
   readonly error = signal('');
   readonly resumen = signal<DashboardResumenApi | null>(null);

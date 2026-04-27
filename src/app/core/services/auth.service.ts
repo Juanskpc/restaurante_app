@@ -56,6 +56,7 @@ export interface SesionRestaurante {
   roles_globales: { id_rol: number; descripcion: string }[];
   permisos_vista?: PermisoVistaRestaurante[];
   permisos_subnivel?: PermisoSubnivelRestaurante[];
+  plan_activo?: boolean;
 }
 
 const TOKEN_KEY    = 'app_token';
@@ -129,6 +130,9 @@ export class AuthService {
 
   /** ¿Está autenticado? */
   readonly isAuthenticated = computed(() => this.session() !== null);
+
+  /** ¿El negocio activo tiene plan activo? */
+  readonly planActivo = computed(() => this.session()?.plan_activo ?? false);
 
   /** Usuario actual. */
   readonly usuario = computed(() => this.session()?.usuario ?? null);

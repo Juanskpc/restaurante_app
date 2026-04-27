@@ -2,6 +2,7 @@ import { inject, PLATFORM_ID } from '@angular/core';
 import { CanActivateChildFn, CanActivateFn, Router } from '@angular/router';
 import { isPlatformBrowser } from '@angular/common';
 
+
 import { AuthService } from '../services/auth.service';
 import { PaletteService } from '../theme/palette.service';
 import { environment } from '../../../environments/environment';
@@ -228,6 +229,26 @@ function resolveRequestedPath(routePath: string | undefined, stateUrl: string): 
   if (!firstSegment) return '/dashboard';
   return `/${firstSegment}`;
 }
+
+/**
+ * Bloquea el acceso a rutas de funcionalidad si el negocio no tiene plan activo.
+ * Permite siempre: dashboard, sin-acceso, sin-plan.
+ */
+export const planGuard: CanActivateFn = (_route, state) => {
+  const auth      = inject(AuthService);
+  const router    = inject(Router);
+  const platformId = inject(PLATFORM_ID);
+
+  if (!isPlatformBrowser(platformId)) return true;
+
+  const path = state.url.split('?')[0].replace(/^\//, '');
+  if (!path || path === 'dashboard' || path === 'sin-acceso' || path === 'sin-plan') {
+    return true;
+  }
+
+  if (auth.planActivo()) return true;
+  return router.parseUrl('/sin-plan');
+};
 
 function buildAccessIssueQuery(auth: AuthService, requestedPath: string): Record<string, string | number> {
   const session = auth.session();
