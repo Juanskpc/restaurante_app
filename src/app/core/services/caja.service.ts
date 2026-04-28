@@ -27,6 +27,7 @@ export interface Caja {
   ingresos?: number;
   egresos?: number;
   monto_esperado?: number;
+  ingresos_por_metodo?: Array<{ id_metodo_pago: number | null; nombre: string; total: number }>;
 }
 
 export interface MovimientoCaja {

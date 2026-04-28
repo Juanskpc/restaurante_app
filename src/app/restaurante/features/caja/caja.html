@@ -75,6 +75,23 @@
         </div>
       </div>
 
+      @if ((caja()!.ingresos_por_metodo || []).length > 0) {
+        <div class="desglose-metodos">
+          <h3 class="desglose-metodos__titulo">
+            <lucide-icon name="credit-card" size="14" />
+            Ingresos por forma de pago
+          </h3>
+          <div class="desglose-metodos__lista">
+            @for (item of (caja()!.ingresos_por_metodo || []); track (item.id_metodo_pago ?? 'manual')) {
+              <div class="desglose-metodos__item">
+                <span>{{ item.nombre }}</span>
+                <strong>{{ item.total | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+              </div>
+            }
+          </div>
+        </div>
+      }
+
       @if (caja()!.observaciones) {
         <p class="obs">{{ caja()!.observaciones }}</p>
       }
@@ -161,6 +178,18 @@
           <div><span>Egresos</span><strong>{{ (caja()!.egresos || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
           <div class="row-esperado"><span>Esperado en caja</span><strong>{{ (caja()!.monto_esperado || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
         </div>
+
+        @if ((caja()!.ingresos_por_metodo || []).length > 0) {
+          <div class="resumen-metodos">
+            <p class="resumen-metodos__titulo">Desglose por forma de pago</p>
+            @for (item of (caja()!.ingresos_por_metodo || []); track (item.id_metodo_pago ?? 'manual')) {
+              <div class="resumen-metodos__item">
+                <span>{{ item.nombre }}</span>
+                <strong>{{ item.total | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+              </div>
+            }
+          </div>
+        }
         <label>
           Monto contado físicamente (opcional)
           <input type="number" min="0" step="100"

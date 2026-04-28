@@ -4,6 +4,7 @@ import {
 } from '@angular/core';
 import { CurrencyPipe, DatePipe, DecimalPipe, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { HttpErrorResponse } from '@angular/common/http';
 import { LucideAngularModule } from 'lucide-angular';
 
 import { AuthService } from '../../../core/services/auth.service';
@@ -167,9 +168,23 @@ export class CajaComponent implements OnInit, OnDestroy {
         this.movimientos.set([]);
         this.ui.success('La caja fue cerrada y el turno quedó registrado.', 'Caja cerrada');
       },
-      error: (err) => {
+      error: (err: HttpErrorResponse) => {
         this.enviando.set(false);
-        this.ui.error(err?.error?.message || 'No se pudo cerrar la caja.');
+        const code = err?.error?.errors?.code;
+        if (code === 'PENDIENTES_ACTIVOS') {
+          const p = err?.error?.errors?.pendientes as { mesas: number; domicilios: number; llevar: number } | undefined;
+          const partes: string[] = [];
+          if (p?.mesas)      partes.push(`${p.mesas} mesa(s) sin cobrar`);
+          if (p?.domicilios) partes.push(`${p.domicilios} domicilio(s) sin finalizar`);
+          if (p?.llevar)     partes.push(`${p.llevar} pedido(s) para llevar sin finalizar`);
+          void this.ui.alert({
+            title: 'Operaciones pendientes',
+            message: `No se puede cerrar la caja. Resuelve los pendientes antes de continuar:\n• ${partes.join('\n• ')}`,
+            tone: 'warning',
+          });
+        } else {
+          this.ui.error(err?.error?.message || 'No se pudo cerrar la caja.');
+        }
       },
     });
   }
