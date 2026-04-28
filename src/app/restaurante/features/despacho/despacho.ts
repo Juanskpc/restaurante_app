@@ -1,7 +1,7 @@
 import {
   Component, ChangeDetectionStrategy, OnInit, inject, signal, computed,
 } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { LucideAngularModule } from 'lucide-angular';
 
@@ -250,8 +250,17 @@ export class DespachoComponent implements OnInit {
         }
         this.cobrandoId.set(null);
       },
-      error: () => {
-        this.uiFeedback.error('No se pudo registrar el pago.');
+      error: (err: HttpErrorResponse) => {
+        const codigo = err?.error?.errors?.code || err?.error?.code;
+        if (codigo === 'CAJA_CERRADA') {
+          void this.uiFeedback.alert({
+            title: 'Caja cerrada',
+            message: err?.error?.message || 'La caja está cerrada. Ábrela antes de registrar cobros.',
+            tone: 'warning',
+          });
+        } else {
+          this.uiFeedback.error(err?.error?.message || 'No se pudo registrar el pago.');
+        }
         this.cobrandoId.set(null);
       },
     });

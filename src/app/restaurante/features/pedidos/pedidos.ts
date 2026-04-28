@@ -569,10 +569,10 @@ export class PedidosComponent implements OnInit, OnDestroy {
         const confirmarReemplazo = await this.uiFeedback.confirm({
           title: 'Pedido existente en mesa',
           message: itemsPrevios.length > 0
-            ? 'La mesa seleccionada ya tiene un pedido abierto. ¿Deseas cargarlo? Se reemplazara el pedido actual en pantalla.'
+            ? 'La mesa tiene un pedido abierto. Se cargará y los productos que agregaste se conservarán como adiciones.'
             : 'La mesa seleccionada ya tiene un pedido abierto. ¿Deseas cargar ese pedido en pantalla?',
-          confirmText: 'Cargar pedido',
-          cancelText: itemsPrevios.length > 0 ? 'Conservar actual' : 'Cancelar',
+          confirmText: itemsPrevios.length > 0 ? 'Cargar y conservar' : 'Cargar pedido',
+          cancelText: 'Cancelar',
           tone: 'warning',
         });
 
@@ -593,7 +593,18 @@ export class PedidosComponent implements OnInit, OnDestroy {
 
             const mappedItems = this.mapOrdenApiToItems(orden);
             this.ordenActivaId.set(orden.id_orden);
-            this.items.set(mappedItems);
+
+            // Si había productos nuevos ya agregados, fusionarlos al pedido cargado
+            if (itemsPrevios.length > 0) {
+              const merged = this.agruparItems([
+                ...this.cloneItems(mappedItems),
+                ...this.cloneItems(itemsPrevios),
+              ]);
+              this.items.set(Array.from(merged.values()));
+            } else {
+              this.items.set(mappedItems);
+            }
+
             this.itemsBaseOrdenActiva.set(this.cloneItems(mappedItems));
             this.notaOrden.set(orden.nota ?? '');
           },
