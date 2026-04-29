@@ -126,6 +126,10 @@
                 Pagado
               }
             </span>
+            <button type="button" class="card-action" title="Imprimir tiquete"
+                    (click)="imprimirTicket(p, $event)">
+              <lucide-icon name="printer" [size]="14" />
+            </button>
           </footer>
           @if (puedeVerTodos() && p.domiciliario) {
             <div class="dom-name" [title]="'Domiciliario: ' + domiciliarioNombre(p)">
@@ -280,6 +284,10 @@
             Finalizar
           </button>
         }
+        <button class="btn-secondary" (click)="imprimirTicket(p, $event)" title="Imprimir tiquete">
+          <lucide-icon name="printer" [size]="16" />
+          Imprimir
+        </button>
         @if (telHref(p.contacto_telefono); as href) {
           <a class="btn-call" [href]="href">
             <lucide-icon name="phone-call" [size]="16" />
@@ -291,7 +299,6 @@
             Sin teléfono
           </button>
         }
-        <!-- <button class="btn-secondary" (click)="cerrarPedido()">Cerrar</button> -->
       </footer>
     </div>
   </div>

@@ -1,8 +1,8 @@
 import {
-  Component, ChangeDetectionStrategy, OnInit, inject, signal, computed,
+  Component, ChangeDetectionStrategy, OnInit, inject, signal, computed, PLATFORM_ID,
 } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { CurrencyPipe, DatePipe } from '@angular/common';
+import { CurrencyPipe, DatePipe, isPlatformBrowser } from '@angular/common';
 import { LucideAngularModule } from 'lucide-angular';
 
 import { AuthService } from '../../../core/services/auth.service';
@@ -58,6 +58,8 @@ export class DespachoComponent implements OnInit {
   private readonly http = inject(HttpClient);
   private readonly auth = inject(AuthService);
   private readonly uiFeedback = inject(UiFeedbackService);
+  private readonly platformId = inject(PLATFORM_ID);
+  private readonly isBrowser = isPlatformBrowser(this.platformId);
 
   readonly pedidos = signal<PedidoDespacho[]>([]);
   readonly cargando = signal(false);
@@ -264,5 +266,192 @@ export class DespachoComponent implements OnInit {
         this.cobrandoId.set(null);
       },
     });
+  }
+
+  // ── Impresión ──
+
+  imprimirTicket(p: PedidoDespacho, event: Event): void {
+    event.stopPropagation();
+    if (!this.isBrowser) return;
+
+    const html = this.buildTicketHtml(p, new Date());
+    const frame = document.createElement('iframe');
+    frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+    frame.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(frame);
+
+    const frameDoc = frame.contentDocument;
+    if (!frameDoc) {
+      frame.remove();
+      this.imprimirTicketFallback(html);
+      return;
+    }
+
+    frameDoc.open();
+    frameDoc.write(html);
+    frameDoc.close();
+
+    let printed = false;
+    const runPrint = () => {
+      if (printed) return;
+      const frameWindow = frame.contentWindow;
+      if (!frameWindow) return;
+      printed = true;
+      frameWindow.focus();
+      frameWindow.print();
+      setTimeout(() => frame.remove(), 500);
+    };
+
+    setTimeout(runPrint, 280);
+  }
+
+  private imprimirTicketFallback(html: string): void {
+    const popup = window.open('', '_blank', 'noopener,noreferrer,width=420,height=700');
+    if (!popup) {
+      void this.uiFeedback.alert({
+        title: 'No se pudo abrir la impresión',
+        message: 'Habilita ventanas emergentes para continuar con la impresión.',
+        tone: 'error',
+      });
+      return;
+    }
+    popup.document.open();
+    popup.document.write(html);
+    popup.document.close();
+    let printed = false;
+    const printPopup = () => {
+      if (printed) return;
+      printed = true;
+      popup.focus();
+      popup.print();
+      setTimeout(() => popup.close(), 600);
+    };
+    popup.addEventListener('load', printPopup, { once: true });
+    setTimeout(printPopup, 500);
+  }
+
+  private buildTicketHtml(p: PedidoDespacho, fecha: Date): string {
+    const negocio = this.escapeHtml(this.auth.negocio()?.nombre ?? 'Negocio');
+    const usuario = this.escapeHtml(this.auth.usuario()?.nombre_completo ?? 'Usuario');
+    const fechaTexto = this.escapeHtml(this.formatDateTime(fecha));
+    const tipoTexto = p.tipo_pedido === 'DOMICILIO' ? 'Domicilio' : 'Para llevar';
+    const contacto = this.escapeHtml(p.contacto_nombre ?? '');
+    const telefono = this.escapeHtml(p.contacto_telefono ?? '');
+    const direccion = p.tipo_pedido === 'DOMICILIO' ? this.escapeHtml(p.direccion_domicilio ?? '') : '';
+    const nota = this.escapeHtml(p.nota_domicilio?.trim() ?? '');
+    const domiciliario = p.domiciliario
+      ? this.escapeHtml(`${p.domiciliario.primer_nombre} ${p.domiciliario.primer_apellido}`.trim())
+      : '';
+
+    const infoRows = [
+      contacto ? `<div class="meta">Cliente: ${contacto}</div>` : '',
+      telefono ? `<div class="meta">Tel: ${telefono}</div>` : '',
+      direccion ? `<div class="meta">Dir: ${direccion}</div>` : '',
+      domiciliario ? `<div class="meta">Domiciliario: ${domiciliario}</div>` : '',
+    ].join('');
+
+    const notaHtml = nota
+      ? `<div class="ticket-note"><strong>Nota:</strong> ${nota}</div>`
+      : '';
+
+    const filasItems = (p.detalles ?? []).map(d => {
+      const nombre = this.escapeHtml(d.producto?.nombre ?? '(Producto)');
+      const lineTotal = d.cantidad * d.precio_unitario;
+      return `
+        <tr>
+          <td>${d.cantidad}</td>
+          <td>${nombre}</td>
+          <td>${this.formatCurrency(d.precio_unitario)}</td>
+          <td class="text-right">${this.formatCurrency(lineTotal)}</td>
+        </tr>`;
+    }).join('');
+
+    return `<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Ticket ${this.escapeHtml(p.numero_orden)}</title>
+  <style>
+    @page { size: 80mm auto; margin: 6mm; }
+    * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, sans-serif; }
+    body { margin: 0; color: #111; background: #fff; }
+    .ticket { max-width: 280px; margin: 0 auto; font-size: 12px; }
+    .center { text-align: center; }
+    .title { margin: 0; font-size: 16px; font-weight: 700; }
+    .meta { margin-top: 2px; color: #555; }
+    hr { border: 0; border-top: 1px dashed #aaa; margin: 10px 0; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 4px 0; vertical-align: top; }
+    th { font-size: 10px; text-transform: uppercase; color: #666; letter-spacing: .04em; }
+    .text-right { text-align: right; }
+    .ticket-note { margin-top: 6px; font-size: 11px; color: #333; }
+    .totals { margin-top: 8px; }
+    .totals-row { display: flex; justify-content: space-between; margin-top: 3px; }
+    .totals-row.total { margin-top: 7px; padding-top: 5px; border-top: 1px dashed #aaa; font-weight: 700; font-size: 14px; }
+    .footer { margin-top: 12px; text-align: center; font-size: 11px; color: #666; }
+    @media print {
+      * { color: #000 !important; font-weight: 700 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .title, .totals-row.total { font-weight: 900 !important; }
+      h1, h2, th { font-weight: 900 !important; }
+      hr { border-top-color: #000 !important; border-top-style: solid !important; }
+      .meta, .ticket-note, .footer { color: #000 !important; font-weight: 700 !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="ticket">
+    <div class="center">
+      <h1 class="title">${negocio}</h1>
+      <div class="meta">${fechaTexto}</div>
+      <div class="meta">Atiende: ${usuario}</div>
+      <div class="meta">${tipoTexto} · ${this.escapeHtml(p.numero_orden)}</div>
+      ${infoRows}
+    </div>
+    <hr />
+    <table>
+      <thead>
+        <tr>
+          <th>Cant</th>
+          <th>Producto</th>
+          <th>Unit</th>
+          <th class="text-right">Total</th>
+        </tr>
+      </thead>
+      <tbody>${filasItems}</tbody>
+    </table>
+    ${notaHtml}
+    <hr />
+    <div class="totals">
+      <div class="totals-row total">
+        <span>TOTAL</span>
+        <span>${this.formatCurrency(p.total)}</span>
+      </div>
+    </div>
+    <div class="footer">Gracias por tu compra</div>
+  </div>
+</body>
+</html>`;
+  }
+
+  private formatDateTime(value: Date): string {
+    return new Intl.DateTimeFormat('es-CO', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+    }).format(value);
+  }
+
+  private formatCurrency(value: number): string {
+    return new Intl.NumberFormat('es-CO', {
+      style: 'currency', currency: 'COP', maximumFractionDigits: 0,
+    }).format(value);
+  }
+
+  private escapeHtml(value: string): string {
+    return value
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
   }
 }
