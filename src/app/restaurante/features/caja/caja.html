@@ -17,6 +17,12 @@
           Domiciliarios
         </button>
       }
+      @if (caja()) {
+        <button class="btn btn-outline" (click)="refrescarCaja()" [disabled]="cargando()">
+          <lucide-icon name="rotate-cw" size="18" />
+          {{ cargando() ? 'Actualizando...' : 'Actualizar' }}
+        </button>
+      }
       @if (caja() && puedeMovimiento()) {
         <button class="btn btn-outline" (click)="abrirModal('movimiento')">
           <lucide-icon name="plus-circle" size="18" />
@@ -290,7 +296,7 @@
                 <strong>{{ resumen.pedidos_adelantados }}</strong>
               </article>
               <article>
-                <span>Cobrados</span>
+                <span>Pendientes</span>
                 <strong>{{ resumen.pedidos_cobrados }}</strong>
               </article>
               <article>
@@ -298,8 +304,12 @@
                 <strong>{{ resumen.monto_adelantado | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
               </article>
               <article>
-                <span>Monto cobrado</span>
+                <span>Monto pendiente</span>
                 <strong>{{ resumen.monto_cobrado | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+              </article>
+              <article>
+                <span>En posesion</span>
+                <strong>{{ resumen.monto_en_posesion | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
               </article>
             </section>
           }
@@ -315,7 +325,16 @@
                       <span>Domiciliario</span>
                       <strong>{{ item.domiciliario }}</strong>
                     </div>
-                    <span class="chip chip--neutral">{{ item.total_pedidos }} pedidos</span>
+                    <div class="domiciliario-card__actions">
+                      <span class="chip chip--neutral">{{ item.total_pedidos }} pedidos</span>
+                      <button
+                        class="btn btn-danger btn-sm"
+                        type="button"
+                        [disabled]="item.monto_en_posesion <= 0 || transferiendoDomiciliarioId() === item.id_domiciliario"
+                        (click)="transferirDomiciliario(item)">
+                        {{ transferiendoDomiciliarioId() === item.id_domiciliario ? 'Transfiriendo...' : 'Pasar a caja' }}
+                      </button>
+                    </div>
                   </div>
 
                   <div class="domiciliario-stats">
@@ -324,8 +343,12 @@
                       <strong>{{ item.pedidos_adelantados }}</strong>
                     </div>
                     <div>
-                      <span>Cobrados</span>
+                      <span>Pendientes</span>
                       <strong>{{ item.pedidos_cobrados }}</strong>
+                    </div>
+                    <div>
+                      <span>En posesion</span>
+                      <strong>{{ item.pedidos_en_posesion }}</strong>
                     </div>
                     <div>
                       <span>Por adelantado</span>
@@ -334,6 +357,10 @@
                     <div>
                       <span>Por cobrar</span>
                       <strong>{{ item.monto_cobrado | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+                    </div>
+                    <div>
+                      <span>En posesion</span>
+                      <strong>{{ item.monto_en_posesion | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
                     </div>
                   </div>
                 </article>

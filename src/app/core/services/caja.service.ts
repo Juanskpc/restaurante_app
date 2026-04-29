@@ -49,8 +49,10 @@ export interface DomiciliarioResumen {
   total_pedidos: number;
   pedidos_adelantados: number;
   pedidos_cobrados: number;
+  pedidos_en_posesion: number;
   monto_adelantado: number;
   monto_cobrado: number;
+  monto_en_posesion: number;
 }
 
 export interface DomiciliariosResumen {
@@ -59,8 +61,10 @@ export interface DomiciliariosResumen {
     total_pedidos: number;
     pedidos_adelantados: number;
     pedidos_cobrados: number;
+    pedidos_en_posesion: number;
     monto_adelantado: number;
     monto_cobrado: number;
+    monto_en_posesion: number;
   };
   rows: DomiciliarioResumen[];
 }
@@ -134,6 +138,13 @@ export class CajaService {
   getDomiciliariosResumen(idNegocio: number): Observable<ApiResponse<DomiciliariosResumen>> {
     return this.http.get<ApiResponse<DomiciliariosResumen>>(
       `${this.base}/domiciliarios?id_negocio=${idNegocio}`,
+    );
+  }
+
+  transferirDomiciliario(idNegocio: number, idDomiciliario: number): Observable<ApiResponse<{ total_pedidos: number; total_monto: number }>> {
+    return this.http.post<ApiResponse<{ total_pedidos: number; total_monto: number }>>(
+      `${this.base}/domiciliarios/transferir`,
+      { id_negocio: idNegocio, id_domiciliario: idDomiciliario },
     );
   }
 

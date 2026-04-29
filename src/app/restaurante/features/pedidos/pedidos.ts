@@ -459,6 +459,11 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.metodoPagoId.set(null);
     this.metodoPagoRequeridoError.set(false);
     this.efectivoRecibidoInput.set('');
+    this.domContacto.set('');
+    this.domTelefono.set('');
+    this.domDireccion.set('');
+    this.domNota.set('');
+    this.domDomiciliarioId.set(null);
   }
 
   async seleccionarTipoPedido(tipo: TipoPedido): Promise<void> {
@@ -745,6 +750,16 @@ export class PedidosComponent implements OnInit, OnDestroy {
   async enviarADespacho(): Promise<void> {
     if (this.items().length === 0) return;
 
+    if (!this.metodoPagoId()) {
+      this.metodoPagoRequeridoError.set(true);
+      await this.uiFeedback.alert({
+        title: 'Forma de pago requerida',
+        message: 'Debes seleccionar una forma de pago para registrar el pedido.',
+        tone: 'warning',
+      });
+      return;
+    }
+
     const cobrar = await this.uiFeedback.confirm({
       title: 'Enviar a despacho',
       message: '¿El cliente ya pagó o deseas cobrar ahora antes de despachar?',
@@ -929,7 +944,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
       if (cobrar) {
         this.http.patch(
           `${environment.apiUrl}/pedidos/${idOrden}/marcar-pagado`,
-          { id_metodo_pago: this.metodoPagoId() }
+          { id_metodo_pago: this.metodoPagoId(), origen_cobro: 'CAJA' }
         ).subscribe({
           next: () => enviarCocina(),
           error: () => this.resetEstadoEnvio(),

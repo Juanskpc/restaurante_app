@@ -236,7 +236,7 @@ export class DespachoComponent implements OnInit {
 
     this.http.patch<{ success: boolean }>(
       `${environment.apiUrl}/pedidos/${p.id_orden}/marcar-pagado`,
-      { id_metodo_pago: idMetodoPago }
+      { id_metodo_pago: idMetodoPago, origen_cobro: 'DOMICILIARIO' }
     ).subscribe({
       next: (res) => {
         if (res?.success) {

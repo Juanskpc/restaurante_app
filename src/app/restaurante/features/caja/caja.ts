@@ -33,9 +33,19 @@ export class CajaComponent implements OnInit, OnDestroy {
   readonly movimientos = signal<MovimientoCaja[]>([]);
   readonly cargandoMovimientos = signal(false);
   readonly domiciliariosResumen = signal<DomiciliarioResumen[]>([]);
-  readonly resumenDomiciliarios = signal<{ domiciliarios: number; total_pedidos: number; pedidos_adelantados: number; pedidos_cobrados: number; monto_adelantado: number; monto_cobrado: number } | null>(null);
+  readonly resumenDomiciliarios = signal<{
+    domiciliarios: number;
+    total_pedidos: number;
+    pedidos_adelantados: number;
+    pedidos_cobrados: number;
+    pedidos_en_posesion: number;
+    monto_adelantado: number;
+    monto_cobrado: number;
+    monto_en_posesion: number;
+  } | null>(null);
   readonly cargandoDomiciliarios = signal(false);
   readonly errorDomiciliarios = signal('');
+  readonly transferiendoDomiciliarioId = signal<number | null>(null);
 
   readonly modal = signal<ModalActivo>(null);
   readonly enviando = signal(false);
@@ -68,10 +78,10 @@ export class CajaComponent implements OnInit, OnDestroy {
   });
 
   ngOnInit(): void {
-    this.cargar();
+    this.refrescarCaja();
   }
 
-  private cargar(): void {
+  refrescarCaja(): void {
     const id = this.idNegocio();
     if (!id) return;
     this.cajaSvc.refrescar(id).subscribe({
@@ -156,6 +166,33 @@ export class CajaComponent implements OnInit, OnDestroy {
     });
   }
 
+  transferirDomiciliario(item: DomiciliarioResumen): void {
+    const idNegocio = this.idNegocio();
+    if (!idNegocio || !item.id_domiciliario) return;
+    if (this.transferiendoDomiciliarioId() !== null) return;
+
+    this.transferiendoDomiciliarioId.set(item.id_domiciliario);
+    this.cajaSvc.transferirDomiciliario(idNegocio, item.id_domiciliario).subscribe({
+      next: (res) => {
+        const total = res?.data?.total_pedidos ?? 0;
+        const monto = res?.data?.total_monto ?? 0;
+        this.ui.success(
+          total > 0
+            ? `Se transfirieron ${total} pedido(s) por ${monto.toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })}.`
+            : 'No hay pedidos en posesion para transferir.',
+          'Transferencia a caja',
+        );
+        this.transferiendoDomiciliarioId.set(null);
+        // Auto-refrescar toda la información de caja después de la transferencia
+        this.refrescarCaja();
+      },
+      error: (err) => {
+        this.ui.error(err?.error?.message || 'No se pudo transferir los pedidos.');
+        this.transferiendoDomiciliarioId.set(null);
+      },
+    });
+  }
+
   // ── Acciones ──
   abrirCaja(): void {
     const id = this.idNegocio();
@@ -171,7 +208,7 @@ export class CajaComponent implements OnInit, OnDestroy {
         this.modal.set(null);
         if (res?.success) {
           this.ui.success('Caja abierta correctamente.', 'Caja abierta');
-          this.cargar();
+          this.refrescarCaja();
         }
       },
       error: (err) => {
@@ -237,7 +274,7 @@ export class CajaComponent implements OnInit, OnDestroy {
         this.enviando.set(false);
         this.modal.set(null);
         this.ui.success('Movimiento registrado.');
-        this.cargar();
+        this.refrescarCaja();
       },
       error: (err) => {
         this.enviando.set(false);
