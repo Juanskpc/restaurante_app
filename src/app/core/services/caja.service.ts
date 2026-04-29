@@ -40,7 +40,29 @@ export interface MovimientoCaja {
   id_usuario: number;
   fecha: string;
   usuario?: CajaUsuario | null;
-  orden?: { id_orden: number; numero_orden: string } | null;
+  orden?: { id_orden: number; numero_orden: string; tipo_pedido?: string | null } | null;
+}
+
+export interface DomiciliarioResumen {
+  id_domiciliario: number | null;
+  domiciliario: string;
+  total_pedidos: number;
+  pedidos_adelantados: number;
+  pedidos_cobrados: number;
+  monto_adelantado: number;
+  monto_cobrado: number;
+}
+
+export interface DomiciliariosResumen {
+  resumen: {
+    domiciliarios: number;
+    total_pedidos: number;
+    pedidos_adelantados: number;
+    pedidos_cobrados: number;
+    monto_adelantado: number;
+    monto_cobrado: number;
+  };
+  rows: DomiciliarioResumen[];
 }
 
 interface ApiResponse<T> {
@@ -107,6 +129,12 @@ export class CajaService {
 
   getMovimientos(idCaja: number): Observable<ApiResponse<MovimientoCaja[]>> {
     return this.http.get<ApiResponse<MovimientoCaja[]>>(`${this.base}/${idCaja}/movimientos`);
+  }
+
+  getDomiciliariosResumen(idNegocio: number): Observable<ApiResponse<DomiciliariosResumen>> {
+    return this.http.get<ApiResponse<DomiciliariosResumen>>(
+      `${this.base}/domiciliarios?id_negocio=${idNegocio}`,
+    );
   }
 
   registrarMovimiento(payload: {

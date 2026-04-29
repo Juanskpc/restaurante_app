@@ -81,6 +81,7 @@ interface VentaDetalleItem {
 interface VentaDetallePedido {
   id_orden: number;
   numero_orden: string;
+  tipo_pedido: string;
   fecha_creacion: string | null;
   fecha_cierre: string | null;
   estado: string;
@@ -95,6 +96,11 @@ interface VentaDetallePedido {
     id_usuario: number;
     nombre: string;
   } | null;
+  domiciliario: {
+    id_usuario: number;
+    nombre: string;
+  } | null;
+  responsable: string;
   totales: {
     subtotal: number;
     impuesto: number;
@@ -412,7 +418,10 @@ export class ReportesComponent {
     return this.formatByType(item.value, item.type);
   }
 
-  formatCell(value: unknown, type: ReportValueType): string {
+  formatCell(value: unknown, type: ReportValueType, key?: string): string {
+    if (key === 'tipo_pedido') {
+      return this.formatTipoPedidoLabel(String(value ?? ''));
+    }
     return this.formatByType(value, type);
   }
 
@@ -436,8 +445,16 @@ export class ReportesComponent {
     return this.formatByType(value, 'date');
   }
 
+  formatTipoPedidoLabel(value: string): string {
+    const safe = (value || '').toUpperCase();
+    if (safe === 'MESA') return 'En mesa';
+    if (safe === 'LLEVAR') return 'Para llevar';
+    if (safe === 'DOMICILIO') return 'Domicilio';
+    return value || 'No aplica';
+  }
+
   formatMesaLabel(detalle: VentaDetallePedido): string {
-    if (!detalle.mesa) return 'Para llevar';
+    if (!detalle.mesa || detalle.tipo_pedido !== 'MESA') return 'No aplica';
     return `${detalle.mesa.nombre} · #${detalle.mesa.numero}`;
   }
 

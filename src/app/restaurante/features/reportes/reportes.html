@@ -151,7 +151,7 @@
           @for (row of rows(); track $index) {
             <tr>
               @for (column of columns(); track trackColumn($index, column)) {
-                <td>{{ formatCell(row[column.key], column.type) }}</td>
+                <td>{{ formatCell(row[column.key], column.type, column.key) }}</td>
               }
               @if (esVentasPeriodo()) {
                 <td class="col-actions">
@@ -228,8 +228,12 @@
                 <strong>{{ detalle.numero_orden }}</strong>
               </article>
               <article class="meta-card">
-                <span>Mesero</span>
-                <strong>{{ detalle.mesero?.nombre || 'No registrado' }}</strong>
+                <span>Tipo pedido</span>
+                <strong>{{ formatTipoPedidoLabel(detalle.tipo_pedido) }}</strong>
+              </article>
+              <article class="meta-card">
+                <span>Responsable</span>
+                <strong>{{ detalle.responsable || 'No aplica' }}</strong>
               </article>
               <article class="meta-card">
                 <span>Mesa</span>

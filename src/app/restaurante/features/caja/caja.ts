@@ -8,10 +8,10 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { LucideAngularModule } from 'lucide-angular';
 
 import { AuthService } from '../../../core/services/auth.service';
-import { CajaService, MovimientoCaja } from '../../../core/services/caja.service';
+import { CajaService, DomiciliarioResumen, MovimientoCaja } from '../../../core/services/caja.service';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 
-type ModalActivo = null | 'apertura' | 'cierre' | 'movimiento';
+type ModalActivo = null | 'apertura' | 'cierre' | 'movimiento' | 'domiciliarios';
 
 @Component({
   selector: 'app-caja',
@@ -32,6 +32,10 @@ export class CajaComponent implements OnInit, OnDestroy {
   readonly cargando = this.cajaSvc.cargando;
   readonly movimientos = signal<MovimientoCaja[]>([]);
   readonly cargandoMovimientos = signal(false);
+  readonly domiciliariosResumen = signal<DomiciliarioResumen[]>([]);
+  readonly resumenDomiciliarios = signal<{ domiciliarios: number; total_pedidos: number; pedidos_adelantados: number; pedidos_cobrados: number; monto_adelantado: number; monto_cobrado: number } | null>(null);
+  readonly cargandoDomiciliarios = signal(false);
+  readonly errorDomiciliarios = signal('');
 
   readonly modal = signal<ModalActivo>(null);
   readonly enviando = signal(false);
@@ -108,6 +112,10 @@ export class CajaComponent implements OnInit, OnDestroy {
       this.movMonto.set(0);
       this.movConcepto.set('');
     }
+    if (modal === 'domiciliarios') {
+      this.errorDomiciliarios.set('');
+      this.cargarResumenDomiciliarios();
+    }
     this.modal.set(modal);
     this.toggleBodyScroll(true);
   }
@@ -125,6 +133,27 @@ export class CajaComponent implements OnInit, OnDestroy {
   private toggleBodyScroll(lock: boolean): void {
     if (!this.isBrowser) return;
     document.body.style.overflow = lock ? 'hidden' : '';
+  }
+
+  private cargarResumenDomiciliarios(): void {
+    const id = this.idNegocio();
+    if (!id) return;
+
+    this.cargandoDomiciliarios.set(true);
+    this.cajaSvc.getDomiciliariosResumen(id).subscribe({
+      next: (res) => {
+        this.resumenDomiciliarios.set(res?.data?.resumen ?? null);
+        this.domiciliariosResumen.set(res?.data?.rows ?? []);
+        this.errorDomiciliarios.set('');
+        this.cargandoDomiciliarios.set(false);
+      },
+      error: () => {
+        this.resumenDomiciliarios.set(null);
+        this.domiciliariosResumen.set([]);
+        this.errorDomiciliarios.set('No se pudo cargar el resumen de domiciliarios.');
+        this.cargandoDomiciliarios.set(false);
+      },
+    });
   }
 
   // ── Acciones ──
@@ -215,5 +244,13 @@ export class CajaComponent implements OnInit, OnDestroy {
         this.ui.error(err?.error?.message || 'No se pudo registrar el movimiento.');
       },
     });
+  }
+
+  formatTipoPedido(tipo?: string | null): string {
+    const value = (tipo || '').toUpperCase();
+    if (value === 'MESA') return 'Mesa';
+    if (value === 'LLEVAR') return 'Para llevar';
+    if (value === 'DOMICILIO') return 'Domicilio';
+    return 'No aplica';
   }
 }

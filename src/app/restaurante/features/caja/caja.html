@@ -12,6 +12,12 @@
         </button>
       }
       @if (caja() && puedeMovimiento()) {
+        <button class="btn btn-outline" (click)="abrirModal('domiciliarios')">
+          <lucide-icon name="truck" size="18" />
+          Domiciliarios
+        </button>
+      }
+      @if (caja() && puedeMovimiento()) {
         <button class="btn btn-outline" (click)="abrirModal('movimiento')">
           <lucide-icon name="plus-circle" size="18" />
           Movimiento
@@ -109,6 +115,7 @@
             <tr>
               <th>Fecha</th>
               <th>Tipo</th>
+              <th>Tipo pedido</th>
               <th>Concepto</th>
               <th>Usuario</th>
               <th class="num">Monto</th>
@@ -123,6 +130,7 @@
                     {{ m.tipo }}
                   </span>
                 </td>
+                <td>{{ formatTipoPedido(m.orden?.tipo_pedido) }}</td>
                 <td>
                   {{ m.concepto || '—' }}
                   @if (m.orden?.numero_orden) {
@@ -250,6 +258,92 @@
           <button class="btn btn-primary" (click)="registrarMovimiento()" [disabled]="enviando()">
             {{ enviando() ? 'Registrando…' : 'Registrar' }}
           </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- ── Modal: domiciliarios ── -->
+  @if (modal() === 'domiciliarios' && caja()) {
+    <div class="modal" (click)="cerrarModal()">
+      <div class="modal__panel modal__panel--wide" (click)="$event.stopPropagation()">
+        <h2>Pedidos de domicilio</h2>
+        <p class="hint">Resumen operativo de los pedidos activos, separados entre pagos adelantados y cobros por el domiciliario.</p>
+
+        @if (cargandoDomiciliarios()) {
+          <div class="estado">Cargando…</div>
+        } @else if (errorDomiciliarios()) {
+          <div class="estado">{{ errorDomiciliarios() }}</div>
+        } @else {
+          @if (resumenDomiciliarios(); as resumen) {
+            <section class="domiciliarios-kpis">
+              <article>
+                <span>Domiciliarios</span>
+                <strong>{{ resumen.domiciliarios }}</strong>
+              </article>
+              <article>
+                <span>Pedidos</span>
+                <strong>{{ resumen.total_pedidos }}</strong>
+              </article>
+              <article>
+                <span>Adelantados</span>
+                <strong>{{ resumen.pedidos_adelantados }}</strong>
+              </article>
+              <article>
+                <span>Cobrados</span>
+                <strong>{{ resumen.pedidos_cobrados }}</strong>
+              </article>
+              <article>
+                <span>Monto adelantado</span>
+                <strong>{{ resumen.monto_adelantado | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+              </article>
+              <article>
+                <span>Monto cobrado</span>
+                <strong>{{ resumen.monto_cobrado | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+              </article>
+            </section>
+          }
+
+          @if (domiciliariosResumen().length === 0) {
+            <div class="estado">No hay pedidos de domicilio activos para mostrar.</div>
+          } @else {
+            <div class="domiciliarios-lista">
+              @for (item of domiciliariosResumen(); track (item.id_domiciliario ?? item.domiciliario)) {
+                <article class="domiciliario-card">
+                  <div class="domiciliario-card__head">
+                    <div>
+                      <span>Domiciliario</span>
+                      <strong>{{ item.domiciliario }}</strong>
+                    </div>
+                    <span class="chip chip--neutral">{{ item.total_pedidos }} pedidos</span>
+                  </div>
+
+                  <div class="domiciliario-stats">
+                    <div>
+                      <span>Adelantados</span>
+                      <strong>{{ item.pedidos_adelantados }}</strong>
+                    </div>
+                    <div>
+                      <span>Cobrados</span>
+                      <strong>{{ item.pedidos_cobrados }}</strong>
+                    </div>
+                    <div>
+                      <span>Por adelantado</span>
+                      <strong>{{ item.monto_adelantado | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+                    </div>
+                    <div>
+                      <span>Por cobrar</span>
+                      <strong>{{ item.monto_cobrado | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+                    </div>
+                  </div>
+                </article>
+              }
+            </div>
+          }
+        }
+
+        <div class="modal__actions">
+          <button class="btn btn-ghost" (click)="cerrarModal()" [disabled]="enviando()">Cerrar</button>
         </div>
       </div>
     </div>
