@@ -86,6 +86,7 @@ interface DetallePedidoApi {
 interface OrdenApi {
   id_orden: number;
   id_mesa: number | null;
+  id_metodo_pago?: number | null;
   nota?: string | null;
   detalles?: DetallePedidoApi[];
 }
@@ -164,6 +165,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
   );
   readonly ordenActivaId = signal<number | null>(null);
   readonly itemsBaseOrdenActiva = signal<ItemOrden[]>([]);
+  readonly notaBaseOrdenActiva = signal('');
   readonly itemsPagadosPorMesa = signal<Record<number, ItemOrden[]>>({});
   readonly tipoPedido = signal<TipoPedido>('MESA');
   readonly mesaRequeridaError = signal(false);
@@ -452,6 +454,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
 
     this.items.set([]);
     this.itemsBaseOrdenActiva.set([]);
+    this.notaBaseOrdenActiva.set('');
     this.ordenActivaId.set(null);
     this.mesaId.set(null);
     this.notaOrden.set('');
@@ -481,6 +484,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
     if (tipo !== 'MESA') {
       this.ordenActivaId.set(null);
       this.itemsBaseOrdenActiva.set([]);
+      this.notaBaseOrdenActiva.set('');
       this.mesaId.set(null);
     }
     if (tipo !== 'DOMICILIO') {
@@ -509,6 +513,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
     }
 
     this.itemsBaseOrdenActiva.set([]);
+    this.notaBaseOrdenActiva.set('');
     this.ordenActivaId.set(null);
 
     if (veniaConOrdenActiva) {
@@ -534,6 +539,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
     const itemsPrevios = this.cloneItems(this.items());
     const itemsBasePrevios = this.cloneItems(this.itemsBaseOrdenActiva());
     const notaPrevia = this.notaOrden();
+    const notaBasePrevia = this.notaBaseOrdenActiva();
     const conservarPedidoTemporal = idOrdenAnterior === null && itemsPrevios.length > 0;
 
     const restaurarEstadoPrevio = (restaurarMesa = true): void => {
@@ -544,6 +550,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
       this.items.set(itemsPrevios);
       this.itemsBaseOrdenActiva.set(itemsBasePrevios);
       this.notaOrden.set(notaPrevia);
+      this.notaBaseOrdenActiva.set(notaBasePrevia);
     };
 
     this.http.get<{ success: boolean; data: OrdenApi[] }>(
@@ -555,6 +562,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
 
         if (!ordenMesa?.id_orden) {
           this.itemsBaseOrdenActiva.set([]);
+          this.notaBaseOrdenActiva.set('');
           this.ordenActivaId.set(null);
 
           if (this.mesaSeleccionadaEstaDisponible(idMesa)) {
@@ -612,6 +620,9 @@ export class PedidosComponent implements OnInit, OnDestroy {
 
             this.itemsBaseOrdenActiva.set(this.cloneItems(mappedItems));
             this.notaOrden.set(orden.nota ?? '');
+            this.notaBaseOrdenActiva.set(orden.nota ?? '');
+            this.metodoPagoId.set(orden.id_metodo_pago ?? null);
+            this.metodoPagoRequeridoError.set(false);
           },
           error: () => restaurarEstadoPrevio(),
         });
@@ -750,16 +761,6 @@ export class PedidosComponent implements OnInit, OnDestroy {
   async enviarADespacho(): Promise<void> {
     if (this.items().length === 0) return;
 
-    if (!this.metodoPagoId()) {
-      this.metodoPagoRequeridoError.set(true);
-      await this.uiFeedback.alert({
-        title: 'Forma de pago requerida',
-        message: 'Debes seleccionar una forma de pago para registrar el pedido.',
-        tone: 'warning',
-      });
-      return;
-    }
-
     const cobrar = await this.uiFeedback.confirm({
       title: 'Enviar a despacho',
       message: '¿El cliente ya pagó o deseas cobrar ahora antes de despachar?',
@@ -767,6 +768,16 @@ export class PedidosComponent implements OnInit, OnDestroy {
       cancelText: 'Enviar sin cobrar',
       tone: 'info',
     });
+
+    if (cobrar && !this.metodoPagoId()) {
+      this.metodoPagoRequeridoError.set(true);
+      await this.uiFeedback.alert({
+        title: 'Forma de pago requerida',
+        message: 'Debes seleccionar una forma de pago para cobrar antes de despachar.',
+        tone: 'warning',
+      });
+      return;
+    }
 
     this.cobrarAlDespachar.set(cobrar);
     this.enviarPedido('DESPACHO');
@@ -809,11 +820,11 @@ export class PedidosComponent implements OnInit, OnDestroy {
       return;
     }
 
-    if (!this.metodoPagoId()) {
+    if (this.requiereMetodoPago(destino) && !this.metodoPagoId()) {
       this.metodoPagoRequeridoError.set(true);
       void this.uiFeedback.alert({
         title: 'Forma de pago requerida',
-        message: 'Debes seleccionar una forma de pago para registrar el pedido.',
+        message: 'Debes seleccionar una forma de pago para completar el cobro.',
         tone: 'warning',
       });
       return;
@@ -853,6 +864,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
           }
 
           this.itemsBaseOrdenActiva.set(this.cloneItems(this.items()));
+          this.notaBaseOrdenActiva.set(this.notaOrden());
           this.procesarDestinoEnvio(destino, idOrdenActiva);
         },
         error: (err: HttpErrorResponse) => void this.manejarErrorEnvio(err, destino, permitirStockNegativo),
@@ -925,20 +937,13 @@ export class PedidosComponent implements OnInit, OnDestroy {
       const cobrar = this.cobrarAlDespachar();
       this.cobrarAlDespachar.set(false);
 
-      const enviarCocina = () => {
-        this.http.patch(
-          `${environment.apiUrl}/pedidos/${idOrden}/enviar-cocina`, {}
-        ).subscribe({
-          next: () => {
-            const msg = cobrar
-              ? 'El pedido fue cobrado y enviado a despacho.'
-              : 'El pedido fue enviado a despacho.';
-            this.uiFeedback.success(msg, 'Pedido enviado');
-            void this.limpiarOrden(false);
-            this.resetEstadoEnvio();
-          },
-          error: () => this.resetEstadoEnvio(),
-        });
+      const finalizarDespacho = () => {
+        const msg = cobrar
+          ? 'El pedido fue cobrado y enviado a despacho.'
+          : 'El pedido fue enviado a despacho.';
+        this.uiFeedback.success(msg, 'Pedido enviado');
+        void this.limpiarOrden(false);
+        this.resetEstadoEnvio();
       };
 
       if (cobrar) {
@@ -946,11 +951,11 @@ export class PedidosComponent implements OnInit, OnDestroy {
           `${environment.apiUrl}/pedidos/${idOrden}/marcar-pagado`,
           { id_metodo_pago: this.metodoPagoId(), origen_cobro: 'CAJA' }
         ).subscribe({
-          next: () => enviarCocina(),
+          next: () => finalizarDespacho(),
           error: () => this.resetEstadoEnvio(),
         });
       } else {
-        enviarCocina();
+        finalizarDespacho();
       }
       return;
     }
@@ -958,7 +963,24 @@ export class PedidosComponent implements OnInit, OnDestroy {
     void this.completarCobroPedido(idOrden);
   }
 
+  private requiereMetodoPago(destino: DestinoEnvio): boolean {
+    if (destino === 'COBRAR') return true;
+    if (destino === 'DESPACHO' && this.cobrarAlDespachar()) return true;
+    return false;
+  }
+
   private async completarCobroPedido(idOrden: number): Promise<void> {
+    if (!this.metodoPagoId()) {
+      this.metodoPagoRequeridoError.set(true);
+      await this.uiFeedback.alert({
+        title: 'Forma de pago requerida',
+        message: 'Debes seleccionar una forma de pago para completar el cobro.',
+        tone: 'warning',
+      });
+      this.resetEstadoEnvio();
+      return;
+    }
+
     const recibido = this.efectivoRecibido();
     if (recibido !== null && recibido < this.total()) {
       await this.uiFeedback.alert({
@@ -1038,6 +1060,55 @@ export class PedidosComponent implements OnInit, OnDestroy {
         this.uiFeedback.error(this.getHttpErrorMessage(err) || 'No se pudo completar el cobro.');
         this.resetEstadoEnvio();
       },
+    });
+  }
+
+  private itemsIguales(a: ItemOrden[], b: ItemOrden[]): boolean {
+    const mapA = this.agruparItems(a);
+    const mapB = this.agruparItems(b);
+    if (mapA.size !== mapB.size) return false;
+
+    for (const [key, itemA] of mapA.entries()) {
+      const itemB = mapB.get(key);
+      if (!itemB || itemB.cantidad !== itemA.cantidad) return false;
+    }
+
+    return true;
+  }
+
+  private tieneCambiosSinGuardar(): boolean {
+    const notaActual = this.notaOrden().trim();
+    const notaBase = this.notaBaseOrdenActiva().trim();
+
+    if (this.ordenActivaId()) {
+      const itemsChanged = !this.itemsIguales(this.items(), this.itemsBaseOrdenActiva());
+      const notaChanged = notaActual !== notaBase;
+      return itemsChanged || notaChanged;
+    }
+
+    const tieneItems = this.items().length > 0;
+    const tieneNota = notaActual.length > 0;
+    const tieneMetodoPago = this.metodoPagoId() !== null;
+    const tieneDomicilio = this.tipoPedido() === 'DOMICILIO' && (
+      this.domContacto().trim().length > 0 ||
+      this.domTelefono().trim().length > 0 ||
+      this.domDireccion().trim().length > 0 ||
+      this.domNota().trim().length > 0 ||
+      this.domDomiciliarioId() !== null
+    );
+
+    return tieneItems || tieneNota || tieneMetodoPago || tieneDomicilio;
+  }
+
+  async canDeactivate(): Promise<boolean> {
+    if (!this.tieneCambiosSinGuardar()) return true;
+
+    return this.uiFeedback.confirm({
+      title: 'Cambios sin guardar',
+      message: 'Tienes un pedido en progreso. ¿Deseas salir y perder los cambios?',
+      confirmText: 'Salir',
+      cancelText: 'Cancelar',
+      tone: 'warning',
     });
   }
 
@@ -1431,11 +1502,25 @@ export class PedidosComponent implements OnInit, OnDestroy {
     const negocioNombre = this.escapeHtml(this.auth.negocio()?.nombre ?? 'Negocio');
     const usuarioNombre = this.escapeHtml(this.auth.usuario()?.nombre_completo ?? 'Usuario');
     const fechaTexto = this.escapeHtml(this.formatDateTime(fecha));
-    const tipoPedido = this.tipoPedido() === 'MESA' ? 'En mesa' : 'Para llevar';
+    const tipoPedido = this.tipoPedido() === 'MESA'
+      ? 'En mesa'
+      : this.tipoPedido() === 'DOMICILIO'
+        ? 'Domicilio'
+        : 'Para llevar';
     const mesaTexto = this.escapeHtml(this.getMesaLabel());
     const nota = this.notaOrden().trim();
-    const notaHtml = nota
-      ? `<div class="ticket-note"><strong>Nota:</strong> ${this.escapeHtml(nota)}</div>`
+    const notaDomicilio = this.domNota().trim();
+    const notasHtml = [
+      nota ? `<div class="ticket-note"><strong>Nota:</strong> ${this.escapeHtml(nota)}</div>` : '',
+      notaDomicilio ? `<div class="ticket-note"><strong>Nota domicilio:</strong> ${this.escapeHtml(notaDomicilio)}</div>` : '',
+    ].filter(Boolean).join('');
+
+    const domicilioInfo = this.tipoPedido() === 'DOMICILIO'
+      ? [
+          this.domContacto().trim() ? `<div class="meta">Cliente: ${this.escapeHtml(this.domContacto().trim())}</div>` : '',
+          this.domTelefono().trim() ? `<div class="meta">Tel: ${this.escapeHtml(this.domTelefono().trim())}</div>` : '',
+          this.domDireccion().trim() ? `<div class="meta">Dir: ${this.escapeHtml(this.domDireccion().trim())}</div>` : '',
+        ].filter(Boolean).join('')
       : '';
 
     const filasItems = this.items().map(item => {
@@ -1443,6 +1528,10 @@ export class PedidosComponent implements OnInit, OnDestroy {
       const exclusiones = this.getExclusionNames(item);
       const exclusionesHtml = exclusiones
         ? `<tr><td></td><td colspan="3" class="item-meta">Sin: ${this.escapeHtml(exclusiones)}</td></tr>`
+        : '';
+      const notaItem = item.nota?.trim() || '';
+      const notaItemHtml = notaItem
+        ? `<tr><td></td><td colspan="3" class="item-meta">Nota: ${this.escapeHtml(notaItem)}</td></tr>`
         : '';
 
       return `
@@ -1453,6 +1542,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
           <td class="text-right">${this.formatCurrency(totalLinea)}</td>
         </tr>
         ${exclusionesHtml}
+        ${notaItemHtml}
       `;
     }).join('');
 
@@ -1601,6 +1691,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
             <div class="meta">Atiende: ${usuarioNombre}</div>
             <div class="meta">Tipo: ${tipoPedido}</div>
             <div class="meta">Mesa: ${mesaTexto}</div>
+            ${domicilioInfo}
           </div>
 
           <hr />
@@ -1619,7 +1710,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
             </tbody>
           </table>
 
-          ${notaHtml}
+          ${notasHtml}
 
           <hr />
 
@@ -1640,7 +1731,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
   }
 
   private getMesaLabel(): string {
-    if (this.tipoPedido() === 'LLEVAR') return 'No aplica';
+    if (this.tipoPedido() !== 'MESA') return 'No aplica';
 
     const idMesa = this.mesaId();
     if (!idMesa) return 'Sin asignar';

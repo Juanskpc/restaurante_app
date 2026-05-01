@@ -144,6 +144,18 @@
 
           @if (mesa.status === 'payment') {
             <div class="cash-box">
+              <label class="cash-label" for="mesa-metodo-pago">Forma de pago</label>
+              <select id="mesa-metodo-pago"
+                      class="cash-input"
+                      [class.error]="metodoPagoError()"
+                      [value]="metodoPagoId() ?? ''"
+                      (change)="seleccionarMetodoPago($any($event.target).value)">
+                <option value="">Seleccionar forma de pago...</option>
+                @for (mp of metodosPago(); track mp.id_metodo_pago) {
+                  <option [value]="mp.id_metodo_pago">{{ mp.nombre }}</option>
+                }
+              </select>
+
               <label class="cash-label" for="mesa-efectivo-input">Efectivo recibido (opcional)</label>
               <input id="mesa-efectivo-input"
                      class="cash-input"

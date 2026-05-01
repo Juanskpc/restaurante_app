@@ -121,6 +121,7 @@ function normalizePermissionCode(rawCode: string): string {
 export class AuthService {
   private readonly platformId = inject(PLATFORM_ID);
   private readonly http = inject(HttpClient);
+  private lastPerfilRefresh = 0;
 
   /** Señal de sesión activa. */
   readonly session = signal<SesionRestaurante | null>(null);
@@ -221,6 +222,40 @@ export class AuthService {
       return false;
     } catch {
       return false;
+    }
+  }
+
+  /**
+   * Refresca permisos del perfil si han pasado al menos `maxAgeMs`.
+   * Esto permite que los cambios hechos en Personal se reflejen sin cerrar sesion.
+   */
+  async refreshPerfilIfStale(maxAgeMs = 60_000): Promise<void> {
+    const current = this.session();
+    if (!current) return;
+    const token = this.getAccessToken();
+    if (!token) return;
+
+    const now = Date.now();
+    if (now - this.lastPerfilRefresh < maxAgeMs) return;
+    this.lastPerfilRefresh = now;
+
+    try {
+      const res = await firstValueFrom(
+        this.http.get<{ success: boolean; data: SesionRestaurante }>(
+          `${environment.apiUrl}/perfil`
+        )
+      );
+
+      if (res?.success && res.data) {
+        const next = {
+          ...res.data,
+          plan_activo: current.plan_activo,
+          permisos_cargados: true,
+        } as SesionRestaurante;
+        this.setSession(token, next);
+      }
+    } catch {
+      // No-op: si falla, se mantiene la sesion actual.
     }
   }
 

@@ -241,6 +241,22 @@
   .dot { opacity: .5; }
 }
 
+.select-pay {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  padding: 4px 6px;
+  font-size: var(--font-size-xs);
+
+  &:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: var(--focus-ring);
+  }
+}
+
 .card-bottom {
   display: flex;
   align-items: center;

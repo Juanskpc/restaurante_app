@@ -240,6 +240,25 @@
             </span>
           </div>
 
+          @if (esPendientePago(p)) {
+            <div class="info-row">
+              <span class="info-label">
+                <lucide-icon name="credit-card" [size]="14" />
+                Forma de pago
+              </span>
+              <span class="info-val">
+                <select class="select-pay"
+                        [value]="metodoPagoSeleccionado() ?? ''"
+                        (change)="seleccionarMetodoPago($any($event.target).value)">
+                  <option value="">Seleccionar...</option>
+                  @for (mp of metodosPago(); track mp.id_metodo_pago) {
+                    <option [value]="mp.id_metodo_pago">{{ mp.nombre }}</option>
+                  }
+                </select>
+              </span>
+            </div>
+          }
+
         </div>
 
         @if ((p.detalles ?? []).length > 0) {

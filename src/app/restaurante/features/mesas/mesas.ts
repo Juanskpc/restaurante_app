@@ -13,6 +13,7 @@ interface ItemPagadoMesa {
   name: string;
   price: number;
   cantidad: number;
+  nota?: string | null;
 }
 
 @Component({
@@ -42,6 +43,9 @@ export class MesasComponent {
   readonly efectivoRecibidoInput = signal('');
   readonly cobroError = signal('');
   readonly itemsPagadosPorMesa = signal<Record<number, ItemPagadoMesa[]>>({});
+  readonly metodosPago = signal<Array<{ id_metodo_pago: number; nombre: string }>>([]);
+  readonly metodoPagoId = signal<number | null>(null);
+  readonly metodoPagoError = signal(false);
 
 
   readonly negocioId = computed(() => this.auth.negocio()?.id_negocio ?? null);
@@ -96,8 +100,18 @@ export class MesasComponent {
 
   private readonly negocioEffect = effect(() => {
     const id = this.negocioId();
-    if (id) this.loadMesas();
+    if (id) {
+      this.loadMesas();
+      this.loadMetodosPago(id);
+    }
   });
+
+  private loadMetodosPago(idNegocio: number): void {
+    this.mesasApi.listarMetodosPago(idNegocio).subscribe({
+      next: (res) => this.metodosPago.set(res?.data ?? []),
+      error: () => this.metodosPago.set([]),
+    });
+  }
 
   loadMesas(): void {
     const id = this.negocioId();
@@ -129,12 +143,21 @@ export class MesasComponent {
     this.mesaActivaId.set(mesa.id_mesa);
     this.efectivoRecibidoInput.set('');
     this.cobroError.set('');
+    this.metodoPagoId.set(mesa.order.id_metodo_pago ?? null);
+    this.metodoPagoError.set(false);
   }
 
   closeMesa(): void {
     this.mesaActivaId.set(null);
     this.efectivoRecibidoInput.set('');
     this.cobroError.set('');
+    this.metodoPagoId.set(null);
+    this.metodoPagoError.set(false);
+  }
+
+  seleccionarMetodoPago(rawValue: string): void {
+    this.metodoPagoId.set(rawValue ? Number(rawValue) : null);
+    this.metodoPagoError.set(false);
   }
 
   setEfectivoRecibido(rawValue: string): void {
@@ -251,6 +274,12 @@ export class MesasComponent {
       return;
     }
 
+    if (!this.metodoPagoId()) {
+      this.metodoPagoError.set(true);
+      this.cobroError.set('Debes seleccionar una forma de pago para completar el cobro.');
+      return;
+    }
+
     // Pregunta si imprimir tiquete antes de cerrar
     const deseaImprimir = await this.uiFeedback.confirm({
       title: 'Cobro confirmado',
@@ -265,7 +294,7 @@ export class MesasComponent {
     }
 
     this.guardando.set(true);
-    this.mesasApi.cerrarOrden(idOrden).subscribe({
+    this.mesasApi.cerrarOrden(idOrden, this.metodoPagoId()).subscribe({
       next: () => {
         this.persistirItemsPagadosMesaCache(mesa.id_mesa, mesa.order.items);
         this.mesasApi.cambiarEstadoServicio(mesa.id_mesa, 'OCUPADA').subscribe({
@@ -519,10 +548,19 @@ export class MesasComponent {
     const tipoPedido = 'En mesa';
     const mesaTexto = this.escapeHtml(mesa.nombre);
     const itemsTicket = itemsPendientes.length > 0 ? itemsPendientes : itemsPagados;
+    const notaOrden = this.escapeHtml(mesa.order.nota?.trim() || '');
+    const notaHtml = notaOrden
+      ? `<div class="ticket-note"><strong>Nota:</strong> ${notaOrden}</div>`
+      : '';
 
     const filasItems = itemsTicket
       .map((item) => {
         const totalLinea = item.cantidad * item.price;
+        const notaItem = item.nota ? this.escapeHtml(String(item.nota)) : '';
+        const notaItemHtml = notaItem
+          ? `<tr><td></td><td colspan="3" class="item-meta">Nota: ${notaItem}</td></tr>`
+          : '';
+
         return `
           <tr>
             <td>${item.cantidad}</td>
@@ -530,6 +568,7 @@ export class MesasComponent {
             <td>${this.formatCurrency(item.price)}</td>
             <td class="text-right">${this.formatCurrency(totalLinea)}</td>
           </tr>
+          ${notaItemHtml}
         `;
       })
       .join('');
@@ -604,6 +643,18 @@ export class MesasComponent {
 
           .text-right {
             text-align: right;
+          }
+
+          .item-meta {
+            font-size: 10px;
+            color: #666;
+            padding-top: 0;
+          }
+
+          .ticket-note {
+            margin-top: 6px;
+            font-size: 11px;
+            color: #333;
           }
 
           .totals {
@@ -682,6 +733,8 @@ export class MesasComponent {
               ${filasItems}
             </tbody>
           </table>
+
+          ${notaHtml}
 
           <hr />
 
@@ -765,7 +818,7 @@ export class MesasComponent {
     return Number(digits);
   }
 
-  private persistirItemsPagadosMesaCache(idMesa: number, items: Array<{ name: string; price: number; cantidad: number }>): void {
+  private persistirItemsPagadosMesaCache(idMesa: number, items: Array<{ name: string; price: number; cantidad: number; nota?: string | null }>): void {
     if (typeof window === 'undefined') return;
 
     try {
@@ -780,7 +833,7 @@ export class MesasComponent {
         cantidad: Math.max(1, Number(item.cantidad ?? 1)),
         exclusiones: [],
         exclusionesNombres: [],
-        nota: '',
+        nota: item.nota ?? '',
       }));
 
       window.localStorage.setItem(this.paidItemsStorageKey, JSON.stringify(cache));

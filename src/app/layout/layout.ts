@@ -5,6 +5,7 @@ import { filter, map, startWith } from 'rxjs';
 
 import { SidebarComponent } from './sidebar/sidebar';
 import { HeaderComponent } from './header/header';
+import { AuthService } from '../core/services/auth.service';
 
 /**
  * LayoutComponent — Shell principal de la app de negocio.
@@ -36,12 +37,16 @@ import { HeaderComponent } from './header/header';
 export class LayoutComponent {
   private readonly defaultTitle = 'Dashboard';
   private readonly router = inject(Router);
+  private readonly auth = inject(AuthService);
 
   readonly pageTitle = toSignal(
     this.router.events.pipe(
       filter((event): event is NavigationEnd => event instanceof NavigationEnd),
       startWith(null),
-      map(() => this.resolveHeaderTitle()),
+      map(() => {
+        void this.auth.refreshPerfilIfStale();
+        return this.resolveHeaderTitle();
+      }),
     ),
     { initialValue: this.defaultTitle },
   );

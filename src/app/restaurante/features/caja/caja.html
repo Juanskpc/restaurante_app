@@ -116,39 +116,41 @@
       } @else if (movimientos().length === 0) {
         <p class="estado">Sin movimientos registrados aún.</p>
       } @else {
-        <table>
-          <thead>
-            <tr>
-              <th>Fecha</th>
-              <th>Tipo</th>
-              <th>Tipo pedido</th>
-              <th>Concepto</th>
-              <th>Usuario</th>
-              <th class="num">Monto</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (m of movimientos(); track m.id_movimiento) {
+        <div class="movimientos__table">
+          <table>
+            <thead>
               <tr>
-                <td>{{ m.fecha | date:'dd/MM/yyyy HH:mm' }}</td>
-                <td>
-                  <span class="badge" [class.badge--in]="m.tipo === 'INGRESO'" [class.badge--out]="m.tipo === 'EGRESO'">
-                    {{ m.tipo }}
-                  </span>
-                </td>
-                <td>{{ formatTipoPedido(m.orden?.tipo_pedido) }}</td>
-                <td>
-                  {{ m.concepto || '—' }}
-                  @if (m.orden?.numero_orden) {
-                    <span class="ref"> · {{ m.orden!.numero_orden }}</span>
-                  }
-                </td>
-                <td>{{ m.usuario?.primer_nombre }} {{ m.usuario?.primer_apellido }}</td>
-                <td class="num">{{ m.monto | currency:'COP':'symbol-narrow':'1.0-0' }}</td>
+                <th>Fecha</th>
+                <th>Tipo</th>
+                <th>Tipo pedido</th>
+                <th>Concepto</th>
+                <th>Usuario</th>
+                <th class="num">Monto</th>
               </tr>
-            }
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              @for (m of movimientos(); track m.id_movimiento) {
+                <tr>
+                  <td>{{ m.fecha | date:'dd/MM/yyyy HH:mm' }}</td>
+                  <td>
+                    <span class="badge" [class.badge--in]="m.tipo === 'INGRESO'" [class.badge--out]="m.tipo === 'EGRESO'">
+                      {{ m.tipo }}
+                    </span>
+                  </td>
+                  <td>{{ formatTipoPedido(m.orden?.tipo_pedido) }}</td>
+                  <td>
+                    {{ m.concepto || '—' }}
+                    @if (m.orden?.numero_orden) {
+                      <span class="ref"> · {{ m.orden!.numero_orden }}</span>
+                    }
+                  </td>
+                  <td>{{ m.usuario?.primer_nombre }} {{ m.usuario?.primer_apellido }}</td>
+                  <td class="num">{{ m.monto | currency:'COP':'symbol-narrow':'1.0-0' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
       }
     </section>
   }

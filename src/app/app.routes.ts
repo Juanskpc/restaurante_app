@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 
 import { authGuard, permissionGuard, planGuard } from './core/guards/auth.guard';
+import { pendingChangesGuard } from './core/guards/pending-changes.guard';
 import { LayoutComponent } from './layout/layout';
 
 export const routes: Routes = [
@@ -27,6 +28,7 @@ export const routes: Routes = [
         path: 'pedidos',
         title: 'Pedidos',
         canActivate: [planGuard],
+        canDeactivate: [pendingChangesGuard],
         loadComponent: () =>
           import('./restaurante/features/pedidos/pedidos').then(m => m.PedidosComponent),
       },

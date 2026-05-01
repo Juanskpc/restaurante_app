@@ -16,6 +16,7 @@ interface DetalleDespacho {
   id_producto: number;
   cantidad: number;
   precio_unitario: number;
+  nota?: string | null;
   producto?: { nombre: string };
 }
 
@@ -29,6 +30,7 @@ export interface PedidoDespacho {
   estado: string;
   estado_cocina: string | null;
   estado_pago: string;
+  nota?: string | null;
   contacto_nombre: string | null;
   contacto_telefono: string | null;
   direccion_domicilio: string | null;
@@ -66,6 +68,8 @@ export class DespachoComponent implements OnInit {
   readonly filtro = signal<FiltroTipo>('TODOS');
   readonly pedidoActivo = signal<PedidoDespacho | null>(null);
   readonly cobrandoId = signal<number | null>(null);
+  readonly metodosPago = signal<Array<{ id_metodo_pago: number; nombre: string }>>([]);
+  readonly metodoPagoSeleccionado = signal<number | null>(null);
 
   readonly negocioId = computed(() => this.auth.negocio()?.id_negocio ?? null);
   readonly puedeVerTodos = computed(() => this.auth.canAccessSubnivel('despacho_ver_todos'));
@@ -87,6 +91,18 @@ export class DespachoComponent implements OnInit {
 
   ngOnInit(): void {
     this.cargar();
+    this.loadMetodosPago();
+  }
+
+  private loadMetodosPago(): void {
+    const id = this.negocioId();
+    if (!id) return;
+    this.http.get<{ success: boolean; data: Array<{ id_metodo_pago: number; nombre: string }> }>(
+      `${environment.apiUrl}/metodos-pago?id_negocio=${id}`
+    ).subscribe({
+      next: (res) => this.metodosPago.set(res?.data ?? []),
+      error: () => this.metodosPago.set([]),
+    });
   }
 
   cargar(): void {
@@ -94,8 +110,7 @@ export class DespachoComponent implements OnInit {
     if (!id) return;
     this.cargando.set(true);
 
-    const verTodos = this.puedeVerTodos();
-    const url = `${environment.apiUrl}/despacho?id_negocio=${id}&ver_todos=${verTodos}`;
+    const url = `${environment.apiUrl}/despacho?id_negocio=${id}`;
 
     this.http.get<{ success: boolean; data: PedidoDespacho[] }>(url).subscribe({
       next: (res) => {
@@ -116,10 +131,16 @@ export class DespachoComponent implements OnInit {
 
   abrirPedido(p: PedidoDespacho): void {
     this.pedidoActivo.set(p);
+    this.metodoPagoSeleccionado.set(p.id_metodo_pago ?? null);
   }
 
   cerrarPedido(): void {
     this.pedidoActivo.set(null);
+    this.metodoPagoSeleccionado.set(null);
+  }
+
+  seleccionarMetodoPago(rawValue: string): void {
+    this.metodoPagoSeleccionado.set(rawValue ? Number(rawValue) : null);
   }
 
   /** Devuelve un href tel: limpio (solo dígitos y +). */
@@ -222,11 +243,11 @@ export class DespachoComponent implements OnInit {
     event.stopPropagation();
     if (this.cobrandoId() !== null) return;
 
-    const idMetodoPago = p.id_metodo_pago ?? null;
+    const idMetodoPago = this.metodoPagoSeleccionado() ?? p.id_metodo_pago ?? null;
     if (!idMetodoPago) {
       void this.uiFeedback.alert({
         title: 'Forma de pago requerida',
-        message: 'Este pedido no tiene forma de pago registrada. Defínela desde Pedidos antes de cobrar en Despacho.',
+        message: 'Selecciona una forma de pago antes de registrar el cobro.',
         tone: 'warning',
       });
       return;
@@ -241,7 +262,9 @@ export class DespachoComponent implements OnInit {
       next: (res) => {
         if (res?.success) {
           const apply = (ord: PedidoDespacho) =>
-            ord.id_orden === p.id_orden ? { ...ord, estado_pago: 'pagado' } : ord;
+            ord.id_orden === p.id_orden
+              ? { ...ord, estado_pago: 'pagado', id_metodo_pago: idMetodoPago }
+              : ord;
 
           this.pedidos.update(lista => lista.map(apply));
           const activo = this.pedidoActivo();
@@ -338,7 +361,8 @@ export class DespachoComponent implements OnInit {
     const contacto = this.escapeHtml(p.contacto_nombre ?? '');
     const telefono = this.escapeHtml(p.contacto_telefono ?? '');
     const direccion = p.tipo_pedido === 'DOMICILIO' ? this.escapeHtml(p.direccion_domicilio ?? '') : '';
-    const nota = this.escapeHtml(p.nota_domicilio?.trim() ?? '');
+    const notaDomicilio = this.escapeHtml(p.nota_domicilio?.trim() ?? '');
+    const notaOrden = this.escapeHtml(p.nota?.trim() ?? '');
     const domiciliario = p.domiciliario
       ? this.escapeHtml(`${p.domiciliario.primer_nombre} ${p.domiciliario.primer_apellido}`.trim())
       : '';
@@ -350,20 +374,26 @@ export class DespachoComponent implements OnInit {
       domiciliario ? `<div class="meta">Domiciliario: ${domiciliario}</div>` : '',
     ].join('');
 
-    const notaHtml = nota
-      ? `<div class="ticket-note"><strong>Nota:</strong> ${nota}</div>`
-      : '';
+    const notas = [
+      notaOrden ? `<div class="ticket-note"><strong>Nota:</strong> ${notaOrden}</div>` : '',
+      notaDomicilio ? `<div class="ticket-note"><strong>Nota domicilio:</strong> ${notaDomicilio}</div>` : '',
+    ].filter(Boolean).join('');
 
     const filasItems = (p.detalles ?? []).map(d => {
       const nombre = this.escapeHtml(d.producto?.nombre ?? '(Producto)');
       const lineTotal = d.cantidad * d.precio_unitario;
+      const notaItem = d.nota ? this.escapeHtml(String(d.nota)) : '';
+      const notaItemHtml = notaItem
+        ? `<tr><td></td><td colspan="3" class="item-meta">Nota: ${notaItem}</td></tr>`
+        : '';
       return `
         <tr>
           <td>${d.cantidad}</td>
           <td>${nombre}</td>
           <td>${this.formatCurrency(d.precio_unitario)}</td>
           <td class="text-right">${this.formatCurrency(lineTotal)}</td>
-        </tr>`;
+        </tr>
+        ${notaItemHtml}`;
     }).join('');
 
     return `<!doctype html>
@@ -384,6 +414,7 @@ export class DespachoComponent implements OnInit {
     th, td { padding: 4px 0; vertical-align: top; }
     th { font-size: 10px; text-transform: uppercase; color: #666; letter-spacing: .04em; }
     .text-right { text-align: right; }
+    .item-meta { font-size: 10px; color: #666; padding-top: 0; }
     .ticket-note { margin-top: 6px; font-size: 11px; color: #333; }
     .totals { margin-top: 8px; }
     .totals-row { display: flex; justify-content: space-between; margin-top: 3px; }
@@ -419,7 +450,7 @@ export class DespachoComponent implements OnInit {
       </thead>
       <tbody>${filasItems}</tbody>
     </table>
-    ${notaHtml}
+    ${notas}
     <hr />
     <div class="totals">
       <div class="totals-row total">

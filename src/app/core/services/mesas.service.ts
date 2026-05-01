@@ -10,11 +10,14 @@ export interface MesaOrderItem {
   name: string;
   price: number;
   cantidad: number;
+  nota?: string | null;
 }
 
 export interface MesaOrder {
   id_orden?: number;
   total: number;
+  id_metodo_pago?: number | null;
+  nota?: string | null;
   items: MesaOrderItem[];
 }
 

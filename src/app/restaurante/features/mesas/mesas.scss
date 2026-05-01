@@ -460,6 +460,11 @@
   color: var(--color-text-primary);
   font-size: var(--font-size-sm);
 
+  &.error {
+    border-color: var(--color-error);
+    box-shadow: var(--focus-ring);
+  }
+
   &:focus {
     outline: none;
     border-color: var(--color-primary);
