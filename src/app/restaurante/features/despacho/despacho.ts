@@ -3,6 +3,8 @@ import {
 } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { CurrencyPipe, DatePipe, isPlatformBrowser } from '@angular/common';
+import { forkJoin, of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { LucideAngularModule } from 'lucide-angular';
 
 import { AuthService } from '../../../core/services/auth.service';
@@ -170,6 +172,90 @@ export class DespachoComponent implements OnInit {
 
   esPendientePago(p: PedidoDespacho): boolean {
     return (p.estado_pago ?? 'pendiente_pago') === 'pendiente_pago';
+  }
+
+  async finalizarTodo(): Promise<void> {
+    const lista = this.pedidosFiltrados();
+    if (lista.length === 0) {
+      await this.uiFeedback.alert({
+        title: 'Sin pedidos',
+        message: 'No hay pedidos activos para finalizar.',
+        tone: 'info',
+      });
+      return;
+    }
+
+    const cobrados   = lista.filter(p => !this.esPendientePago(p));
+    const noCobrados = lista.filter(p =>  this.esPendientePago(p));
+
+    let procesarCobrados   = cobrados;
+    let procesarNoCobrados: PedidoDespacho[] = [];
+
+    if (noCobrados.length > 0) {
+      if (this.puedeCancelarNoPagados()) {
+        const confirmar = await this.uiFeedback.confirm({
+          title: 'Pedidos sin cobrar',
+          message: `Hay ${noCobrados.length} pedido(s) que aún no se han cobrado. ¿Desea limpiar los cobrados y eliminar los no cobrados?`,
+          confirmText: 'Sí',
+          cancelText: 'No',
+          tone: 'warning',
+        });
+        if (!confirmar) return;
+        procesarNoCobrados = noCobrados;
+      } else {
+        if (cobrados.length === 0) {
+          await this.uiFeedback.alert({
+            title: 'Sin pedidos cobrados',
+            message: 'No hay pedidos cobrados para finalizar y no tienes permiso para eliminar los no cobrados.',
+            tone: 'warning',
+          });
+          return;
+        }
+        const confirmar = await this.uiFeedback.confirm({
+          title: 'Finalizar cobrados',
+          message: `Hay ${noCobrados.length} pedido(s) no cobrado(s) que no puedes eliminar. ¿Finalizar solo los ${cobrados.length} pedido(s) cobrado(s)?`,
+          confirmText: 'Finalizar cobrados',
+          cancelText: 'Cancelar',
+          tone: 'warning',
+        });
+        if (!confirmar) return;
+      }
+    } else {
+      const confirmar = await this.uiFeedback.confirm({
+        title: 'Finalizar todo',
+        message: `¿Finalizar los ${cobrados.length} pedido(s) cobrado(s)?`,
+        confirmText: 'Finalizar todo',
+        cancelText: 'Cancelar',
+        tone: 'info',
+      });
+      if (!confirmar) return;
+    }
+
+    const requests$ = [
+      ...procesarCobrados.map(p =>
+        this.http.patch(`${environment.apiUrl}/pedidos/${p.id_orden}/cerrar`, {}).pipe(catchError(() => of(null)))
+      ),
+      ...procesarNoCobrados.map(p =>
+        this.http.patch(`${environment.apiUrl}/pedidos/${p.id_orden}/cancelar`, {}).pipe(catchError(() => of(null)))
+      ),
+    ];
+
+    if (requests$.length === 0) return;
+
+    forkJoin(requests$).subscribe({
+      next: () => {
+        const ids = new Set([...procesarCobrados, ...procesarNoCobrados].map(p => p.id_orden));
+        this.pedidos.update(l => l.filter(p => !ids.has(p.id_orden)));
+        if (this.pedidoActivo() && ids.has(this.pedidoActivo()!.id_orden)) {
+          this.pedidoActivo.set(null);
+        }
+        this.uiFeedback.success('Pedidos procesados correctamente.', 'Finalizar todo');
+      },
+      error: () => {
+        this.cargar();
+        this.uiFeedback.error('Error al procesar algunos pedidos. Se recargó la lista.');
+      },
+    });
   }
 
   async limpiarPedido(p: PedidoDespacho, event: Event): Promise<void> {

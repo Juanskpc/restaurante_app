@@ -243,18 +243,42 @@
 
 .select-pay {
   width: 100%;
+  padding: 8px 30px 8px 12px;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
   color: var(--color-text-primary);
-  padding: 4px 6px;
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-family);
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
 
   &:focus {
     outline: none;
     border-color: var(--color-primary);
     box-shadow: var(--focus-ring);
   }
+}
+
+.btn-finalizar-todo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-success);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-success);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+
+  &:hover { background: var(--color-success-bg); }
+  &:disabled { opacity: .5; cursor: not-allowed; }
 }
 
 .card-bottom {

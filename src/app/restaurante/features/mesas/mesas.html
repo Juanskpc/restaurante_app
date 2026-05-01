@@ -148,11 +148,11 @@
               <select id="mesa-metodo-pago"
                       class="cash-input"
                       [class.error]="metodoPagoError()"
-                      [value]="metodoPagoId() ?? ''"
                       (change)="seleccionarMetodoPago($any($event.target).value)">
-                <option value="">Seleccionar forma de pago...</option>
+                <option value="" [selected]="!metodoPagoId()">Seleccionar forma de pago...</option>
                 @for (mp of metodosPago(); track mp.id_metodo_pago) {
-                  <option [value]="mp.id_metodo_pago">{{ mp.nombre }}</option>
+                  <option [value]="mp.id_metodo_pago"
+                          [selected]="metodoPagoId() === mp.id_metodo_pago">{{ mp.nombre }}</option>
                 }
               </select>
 

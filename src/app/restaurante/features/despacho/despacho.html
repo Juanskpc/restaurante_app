@@ -15,6 +15,13 @@
     </div>
 
     <div class="header-right">
+      <button class="btn-finalizar-todo"
+              (click)="finalizarTodo()"
+              [disabled]="cargando() || pedidosFiltrados().length === 0"
+              title="Finalizar todos los pedidos cobrados">
+        <lucide-icon name="check-square" [size]="16" />
+        Finalizar todo
+      </button>
       <button class="btn-ghost btn-refresh"
               (click)="cargar()"
               [disabled]="cargando()"
@@ -248,11 +255,11 @@
               </span>
               <span class="info-val">
                 <select class="select-pay"
-                        [value]="metodoPagoSeleccionado() ?? ''"
                         (change)="seleccionarMetodoPago($any($event.target).value)">
-                  <option value="">Seleccionar...</option>
+                  <option value="" [selected]="!metodoPagoSeleccionado()">Seleccionar...</option>
                   @for (mp of metodosPago(); track mp.id_metodo_pago) {
-                    <option [value]="mp.id_metodo_pago">{{ mp.nombre }}</option>
+                    <option [value]="mp.id_metodo_pago"
+                            [selected]="metodoPagoSeleccionado() === mp.id_metodo_pago">{{ mp.nombre }}</option>
                   }
                 </select>
               </span>

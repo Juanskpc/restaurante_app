@@ -157,13 +157,13 @@
             </select>
 
             <select class="mesa-select"
-                    [value]="metodoPagoId() ?? ''"
                     [class.error]="metodoPagoRequeridoError()"
                     (change)="seleccionarMetodoPago($any($event.target).value)"
                     title="Forma de pago para el cobro">
-              <option value="">{{ isMobileViewport() ? '💳 Pago...' : '💳 Forma de pago...' }}</option>
+              <option value="" [selected]="!metodoPagoId()">{{ isMobileViewport() ? '💳 Pago...' : '💳 Forma de pago...' }}</option>
               @for (mp of metodosPago(); track mp.id_metodo_pago) {
-                <option [value]="mp.id_metodo_pago">💳 {{ mp.nombre }}</option>
+                <option [value]="mp.id_metodo_pago"
+                        [selected]="metodoPagoId() === mp.id_metodo_pago">💳 {{ mp.nombre }}</option>
               }
             </select>
           </div>
@@ -194,13 +194,13 @@
             <span>Para llevar</span>
           </div>
           <select class="mesa-select"
-                  [value]="metodoPagoId() ?? ''"
                   [class.error]="metodoPagoRequeridoError()"
                   (change)="seleccionarMetodoPago($any($event.target).value)"
                   title="Forma de pago para el cobro">
-            <option value="">{{ isMobileViewport() ? '💳 Pago...' : '💳 Forma de pago...' }}</option>
+            <option value="" [selected]="!metodoPagoId()">{{ isMobileViewport() ? '💳 Pago...' : '💳 Forma de pago...' }}</option>
             @for (mp of metodosPago(); track mp.id_metodo_pago) {
-              <option [value]="mp.id_metodo_pago">💳 {{ mp.nombre }}</option>
+              <option [value]="mp.id_metodo_pago"
+                      [selected]="metodoPagoId() === mp.id_metodo_pago">💳 {{ mp.nombre }}</option>
             }
           </select>
         </div>
@@ -221,12 +221,12 @@
           </button>
 
           <select class="mesa-select"
-                  [value]="metodoPagoId() ?? ''"
                   [class.error]="metodoPagoRequeridoError()"
                   (change)="seleccionarMetodoPago($any($event.target).value)">
-            <option value="">{{ isMobileViewport() ? '💳 Pago...' : '💳 Forma de pago...' }}</option>
+            <option value="" [selected]="!metodoPagoId()">{{ isMobileViewport() ? '💳 Pago...' : '💳 Forma de pago...' }}</option>
             @for (mp of metodosPago(); track mp.id_metodo_pago) {
-              <option [value]="mp.id_metodo_pago">💳 {{ mp.nombre }}</option>
+              <option [value]="mp.id_metodo_pago"
+                      [selected]="metodoPagoId() === mp.id_metodo_pago">💳 {{ mp.nombre }}</option>
             }
           </select>
         </div>
