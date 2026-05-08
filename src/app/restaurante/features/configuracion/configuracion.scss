@@ -100,6 +100,11 @@
   }
 }
 
+.field-error {
+  color: var(--color-error);
+  font-size: var(--font-size-xs);
+}
+
 .hint {
   margin: 0;
   color: var(--color-text-secondary);

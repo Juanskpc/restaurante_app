@@ -20,6 +20,7 @@ export interface CategoriaAdmin {
   descripcion: string;
   icono: string;
   orden: number;
+  visible: boolean;
   total_productos: number;
 }
 
@@ -48,6 +49,7 @@ export interface ProductoAdmin {
   icono: string;
   es_popular: boolean;
   disponible: boolean;
+  visible: boolean;
   ingredientes: ProductoIngrediente[];
 }
 
@@ -58,6 +60,7 @@ interface CatFormData {
   descripcion: string;
   icono: string;
   orden: number;
+  visible: boolean;
 }
 
 export interface IngredienteForm {
@@ -76,6 +79,7 @@ interface ProdFormData {
   imagen_url: string;
   es_popular: boolean;
   disponible: boolean;
+  visible: boolean;
   id_categoria: number | null;
   ingredientes: IngredienteForm[];
 }
@@ -119,7 +123,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   // ── Modal: Categoría ──────────────────────────────────────
   readonly modalCatOpen     = signal(false);
   readonly editandoCatId    = signal<number | null>(null);
-  readonly catForm          = signal<CatFormData>({ nombre: '', descripcion: '', icono: '🍽️', orden: 0 });
+  readonly catForm          = signal<CatFormData>({ nombre: '', descripcion: '', icono: '🍽️', orden: 0, visible: true });
 
   // ── Modal: Producto ───────────────────────────────────────
   readonly modalProdOpen    = signal(false);
@@ -128,7 +132,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   readonly prodForm         = signal<ProdFormData>({
     nombre: '', descripcion: '', precio: null, icono: '🍔',
     imagen_url: '', es_popular: false, disponible: true,
-    id_categoria: null, ingredientes: [],
+    visible: true, id_categoria: null, ingredientes: [],
   });
 
   // ── Nuevo ingrediente base (inline creation) ──────────────
@@ -445,10 +449,16 @@ export class MenuComponent implements OnInit, OnDestroy {
   abrirModalCat(cat?: CategoriaAdmin): void {
     if (cat) {
       this.editandoCatId.set(cat.id_categoria);
-      this.catForm.set({ nombre: cat.nombre, descripcion: cat.descripcion ?? '', icono: cat.icono ?? '🍽️', orden: cat.orden ?? 0 });
+      this.catForm.set({
+        nombre: cat.nombre,
+        descripcion: cat.descripcion ?? '',
+        icono: cat.icono ?? '🍽️',
+        orden: cat.orden ?? 0,
+        visible: cat.visible !== false,
+      });
     } else {
       this.editandoCatId.set(null);
-      this.catForm.set({ nombre: '', descripcion: '', icono: '🍽️', orden: 0 });
+      this.catForm.set({ nombre: '', descripcion: '', icono: '🍽️', orden: 0, visible: true });
     }
     this.modalCatOpen.set(true);
   }
@@ -525,6 +535,7 @@ export class MenuComponent implements OnInit, OnDestroy {
         imagen_url:   prod.imagen_url ?? '',
         es_popular:   prod.es_popular,
         disponible:   prod.disponible,
+        visible:      prod.visible !== false,
         id_categoria: prod.id_categoria,
         ingredientes: prod.ingredientes.map(pi => ({
           id_producto_ingred: pi.id_producto_ingred,
@@ -540,7 +551,7 @@ export class MenuComponent implements OnInit, OnDestroy {
       this.prodForm.set({
         nombre: '', descripcion: '', precio: null, icono: '🍔',
         imagen_url: '', es_popular: false, disponible: true,
-        id_categoria: this.categoriaActiva(), ingredientes: [],
+        visible: true, id_categoria: this.categoriaActiva(), ingredientes: [],
       });
       this.ingredientesModificados.set(false);
     }
@@ -587,6 +598,7 @@ export class MenuComponent implements OnInit, OnDestroy {
       imagen_url:   form.imagen_url,
       es_popular:   form.es_popular,
       disponible:   form.disponible,
+      visible:      form.visible,
       ...(!editId || this.ingredientesModificados() ? { ingredientes: ingredientesPayload } : {}),
     };
 

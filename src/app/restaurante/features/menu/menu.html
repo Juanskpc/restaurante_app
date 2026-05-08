@@ -269,6 +269,20 @@
             (input)="updateCatField('descripcion', $any($event.target).value)"
           />
         </div>
+
+        <div class="toggles-row">
+          <label class="toggle-label">
+            <span>Visible</span>
+            <button
+              type="button"
+              class="toggle-btn"
+              [class.toggle-on]="catForm().visible"
+              (click)="updateCatField('visible', !catForm().visible)"
+            >
+              <lucide-icon [name]="catForm().visible ? 'check-circle' : 'x-circle'" [size]="14" />
+            </button>
+          </label>
+        </div>
       </div>
 
       <div class="modal-footer">
@@ -329,10 +343,7 @@
               (input)="updateProdField('nombre', $any($event.target).value)"
             />
           </div>
-        </div>
 
-        <!-- ── Fila: Precio + Categoría + Opciones ── -->
-        <div class="form-row form-row-product-meta">
           <div class="form-group form-group-price">
             <label class="form-label">Precio <span class="required">*</span></label>
             <input
@@ -344,6 +355,11 @@
               (input)="updateProdField('precio', +$any($event.target).value || null)"
             />
           </div>
+        </div>
+
+        <!-- ── Fila: Precio + Categoría + Opciones ── -->
+        <div class="form-row form-row-product-meta">
+          
           <div class="form-group form-group-category">
             <label class="form-label">Categoría <span class="required">*</span></label>
             <select
@@ -380,6 +396,17 @@
                   (click)="updateProdField('disponible', !prodForm().disponible)"
                 >
                   <lucide-icon [name]="prodForm().disponible ? 'check-circle' : 'x-circle'" [size]="14" />
+                </button>
+              </label>
+              <label class="toggle-label">
+                <span>Visible</span>
+                <button
+                  type="button"
+                  class="toggle-btn"
+                  [class.toggle-on]="prodForm().visible"
+                  (click)="updateProdField('visible', !prodForm().visible)"
+                >
+                  <lucide-icon [name]="prodForm().visible ? 'check-circle' : 'x-circle'" [size]="14" />
                 </button>
               </label>
             </div>

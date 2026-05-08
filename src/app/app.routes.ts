@@ -12,6 +12,12 @@ export const routes: Routes = [
       import('./features/auth-callback/auth-callback').then(m => m.AuthCallbackComponent),
   },
   {
+    path: 'carta/:id',
+    title: 'Carta',
+    loadComponent: () =>
+      import('./restaurante/features/menu-publico').then(m => m.MenuPublicoComponent),
+  },
+  {
     path: '',
     component: LayoutComponent,
     canActivate: [authGuard],

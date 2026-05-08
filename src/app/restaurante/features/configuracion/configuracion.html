@@ -56,6 +56,11 @@
           <input type="text" formControlName="telefono" placeholder="Ej: 3001234567" />
         </label>
 
+        <label class="field">
+          <span>Direccion</span>
+          <input type="text" formControlName="direccion" placeholder="Ej: Cra 12 # 45-67" />
+        </label>
+
         <div class="meta-grid">
           <div>
             <span class="meta-label">Tipo de negocio</span>
@@ -66,6 +71,35 @@
             <strong>#{{ config.id_negocio }}</strong>
           </div>
         </div>
+      </article>
+
+      <article class="panel">
+        <h2>Contacto y redes</h2>
+        <p class="hint">Comparte tus enlaces para que los clientes encuentren tu negocio.</p>
+
+        <label class="field">
+          <span>WhatsApp (URL)</span>
+          <input type="url" formControlName="url_whatsapp" placeholder="https://wa.me/573001234567" />
+          @if (form.controls.url_whatsapp.touched && form.controls.url_whatsapp.invalid) {
+            <small class="field-error">Ingresa un link valido con https://</small>
+          }
+        </label>
+
+        <label class="field">
+          <span>Facebook (URL)</span>
+          <input type="url" formControlName="url_facebook" placeholder="https://facebook.com/tu-negocio" />
+          @if (form.controls.url_facebook.touched && form.controls.url_facebook.invalid) {
+            <small class="field-error">Ingresa un link valido con https://</small>
+          }
+        </label>
+
+        <label class="field">
+          <span>Instagram (URL)</span>
+          <input type="url" formControlName="url_instagram" placeholder="https://instagram.com/tu-negocio" />
+          @if (form.controls.url_instagram.touched && form.controls.url_instagram.invalid) {
+            <small class="field-error">Ingresa un link valido con https://</small>
+          }
+        </label>
       </article>
 
       <article class="panel">

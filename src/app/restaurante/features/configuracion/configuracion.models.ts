@@ -6,6 +6,10 @@ export interface ConfiguracionNegocio {
   nit: string | null;
   email_contacto: string | null;
   telefono: string | null;
+  direccion: string | null;
+  url_whatsapp: string | null;
+  url_facebook: string | null;
+  url_instagram: string | null;
   id_tipo_negocio: number | null;
   tipo_negocio: string | null;
   id_paleta: number | null;
@@ -19,6 +23,10 @@ export interface ConfiguracionNegocioPayload {
   nit?: string | null;
   email_contacto?: string | null;
   telefono?: string | null;
+  direccion?: string | null;
+  url_whatsapp?: string | null;
+  url_facebook?: string | null;
+  url_instagram?: string | null;
   id_paleta?: number | null;
 }
 

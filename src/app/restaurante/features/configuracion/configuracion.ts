@@ -1,5 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import {
+  AbstractControl,
+  FormBuilder,
+  ReactiveFormsModule,
+  ValidationErrors,
+  Validators,
+} from '@angular/forms';
 import { finalize } from 'rxjs/operators';
 import { LucideAngularModule } from 'lucide-angular';
 
@@ -9,6 +15,21 @@ import { PaletaColor } from '../../../core/theme/palette.model';
 import { ConfiguracionService, MetodoPago } from './configuracion.service';
 import { ConfiguracionNegocio } from './configuracion.models';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
+
+function optionalUrlValidator(control: AbstractControl): ValidationErrors | null {
+  const rawValue = control.value ?? '';
+  const value = String(rawValue).trim();
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol === 'http:' || url.protocol === 'https:') {
+      return null;
+    }
+  } catch {
+    return { url: true };
+  }
+  return { url: true };
+}
 
 @Component({
   selector: 'app-configuracion',
@@ -59,6 +80,22 @@ export class ConfiguracionComponent {
     telefono: this.fb.control('', {
       nonNullable: true,
       validators: [Validators.maxLength(50)],
+    }),
+    direccion: this.fb.control('', {
+      nonNullable: true,
+      validators: [Validators.maxLength(255)],
+    }),
+    url_whatsapp: this.fb.control('', {
+      nonNullable: true,
+      validators: [Validators.maxLength(255), optionalUrlValidator],
+    }),
+    url_facebook: this.fb.control('', {
+      nonNullable: true,
+      validators: [Validators.maxLength(255), optionalUrlValidator],
+    }),
+    url_instagram: this.fb.control('', {
+      nonNullable: true,
+      validators: [Validators.maxLength(255), optionalUrlValidator],
     }),
     id_paleta: this.fb.control<number | null>(null),
   });
@@ -181,6 +218,10 @@ export class ConfiguracionComponent {
             nit: config.nit || '',
             email_contacto: config.email_contacto || '',
             telefono: config.telefono || '',
+            direccion: config.direccion || '',
+            url_whatsapp: config.url_whatsapp || '',
+            url_facebook: config.url_facebook || '',
+            url_instagram: config.url_instagram || '',
             id_paleta: config.id_paleta ?? null,
           });
 
@@ -237,6 +278,10 @@ export class ConfiguracionComponent {
         nit: value.nit?.trim() || null,
         email_contacto: value.email_contacto?.trim() || null,
         telefono: value.telefono?.trim() || null,
+        direccion: value.direccion?.trim() || null,
+        url_whatsapp: value.url_whatsapp?.trim() || null,
+        url_facebook: value.url_facebook?.trim() || null,
+        url_instagram: value.url_instagram?.trim() || null,
         id_paleta: value.id_paleta,
       })
       .pipe(finalize(() => this.saving.set(false)))
