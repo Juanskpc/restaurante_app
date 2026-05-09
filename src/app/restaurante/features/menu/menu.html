@@ -22,6 +22,10 @@
     </div>
 
     <div class="header-actions">
+      <button class="btn btn-secondary" (click)="abrirMenuDigital()" [disabled]="!negocioId()">
+        <lucide-icon name="external-link" [size]="16" />
+        Ver menu digital
+      </button>
       <button class="btn btn-secondary" (click)="abrirModalCat()">
         <lucide-icon name="circle-plus" [size]="16" />
         Nueva Categoría

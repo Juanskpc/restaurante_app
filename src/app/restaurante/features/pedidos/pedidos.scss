@@ -305,6 +305,9 @@
     border-left: none;
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.25);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
 
     @media (max-width: 767px) {
       height: calc(100dvh - 4px);
@@ -507,6 +510,8 @@
 @media (max-width: 991px) {
   .order-items {
     min-height: 0;
+    flex: 0 0 auto;
+    overflow: visible;
   }
 }
 
@@ -864,6 +869,13 @@
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 
+.btn-release.icon-only {
+  width: 44px;
+  padding: 10px;
+  justify-self: start;
+  align-self: center;
+}
+
 .btn-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -1202,6 +1214,11 @@
   .mesa-select,
   .domicilio-btn,
   .takeaway-info { width: 100%; min-width: 0; }
+}
+
+.mesa-pago-row--mesa {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
 }
 
 // Botón "Datos del domicilio" — diseñado para alinearse con .mesa-select.

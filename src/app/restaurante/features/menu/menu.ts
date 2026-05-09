@@ -1,10 +1,11 @@
 import {
   Component, inject, signal, computed, effect,
-  ChangeDetectionStrategy, OnInit, OnDestroy,
+  ChangeDetectionStrategy, OnInit, OnDestroy, PLATFORM_ID,
 } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { LucideAngularModule } from 'lucide-angular';
 import { FormsModule } from '@angular/forms';
+import { isPlatformBrowser } from '@angular/common';
 
 import { AuthService } from '../../../core/services/auth.service';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
@@ -107,6 +108,8 @@ export class MenuComponent implements OnInit, OnDestroy {
   private readonly http = inject(HttpClient);
   private readonly auth = inject(AuthService);
   private readonly uiFeedback = inject(UiFeedbackService);
+  private readonly platformId = inject(PLATFORM_ID);
+  private readonly isBrowser = isPlatformBrowser(this.platformId);
 
   // ── Data ──────────────────────────────────────────────────
   readonly categorias       = signal<CategoriaAdmin[]>([]);
@@ -196,6 +199,12 @@ export class MenuComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     if (this.searchTimer) clearTimeout(this.searchTimer);
+  }
+
+  abrirMenuDigital(): void {
+    const id = this.negocioId();
+    if (!id || !this.isBrowser) return;
+    window.open(`/carta/${id}`, '_blank', 'noopener');
   }
 
   // ============================================================

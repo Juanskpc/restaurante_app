@@ -145,7 +145,7 @@
 
       @if (requiereMesa()) {
         @if (mesas().length > 0) {
-          <div class="mesa-pago-row">
+          <div class="mesa-pago-row mesa-pago-row--mesa">
             <select class="mesa-select"
                     [class.error]="mesaRequeridaError()"
                     [value]="mesaId() ?? ''"
@@ -166,6 +166,16 @@
                         [selected]="metodoPagoId() === mp.id_metodo_pago">💳 {{ mp.nombre }}</option>
               }
             </select>
+
+            @if (mesaId()) {
+              <button class="btn-release icon-only"
+                      [disabled]="enviando() || ordenActivaId() !== null"
+                      [title]="ordenActivaId() !== null ? 'Primero debes cobrar la cuenta de esta mesa' : 'Liberar mesa'"
+                      aria-label="Liberar mesa"
+                      (click)="liberarMesaActual()">
+                <lucide-icon name="door-open" [size]="20" />
+              </button>
+            }
           </div>
 
           @if (mesaRequeridaError()) {
@@ -387,15 +397,6 @@
                     (click)="enviarACocina()">
               <lucide-icon name="flame" [size]="20" />
               {{ enviando() && destinoEnvio() === 'COCINA' ? 'ENVIANDO...' : 'ENVIAR A COCINA' }}
-            </button>
-          }
-          @if (requiereMesa() && mesaId()) {
-            <button class="btn-release"
-                    [disabled]="enviando() || ordenActivaId() !== null"
-                    [title]="ordenActivaId() !== null ? 'Primero debes cobrar la cuenta de esta mesa' : 'Liberar mesa'"
-                    (click)="liberarMesaActual()">
-              <lucide-icon name="door-open" [size]="20" />
-              Liberar mesa
             </button>
           }
           @if (!canCobrarPedido() && !canImprimirPedido()) {

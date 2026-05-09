@@ -63,6 +63,7 @@ export class MenuPublicoComponent implements OnInit {
   readonly negocio = signal<NegocioPublico | null>(null);
   readonly categorias = signal<CategoriaPublica[]>([]);
   readonly productos = signal<ProductoPublico[]>([]);
+  readonly negocioInvalido = signal(false);
 
   readonly cargandoNegocio = signal(false);
   readonly cargandoCategorias = signal(false);
@@ -90,6 +91,10 @@ export class MenuPublicoComponent implements OnInit {
     this.route.paramMap.subscribe((params) => {
       const id = Number(params.get('id'));
       if (!id) return;
+      this.negocioInvalido.set(false);
+      this.negocio.set(null);
+      this.categorias.set([]);
+      this.productos.set([]);
       this.negocioId.set(id);
       this.cargarNegocio(id);
       this.cargarCategorias(id);
@@ -115,14 +120,26 @@ export class MenuPublicoComponent implements OnInit {
       )
       .subscribe({
         next: (res) => {
-          this.negocio.set(res?.data ?? null);
+          const negocio = res?.data ?? null;
+          this.negocio.set(negocio);
+          if (!negocio) {
+            this.negocioInvalido.set(true);
+            this.categorias.set([]);
+            this.productos.set([]);
+          }
           this.cargandoNegocio.set(false);
         },
-        error: () => this.cargandoNegocio.set(false),
+        error: () => {
+          this.negocioInvalido.set(true);
+          this.categorias.set([]);
+          this.productos.set([]);
+          this.cargandoNegocio.set(false);
+        },
       });
   }
 
   private cargarCategorias(idNegocio: number): void {
+    if (this.negocioInvalido()) return;
     this.cargandoCategorias.set(true);
     this.http
       .get<{ success: boolean; data: CategoriaPublica[] }>(

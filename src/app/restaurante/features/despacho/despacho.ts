@@ -8,6 +8,7 @@ import { catchError } from 'rxjs/operators';
 import { LucideAngularModule } from 'lucide-angular';
 
 import { AuthService } from '../../../core/services/auth.service';
+import { CajaService } from '../../../core/services/caja.service';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 import { environment } from '../../../../environments/environment';
 
@@ -61,6 +62,7 @@ export interface PedidoDespacho {
 export class DespachoComponent implements OnInit {
   private readonly http = inject(HttpClient);
   private readonly auth = inject(AuthService);
+  private readonly cajaSvc = inject(CajaService);
   private readonly uiFeedback = inject(UiFeedbackService);
   private readonly platformId = inject(PLATFORM_ID);
   private readonly isBrowser = isPlatformBrowser(this.platformId);
@@ -339,11 +341,22 @@ export class DespachoComponent implements OnInit {
       return;
     }
 
+    const origenCobro = p.tipo_pedido === 'DOMICILIO' ? 'DOMICILIARIO' : 'CAJA';
+    const idCaja = origenCobro === 'CAJA' ? this.cajaSvc.cajaAbierta()?.id_caja ?? null : null;
+    if (origenCobro === 'CAJA' && !idCaja) {
+      void this.uiFeedback.alert({
+        title: 'Caja cerrada',
+        message: 'La caja está cerrada. Ábrela antes de registrar cobros en despacho.',
+        tone: 'warning',
+      });
+      return;
+    }
+
     this.cobrandoId.set(p.id_orden);
 
     this.http.patch<{ success: boolean }>(
       `${environment.apiUrl}/pedidos/${p.id_orden}/marcar-pagado`,
-      { id_metodo_pago: idMetodoPago, origen_cobro: 'DOMICILIARIO' }
+      { id_metodo_pago: idMetodoPago, origen_cobro: origenCobro, id_caja: idCaja }
     ).subscribe({
       next: (res) => {
         if (res?.success) {

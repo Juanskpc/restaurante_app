@@ -849,6 +849,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
       this.http.patch<{ success: boolean }>(
         `${environment.apiUrl}/pedidos/${idOrdenActiva}/agregar-items`,
         {
+          id_caja: this.getIdCaja(),
           id_negocio: this.negocioId(),
           id_metodo_pago: this.metodoPagoId(),
           nota: this.notaOrden() || null,
@@ -874,6 +875,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
 
     const tipo = this.tipoPedido();
     const body: Record<string, unknown> = {
+      id_caja: this.getIdCaja(),
       id_negocio: this.negocioId(),
       id_metodo_pago: this.metodoPagoId(),
       id_mesa: tipo === 'MESA' ? (this.mesaId() || null) : null,
@@ -947,9 +949,11 @@ export class PedidosComponent implements OnInit, OnDestroy {
       };
 
       if (cobrar) {
+        const origenCobro = this.tipoPedido() === 'DOMICILIO' ? 'DOMICILIARIO' : 'CAJA';
+        const idCaja = origenCobro === 'CAJA' ? this.getIdCaja() : null;
         this.http.patch(
           `${environment.apiUrl}/pedidos/${idOrden}/marcar-pagado`,
-          { id_metodo_pago: this.metodoPagoId(), origen_cobro: 'CAJA' }
+          { id_metodo_pago: this.metodoPagoId(), origen_cobro: origenCobro, id_caja: idCaja }
         ).subscribe({
           next: () => finalizarDespacho(),
           error: () => this.resetEstadoEnvio(),
@@ -1006,7 +1010,10 @@ export class PedidosComponent implements OnInit, OnDestroy {
 
     this.http.patch(
       `${environment.apiUrl}/pedidos/${idOrden}/cerrar`,
-      { id_metodo_pago: this.metodoPagoId() || null }
+      {
+        id_metodo_pago: this.metodoPagoId() || null,
+        id_caja: this.tipoPedido() === 'DOMICILIO' ? null : this.getIdCaja(),
+      }
     ).subscribe({
       next: () => {
         if (this.requiereMesa()) {
@@ -1426,6 +1433,10 @@ export class PedidosComponent implements OnInit, OnDestroy {
     const digits = rawValue.replace(/\D/g, '');
     if (!digits) return null;
     return Number(digits);
+  }
+
+  private getIdCaja(): number | null {
+    return this.cajaSvc.cajaAbierta()?.id_caja ?? null;
   }
 
   imprimirTicket(): void {
