@@ -1,176 +1,267 @@
 <div class="public-menu">
+  <!-- ═══════════ HERO HEADER ═══════════ -->
   <header class="hero">
     <div class="hero-inner">
-      <div class="hero-copy">
-        <span class="hero-pill">Carta del negocio</span>
-        <h1>{{ negocioInvalido() ? 'Menu no disponible' : (negocio()?.nombre || 'Menu') }}</h1>
-        <p>
-          {{ negocioInvalido()
-            ? 'La URL no es valida o el negocio no existe.'
-            : 'Explora nuestros productos, ingredientes y opciones disponibles.' }}
-        </p>
-      </div>
       @if (cargandoNegocio()) {
-        <div class="hero-status">
-          <lucide-icon name="loader" [size]="20" class="spinner" />
-          <span>Cargando datos...</span>
+        <div class="hero-skeleton">
+          <div class="skeleton-bar skeleton-title"></div>
+          <div class="skeleton-bar skeleton-sub"></div>
         </div>
+      } @else if (negocioInvalido()) {
+        <div class="hero-error">
+          <lucide-icon name="alert-triangle" [size]="28" class="hero-error-icon" />
+          <span>Negocio no encontrado</span>
+        </div>
+      } @else {
+        <div class="hero-brand">
+          <div class="hero-logo">
+            <lucide-icon name="utensils-crossed" [size]="22" />
+          </div>
+          <div class="hero-text">
+            <span class="hero-pill">Menú Digital</span>
+            <h1 class="hero-name">{{ negocio()?.nombre }}</h1>
+            @if (negocio()?.direccion) {
+              <div class="hero-addr">
+                <lucide-icon name="map-pin" [size]="12" />
+                <span>{{ negocio()?.direccion }}</span>
+              </div>
+            }
+          </div>
+        </div>
+        @if (negocio()?.telefono) {
+          <a class="hero-call" [href]="'tel:' + negocio()?.telefono" aria-label="Llamar al restaurante">
+            <lucide-icon name="phone" [size]="16" />
+          </a>
+        }
       }
     </div>
   </header>
 
-  @if (negocioInvalido()) {
-    <section class="categories">
-      <div class="state-row">
-        <lucide-icon name="alert-triangle" [size]="18" />
-        <span>La URL no es valida o el negocio no corresponde a un restaurante.</span>
-      </div>
-    </section>
-  } @else {
-    <section class="categories">
-      <div class="section-title">
-        <h2>Categorias</h2>
-        <span class="section-sub">Selecciona una categoria para ver sus productos.</span>
-      </div>
-
-      @if (cargandoCategorias()) {
-        <div class="state-row">
-          <lucide-icon name="loader" [size]="18" class="spinner" />
-          <span>Cargando categorias...</span>
+  <!-- ═══════════ ERROR: NEGOCIO INVÁLIDO ═══════════ -->
+  @if (negocioInvalido() && !cargandoNegocio()) {
+    <main class="main-content">
+      <div class="state-card state-card--error">
+        <div class="state-icon state-icon--error">
+          <lucide-icon name="folder-x" [size]="40" />
         </div>
-      } @else if (categorias().length === 0) {
-        <div class="state-row">No hay categorias disponibles.</div>
-      } @else {
-        <div class="category-row">
-          @for (cat of categorias(); track cat.id_categoria) {
-            <button
-              type="button"
-              class="category-chip"
-              [class.category-chip-active]="categoriaActiva() === cat.id_categoria"
-              (click)="selectCategoria(cat.id_categoria)"
+        <h2>Menú no disponible</h2>
+        <p>La URL no es válida o el negocio no corresponde a un restaurante activo.</p>
+      </div>
+    </main>
+  }
+
+  <!-- ═══════════ PLAN INACTIVO ═══════════ -->
+  @if (planInactivo() && !cargandoNegocio()) {
+    <main class="main-content">
+      <div class="state-card state-card--plan">
+        <div class="state-icon state-icon--plan">
+          <lucide-icon name="credit-card" [size]="40" />
+        </div>
+        <h2>Suscripción inactiva</h2>
+        <p>Este menú digital no está disponible porque el restaurante no cuenta con un plan activo.</p>
+        <p class="state-hint">
+          ¿Eres el propietario?
+          <a href="https://escalapp.cloud" target="_blank" rel="noopener">Activa tu plan en Escalapp</a>
+        </p>
+      </div>
+    </main>
+  }
+
+  <!-- ═══════════ MENU CONTENT ═══════════ -->
+  @if (!negocioInvalido() && !planInactivo() && negocio()) {
+    <main class="main-content">
+      <!-- Categories -->
+      <nav class="categories-bar" aria-label="Categorías del menú">
+        @if (cargandoCategorias()) {
+          <div class="categories-skeleton">
+            @for (i of [1,2,3,4,5]; track i) {
+              <div class="skeleton-chip"></div>
+            }
+          </div>
+        } @else if (categorias().length === 0) {
+          <div class="categories-empty">
+            <lucide-icon name="folder-x" [size]="14" />
+            <span>Sin categorías</span>
+          </div>
+        } @else {
+          <div class="categories-wrapper">
+            @if (puedeScrollIzq()) {
+              <button
+                type="button"
+                class="cat-arrow cat-arrow--left"
+                aria-label="Categorías anteriores"
+                (click)="scrollCategorias('left')"
+              >
+                <lucide-icon name="chevron-left" [size]="16" />
+              </button>
+            }
+            <div
+              class="categories-scroll"
+              #catScroll
+              (scroll)="onCatScroll()"
             >
-              <span class="chip-icon">{{ cat.icono }}</span>
-              <span class="chip-name">{{ cat.nombre }}</span>
-            </button>
-          }
-        </div>
-      }
-    </section>
-
-    <section class="products">
-      <div class="section-title">
-        <h2>Productos</h2>
-        @if (categoriaActiva()) {
-          <span class="section-sub">Mostrando {{ productos().length }} productos.</span>
+              @for (cat of categorias(); track cat.id_categoria; let i = $index) {
+                <button
+                  type="button"
+                  class="cat-chip"
+                  [class.cat-chip--active]="categoriaActiva() === cat.id_categoria"
+                  (click)="selectCategoria(cat.id_categoria, i)"
+                >
+                  <span class="cat-emoji">{{ cat.icono }}</span>
+                  <span class="cat-name">{{ cat.nombre }}</span>
+                  <span class="cat-badge">{{ cat.total_productos }}</span>
+                </button>
+              }
+            </div>
+            @if (puedeScrollDer()) {
+              <button
+                type="button"
+                class="cat-arrow cat-arrow--right"
+                aria-label="Más categorías"
+                (click)="scrollCategorias('right')"
+              >
+                <lucide-icon name="chevron-right" [size]="16" />
+              </button>
+            }
+          </div>
         }
-      </div>
+      </nav>
 
-      @if (cargandoProductos()) {
-        <div class="state-row">
-          <lucide-icon name="loader" [size]="18" class="spinner" />
-          <span>Cargando productos...</span>
-        </div>
-      } @else if (productos().length === 0) {
-        <div class="state-row">No hay productos para esta categoria.</div>
-      } @else {
-        <div class="products-grid">
-          @for (prod of productos(); track prod.id_producto) {
-            <article class="product-card">
-              <div class="product-media">
-                @if (prod.imagen_url) {
-                  <img [src]="prod.imagen_url" [alt]="prod.nombre" />
-                } @else {
-                  <span class="product-emoji">{{ prod.icono }}</span>
-                }
-                @if (prod.es_popular) {
-                  <span class="badge">Popular</span>
-                }
+      <!-- Products -->
+      <section class="products-section">
+        @if (cargandoProductos()) {
+          <div class="products-skeleton">
+            @for (i of [1,2,3,4]; track i) {
+              <div class="skeleton-card">
+                <div class="skeleton-img"></div>
+                <div class="skeleton-body">
+                  <div class="skeleton-bar skeleton-name"></div>
+                  <div class="skeleton-bar skeleton-desc"></div>
+                </div>
               </div>
+            }
+          </div>
+        } @else if (productos().length === 0) {
+          <div class="state-card state-card--empty">
+            <div class="state-icon state-icon--empty">
+              <lucide-icon name="coffee" [size]="32" />
+            </div>
+            <p>No hay productos en esta categoría</p>
+          </div>
+        } @else {
+          <div class="products-grid">
+            @for (prod of productos(); track prod.id_producto) {
+              <article class="product-card" [class.product-card--popular]="prod.es_popular">
+                @if (prod.es_popular) {
+                  <span class="popular-badge">
+                    <lucide-icon name="star" [size]="10" />
+                    <span>Popular</span>
+                  </span>
+                }
 
-              <div class="product-body">
-                <div class="product-header">
-                  <h3>{{ prod.nombre }}</h3>
-                  <span class="price">{{ formatPrice(prod.precio) }}</span>
+                <div class="product-img">
+                  @if (prod.imagen_url) {
+                    <img [src]="prod.imagen_url" [alt]="prod.nombre" loading="lazy" />
+                  } @else {
+                    <div class="product-placeholder">
+                      <span>{{ prod.icono }}</span>
+                    </div>
+                  }
                 </div>
 
-                @if (prod.descripcion) {
-                  <p class="product-desc">{{ prod.descripcion }}</p>
-                }
-
-                @if (prod.ingredientes.length > 0) {
-                  <div class="ingredients">
-                    @for (ing of prod.ingredientes; track ing.id_producto_ingred) {
-                      <span class="ingredient-chip">{{ ing.nombre }}</span>
-                    }
+                <div class="product-info">
+                  <div class="product-header">
+                    <h3 class="product-name">{{ prod.nombre }}</h3>
+                    <span class="product-price">{{ formatPrice(prod.precio) }}</span>
                   </div>
-                }
-              </div>
-            </article>
+
+                  @if (prod.descripcion) {
+                    <p class="product-desc">{{ prod.descripcion }}</p>
+                  }
+
+                  @if (prod.ingredientes.length > 0) {
+                    <div class="product-tags">
+                      @for (ing of prod.ingredientes.slice(0, 3); track ing.id_producto_ingred) {
+                        <span class="tag">{{ ing.nombre }}</span>
+                      }
+                      @if (prod.ingredientes.length > 3) {
+                        <span class="tag tag--more">+{{ prod.ingredientes.length - 3 }}</span>
+                      }
+                    </div>
+                  }
+                </div>
+              </article>
+            }
+          </div>
+        }
+      </section>
+
+    </main>
+  }
+
+  <!-- ═══════════ ESCALAPP BRANDING FOOTER ═══════════ -->
+  <footer class="escalapp-footer">
+    <div class="footer-inner">
+      <div class="footer-divider"></div>
+
+      <div class="footer-branding">
+        <div class="footer-logo">
+          <svg width="32" height="32" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="40" height="40" rx="10" fill="var(--color-primary, #1565c0)" />
+            <path d="M10 15L20 10L30 15V25L20 30L10 25V15Z" stroke="white" stroke-width="2" fill="none" stroke-linejoin="round" />
+            <circle cx="20" cy="20" r="4" fill="white" />
+            <path d="M20 16V24" stroke="var(--color-primary, #1565c0)" stroke-width="2" stroke-linecap="round" />
+            <path d="M16 20H24" stroke="var(--color-primary, #1565c0)" stroke-width="2" stroke-linecap="round" />
+          </svg>
+        </div>
+
+        <p class="footer-powered">
+          Menú digital <strong>powered by Escalapp</strong>
+        </p>
+
+        <p class="footer-tagline">
+          La plataforma integral que impulsa negocios. Gestiona tu restaurante, parqueadero, gimnasio,
+          tienda o reservas desde un solo lugar.
+        </p>
+      </div>
+
+      @if (tieneSocial()) {
+        <div class="footer-social">
+          @for (link of socialLinks(); track link.type) {
+            <a class="footer-social-link" [href]="link.url" target="_blank" rel="noopener" [attr.aria-label]="link.label">
+              <lucide-icon [name]="link.icon" [size]="16" />
+              <span>{{ link.label }}</span>
+            </a>
           }
         </div>
       }
-    </section>
 
-    @if (contactoDisponible()) {
-      <section class="contact">
-        <div class="section-title">
-          <h2>Contacto</h2>
-          <span class="section-sub">Escribenos o visitanos cuando quieras.</span>
+      <a
+        class="footer-cta"
+        href="https://escalapp.cloud"
+        target="_blank"
+        rel="noopener"
+      >
+        <span>¿Quieres tu propio menú digital?</span>
+        <div class="footer-cta-icon">
+          <lucide-icon name="arrow-right" [size]="16" />
         </div>
+      </a>
 
-        <div class="contact-grid">
-          @if (negocio()?.direccion) {
-            <div class="contact-card">
-              <lucide-icon name="map-pin" [size]="18" />
-              <div>
-                <span class="contact-label">Direccion</span>
-                <p>{{ negocio()?.direccion }}</p>
-              </div>
-            </div>
-          }
-          @if (negocio()?.telefono) {
-            <div class="contact-card">
-              <lucide-icon name="phone" [size]="18" />
-              <div>
-                <span class="contact-label">Telefono</span>
-                <p>{{ negocio()?.telefono }}</p>
-              </div>
-            </div>
-          }
-          @if (negocio()?.url_whatsapp) {
-            <a class="contact-card link-card" [href]="negocio()?.url_whatsapp" target="_blank" rel="noopener">
-              <lucide-icon name="message-circle" [size]="18" />
-              <div>
-                <span class="contact-label">WhatsApp</span>
-                <p>Escribenos por chat</p>
-              </div>
-            </a>
-          }
-          @if (negocio()?.url_facebook) {
-            <a class="contact-card link-card" [href]="negocio()?.url_facebook" target="_blank" rel="noopener">
-              <lucide-icon name="facebook" [size]="18" />
-              <div>
-                <span class="contact-label">Facebook</span>
-                <p>Visitar pagina</p>
-              </div>
-            </a>
-          }
-          @if (negocio()?.url_instagram) {
-            <a class="contact-card link-card" [href]="negocio()?.url_instagram" target="_blank" rel="noopener">
-              <lucide-icon name="instagram" [size]="18" />
-              <div>
-                <span class="contact-label">Instagram</span>
-                <p>Ver perfil</p>
-              </div>
-            </a>
-          }
-        </div>
-      </section>
-    }
+      <div class="footer-links">
+        <a href="https://escalapp.cloud" target="_blank" rel="noopener" class="footer-link">
+          <lucide-icon name="globe" [size]="13" />
+          <span>escalapp.cloud</span>
+        </a>
+        <a href="mailto:contacto@escalapp.cloud" class="footer-link">
+          <lucide-icon name="mail" [size]="13" />
+          <span>contacto&#64;escalapp.cloud</span>
+        </a>
+      </div>
 
-    <footer class="footer">
-      Desarrollado por
-      <a href="https://escalapp.cloud/admin/" target="_blank" rel="noopener">Escalapp</a>
-    </footer>
-  }
+      <div class="footer-copy">
+        <span>&copy; {{ currentYear }} Escalapp. Todos los derechos reservados.</span>
+      </div>
+    </div>
+  </footer>
 </div>

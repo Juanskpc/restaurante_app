@@ -1,11 +1,16 @@
 import {
+  AfterViewInit,
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
   OnInit,
   computed,
   inject,
   signal,
+  viewChild,
+  PLATFORM_ID,
 } from '@angular/core';
+import { DOCUMENT, isPlatformBrowser } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
@@ -46,6 +51,7 @@ interface NegocioPublico {
   url_whatsapp: string | null;
   url_facebook: string | null;
   url_instagram: string | null;
+  plan_activo: boolean;
 }
 
 @Component({
@@ -55,35 +61,51 @@ interface NegocioPublico {
   styleUrl: './menu-publico.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class MenuPublicoComponent implements OnInit {
+export class MenuPublicoComponent implements OnInit, AfterViewInit {
   private readonly http = inject(HttpClient);
   private readonly route = inject(ActivatedRoute);
+  private readonly platformId = inject(PLATFORM_ID);
+  private readonly document = inject(DOCUMENT);
 
   readonly negocioId = signal<number | null>(null);
   readonly negocio = signal<NegocioPublico | null>(null);
   readonly categorias = signal<CategoriaPublica[]>([]);
   readonly productos = signal<ProductoPublico[]>([]);
   readonly negocioInvalido = signal(false);
+  readonly planInactivo = signal(false);
 
   readonly cargandoNegocio = signal(false);
   readonly cargandoCategorias = signal(false);
   readonly cargandoProductos = signal(false);
+  readonly cargandoPaleta = signal(false);
 
   readonly categoriaActiva = signal<number | null>(null);
+  readonly categoriaActivaIdx = signal(0);
 
-  readonly contactoDisponible = computed(() => {
+  readonly currentYear = new Date().getFullYear();
+
+  readonly socialLinks = computed(() => {
     const info = this.negocio();
-    if (!info) return false;
-    return Boolean(
-      info.direccion ||
-      info.telefono ||
-      info.url_whatsapp ||
-      info.url_facebook ||
-      info.url_instagram
-    );
+    if (!info) return [];
+    const links: { type: string; url: string; icon: string; label: string }[] = [];
+    if (info.url_whatsapp) links.push({ type: 'whatsapp', url: info.url_whatsapp, icon: 'message-circle', label: 'WhatsApp' });
+    if (info.url_facebook) links.push({ type: 'facebook', url: info.url_facebook, icon: 'facebook', label: 'Facebook' });
+    if (info.url_instagram) links.push({ type: 'instagram', url: info.url_instagram, icon: 'instagram', label: 'Instagram' });
+    return links;
   });
 
+  readonly tieneSocial = computed(() => this.socialLinks().length > 0);
+  readonly tieneTelefono = computed(() => Boolean(this.negocio()?.telefono));
+  readonly tieneDireccion = computed(() => Boolean(this.negocio()?.direccion));
+
+  readonly categoriasScroll = viewChild<ElementRef<HTMLElement>>('catScroll');
+  readonly puedeScrollIzq = signal(false);
+  readonly puedeScrollDer = signal(false);
+
   private readonly priceFormatter = new Intl.NumberFormat('es-CO', {
+    style: 'currency',
+    currency: 'COP',
+    minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   });
 
@@ -92,58 +114,130 @@ export class MenuPublicoComponent implements OnInit {
       const id = Number(params.get('id'));
       if (!id) return;
       this.negocioInvalido.set(false);
+      this.planInactivo.set(false);
       this.negocio.set(null);
       this.categorias.set([]);
       this.productos.set([]);
       this.negocioId.set(id);
       this.cargarNegocio(id);
-      this.cargarCategorias(id);
     });
   }
 
-  selectCategoria(idCategoria: number): void {
+  ngAfterViewInit(): void {
+    if (!isPlatformBrowser(this.platformId)) return;
+    queueMicrotask(() => this.actualizarFlechas());
+
+    window.addEventListener('resize', this._onResize);
+  }
+
+  private _onResize = (): void => this.actualizarFlechas();
+
+  actualizarFlechas(): void {
+    const el = this.categoriasScroll()?.nativeElement;
+    if (!el) {
+      this.puedeScrollIzq.set(false);
+      this.puedeScrollDer.set(false);
+      return;
+    }
+    const tolerance = 2;
+    this.puedeScrollIzq.set(el.scrollLeft > tolerance);
+    this.puedeScrollDer.set(el.scrollLeft + el.clientWidth < el.scrollWidth - tolerance);
+  }
+
+  scrollCategorias(dir: 'left' | 'right'): void {
+    const el = this.categoriasScroll()?.nativeElement;
+    if (!el) return;
+    const amount = el.clientWidth * 0.6;
+    el.scrollBy({ left: dir === 'left' ? -amount : amount, behavior: 'smooth' });
+  }
+
+  onCatScroll(): void {
+    this.actualizarFlechas();
+  }
+
+  selectCategoria(idCategoria: number, idx: number): void {
     this.categoriaActiva.set(idCategoria);
+    this.categoriaActivaIdx.set(idx);
     this.cargarProductos(idCategoria);
+
+    const el = this.categoriasScroll()?.nativeElement;
+    if (!el) return;
+    const chip = el.children[idx] as HTMLElement | undefined;
+    if (chip) {
+      chip.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
   }
 
   formatPrice(value: number): string {
-    const numericValue = Number(value);
-    if (!Number.isFinite(numericValue)) return '$ 0';
-    return `$ ${this.priceFormatter.format(numericValue)}`;
+    if (!Number.isFinite(value)) return '$ 0';
+    return this.priceFormatter.format(value);
   }
 
   private cargarNegocio(idNegocio: number): void {
     this.cargandoNegocio.set(true);
     this.http
       .get<{ success: boolean; data: NegocioPublico }>(
-        `${environment.apiUrl}/public/negocios/${idNegocio}`
+        `${environment.apiUrl}/public/negocios/${idNegocio}`,
       )
       .subscribe({
         next: (res) => {
           const negocio = res?.data ?? null;
           this.negocio.set(negocio);
+          this.cargandoNegocio.set(false);
+
           if (!negocio) {
             this.negocioInvalido.set(true);
-            this.categorias.set([]);
-            this.productos.set([]);
+            return;
           }
-          this.cargandoNegocio.set(false);
+
+          if (!negocio.plan_activo) {
+            this.planInactivo.set(true);
+            return;
+          }
+
+          this.cargarCategorias(idNegocio);
+          this.cargarPaleta(idNegocio);
         },
         error: () => {
           this.negocioInvalido.set(true);
-          this.categorias.set([]);
-          this.productos.set([]);
           this.cargandoNegocio.set(false);
         },
       });
   }
 
+  private cargarPaleta(idNegocio: number): void {
+    this.cargandoPaleta.set(true);
+    this.http
+      .get<{ success: boolean; data: { id_paleta: number; nombre: string; colores: Record<string, string> } }>(
+        `${environment.apiUrl}/public/negocios/${idNegocio}/paleta`,
+      )
+      .subscribe({
+        next: (res) => {
+          if (res?.data?.colores) {
+            this.aplicarPaleta(res.data.colores);
+          }
+          this.cargandoPaleta.set(false);
+        },
+        error: () => {
+          this.cargandoPaleta.set(false);
+        },
+      });
+  }
+
+  private aplicarPaleta(colores: Record<string, string>): void {
+    if (!isPlatformBrowser(this.platformId)) return;
+    const root = this.document.documentElement;
+    Object.entries(colores).forEach(([key, value]) => {
+      root.style.setProperty(`--${key}`, value);
+    });
+  }
+
   private cargarCategorias(idNegocio: number): void {
-    if (this.negocioInvalido()) return;
+    if (this.negocioInvalido() || this.planInactivo()) return;
     this.cargandoCategorias.set(true);
     this.http
       .get<{ success: boolean; data: CategoriaPublica[] }>(
-        `${environment.apiUrl}/public/carta/categorias?id_negocio=${idNegocio}`
+        `${environment.apiUrl}/public/carta/categorias?id_negocio=${idNegocio}`,
       )
       .subscribe({
         next: (res) => {
@@ -151,12 +245,18 @@ export class MenuPublicoComponent implements OnInit {
           this.categorias.set(cats);
           this.cargandoCategorias.set(false);
           if (cats.length > 0) {
-            this.selectCategoria(cats[0].id_categoria);
+            this.selectCategoria(cats[0].id_categoria, 0);
           } else {
             this.productos.set([]);
           }
         },
-        error: () => this.cargandoCategorias.set(false),
+        error: (err) => {
+          this.cargandoCategorias.set(false);
+          if (err?.status === 402) {
+            this.planInactivo.set(true);
+            this.categorias.set([]);
+          }
+        },
       });
   }
 
@@ -166,7 +266,7 @@ export class MenuPublicoComponent implements OnInit {
     this.cargandoProductos.set(true);
     this.http
       .get<{ success: boolean; data: ProductoPublico[] }>(
-        `${environment.apiUrl}/public/carta/productos?id_negocio=${idNegocio}&id_categoria=${idCategoria}`
+        `${environment.apiUrl}/public/carta/productos?id_negocio=${idNegocio}&id_categoria=${idCategoria}`,
       )
       .subscribe({
         next: (res) => {

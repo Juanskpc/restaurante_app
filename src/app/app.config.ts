@@ -15,7 +15,7 @@ import { LUCIDE_ICONS, LucideIconProvider } from 'lucide-angular';
 import {
   ChefHat, LayoutDashboard, ClipboardList, UtensilsCrossed, Armchair,
   Package, Users, ChartBar, Settings, LogOut, Menu, X,
-  Calendar, Sun, Moon, Bell, ChevronDown, ChevronRight,
+  Calendar, Sun, Moon, Bell, ChevronDown, ChevronLeft, ChevronRight,
   DollarSign, Receipt, Star, TrendingUp, TrendingDown, ChartPie, Eye,
   Search, Plus, Minus, Trash2, Printer, CreditCard, Flame, NotebookPen, Send,
   CirclePlus, Pencil, Loader, Leaf, Folder, ToggleRight, ToggleLeft,
@@ -23,13 +23,14 @@ import {
   CheckCircle, XCircle, RotateCw, FolderPlus, Save,
   AlertTriangle, Bike, Wallet, Play, PlusCircle, Square, Banknote,
   Home, Phone, PhoneCall, MapPin, User, StickyNote, ShoppingBag,
-  Copy, ArrowLeft, Lock, Truck, MessageCircle, Facebook, Instagram, CheckSquare, ExternalLink
+  Copy, ArrowLeft, Lock, Truck, MessageCircle, Facebook, Instagram, CheckSquare, ExternalLink,
+  Utensils, Coffee, FolderX, Globe, Mail, ArrowRight
 } from 'lucide-angular';
 
 const icons = {
   ChefHat, LayoutDashboard, ClipboardList, UtensilsCrossed, Armchair,
   Package, Users, ChartBar, Settings, LogOut, Menu, X,
-  Calendar, Sun, Moon, Bell, ChevronDown, ChevronRight,
+  Calendar, Sun, Moon, Bell, ChevronDown, ChevronLeft, ChevronRight,
   DollarSign, Receipt, Star, TrendingUp, TrendingDown, ChartPie, Eye,
   Search, Plus, Minus, Trash2, Printer, CreditCard, Flame, NotebookPen, Send,
   CirclePlus, Pencil, Loader, Leaf, Folder, ToggleRight, ToggleLeft,
@@ -37,7 +38,8 @@ const icons = {
   CheckCircle, XCircle, RotateCw, FolderPlus, Save,
   AlertTriangle, Bike, Wallet, Play, PlusCircle, Square, Banknote,
   Home, Phone, PhoneCall, MapPin, User, StickyNote, ShoppingBag,
-  Copy, ArrowLeft, Lock, Truck, MessageCircle, Facebook, Instagram, CheckSquare, ExternalLink
+  Copy, ArrowLeft, Lock, Truck, MessageCircle, Facebook, Instagram, CheckSquare, ExternalLink,
+  Utensils, Coffee, FolderX, Globe, Mail, ArrowRight
 };
 
 export const appConfig: ApplicationConfig = {
