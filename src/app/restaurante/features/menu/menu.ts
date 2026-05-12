@@ -204,7 +204,8 @@ export class MenuComponent implements OnInit, OnDestroy {
   abrirMenuDigital(): void {
     const id = this.negocioId();
     if (!id || !this.isBrowser) return;
-    window.open(`/carta/${id}`, '_blank', 'noopener');
+    const baseUrl = (environment.menuPublicoUrl || '').replace(/\/$/, '');
+    window.open(`${baseUrl}/carta/${id}`, '_blank', 'noopener');
   }
 
   // ============================================================

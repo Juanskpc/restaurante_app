@@ -7,4 +7,5 @@ export const environment = {
   production: true,
   apiUrl: 'https://api.escalapp.cloud/restaurante',
   adminUrl: 'https://escalapp.cloud/admin',
+  menuPublicoUrl: 'https://escalapp.cloud/restaurante',
 };

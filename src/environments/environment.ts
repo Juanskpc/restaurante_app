@@ -7,4 +7,6 @@ export const environment = {
   apiUrl: 'http://localhost:3000/restaurante',
   /** URL del admin_app para redirección de login */
   adminUrl: 'http://localhost:4002',
+  /** URL base del menu digital */
+  menuPublicoUrl: 'http://localhost:6002',
 };
