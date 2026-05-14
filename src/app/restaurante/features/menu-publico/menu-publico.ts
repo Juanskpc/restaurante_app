@@ -84,6 +84,10 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit {
 
   readonly currentYear = new Date().getFullYear();
 
+  readonly appLogoPath = `${environment.assetPath}/images/escalapplogo.png`;
+  readonly appSiteUrl = 'https://escalapp.cloud/admin/';
+  readonly appContactEmail = 'escalappsystem@gmail.com';
+
   readonly socialLinks = computed(() => {
     const info = this.negocio();
     if (!info) return [];
@@ -249,6 +253,7 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit {
           } else {
             this.productos.set([]);
           }
+          setTimeout(() => this.actualizarFlechas(), 50);
         },
         error: (err) => {
           this.cargandoCategorias.set(false);

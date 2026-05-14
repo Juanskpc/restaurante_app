@@ -61,7 +61,7 @@
         <p>Este menú digital no está disponible porque el restaurante no cuenta con un plan activo.</p>
         <p class="state-hint">
           ¿Eres el propietario?
-          <a href="https://escalapp.cloud" target="_blank" rel="noopener">Activa tu plan en Escalapp</a>
+          <a [href]="appSiteUrl" target="_blank" rel="noopener">Activa tu plan en Escalapp</a>
         </p>
       </div>
     </main>
@@ -181,11 +181,8 @@
 
                   @if (prod.ingredientes.length > 0) {
                     <div class="product-tags">
-                      @for (ing of prod.ingredientes.slice(0, 3); track ing.id_producto_ingred) {
+                      @for (ing of prod.ingredientes; track ing.id_producto_ingred) {
                         <span class="tag">{{ ing.nombre }}</span>
-                      }
-                      @if (prod.ingredientes.length > 3) {
-                        <span class="tag tag--more">+{{ prod.ingredientes.length - 3 }}</span>
                       }
                     </div>
                   }
@@ -196,6 +193,28 @@
         }
       </section>
 
+      <!-- ═══════ REDES SOCIALES DEL RESTAURANTE ═══════ -->
+      @if (tieneSocial()) {
+        <section class="social-section">
+          <h2 class="section-title">Nuestras redes</h2>
+          <div class="social-grid">
+            @for (link of socialLinks(); track link.type) {
+              <a
+                class="social-item"
+                [href]="link.url"
+                target="_blank"
+                rel="noopener"
+                [attr.aria-label]="link.label"
+              >
+                <div class="social-icon">
+                  <lucide-icon [name]="link.icon" [size]="20" />
+                </div>
+                <span class="social-label">{{ link.label }}</span>
+              </a>
+            }
+          </div>
+        </section>
+      }
     </main>
   }
 
@@ -205,15 +224,13 @@
       <div class="footer-divider"></div>
 
       <div class="footer-branding">
-        <div class="footer-logo">
-          <svg width="32" height="32" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect width="40" height="40" rx="10" fill="var(--color-primary, #1565c0)" />
-            <path d="M10 15L20 10L30 15V25L20 30L10 25V15Z" stroke="white" stroke-width="2" fill="none" stroke-linejoin="round" />
-            <circle cx="20" cy="20" r="4" fill="white" />
-            <path d="M20 16V24" stroke="var(--color-primary, #1565c0)" stroke-width="2" stroke-linecap="round" />
-            <path d="M16 20H24" stroke="var(--color-primary, #1565c0)" stroke-width="2" stroke-linecap="round" />
-          </svg>
-        </div>
+        <img
+          class="footer-logo"
+          [src]="appLogoPath"
+          alt="Escalapp"
+          width="130"
+          height="40"
+        />
 
         <p class="footer-powered">
           Menú digital <strong>powered by Escalapp</strong>
@@ -225,20 +242,9 @@
         </p>
       </div>
 
-      @if (tieneSocial()) {
-        <div class="footer-social">
-          @for (link of socialLinks(); track link.type) {
-            <a class="footer-social-link" [href]="link.url" target="_blank" rel="noopener" [attr.aria-label]="link.label">
-              <lucide-icon [name]="link.icon" [size]="16" />
-              <span>{{ link.label }}</span>
-            </a>
-          }
-        </div>
-      }
-
       <a
         class="footer-cta"
-        href="https://escalapp.cloud"
+        [href]="appSiteUrl"
         target="_blank"
         rel="noopener"
       >
@@ -249,13 +255,13 @@
       </a>
 
       <div class="footer-links">
-        <a href="https://escalapp.cloud" target="_blank" rel="noopener" class="footer-link">
+        <a [href]="appSiteUrl" target="_blank" rel="noopener" class="footer-link">
           <lucide-icon name="globe" [size]="13" />
           <span>escalapp.cloud</span>
         </a>
-        <a href="mailto:contacto@escalapp.cloud" class="footer-link">
+        <a [href]="'mailto:' + appContactEmail" class="footer-link">
           <lucide-icon name="mail" [size]="13" />
-          <span>contacto&#64;escalapp.cloud</span>
+          <span>{{ appContactEmail }}</span>
         </a>
       </div>
 

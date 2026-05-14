@@ -9,4 +9,6 @@ export const environment = {
   adminUrl: 'http://localhost:4002',
   /** URL base del menu digital */
   menuPublicoUrl: 'http://localhost:6002',
+  /** Ruta base para assets (imágenes, etc.) */
+  assetPath: '',
 };

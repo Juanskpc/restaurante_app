@@ -527,6 +527,19 @@
   gap: 4px;
   margin-top: auto;
   padding-top: 8px;
+  max-height: 80px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: var(--radius-full);
+  }
 }
 
 .tag {
@@ -538,12 +551,6 @@
   font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
   font-weight: 500;
-}
-
-.tag--more {
-  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
-  color: var(--color-primary);
-  font-weight: 600;
 }
 
 /* Product Skeletons */
@@ -595,6 +602,69 @@
 }
 
 /* ═══════════════════════════════════════════
+   SOCIAL SECTION (restaurante)
+   ═══════════════════════════════════════════ */
+.social-section {
+  padding: var(--spacing-lg) 0 var(--spacing-lg);
+  border-top: 1px solid var(--color-border);
+}
+
+.section-title {
+  font-size: var(--font-size-base);
+  font-weight: 700;
+  margin: 0 0 var(--spacing-md);
+  color: var(--color-text-primary);
+}
+
+.social-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+}
+
+.social-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  text-decoration: none;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  transition: all var(--transition-fast);
+
+  &:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+}
+
+.social-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  background: var(--color-menu-icon-bg);
+  color: var(--color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.social-label {
+  font-weight: 600;
+}
+
+/* ═══════════════════════════════════════════
    ESCALAPP BRANDING FOOTER
    ═══════════════════════════════════════════ */
 .escalapp-footer {
@@ -630,10 +700,10 @@
 }
 
 .footer-logo {
-  color: var(--color-primary);
+  display: block;
+  height: 40px;
+  width: auto;
   margin-bottom: 4px;
-
-  svg { display: block; }
 }
 
 .footer-powered {
@@ -654,41 +724,6 @@
   color: var(--color-text-secondary);
   line-height: 1.5;
   max-width: 380px;
-}
-
-.footer-social {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 4px;
-}
-
-.footer-social-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  border-radius: var(--radius-full);
-  border: 1px solid var(--color-border);
-  background: var(--color-bg);
-  color: var(--color-text-secondary);
-  text-decoration: none;
-  font-size: var(--font-size-xs);
-  font-weight: 500;
-  transition: all var(--transition-fast);
-
-  lucide-icon { flex-shrink: 0; }
-
-  &:hover {
-    border-color: var(--color-primary);
-    color: var(--color-primary);
-    background: var(--color-surface);
-  }
-
-  &:focus-visible {
-    outline: none;
-    box-shadow: var(--focus-ring);
-  }
 }
 
 .footer-cta {
@@ -825,7 +860,7 @@
 @media (prefers-contrast: high) {
   .cat-chip { border-width: 2px; }
   .product-card { border-width: 2px; }
-  .footer-social-link { border-width: 2px; }
+  .social-item { border-width: 2px; }
 }
 
 @supports (height: 100dvh) {
