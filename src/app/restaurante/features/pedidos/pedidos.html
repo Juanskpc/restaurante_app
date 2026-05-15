@@ -416,7 +416,7 @@
             {{ enviando() && destinoEnvio() === 'COBRAR' ? 'COBRANDO...' : 'Cobrar' }}
           </button>
           }
-          @if (canImprimirPedido()) {
+          @if (canImprimirPedido() && pedidoRegistrado()) {
           <button class="btn-secondary"
                   [disabled]="items().length === 0 || enviando()"
                   (click)="imprimirTicket()">

@@ -212,6 +212,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
   readonly canUsarParaLlevar = computed(() => this.auth.canAccessSubnivel('pedidos_para_llevar'));
   readonly canCobrarPedido = computed(() => this.auth.canAccessSubnivel('pedidos_cobrar'));
   readonly canImprimirPedido = computed(() => this.auth.canAccessSubnivel('pedidos_imprimir'));
+  readonly pedidoRegistrado = computed(() => this.ordenActivaId() !== null);
   readonly canEnviarCocina = computed(() => this.auth.canAccessSubnivel('pedidos_enviar_cocina'));
   readonly efectivoRecibido = computed(() => this.parseMonto(this.efectivoRecibidoInput()));
   readonly faltanteCobro = computed(() => {
