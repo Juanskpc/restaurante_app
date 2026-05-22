@@ -214,6 +214,21 @@
             }
           </select>
         </div>
+
+        @if (cargandoPedidosDespacho()) {
+          <select class="mesa-select" disabled>
+            <option>Cargando pedidos...</option>
+          </select>
+        } @else if (pedidosDespacho().length > 0) {
+          <select class="mesa-select"
+                  [value]="pedidoDespachoSeleccionado()?.id_orden ?? ''"
+                  (change)="seleccionarPedidoDespachoSelect($any($event.target).value)">
+            <option value="">📦 Seleccionar pedido pendiente...</option>
+            @for (p of pedidosDespacho(); track p.id_orden) {
+              <option [value]="p.id_orden">📦 {{ p.numero_orden }} — {{ p.contacto_nombre || 'Sin nombre' }} ({{ p.total | currency:'COP':'symbol-narrow':'1.0-0' }})</option>
+            }
+          </select>
+        }
       } @else {
         <div class="mesa-pago-row">
           <button type="button" class="domicilio-btn"
@@ -240,6 +255,21 @@
             }
           </select>
         </div>
+
+        @if (cargandoPedidosDespacho()) {
+          <select class="mesa-select" disabled>
+            <option>Cargando pedidos...</option>
+          </select>
+        } @else if (pedidosDespacho().length > 0) {
+          <select class="mesa-select"
+                  [value]="pedidoDespachoSeleccionado()?.id_orden ?? ''"
+                  (change)="seleccionarPedidoDespachoSelect($any($event.target).value)">
+            <option value="">📦 Seleccionar pedido pendiente...</option>
+            @for (p of pedidosDespacho(); track p.id_orden) {
+              <option [value]="p.id_orden">📦 {{ p.numero_orden }} — {{ p.contacto_nombre || 'Sin nombre' }} ({{ p.total | currency:'COP':'symbol-narrow':'1.0-0' }})</option>
+            }
+          </select>
+        }
       }
 
       @if (metodoPagoRequeridoError()) {

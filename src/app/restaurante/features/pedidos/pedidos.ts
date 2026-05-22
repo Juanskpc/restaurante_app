@@ -100,6 +100,28 @@ interface DomiciliarioOpt {
   telefono: string | null;
 }
 
+interface PedidoDespacho {
+  id_orden: number;
+  numero_orden: string;
+  tipo_pedido: 'LLEVAR' | 'DOMICILIO';
+  total: number;
+  fecha_creacion: string;
+  estado_pago: string;
+  contacto_nombre: string | null;
+  contacto_telefono: string | null;
+  direccion_domicilio: string | null;
+  nota_domicilio: string | null;
+  id_domiciliario: number | null;
+  detalles?: Array<{
+    id_detalle: number;
+    id_producto: number;
+    cantidad: number;
+    precio_unitario: number;
+    nota?: string | null;
+    producto?: { nombre: string };
+  }>;
+}
+
 interface ItemOrdenCache {
   id_producto: number;
   nombre: string;
@@ -176,6 +198,10 @@ export class PedidosComponent implements OnInit, OnDestroy {
   readonly cargandoProductos = signal(false);
   readonly ordenPanelOpen = signal(false);
   readonly isMobileViewport = signal(this.isBrowser ? window.innerWidth < this.mobileBreakpoint : false);
+
+  readonly pedidosDespacho = signal<PedidoDespacho[]>([]);
+  readonly cargandoPedidosDespacho = signal(false);
+  readonly pedidoDespachoSeleccionado = signal<PedidoDespacho | null>(null);
 
   // Para modal de personalización de ingredientes
   readonly itemEditando = signal<ItemOrden | null>(null);
@@ -468,6 +494,8 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.domDireccion.set('');
     this.domNota.set('');
     this.domDomiciliarioId.set(null);
+    this.pedidosDespacho.set([]);
+    this.pedidoDespachoSeleccionado.set(null);
   }
 
   async seleccionarTipoPedido(tipo: TipoPedido): Promise<void> {
@@ -482,20 +510,128 @@ export class PedidosComponent implements OnInit, OnDestroy {
 
     this.tipoPedido.set(tipo);
     this.mesaRequeridaError.set(false);
+    this.pedidoDespachoSeleccionado.set(null);
     if (tipo !== 'MESA') {
       this.ordenActivaId.set(null);
       this.itemsBaseOrdenActiva.set([]);
       this.notaBaseOrdenActiva.set('');
       this.mesaId.set(null);
+      this.loadPedidosDespacho(tipo);
     }
     if (tipo !== 'DOMICILIO') {
-      // Limpia datos del modal cuando se sale de domicilio
       this.domContacto.set('');
       this.domTelefono.set('');
       this.domDireccion.set('');
       this.domNota.set('');
       this.domDomiciliarioId.set(null);
     }
+  }
+
+  private loadPedidosDespacho(tipo: 'LLEVAR' | 'DOMICILIO'): void {
+    const id = this.negocioId();
+    if (!id) return;
+    this.cargandoPedidosDespacho.set(true);
+    this.http.get<{ success: boolean; data: PedidoDespacho[] }>(
+      `${environment.apiUrl}/despacho?id_negocio=${id}`
+    ).subscribe({
+      next: (res) => {
+        const pedidos = (res?.data ?? []).filter(p => p.tipo_pedido === tipo && p.estado_pago === 'pendiente_pago');
+        this.pedidosDespacho.set(pedidos);
+        this.cargandoPedidosDespacho.set(false);
+      },
+      error: () => {
+        this.pedidosDespacho.set([]);
+        this.cargandoPedidosDespacho.set(false);
+      },
+    });
+  }
+
+  seleccionarPedidoDespachoSelect(rawValue: string): void {
+    const pedidoActual = this.pedidoDespachoSeleccionado();
+    const itemsPrevios = this.cloneItems(this.items());
+    const notaPrevia = this.notaOrden();
+    const veniaConPedidoActivo = this.ordenActivaId() !== null;
+    const selectedId = rawValue ? +rawValue : null;
+
+    if (pedidoActual?.id_orden === selectedId) return;
+
+    if (!selectedId) {
+      this.pedidoDespachoSeleccionado.set(null);
+      this.ordenActivaId.set(null);
+      if (veniaConPedidoActivo) {
+        this.items.set([]);
+        this.notaOrden.set('');
+      }
+      return;
+    }
+
+    const pedido = this.pedidosDespacho().find(p => p.id_orden === selectedId);
+    if (!pedido) return;
+
+    const restaurarEstadoPrevio = (): void => {
+      this.pedidoDespachoSeleccionado.set(null);
+      this.ordenActivaId.set(null);
+      this.items.set(itemsPrevios);
+      this.notaOrden.set(notaPrevia);
+    };
+
+    this.http.get<{ success: boolean; data: OrdenApi }>(
+      `${environment.apiUrl}/pedidos/${pedido.id_orden}`
+    ).subscribe({
+      next: async (ordenRes) => {
+        const orden = ordenRes?.data;
+        if (!orden) {
+          restaurarEstadoPrevio();
+          return;
+        }
+
+        const confirmar = await this.uiFeedback.confirm({
+          title: 'Pedido existente',
+          message: itemsPrevios.length > 0
+            ? `El pedido ${pedido.numero_orden} ya tiene productos. Se cargarán y los productos que agregaste se conservarán como adiciones.`
+            : `¿Deseas cargar el pedido ${pedido.numero_orden} para editarlo?`,
+          confirmText: itemsPrevios.length > 0 ? 'Cargar y conservar' : 'Cargar pedido',
+          cancelText: 'Cancelar',
+          tone: 'warning',
+        });
+
+        if (!confirmar) {
+          restaurarEstadoPrevio();
+          return;
+        }
+
+        const mappedItems = this.mapOrdenApiToItems(orden);
+        this.ordenActivaId.set(orden.id_orden);
+        this.pedidoDespachoSeleccionado.set(pedido);
+
+        if (itemsPrevios.length > 0) {
+          const merged = this.agruparItems([
+            ...this.cloneItems(mappedItems),
+            ...this.cloneItems(itemsPrevios),
+          ]);
+          this.items.set(Array.from(merged.values()));
+        } else {
+          this.items.set(mappedItems);
+        }
+
+        this.itemsBaseOrdenActiva.set(this.cloneItems(mappedItems));
+        this.notaOrden.set(orden.nota ?? '');
+        this.notaBaseOrdenActiva.set(orden.nota ?? '');
+        this.metodoPagoId.set(orden.id_metodo_pago ?? null);
+        this.metodoPagoRequeridoError.set(false);
+
+        if (pedido.tipo_pedido === 'DOMICILIO') {
+          this.domContacto.set(pedido.contacto_nombre ?? '');
+          this.domTelefono.set(pedido.contacto_telefono ?? '');
+          this.domDireccion.set(pedido.direccion_domicilio ?? '');
+          this.domNota.set(pedido.nota_domicilio ?? '');
+          if (pedido.id_domiciliario) {
+            this.domDomiciliarioId.set(pedido.id_domiciliario);
+          }
+        }
+      },
+      error: () => restaurarEstadoPrevio(),
+    });
   }
 
   seleccionarMesa(rawValue: string): void {
@@ -838,7 +974,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
       this.destinoEnvio.set(destino);
     }
 
-    const idOrdenActiva = this.requiereMesa() ? this.ordenActivaId() : null;
+    const idOrdenActiva = (this.requiereMesa() || this.pedidoDespachoSeleccionado() !== null) ? this.ordenActivaId() : null;
     if (idOrdenActiva) {
       const itemsNuevos = this.obtenerItemsNuevosOrdenActiva();
 
@@ -1046,6 +1182,11 @@ export class PedidosComponent implements OnInit, OnDestroy {
             },
           });
           return;
+        }
+
+        if (this.pedidoDespachoSeleccionado() !== null) {
+          this.pedidosDespacho.update(lista => lista.filter(p => p.id_orden !== this.pedidoDespachoSeleccionado()!.id_orden));
+          this.pedidoDespachoSeleccionado.set(null);
         }
 
         void this.limpiarOrden(false);
