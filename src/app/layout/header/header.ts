@@ -5,7 +5,6 @@ import { LucideAngularModule } from 'lucide-angular';
 import { Subscription, catchError, of, switchMap, timer } from 'rxjs';
 
 import { AuthService } from '../../core/services/auth.service';
-import { ThemeService } from '../../core/theme/theme.service';
 import { environment } from '../../../environments/environment';
 
 interface InventarioInsumoApi {
@@ -32,7 +31,6 @@ interface StockNotification {
  * Muestra:
  *  • Título dinámico de la página
  *  • Selector de negocio / sede (si tiene más de uno)
- *  • Toggle de tema claro/oscuro
  *  • Campana de notificaciones
  */
 @Component({
@@ -43,7 +41,6 @@ interface StockNotification {
 })
 export class HeaderComponent implements OnDestroy {
   readonly auth = inject(AuthService);
-  readonly theme = inject(ThemeService);
   private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
 
@@ -95,11 +92,6 @@ export class HeaderComponent implements OnDestroy {
       month: 'long',
       year: 'numeric',
     });
-  }
-
-  toggleTheme(): void {
-    const current = this.theme.theme();
-    this.theme.setTheme(current === 'dark' ? 'light' : 'dark');
   }
 
   toggleSelector(): void {

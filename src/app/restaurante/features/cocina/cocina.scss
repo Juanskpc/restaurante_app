@@ -31,7 +31,7 @@
   padding: 14px 24px;
   background: var(--color-surface);
   border-bottom: 2px solid var(--color-primary);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-md);
   flex-shrink: 0;
 }
 
@@ -206,7 +206,7 @@
   border-radius: 12px;
   border: 2px solid var(--color-border);
   overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-md);
   transition: transform var(--transition-fast), box-shadow var(--transition-fast);
 
   &:hover {
@@ -358,7 +358,7 @@
   font-size: 1.1rem;
   font-weight: 700;
   color: var(--color-primary);
-  background: rgba(21, 101, 192, 0.12);
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
   padding: 3px 10px;
   border-radius: 6px;
   white-space: nowrap;
@@ -387,7 +387,7 @@
 }
 
 .mod-note {
-  background: rgba(21, 101, 192, 0.1);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
   border-left: 3px solid var(--color-primary);
 }
 
@@ -395,7 +395,7 @@
 .card-nota {
   margin: 0 14px 10px;
   padding: 7px 11px;
-  background: rgba(21, 101, 192, 0.08);
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
   border-left: 3px solid var(--color-primary);
   border-radius: 5px;
   font-size: 0.78rem;
@@ -421,10 +421,10 @@
   letter-spacing: 0.4px;
   font-family: var(--font-family);
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-md);
   transition: transform var(--transition-fast), box-shadow var(--transition-fast);
 
-  &:hover  { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15); }
+  &:hover  { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
   &:active { transform: translateY(0); }
 }
 
@@ -562,14 +562,14 @@
   border: 2px solid var(--color-border);
   border-radius: var(--radius-lg);
   overflow: hidden;
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--shadow-sm);
   transition: box-shadow var(--transition-fast);
 
   &:hover { box-shadow: var(--shadow-elevated); }
 
   &.urgente {
-    border-color: #ef4444;
-    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.15);
+    border-color: var(--color-error);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-error) 15%, transparent);
   }
 }
 
@@ -605,7 +605,7 @@
   color: var(--color-text-secondary);
   white-space: nowrap;
 
-  &.urgente-text { color: #ef4444; font-weight: 600; }
+  &.urgente-text { color: var(--color-error); font-weight: 600; }
 }
 
 .orden-nota {
@@ -664,7 +664,7 @@
 
 .item-excl {
   font-size: var(--font-size-xs);
-  color: #ef4444;
+  color: var(--color-error);
   line-height: 1.3;
 }
 

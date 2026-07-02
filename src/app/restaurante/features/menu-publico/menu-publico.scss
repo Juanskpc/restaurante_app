@@ -35,7 +35,7 @@
   border-bottom: 1px solid var(--color-border);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--shadow-sm);
 }
 
 .hero-inner {
@@ -408,7 +408,7 @@
 
   &:hover {
     transform: translateY(-3px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.10);
+    box-shadow: var(--shadow-lg);
   }
 
   &:focus-within {
@@ -639,7 +639,7 @@
   &:hover {
     border-color: var(--color-primary);
     color: var(--color-primary);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    box-shadow: var(--shadow-sm);
   }
 
   &:focus-visible {

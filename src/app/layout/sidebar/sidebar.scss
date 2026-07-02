@@ -30,7 +30,8 @@ $bottom-nav-height: 64px;
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
-  padding: var(--spacing-lg) var(--spacing-md);
+  height: 64px;
+  padding: 0 var(--spacing-md);
   border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
 }
@@ -157,6 +158,7 @@ $bottom-nav-height: 64px;
   flex-direction: column;
   overflow: hidden;
   flex: 1;
+  min-width: 0;
 }
 
 .user-name {
@@ -171,6 +173,9 @@ $bottom-nav-height: 64px;
 .user-role {
   font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .btn-logout {
@@ -212,7 +217,7 @@ $bottom-nav-height: 64px;
 
   .sidebar-logo {
     justify-content: center;
-    padding: var(--spacing-md) var(--spacing-xs);
+    padding: 0 var(--spacing-xs);
   }
 
   .logo-text {

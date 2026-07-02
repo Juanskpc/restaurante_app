@@ -11,20 +11,33 @@
 // ---------- MODO CLARO (por defecto) ----------
 :root {
   // --- Colores principales (sobreescritos por PaletteService) ---
-  --color-primary: #1565c0;
-  --color-primary-hover: #0d47a1;
+  // Default = identidad EscalApp (índigo del panel admin). Un negocio con
+  // paleta propia los sobreescribe en runtime vía PaletteService.
+  --color-primary: #312E81;
+  --color-primary-hover: #4F46E5;
   --color-on-primary: #ffffff;
+  // Derivados del primario via color-mix → siguen a la paleta del negocio.
+  --color-primary-light: color-mix(in srgb, var(--color-primary) 62%, #ffffff);
+  // -rgb default (las paletas no lo inyectan; los componentes compartidos usan
+  // color-mix para no depender de este valor con paletas personalizadas).
+  --color-primary-rgb: 49, 46, 129;
 
   // --- Fondo y superficies ---
   --color-bg: #f5f5f5;
   --color-bg-secondary: color-mix(in srgb, var(--color-bg) 80%, var(--color-surface) 20%);
   --color-surface: #ffffff;
+  --color-surface-hover: color-mix(in srgb, var(--color-primary) 6%, var(--color-surface));
   --color-surface-elevated: #ffffff;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.10);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
   --shadow-elevated: 0 2px 8px rgba(0, 0, 0, 0.10);
+  --shadow-featured: 0 4px 20px color-mix(in srgb, var(--color-primary) 15%, transparent);
 
   // --- Texto (contraste AA sobre --color-bg / --color-surface) ---
-  --color-text-primary: #212121;
+  --color-text-primary: #0F0A2A;
   --color-text-secondary: #616161;
+  --color-text-muted: #9e9e9e;
 
   // --- Bordes ---
   --color-border: #e0e0e0;
@@ -32,10 +45,24 @@
 
   // --- Estados ---
   --color-success: #2e7d32;
+  --color-success-rgb: 46, 125, 50;
   --color-success-bg: #e8f5e9;
   --color-error: #c62828;
+  --color-error-rgb: 198, 40, 40;
   --color-error-bg: #ffebee;
   --color-warning: #ef6c00;
+  --color-warning-rgb: 239, 108, 0;
+  --color-warning-bg: #fff3e0;
+
+  // --- Acentos (alineados con la identidad del admin) ---
+  --color-accent-blue: #6366f1;
+  --color-accent-blue-rgb: 99, 102, 241;
+  --color-accent-green: #38a169;
+  --color-accent-green-rgb: 56, 161, 105;
+  --color-accent-orange: #c05621;
+  --color-accent-orange-rgb: 192, 86, 33;
+  --color-accent-purple: #7b1fa2;
+  --color-accent-purple-rgb: 123, 31, 162;
 
   // --- Tokens de estados dependientes de paleta ---
   --color-status-available: color-mix(in srgb, var(--color-primary) 40%, var(--color-success));
@@ -54,8 +81,9 @@
   --color-menu-icon-bg: color-mix(in srgb, var(--color-primary) 14%, var(--color-bg-secondary));
 
   // --- Focus ---
-  --color-focus: #1565c0;
-  --focus-ring: 0 0 0 3px rgba(21, 101, 192, 0.4);
+  --color-focus: var(--color-primary);
+  --focus-ring: 0 0 0 3px color-mix(in srgb, var(--color-primary) 40%, transparent);
+  --focus-ring-error: 0 0 0 3px color-mix(in srgb, var(--color-error) 15%, transparent);
 
   // --- Tipografía ---
   --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
@@ -66,6 +94,7 @@
   --font-size-lg: 1.125rem;
   --font-size-xl: 1.5rem;
   --font-size-2xl: 2rem;
+  --font-size-3xl: 2.5rem;
 
   // --- Espaciado ---
   --spacing-xs: 0.25rem;
@@ -75,43 +104,16 @@
   --spacing-xl: 2rem;
   --spacing-2xl: 3rem;
 
-  // --- Bordes ---
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  // --- Bordes (escala alineada con la identidad del admin) ---
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
   --radius-full: 9999px;
 
   // --- Transiciones ---
   --transition-fast: 150ms ease;
   --transition-normal: 250ms ease;
-}
-
-// ---------- MODO OSCURO ----------
-:root[data-theme='dark'] {
-  --color-primary: #64b5f6;
-  --color-primary-hover: #90caf9;
-  --color-on-primary: #0d2137;
-
-  --color-bg: #0f0f0f;
-  --color-bg-secondary: color-mix(in srgb, var(--color-bg) 78%, var(--color-surface) 22%);
-  --color-surface: #161616;
-  --color-surface-elevated: #1a1a1a;
-  --shadow-elevated: 0 2px 8px rgba(0, 0, 0, 0.4);
-
-  --color-text-primary: #e0e0e0;
-  --color-text-secondary: #9e9e9e;
-
-  --color-border: #1e1e1e;
-  --color-border-strong: color-mix(in srgb, var(--color-border) 70%, var(--color-text-primary) 30%);
-
-  --color-success: #66bb6a;
-  --color-success-bg: #1b3a1d;
-  --color-error: #ef5350;
-  --color-error-bg: #3e1a1a;
-  --color-warning: #ffa726;
-
-  --color-focus: #64b5f6;
-  --focus-ring: 0 0 0 3px rgba(100, 181, 246, 0.4);
 }
 
 // ============================================================
@@ -253,6 +255,144 @@ body {
   &:focus-visible {
     outline: none;
     box-shadow: var(--focus-ring);
+  }
+}
+
+// --- Botón-ícono de barra superior (compartido con el shell) ---
+.topbar-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-xs);
+  height: 40px;
+  min-width: 40px;
+  padding: 0 var(--spacing-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  transition: background-color var(--transition-fast),
+    color var(--transition-fast), border-color var(--transition-fast);
+
+  &:hover {
+    background-color: var(--color-surface-hover);
+    color: var(--color-primary);
+    border-color: var(--color-primary);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+
+  &--primary {
+    background-color: var(--color-primary);
+    color: var(--color-on-primary);
+    border-color: var(--color-primary);
+
+    &:hover {
+      background-color: var(--color-primary-hover);
+      color: var(--color-on-primary);
+      border-color: var(--color-primary-hover);
+    }
+  }
+}
+
+// --- Badge ---
+.es-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: 2px 10px;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  border-radius: var(--radius-full);
+  line-height: 1.4;
+
+  &--success {
+    background-color: var(--color-success-bg);
+    color: var(--color-success);
+  }
+  &--warning {
+    background-color: var(--color-warning-bg);
+    color: var(--color-warning);
+  }
+  &--error {
+    background-color: var(--color-error-bg);
+    color: var(--color-error);
+  }
+  &--primary {
+    background-color: color-mix(in srgb, var(--color-primary) 12%, transparent);
+    color: var(--color-primary);
+  }
+}
+
+// --- Card base ---
+.es-card {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
+
+  &:hover {
+    box-shadow: var(--shadow-md);
+    border-color: var(--color-primary);
+  }
+}
+
+// --- Metric card ---
+.es-metric {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-lg);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  &__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-md);
+    background-color: color-mix(in srgb, var(--color-primary) 10%, transparent);
+    color: var(--color-primary);
+  }
+
+  &__value {
+    font-size: var(--font-size-2xl);
+    font-weight: 800;
+    color: var(--color-text-primary);
+    line-height: 1.2;
+  }
+
+  &__label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+  }
+
+  &__trend {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+
+    &--up { color: var(--color-success); }
+    &--down { color: var(--color-error); }
   }
 }
 

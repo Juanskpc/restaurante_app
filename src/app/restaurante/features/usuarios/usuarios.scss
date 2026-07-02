@@ -47,7 +47,7 @@
 
 .tabs__btn--active {
   background: var(--color-primary);
-  color: #fff;
+  color: var(--color-on-primary);
 }
 
 .panel {
@@ -188,18 +188,18 @@ th {
 }
 
 .badge--success {
-  background: color-mix(in srgb, #198754 22%, transparent);
-  color: #0a4b2d;
+  background: var(--color-success-bg);
+  color: var(--color-success);
 }
 
 .badge--muted {
-  background: color-mix(in srgb, #6c757d 26%, transparent);
-  color: #3c4247;
+  background: var(--color-surface-elevated);
+  color: var(--color-text-secondary);
 }
 
 .badge--warning {
-  background: color-mix(in srgb, #f59f00 26%, transparent);
-  color: #7a4b00;
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
 }
 
 .roles-toolbar {
@@ -387,7 +387,7 @@ th {
 
 .btn--primary {
   background: var(--color-primary);
-  color: #fff;
+  color: var(--color-on-primary);
 }
 
 .btn--outline {
