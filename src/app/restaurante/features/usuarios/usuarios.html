@@ -114,11 +114,33 @@
                   <td>{{ usuario.fecha_creacion | date: 'yyyy-MM-dd' }}</td>
                   <td>
                     <div class="actions">
-                      <button type="button" class="btn btn--outline" (click)="openEditModal(usuario)">Editar</button>
-                      <button type="button" class="btn btn--outline" (click)="toggleEstado(usuario)">
-                        {{ usuario.estado === 'A' ? 'Desactivar' : 'Activar' }}
+                      <button
+                        type="button"
+                        class="btn btn--icon btn--outline"
+                        (click)="openViewModal(usuario)"
+                        title="Ver"
+                        aria-label="Ver usuario"
+                      >
+                        <lucide-icon name="eye" size="18" />
                       </button>
-                      <button type="button" class="btn btn--danger" (click)="deleteUsuario(usuario)">Eliminar</button>
+                      <button
+                        type="button"
+                        class="btn btn--icon btn--outline"
+                        (click)="openEditModal(usuario)"
+                        title="Editar"
+                        aria-label="Editar usuario"
+                      >
+                        <lucide-icon name="pencil" size="18" />
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn--icon btn--outline"
+                        (click)="toggleEstado(usuario)"
+                        [title]="usuario.estado === 'A' ? 'Desactivar' : 'Activar'"
+                        [attr.aria-label]="usuario.estado === 'A' ? 'Desactivar usuario' : 'Activar usuario'"
+                      >
+                        <lucide-icon [name]="usuario.estado === 'A' ? 'toggle-right' : 'toggle-left'" size="18" />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -209,7 +231,7 @@
     <div class="modal-backdrop"></div>
     <section class="modal" role="dialog" aria-modal="true" aria-label="Formulario de usuario">
       <header class="modal__header">
-        <h2>{{ isEditing() ? 'Editar usuario' : 'Crear usuario' }}</h2>
+        <h2>{{ viewMode() ? 'Detalle del usuario' : (isEditing() ? 'Editar usuario' : 'Crear usuario') }}</h2>
         <button type="button" class="modal__close" (click)="closeFormModal()" aria-label="Cerrar">x</button>
       </header>
 
@@ -263,6 +285,7 @@
             }
           </label>
 
+          @if (!viewMode()) {
           <label class="field field--password">
             <span>{{ isEditing() ? 'Nueva contrasena' : 'Contrasena *' }}</span>
             <div class="password-input-wrap">
@@ -297,6 +320,7 @@
               <small class="field-error">Las contrasenas no coinciden.</small>
             }
           </label>
+          }
 
           <label class="field">
             <span>Rol *</span>
@@ -327,13 +351,19 @@
           <span>Marcar como administrador principal</span>
         </label>
 
-        <p class="hint">Seguridad: no se puede eliminar o desactivar el administrador principal ni dejar el sistema sin administradores activos.</p>
+        @if (!viewMode()) {
+          <p class="hint">Seguridad: no se puede eliminar o desactivar el administrador principal ni dejar el sistema sin administradores activos.</p>
+        }
 
         <footer class="modal__footer">
-          <button type="button" class="btn btn--outline" (click)="closeFormModal()">Cancelar</button>
-          <button type="submit" class="btn btn--primary" [disabled]="saving()">
-            {{ saving() ? 'Guardando...' : 'Guardar' }}
-          </button>
+          @if (viewMode()) {
+            <button type="button" class="btn btn--primary" (click)="closeFormModal()">Cerrar</button>
+          } @else {
+            <button type="button" class="btn btn--outline" (click)="closeFormModal()">Cancelar</button>
+            <button type="submit" class="btn btn--primary" [disabled]="saving()">
+              {{ saving() ? 'Guardando...' : 'Guardar' }}
+            </button>
+          }
         </footer>
       </form>
     </section>

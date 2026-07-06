@@ -9,6 +9,7 @@ import { LucideAngularModule } from 'lucide-angular';
 
 import { AuthService } from '../../../core/services/auth.service';
 import { CajaService } from '../../../core/services/caja.service';
+import { CatalogoCacheService } from '../../../core/services/catalogo-cache.service';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 import { environment } from '../../../../environments/environment';
 
@@ -63,6 +64,7 @@ export class DespachoComponent implements OnInit {
   private readonly http = inject(HttpClient);
   private readonly auth = inject(AuthService);
   private readonly cajaSvc = inject(CajaService);
+  private readonly catalogo = inject(CatalogoCacheService);
   private readonly uiFeedback = inject(UiFeedbackService);
   private readonly platformId = inject(PLATFORM_ID);
   private readonly isBrowser = isPlatformBrowser(this.platformId);
@@ -101,10 +103,8 @@ export class DespachoComponent implements OnInit {
   private loadMetodosPago(): void {
     const id = this.negocioId();
     if (!id) return;
-    this.http.get<{ success: boolean; data: Array<{ id_metodo_pago: number; nombre: string }> }>(
-      `${environment.apiUrl}/metodos-pago?id_negocio=${id}`
-    ).subscribe({
-      next: (res) => this.metodosPago.set(res?.data ?? []),
+    this.catalogo.metodosPago(id).subscribe({
+      next: (data) => this.metodosPago.set(data ?? []),
       error: () => this.metodosPago.set([]),
     });
   }

@@ -5,6 +5,7 @@ import { filter, map, startWith } from 'rxjs';
 
 import { SidebarComponent } from './sidebar/sidebar';
 import { HeaderComponent } from './header/header';
+import { NavProgressComponent } from './nav-progress/nav-progress';
 import { AuthService } from '../core/services/auth.service';
 
 /**
@@ -30,7 +31,7 @@ import { AuthService } from '../core/services/auth.service';
  */
 @Component({
   selector: 'app-layout',
-  imports: [RouterOutlet, SidebarComponent, HeaderComponent],
+  imports: [RouterOutlet, SidebarComponent, HeaderComponent, NavProgressComponent],
   templateUrl: './layout.html',
   styleUrl: './layout.scss',
 })
