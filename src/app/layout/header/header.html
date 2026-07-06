@@ -80,5 +80,13 @@
         }
       </section>
     }
+
+    <!-- Identidad del usuario (navegación y logout viven en el sidebar) -->
+    @if (auth.usuario()) {
+      <div class="user-chip" aria-label="Sesión activa">
+        <span class="user-chip__avatar" aria-hidden="true">{{ initials() }}</span>
+        <span class="user-chip__name">{{ displayName() }}</span>
+      </div>
+    }
   </div>
 </header>

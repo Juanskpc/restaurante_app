@@ -53,6 +53,19 @@ export class HeaderComponent implements OnDestroy {
   /** Lista de negocios del usuario. */
   readonly negocios = computed(() => this.auth.negocios());
 
+  /** Nombre completo del usuario para el chip del header. */
+  readonly displayName = computed(() => {
+    const u = this.auth.usuario();
+    return u ? `${u.primer_nombre ?? ''} ${u.primer_apellido ?? ''}`.trim() : '';
+  });
+
+  /** Iniciales del usuario para el avatar del header. */
+  readonly initials = computed(() => {
+    const u = this.auth.usuario();
+    if (!u) return 'U';
+    return `${u.primer_nombre?.charAt(0) ?? ''}${u.primer_apellido?.charAt(0) ?? ''}`.toUpperCase();
+  });
+
   /** Dropdown abierto. */
   readonly selectorOpen = signal(false);
   readonly notificationsOpen = signal(false);

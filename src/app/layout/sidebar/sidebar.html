@@ -38,17 +38,11 @@
     }
   </nav>
 
-  <!-- Usuario (pie del sidebar) -->
-  <div class="sidebar-user">
-    <div class="user-avatar">
-      {{ auth.usuario()?.primer_nombre?.charAt(0) ?? 'U' }}{{ auth.usuario()?.primer_apellido?.charAt(0) ?? '' }}
-    </div>
-    <div class="user-info">
-      <span class="user-name">{{ auth.usuario()?.primer_nombre ?? 'Usuario' }}</span>
-      <span class="user-role">{{ auth.rolPrincipal() }}</span>
-    </div>
-    <button class="btn-logout" (click)="onLogout()" title="Cerrar sesión">
-      <lucide-icon name="log-out" [size]="18" />
+  <!-- Cerrar sesión (pie del sidebar) -->
+  <div class="sidebar-foot">
+    <button type="button" class="nav-item nav-item--logout" (click)="onLogout()" title="Cerrar sesión">
+      <lucide-icon name="log-out" [size]="20" />
+      <span class="nav-label">Cerrar sesión</span>
     </button>
   </div>
 </aside>
