@@ -402,6 +402,26 @@ th {
   border: 1px solid color-mix(in srgb, var(--color-error) 34%, transparent);
 }
 
+// Botón de solo icono (acciones de la tabla): cuadrado, sin texto.
+.btn--icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  line-height: 0;
+  color: var(--color-text-secondary);
+  transition: color var(--transition-fast), border-color var(--transition-fast),
+    background var(--transition-fast);
+}
+
+.btn--icon:hover:not(:disabled) {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;

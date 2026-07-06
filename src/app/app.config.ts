@@ -1,5 +1,5 @@
 import { ApplicationConfig, LOCALE_ID, provideBrowserGlobalErrorListeners } from '@angular/core';
-import { provideRouter } from '@angular/router';
+import { provideRouter, withPreloading, PreloadAllModules } from '@angular/router';
 import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
 import { registerLocaleData } from '@angular/common';
 import localeEsCO from '@angular/common/locales/es-CO';
@@ -45,7 +45,9 @@ const icons = {
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
-    provideRouter(routes),
+    // PreloadAllModules: descarga los chunks lazy en segundo plano tras la
+    // carga inicial, para que cambiar de vista no espere el fetch del chunk.
+    provideRouter(routes, withPreloading(PreloadAllModules)),
     provideHttpClient(
       withFetch(),
       withInterceptors([authInterceptor]),

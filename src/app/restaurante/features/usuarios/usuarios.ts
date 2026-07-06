@@ -10,6 +10,7 @@ import { DatePipe, NgClass, TitleCasePipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { finalize } from 'rxjs';
 import { HttpErrorResponse } from '@angular/common/http';
+import { LucideAngularModule } from 'lucide-angular';
 
 import { UsuariosService } from './usuarios.service';
 import { AuthService } from '../../../core/services/auth.service';
@@ -42,7 +43,7 @@ type UserFormControlName =
 
 @Component({
   selector: 'app-usuarios',
-  imports: [ReactiveFormsModule, DatePipe, NgClass, TitleCasePipe],
+  imports: [ReactiveFormsModule, DatePipe, NgClass, TitleCasePipe, LucideAngularModule],
   templateUrl: './usuarios.html',
   styleUrl: './usuarios.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -59,6 +60,7 @@ export class UsuariosComponent {
   protected readonly loadingDetalleUsuario = signal(false);
   protected readonly saving = signal(false);
   protected readonly showFormModal = signal(false);
+  protected readonly viewMode = signal(false);
   protected readonly showPermisosUsuarioModal = signal(false);
   protected readonly showPassword = signal(false);
   protected readonly showConfirmPassword = signal(false);
@@ -279,12 +281,34 @@ export class UsuariosComponent {
       es_admin_principal: false,
     });
 
+    this.viewMode.set(false);
+    this.userForm.enable({ emitEvent: false });
     this.resetPasswordVisibility();
     this.errorMessage.set(null);
     this.showFormModal.set(true);
   }
 
   protected openEditModal(usuario: UsuarioAdmin): void {
+    this.populateForm(usuario);
+    this.viewMode.set(false);
+    this.userForm.enable({ emitEvent: false });
+    this.resetPasswordVisibility();
+    this.errorMessage.set(null);
+    this.showFormModal.set(true);
+  }
+
+  /** Abre el mismo formulario que "Editar" pero en solo lectura. */
+  protected openViewModal(usuario: UsuarioAdmin): void {
+    this.populateForm(usuario);
+    this.viewMode.set(true);
+    // Deshabilitar todo el formulario lo vuelve de solo lectura.
+    this.userForm.disable({ emitEvent: false });
+    this.resetPasswordVisibility();
+    this.errorMessage.set(null);
+    this.showFormModal.set(true);
+  }
+
+  private populateForm(usuario: UsuarioAdmin): void {
     this.userForm.reset({
       id_usuario: usuario.id_usuario,
       primer_nombre: usuario.primer_nombre,
@@ -299,14 +323,12 @@ export class UsuariosComponent {
       estado: usuario.estado,
       es_admin_principal: usuario.es_admin_principal,
     });
-
-    this.resetPasswordVisibility();
-    this.errorMessage.set(null);
-    this.showFormModal.set(true);
   }
 
   protected closeFormModal(): void {
     this.showFormModal.set(false);
+    this.viewMode.set(false);
+    this.userForm.enable({ emitEvent: false });
     this.userForm.markAsPristine();
     this.resetPasswordVisibility();
   }

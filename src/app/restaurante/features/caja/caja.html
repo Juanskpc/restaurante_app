@@ -30,7 +30,7 @@
         </button>
       }
       @if (caja() && puedeCerrar()) {
-        <button class="btn btn-danger" (click)="abrirModal('cierre')">
+        <button class="btn btn-brand" (click)="abrirModal('cierre')">
           <lucide-icon name="dollar-sign" size="18" />
           Cerrar caja
         </button>
@@ -228,7 +228,7 @@
         </label>
         <div class="modal__actions">
           <button class="btn btn-ghost" (click)="cerrarModal()" [disabled]="enviando()">Cancelar</button>
-          <button class="btn btn-danger" (click)="cerrarCaja()" [disabled]="enviando()">
+          <button class="btn btn-brand" (click)="cerrarCaja()" [disabled]="enviando()">
             {{ enviando() ? 'Cerrando…' : 'Cerrar caja' }}
           </button>
         </div>

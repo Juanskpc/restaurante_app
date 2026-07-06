@@ -96,6 +96,16 @@ export const permissionGuard: CanActivateChildFn = (childRoute, state) => {
     return true;
   }
 
+  // Sesión válida con permisos ya cargados en memoria → evaluar sin red.
+  // authGuard (canActivate del layout) ya validó el token al entrar y
+  // LayoutComponent refresca el perfil de forma throttled (refreshPerfilIfStale,
+  // 60s). Revalidar con POST /auth/verificar-token en CADA cambio de vista
+  // bloqueaba la navegación (sensación de "congelado") y sumaba 1 request por
+  // navegación sin aportar frescura extra.
+  if (authService.isAuthenticated() && authService.session()?.permisos_cargados === true) {
+    return evaluateRoutePermission(authService, router, childRoute.routeConfig?.path, state.url);
+  }
+
   if (authService.getAccessToken()) {
     return refreshSessionFromStoredToken(authService, paletteService).then((valid) => {
       if (!valid) {
