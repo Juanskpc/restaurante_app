@@ -2,12 +2,48 @@
    POS – Pedidos   |  Responsive layout (mobile-first)
    ============================================================ */
 
+// ─── Host / contenedor raíz ─────────────────────────────────
+// IMPORTANTE: el breakpoint de escritorio es 992px, alineado con
+// `mobileBreakpoint = 992` del componente (isMobileViewport). Por debajo
+// de 992px (móvil Y tablet) la vista es "compacta": chips de categorías
+// deslizables, panel de pedido como slide-over (FAB) y scroll en la página
+// (`.content`, con header fijo global). Sólo a partir de 992px se activa el
+// layout de 3 columnas acotado (card) con scroll interno por panel.
+:host {
+  display: block;
+}
+
 // ─── Layout general ─────────────────────────────────────────
 .pos-layout {
   display: flex;
   height: 100%;
   overflow: hidden;
-  background-color: var(--color-bg);
+  // Fondo unificado (tono claro) para todas las columnas, también < 992px
+  // donde no aplica el "card" de escritorio.
+  background-color: var(--color-surface);
+}
+
+@media (min-width: 992px) {
+  :host {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+  }
+
+  .pos-layout {
+    // El card envuelve las tres columnas: aporta los bordes superior,
+    // inferior, izquierdo y derecho de forma consistente. Los divisores
+    // internos (cat-panel border-right / order-panel border-left) separan
+    // cada columna sin duplicar bordes.
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 0;
+    min-width: 0; // permite que las columnas hijas encojan (sin overflow)
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+  }
 }
 
 // ─── Panel Categorías (izquierda – desktop) ─────────────────
@@ -18,12 +54,46 @@
   min-width: 88px;
   background: var(--color-surface);
   border-right: 1px solid var(--color-border);
+  // Scroll condicional: la columna ocupa el alto disponible y sólo muestra
+  // scrollbar cuando las categorías superan ese alto (muchas categorías).
+  // Con pocas, se ajusta al contenido sin scrollbar.
   overflow-y: auto;
-  padding: var(--spacing-sm) 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-strong) transparent;
+  &::-webkit-scrollbar { width: 6px; }
+  &::-webkit-scrollbar-thumb {
+    background: var(--color-border-strong);
+    border-radius: var(--radius-full);
+  }
+  // padding-top igual al de la barra de búsqueda y al header del pedido
+  // para que las tres columnas arranquen en la misma línea base.
+  padding: var(--spacing-md) 0 var(--spacing-sm);
   gap: var(--spacing-xs);
 
   @media (min-width: 992px) {
     display: flex;
+  }
+}
+
+// Estado vacío: mantiene el contenedor (misma estructura) pero sustituye
+// la "línea blanca fantasma" por un placeholder claro y alineado.
+.cat-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: var(--spacing-md) 8px;
+  margin: 0 var(--spacing-xs);
+  color: var(--color-text-secondary);
+  text-align: center;
+
+  lucide-icon { opacity: 0.6; }
+
+  span {
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    line-height: 1.2;
   }
 }
 
@@ -111,15 +181,25 @@
 .products-panel {
   flex: 1;
   min-width: 0;
-  overflow-y: auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: var(--spacing-sm);
   padding: var(--spacing-md);
+  // Fondo unificado con categorías y pedido (mismo tono claro, surface).
+  background: var(--color-surface);
 
-  @media (max-width: 767px) {
-    // Espacio para que el FAB no tape las últimas tarjetas y para convivir con bottom nav.
+  // < 992px (móvil + tablet): el scroll vive en `.content` (grilla en flujo
+  // natural, que envuelve correctamente); reservamos espacio para que el
+  // FAB / bottom-nav no tapen las últimas tarjetas.
+  @media (max-width: 991px) {
     padding-bottom: calc(var(--spacing-lg) + 76px + env(safe-area-inset-bottom, 0px));
+  }
+
+  // ≥ 992px: el panel NO scrollea como un todo; la cabecera (buscador +
+  // título) queda estática y sólo la grilla de productos hace scroll.
+  @media (min-width: 992px) {
+    overflow: hidden;
   }
 }
 
@@ -127,6 +207,11 @@
   position: sticky;
   top: 0;
   z-index: 2;
+  // Fondo (unificado a surface) para que las tarjetas no se transparenten
+  // tras la barra al hacer scroll (el panel tiene padding y gap alrededor).
+  background: var(--color-surface);
+  padding-bottom: var(--spacing-sm);
+  margin-bottom: calc(-1 * var(--spacing-sm));
 }
 
 .search-wrapper {
@@ -173,12 +258,39 @@
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: var(--spacing-sm);
 
+  // < 992px (móvil + tablet): flujo natural. La grilla envuelve dentro de un
+  // contenedor de ancho DEFINIDO (panel a ancho de viewport) y el scroll lo
+  // gestiona `.content` (header global fijo). Sin scroll anidado.
   @media (min-width: 600px) {
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   }
+
+  // ≥ 992px: único elemento con scroll del panel de productos: ocupa el alto
+  // disponible y desborda en vertical; la cabecera (buscador + título) queda
+  // fija arriba.
   @media (min-width: 992px) {
     grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
     gap: var(--spacing-md);
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    align-content: start;
+    // Padding interno para que el hover de las tarjetas (translateY -2px +
+    // sombra) no se recorte contra el borde del contenedor con scroll.
+    padding: 8px 6px 8px 2px;
+
+    // Scrollbar propia, visible sólo cuando hace falta.
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border-strong) transparent;
+    &::-webkit-scrollbar { width: 8px; }
+    &::-webkit-scrollbar-track { background: transparent; }
+    &::-webkit-scrollbar-thumb {
+      background: var(--color-border-strong);
+      border-radius: var(--radius-full);
+      border: 2px solid transparent;
+      background-clip: padding-box;
+    }
+    &::-webkit-scrollbar-thumb:hover { background: var(--color-text-secondary); }
   }
 }
 
@@ -333,6 +445,65 @@
   &:hover { color: var(--color-error); }
 
   @media (min-width: 992px) { display: none; }
+}
+
+// ─── Estado bloqueado del pedido (caja cerrada) ─────────────
+// Ocupa exactamente el mismo espacio que el contenido normal del panel
+// (misma altura/anchura/padding) y respeta los bordes del contenedor,
+// sin desplazar el resto del layout.
+.order-locked {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xl) var(--spacing-lg);
+
+  &__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    margin-bottom: var(--spacing-xs);
+    color: var(--color-primary);
+    background: color-mix(in srgb, var(--color-primary) 12%, var(--color-surface));
+    border: 1px solid color-mix(in srgb, var(--color-primary) 30%, var(--color-border));
+  }
+
+  &__title {
+    font-size: var(--font-size-lg);
+    font-weight: 700;
+    color: var(--color-text-primary);
+  }
+
+  &__text {
+    max-width: 240px;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    line-height: 1.4;
+  }
+
+  &__cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: var(--spacing-sm);
+    padding: 10px 18px;
+    border-radius: var(--radius-md);
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+    font-size: var(--font-size-sm);
+    font-weight: 700;
+    text-decoration: none;
+    transition: background var(--transition-fast);
+
+    &:hover { background: var(--color-primary-hover); }
+  }
 }
 
 // ─── Header de la orden ─────────────────────────────────────
@@ -505,6 +676,25 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-sm);
+
+  // Scrollbar propia de la sección de pedido: sólo la lista de items hace
+  // scroll (header, mesa, nota, totales y acciones quedan fijos). Visible
+  // únicamente cuando hace falta.
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-strong) transparent;
+
+  &::-webkit-scrollbar { width: 8px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb {
+    background: var(--color-border-strong);
+    border-radius: var(--radius-full);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  &::-webkit-scrollbar-thumb:hover {
+    background: var(--color-text-secondary);
+    background-clip: padding-box;
+  }
 }
 
 @media (max-width: 991px) {
@@ -673,8 +863,10 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
-  padding: var(--spacing-sm) var(--spacing-md);
-  margin: 0 var(--spacing-md);
+  // Compacta: menos alto para aprovechar el espacio del panel, manteniendo
+  // separación de la lista de items (arriba) y del borde del panel (abajo).
+  padding: 6px var(--spacing-md);
+  margin: var(--spacing-sm) var(--spacing-md);
   border: 1px dashed var(--color-border);
   border-radius: var(--radius-md);
   cursor: text;
@@ -754,19 +946,11 @@
   }
 }
 
+// Sólo el input (+ feedback): el texto vive dentro como placeholder,
+// sin caja ni label separados, para aprovechar mejor el espacio.
 .cash-box {
   display: grid;
   gap: 6px;
-  padding: 10px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-bg);
-}
-
-.cash-label {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-secondary);
-  font-weight: 600;
 }
 
 .cash-input {
@@ -1170,6 +1354,15 @@
 }
 
 // ── Banner: caja cerrada ──
+// En desktop (≥992px) el panel de pedido muestra el estado bloqueado
+// a pantalla completa (.order-locked), así que el banner superior —que
+// desplazaba las columnas hacia abajo— se oculta. En tablet/móvil el
+// panel de pedido es un slide-over oculto, por lo que el banner es la
+// única señal visible y se mantiene.
+@media (min-width: 992px) {
+  .caja-cerrada-banner { display: none; }
+}
+
 .caja-cerrada-banner {
   display: flex;
   align-items: center;
