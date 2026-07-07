@@ -107,7 +107,11 @@
                   [class.cat-chip--active]="categoriaActiva() === cat.id_categoria"
                   (click)="selectCategoria(cat.id_categoria, i)"
                 >
-                  <span class="cat-emoji">{{ cat.icono }}</span>
+                  @if (cat.imagen_url) {
+                    <img class="cat-img" [src]="resolveImg(cat.imagen_url)" [alt]="cat.nombre" loading="lazy" />
+                  } @else {
+                    <span class="cat-emoji">{{ cat.icono }}</span>
+                  }
                   <span class="cat-name">{{ cat.nombre }}</span>
                   <span class="cat-badge">{{ cat.total_productos }}</span>
                 </button>
@@ -161,7 +165,7 @@
 
                 <div class="product-img">
                   @if (prod.imagen_url) {
-                    <img [src]="prod.imagen_url" [alt]="prod.nombre" loading="lazy" />
+                    <img [src]="resolveImg(prod.imagen_url)" [alt]="prod.nombre" loading="lazy" />
                   } @else {
                     <div class="product-placeholder">
                       <span>{{ prod.icono }}</span>
@@ -177,14 +181,6 @@
 
                   @if (prod.descripcion) {
                     <p class="product-desc">{{ prod.descripcion }}</p>
-                  }
-
-                  @if (prod.ingredientes.length > 0) {
-                    <div class="product-tags">
-                      @for (ing of prod.ingredientes; track ing.id_producto_ingred) {
-                        <span class="tag">{{ ing.nombre }}</span>
-                      }
-                    </div>
                   }
                 </div>
               </article>

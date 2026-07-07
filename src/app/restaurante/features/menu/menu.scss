@@ -190,6 +190,14 @@
 
 .cat-icon { font-size: 1.3rem; flex-shrink: 0; }
 
+.cat-img {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+}
+
 .cat-details {
   display: flex;
   flex-direction: column;
@@ -360,7 +368,8 @@
 }
 
 .product-img {
-  height: 140px;
+  // 4:3 fijo: coincide con el recorte del cropper (WYSIWYG).
+  aspect-ratio: 4 / 3;
   background: var(--color-menu-icon-bg);
   display: flex;
   align-items: center;
@@ -684,6 +693,59 @@
   color: var(--color-text-primary);
 
   .required { color: var(--color-error); margin-left: 2px; }
+}
+
+.form-label-optional {
+  font-weight: 400;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+/* ── Uploader de imágenes (productos y categorías) ── */
+.img-uploader {
+  display: flex;
+  gap: var(--spacing-md);
+  align-items: center;
+}
+
+.img-preview {
+  width: 84px;
+  height: 84px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--color-border);
+  background: var(--color-menu-icon-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+.img-preview-emoji { font-size: 2.4rem; }
+
+.img-uploader-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.img-upload-btn {
+  cursor: pointer;
+
+  &.is-disabled { opacity: 0.6; pointer-events: none; }
+}
+
+.img-uploader-hint {
+  flex-basis: 100%;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
 }
 
 .form-input,

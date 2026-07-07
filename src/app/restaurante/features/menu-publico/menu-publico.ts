@@ -22,14 +22,8 @@ interface CategoriaPublica {
   nombre: string;
   descripcion: string | null;
   icono: string;
+  imagen_url: string | null;
   total_productos: number;
-}
-
-interface IngredientePublico {
-  id_producto_ingred: number;
-  id_ingrediente: number;
-  nombre: string;
-  es_removible: boolean;
 }
 
 interface ProductoPublico {
@@ -40,7 +34,6 @@ interface ProductoPublico {
   imagen_url: string | null;
   icono: string;
   es_popular: boolean;
-  ingredientes: IngredientePublico[];
 }
 
 interface NegocioPublico {
@@ -175,6 +168,16 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit {
   formatPrice(value: number): string {
     if (!Number.isFinite(value)) return '$ 0';
     return this.priceFormatter.format(value);
+  }
+
+  /** Origen del API sin el prefijo /restaurante, para resolver rutas /uploads. */
+  private readonly apiOrigin = environment.apiUrl.replace(/\/restaurante\/?$/, '');
+
+  /** Resuelve una imagen_url relativa (/uploads/...) contra el origen del API. */
+  resolveImg(url: string | null | undefined): string {
+    if (!url) return '';
+    if (/^(https?:|data:|blob:)/i.test(url)) return url;
+    return `${this.apiOrigin}${url.startsWith('/') ? '' : '/'}${url}`;
   }
 
   private cargarNegocio(idNegocio: number): void {

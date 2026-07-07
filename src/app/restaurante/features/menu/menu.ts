@@ -6,10 +6,12 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { LucideAngularModule } from 'lucide-angular';
 import { FormsModule } from '@angular/forms';
 import { isPlatformBrowser } from '@angular/common';
+import { firstValueFrom } from 'rxjs';
 
 import { AuthService } from '../../../core/services/auth.service';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 import { environment } from '../../../../environments/environment';
+import { ImageCropperComponent } from './image-cropper/image-cropper';
 
 // ============================================================
 // Interfaces
@@ -20,6 +22,7 @@ export interface CategoriaAdmin {
   nombre: string;
   descripcion: string;
   icono: string;
+  imagen_url: string | null;
   orden: number;
   visible: boolean;
   total_productos: number;
@@ -60,6 +63,7 @@ interface CatFormData {
   nombre: string;
   descripcion: string;
   icono: string;
+  imagen_url: string;
   orden: number;
   visible: boolean;
 }
@@ -99,7 +103,7 @@ function normalizeSearchValue(value: string): string {
 
 @Component({
   selector: 'app-menu',
-  imports: [LucideAngularModule, FormsModule],
+  imports: [LucideAngularModule, FormsModule, ImageCropperComponent],
   templateUrl: './menu.html',
   styleUrl: './menu.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -126,7 +130,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   // ── Modal: Categoría ──────────────────────────────────────
   readonly modalCatOpen     = signal(false);
   readonly editandoCatId    = signal<number | null>(null);
-  readonly catForm          = signal<CatFormData>({ nombre: '', descripcion: '', icono: '🍽️', orden: 0, visible: true });
+  readonly catForm          = signal<CatFormData>({ nombre: '', descripcion: '', icono: '🍽️', imagen_url: '', orden: 0, visible: true });
 
   // ── Modal: Producto ───────────────────────────────────────
   readonly modalProdOpen    = signal(false);
@@ -137,6 +141,30 @@ export class MenuComponent implements OnInit, OnDestroy {
     imagen_url: '', es_popular: false, disponible: true,
     visible: true, id_categoria: null, ingredientes: [],
   });
+
+  // ── Imágenes pendientes (opcional, conviven con los íconos) ─
+  // Se guardan en memoria tras recortar y se suben al guardar, ya que el
+  // archivo se nombra con el ID de la entidad (que un producto nuevo aún no tiene).
+  private readonly prodImagenBlob = signal<Blob | null>(null);
+  private readonly catImagenBlob  = signal<Blob | null>(null);
+  readonly prodImagenPreview = signal('');
+  readonly catImagenPreview  = signal('');
+
+  readonly prodPreviewSrc = computed(() =>
+    this.prodImagenPreview() || this.resolveImg(this.prodForm().imagen_url));
+  readonly catPreviewSrc = computed(() =>
+    this.catImagenPreview() || this.resolveImg(this.catForm().imagen_url));
+
+  // ── Cropper (encuadre + compresión WebP antes de subir) ───
+  readonly cropperOpen        = signal(false);
+  readonly cropperFile        = signal<File | null>(null);
+  readonly cropperAspect      = signal(1);
+  readonly cropperOutputWidth = signal(512);
+  readonly cropperTitulo      = signal('Ajustar imagen');
+  private readonly cropperTarget = signal<'prod' | 'cat'>('prod');
+
+  /** Origen del API sin el prefijo /restaurante, para resolver rutas /uploads. */
+  private readonly apiOrigin = environment.apiUrl.replace(/\/restaurante\/?$/, '');
 
   // ── Nuevo ingrediente base (inline creation) ──────────────
   readonly nuevoIngredNombre = signal('');
@@ -457,52 +485,68 @@ export class MenuComponent implements OnInit, OnDestroy {
   // ============================================================
 
   abrirModalCat(cat?: CategoriaAdmin): void {
+    this.limpiarImagenCatPend();
     if (cat) {
       this.editandoCatId.set(cat.id_categoria);
       this.catForm.set({
         nombre: cat.nombre,
         descripcion: cat.descripcion ?? '',
         icono: cat.icono ?? '🍽️',
+        imagen_url: cat.imagen_url ?? '',
         orden: cat.orden ?? 0,
         visible: cat.visible !== false,
       });
     } else {
       this.editandoCatId.set(null);
-      this.catForm.set({ nombre: '', descripcion: '', icono: '🍽️', orden: 0, visible: true });
+      this.catForm.set({ nombre: '', descripcion: '', icono: '🍽️', imagen_url: '', orden: 0, visible: true });
     }
     this.modalCatOpen.set(true);
   }
 
-  cerrarModalCat(): void { this.modalCatOpen.set(false); }
+  cerrarModalCat(): void {
+    this.modalCatOpen.set(false);
+    this.limpiarImagenCatPend();
+  }
 
-  guardarCategoria(): void {
+  async guardarCategoria(): Promise<void> {
     const id   = this.negocioId();
     const form = this.catForm();
     if (!id || !form.nombre.trim()) return;
 
     this.guardando.set(true);
     const editId = this.editandoCatId();
+    const blob = this.catImagenBlob();
+    const base = `${environment.apiUrl}/carta/admin/categorias`;
 
-    const req = editId
-      ? this.http.put(`${environment.apiUrl}/carta/admin/categorias/${editId}`, form)
-      : this.http.post(`${environment.apiUrl}/carta/admin/categorias`, { id_negocio: id, ...form });
-
-    req.subscribe({
-      next: () => {
-        this.guardando.set(false);
-        this.cerrarModalCat();
-        if (editId) {
-          this.uiFeedback.updated('Los datos de la categoria fueron actualizados.');
-        } else {
-          this.uiFeedback.created('La categoria fue creada correctamente.');
+    try {
+      if (editId) {
+        // Sube la imagen (si hay una nueva) nombrada con el ID, luego guarda.
+        const imagen_url = blob ? await this.uploadImagen('categoria', editId, blob) : form.imagen_url;
+        await firstValueFrom(this.http.put(`${base}/${editId}`, { ...form, imagen_url }));
+      } else {
+        // Crea primero para obtener el ID, luego sube la imagen con ese nombre.
+        const res = await firstValueFrom(
+          this.http.post<{ data: { id_categoria: number } }>(base, { id_negocio: id, ...form, imagen_url: form.imagen_url || '' }),
+        );
+        const newId = res?.data?.id_categoria;
+        if (blob && newId) {
+          const imagen_url = await this.uploadImagen('categoria', newId, blob);
+          await firstValueFrom(this.http.put(`${base}/${newId}`, { imagen_url }));
         }
-        this.loadCategorias();
-      },
-      error: () => {
-        this.guardando.set(false);
-        this.uiFeedback.error('No fue posible guardar la categoria.');
-      },
-    });
+      }
+
+      this.guardando.set(false);
+      this.cerrarModalCat();
+      if (editId) {
+        this.uiFeedback.updated('Los datos de la categoria fueron actualizados.');
+      } else {
+        this.uiFeedback.created('La categoria fue creada correctamente.');
+      }
+      this.loadCategorias();
+    } catch {
+      this.guardando.set(false);
+      this.uiFeedback.error('No fue posible guardar la categoria.');
+    }
   }
 
   async eliminarCategoria(cat: CategoriaAdmin, event: Event): Promise<void> {
@@ -535,6 +579,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   // ============================================================
 
   abrirModalProd(prod?: ProductoAdmin): void {
+    this.limpiarImagenProdPend();
     if (prod) {
       this.editandoProdId.set(prod.id_producto);
       this.prodForm.set({
@@ -571,9 +616,10 @@ export class MenuComponent implements OnInit, OnDestroy {
   cerrarModalProd(): void {
     this.modalProdOpen.set(false);
     this.cerrarPanelCopiar();
+    this.limpiarImagenProdPend();
   }
 
-  guardarProducto(): void {
+  async guardarProducto(): Promise<void> {
     const id   = this.negocioId();
     const form = this.prodForm();
     if (!id || !form.nombre.trim() || !form.precio || !form.id_categoria) return;
@@ -590,6 +636,8 @@ export class MenuComponent implements OnInit, OnDestroy {
 
     this.guardando.set(true);
     const editId = this.editandoProdId();
+    const blob = this.prodImagenBlob();
+    const base = `${environment.apiUrl}/carta/admin/productos`;
     const ingredientesPayload = form.ingredientes
       .filter(i => i.id_ingrediente != null)
       .map(i => ({
@@ -598,41 +646,57 @@ export class MenuComponent implements OnInit, OnDestroy {
         es_removible:   i.es_removible,
       }));
 
-    const body = {
+    const baseBody = {
       id_negocio:   id,
       id_categoria: form.id_categoria,
       nombre:       form.nombre.trim(),
       descripcion:  form.descripcion,
       precio:       form.precio,
       icono:        form.icono,
-      imagen_url:   form.imagen_url,
       es_popular:   form.es_popular,
       disponible:   form.disponible,
       visible:      form.visible,
-      ...(!editId || this.ingredientesModificados() ? { ingredientes: ingredientesPayload } : {}),
     };
 
-    const req = editId
-      ? this.http.put(`${environment.apiUrl}/carta/admin/productos/${editId}`, body)
-      : this.http.post(`${environment.apiUrl}/carta/admin/productos`, body);
-
-    req.subscribe({
-      next: () => {
-        this.guardando.set(false);
-        this.ingredientesModificados.set(false);
-        this.cerrarModalProd();
-        if (editId) {
-          this.uiFeedback.updated('Los datos del producto fueron actualizados.');
-        } else {
-          this.uiFeedback.created('El producto fue creado correctamente.');
+    try {
+      if (editId) {
+        // Sube la imagen (si hay una nueva) nombrada con el ID, luego guarda.
+        const imagen_url = blob ? await this.uploadImagen('producto', editId, blob) : form.imagen_url;
+        const body = {
+          ...baseBody,
+          imagen_url,
+          ...(this.ingredientesModificados() ? { ingredientes: ingredientesPayload } : {}),
+        };
+        await firstValueFrom(this.http.put(`${base}/${editId}`, body));
+      } else {
+        // Crea primero para obtener el ID, luego sube la imagen con ese nombre.
+        const res = await firstValueFrom(
+          this.http.post<{ data: { id_producto: number } }>(base, {
+            ...baseBody,
+            imagen_url: form.imagen_url || '',
+            ingredientes: ingredientesPayload,
+          }),
+        );
+        const newId = res?.data?.id_producto;
+        if (blob && newId) {
+          const imagen_url = await this.uploadImagen('producto', newId, blob);
+          await firstValueFrom(this.http.put(`${base}/${newId}`, { imagen_url }));
         }
-        this.recargarVista();
-      },
-      error: () => {
-        this.guardando.set(false);
-        this.uiFeedback.error('No fue posible guardar el producto.');
-      },
-    });
+      }
+
+      this.guardando.set(false);
+      this.ingredientesModificados.set(false);
+      this.cerrarModalProd();
+      if (editId) {
+        this.uiFeedback.updated('Los datos del producto fueron actualizados.');
+      } else {
+        this.uiFeedback.created('El producto fue creado correctamente.');
+      }
+      this.recargarVista();
+    } catch {
+      this.guardando.set(false);
+      this.uiFeedback.error('No fue posible guardar el producto.');
+    }
   }
 
   private getHttpErrorMessage(err: HttpErrorResponse): string {
@@ -683,6 +747,120 @@ export class MenuComponent implements OnInit, OnDestroy {
   // ============================================================
 
   setFiltro(f: FiltroDisponibilidad): void { this.filtro.set(f); }
+
+  // ── Imágenes de carta ─────────────────────────────────────
+
+  /** Resuelve una imagen_url relativa (/uploads/...) contra el origen del API. */
+  resolveImg(url: string | null | undefined): string {
+    if (!url) return '';
+    if (/^(https?:|data:|blob:)/i.test(url)) return url;
+    return `${this.apiOrigin}${url.startsWith('/') ? '' : '/'}${url}`;
+  }
+
+  onSelectImagenProd(event: Event): void {
+    this.abrirCropper(event, 'prod');
+  }
+
+  onSelectImagenCat(event: Event): void {
+    this.abrirCropper(event, 'cat');
+  }
+
+  quitarImagenProd(): void {
+    this.revokePreview(this.prodImagenPreview());
+    this.prodImagenPreview.set('');
+    this.prodImagenBlob.set(null);
+    this.updateProdField('imagen_url', '');
+  }
+
+  quitarImagenCat(): void {
+    this.revokePreview(this.catImagenPreview());
+    this.catImagenPreview.set('');
+    this.catImagenBlob.set(null);
+    this.updateCatField('imagen_url', '');
+  }
+
+  /** Valida el archivo elegido y abre el cropper con el aspecto de la tarjeta. */
+  private abrirCropper(event: Event, target: 'prod' | 'cat'): void {
+    const input = event.target as HTMLInputElement;
+    const file = input?.files?.[0];
+    if (input) input.value = '';
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      this.uiFeedback.error('Selecciona un archivo de imagen (JPG, PNG o WEBP).');
+      return;
+    }
+    if (file.size > 25 * 1024 * 1024) {
+      this.uiFeedback.error('La imagen es demasiado grande (máx 25 MB).');
+      return;
+    }
+
+    if (target === 'prod') {
+      this.cropperAspect.set(4 / 3);
+      this.cropperOutputWidth.set(640);
+      this.cropperTitulo.set('Ajustar imagen del producto');
+    } else {
+      this.cropperAspect.set(1);
+      this.cropperOutputWidth.set(256);
+      this.cropperTitulo.set('Ajustar imagen de la categoría');
+    }
+    this.cropperTarget.set(target);
+    this.cropperFile.set(file);
+    this.cropperOpen.set(true);
+  }
+
+  cerrarCropper(): void {
+    this.cropperOpen.set(false);
+    this.cropperFile.set(null);
+  }
+
+  /** Guarda en memoria el recorte WebP; se sube al guardar (nombre = ID). */
+  onImagenRecortada(blob: Blob): void {
+    const target = this.cropperTarget();
+    this.cerrarCropper();
+    const preview = this.isBrowser ? URL.createObjectURL(blob) : '';
+    if (target === 'prod') {
+      this.revokePreview(this.prodImagenPreview());
+      this.prodImagenBlob.set(blob);
+      this.prodImagenPreview.set(preview);
+    } else {
+      this.revokePreview(this.catImagenPreview());
+      this.catImagenBlob.set(blob);
+      this.catImagenPreview.set(preview);
+    }
+  }
+
+  private revokePreview(url: string): void {
+    if (url && this.isBrowser) URL.revokeObjectURL(url);
+  }
+
+  private limpiarImagenProdPend(): void {
+    this.revokePreview(this.prodImagenPreview());
+    this.prodImagenPreview.set('');
+    this.prodImagenBlob.set(null);
+  }
+
+  private limpiarImagenCatPend(): void {
+    this.revokePreview(this.catImagenPreview());
+    this.catImagenPreview.set('');
+    this.catImagenBlob.set(null);
+  }
+
+  /** Sube el recorte comprimido; el backend lo nombra con el ID de la entidad. */
+  private async uploadImagen(tipo: 'producto' | 'categoria', idEntidad: number, blob: Blob): Promise<string> {
+    const id = this.negocioId();
+    if (!id) return '';
+    const ext = blob.type === 'image/webp' ? 'webp' : 'jpg';
+    const formData = new FormData();
+    formData.append('imagen', blob, `imagen.${ext}`);
+    const res = await firstValueFrom(
+      this.http.post<{ success: boolean; data: { imagen_url: string } }>(
+        `${environment.apiUrl}/carta/admin/${id}/imagen/${tipo}/${idEntidad}`,
+        formData,
+      ),
+    );
+    return res?.data?.imagen_url ?? '';
+  }
 
   getCatNombre(idCat: number): string {
     return this.categorias().find(c => c.id_categoria === idCat)?.nombre ?? '';

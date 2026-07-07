@@ -66,7 +66,11 @@
             (click)="selectCategoria(cat.id_categoria)"
           >
             <div class="cat-info">
-              <span class="cat-icon">{{ cat.icono }}</span>
+              @if (cat.imagen_url) {
+                <img class="cat-img" [src]="resolveImg(cat.imagen_url)" [alt]="cat.nombre" />
+              } @else {
+                <span class="cat-icon">{{ cat.icono }}</span>
+              }
               <div class="cat-details">
                 <span class="cat-nombre">{{ cat.nombre }}</span>
                 <span class="cat-count">{{ cat.total_productos }} productos</span>
@@ -134,7 +138,7 @@
                 <!-- Imagen / ícono del producto -->
                 <div class="product-img">
                   @if (prod.imagen_url) {
-                    <img [src]="prod.imagen_url" [alt]="prod.nombre" />
+                    <img [src]="resolveImg(prod.imagen_url)" [alt]="prod.nombre" />
                   } @else {
                     <span class="product-emoji">{{ prod.icono }}</span>
                   }
@@ -260,6 +264,39 @@
               [value]="catForm().orden"
               (input)="updateCatField('orden', +$any($event.target).value)"
             />
+          </div>
+        </div>
+
+        <!-- Imagen (opcional) — si existe, se muestra por encima del ícono -->
+        <div class="form-group">
+          <label class="form-label">Imagen <span class="form-label-optional">(opcional)</span></label>
+          <div class="img-uploader">
+            <div class="img-preview">
+              @if (catPreviewSrc()) {
+                <img [src]="catPreviewSrc()" alt="Vista previa" />
+              } @else {
+                <span class="img-preview-emoji">{{ catForm().icono }}</span>
+              }
+            </div>
+            <div class="img-uploader-actions">
+              <label class="btn btn-secondary btn-sm img-upload-btn">
+                <lucide-icon name="image-plus" [size]="14" />
+                {{ catPreviewSrc() ? 'Cambiar imagen' : 'Subir imagen' }}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  hidden
+                  (change)="onSelectImagenCat($event)"
+                />
+              </label>
+              @if (catPreviewSrc()) {
+                <button type="button" class="btn btn-ghost btn-sm" (click)="quitarImagenCat()">
+                  <lucide-icon name="trash-2" [size]="14" />
+                  Quitar
+                </button>
+              }
+              <span class="img-uploader-hint">La imagen tiene prioridad sobre el ícono. JPG, PNG o WEBP.</span>
+            </div>
           </div>
         </div>
 
@@ -427,6 +464,39 @@
             [value]="prodForm().descripcion"
             (input)="updateProdField('descripcion', $any($event.target).value)"
           ></textarea>
+        </div>
+
+        <!-- ── Imagen (opcional) — prioridad sobre el ícono ── -->
+        <div class="form-group">
+          <label class="form-label">Imagen del producto <span class="form-label-optional">(opcional)</span></label>
+          <div class="img-uploader">
+            <div class="img-preview">
+              @if (prodPreviewSrc()) {
+                <img [src]="prodPreviewSrc()" alt="Vista previa" />
+              } @else {
+                <span class="img-preview-emoji">{{ prodForm().icono }}</span>
+              }
+            </div>
+            <div class="img-uploader-actions">
+              <label class="btn btn-secondary btn-sm img-upload-btn">
+                <lucide-icon name="image-plus" [size]="14" />
+                {{ prodPreviewSrc() ? 'Cambiar imagen' : 'Subir imagen' }}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  hidden
+                  (change)="onSelectImagenProd($event)"
+                />
+              </label>
+              @if (prodPreviewSrc()) {
+                <button type="button" class="btn btn-ghost btn-sm" (click)="quitarImagenProd()">
+                  <lucide-icon name="trash-2" [size]="14" />
+                  Quitar
+                </button>
+              }
+              <span class="img-uploader-hint">Si subes una foto, se mostrará en la tarjeta en lugar del ícono. JPG, PNG o WEBP.</span>
+            </div>
+          </div>
         </div>
 
         <!-- ═══════════ INGREDIENTES ═══════════ -->
@@ -635,4 +705,18 @@
 
     </div>
   </div>
+}
+
+<!-- ================================================================
+     MODAL — Cropper de imagen (encuadre + compresión WebP)
+     ================================================================ -->
+@if (cropperOpen() && cropperFile()) {
+  <app-image-cropper
+    [file]="cropperFile()!"
+    [aspect]="cropperAspect()"
+    [outputWidth]="cropperOutputWidth()"
+    [titulo]="cropperTitulo()"
+    (recortada)="onImagenRecortada($event)"
+    (cancelada)="cerrarCropper()"
+  />
 }
