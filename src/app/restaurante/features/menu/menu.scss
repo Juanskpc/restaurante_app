@@ -332,13 +332,39 @@
 .products-grid {
   flex: 1;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  // `min(100%, 280px)` evita que la columna mínima (280px) desborde el
+  // contenedor en pantallas más angostas que la tarjeta.
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
   gap: var(--spacing-md);
   padding: var(--spacing-lg);
   overflow-y: auto;
   align-content: start;
+  min-height: 0;
   scrollbar-width: thin;
   scrollbar-color: var(--color-border) transparent;
+}
+
+// ─── Responsive del cuerpo: un solo scroll en pantallas pequeñas ──
+// En desktop el menú son dos paneles con scrolls independientes. En
+// viewports bajos eso reducía el área de productos a pocos píxeles (se
+// veía solo el ícono de la tarjeta). En móvil el cuerpo pasa a un único
+// scroll vertical y las tarjetas se muestran completas.
+@media (max-width: 768px) {
+  .menu-body {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .menu-content {
+    flex: 0 0 auto;
+    overflow: visible;
+    min-height: 0;
+  }
+
+  .products-grid {
+    flex: 0 0 auto;
+    overflow: visible;
+  }
 }
 
 // ─── Tarjeta de producto ─────────────────────────────────────

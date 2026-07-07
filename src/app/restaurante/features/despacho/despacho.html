@@ -248,20 +248,19 @@
           </div>
 
           @if (esPendientePago(p)) {
-            <div class="info-row">
+            <div class="info-row info-row--pay">
               <span class="info-label">
                 <lucide-icon name="credit-card" [size]="14" />
                 Forma de pago
               </span>
               <span class="info-val">
-                <select class="select-pay"
-                        (change)="seleccionarMetodoPago($any($event.target).value)">
-                  <option value="" [selected]="!metodoPagoSeleccionado()">Seleccionar...</option>
-                  @for (mp of metodosPago(); track mp.id_metodo_pago) {
-                    <option [value]="mp.id_metodo_pago"
-                            [selected]="metodoPagoSeleccionado() === mp.id_metodo_pago">{{ mp.nombre }}</option>
-                  }
-                </select>
+                <app-multipago-selector
+                  [metodos]="metodosPago()"
+                  [total]="p.total"
+                  [permiteMultipago]="permiteMultipago()"
+                  [idMetodoPagoInicial]="p.id_metodo_pago ?? null"
+                  (seleccionChange)="onPagoSeleccion($event)"
+                />
               </span>
             </div>
           }

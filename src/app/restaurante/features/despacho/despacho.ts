@@ -12,6 +12,10 @@ import { CajaService } from '../../../core/services/caja.service';
 import { CatalogoCacheService } from '../../../core/services/catalogo-cache.service';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 import { environment } from '../../../../environments/environment';
+import {
+  MultipagoSelectorComponent,
+  PagoSeleccion,
+} from '../../shared/multipago-selector/multipago-selector';
 
 type TipoPedido = 'MESA' | 'LLEVAR' | 'DOMICILIO';
 type FiltroTipo = 'TODOS' | 'LLEVAR' | 'DOMICILIO';
@@ -55,7 +59,7 @@ export interface PedidoDespacho {
 
 @Component({
   selector: 'app-despacho',
-  imports: [LucideAngularModule, CurrencyPipe, DatePipe],
+  imports: [LucideAngularModule, CurrencyPipe, DatePipe, MultipagoSelectorComponent],
   templateUrl: './despacho.html',
   styleUrl: './despacho.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -76,8 +80,10 @@ export class DespachoComponent implements OnInit {
   readonly cobrandoId = signal<number | null>(null);
   readonly metodosPago = signal<Array<{ id_metodo_pago: number; nombre: string }>>([]);
   readonly metodoPagoSeleccionado = signal<number | null>(null);
+  readonly pagoSeleccion = signal<PagoSeleccion | null>(null);
 
   readonly negocioId = computed(() => this.auth.negocio()?.id_negocio ?? null);
+  readonly permiteMultipago = computed(() => this.auth.permiteMultipago());
   readonly puedeVerTodos = computed(() => this.auth.canAccessSubnivel('despacho_ver_todos'));
   readonly puedeCancelarNoPagados = computed(() => this.auth.canAccessSubnivel('despacho_cancelar_no_pagado'));
 
@@ -136,15 +142,18 @@ export class DespachoComponent implements OnInit {
   abrirPedido(p: PedidoDespacho): void {
     this.pedidoActivo.set(p);
     this.metodoPagoSeleccionado.set(p.id_metodo_pago ?? null);
+    this.pagoSeleccion.set(null);
   }
 
   cerrarPedido(): void {
     this.pedidoActivo.set(null);
     this.metodoPagoSeleccionado.set(null);
+    this.pagoSeleccion.set(null);
   }
 
-  seleccionarMetodoPago(rawValue: string): void {
-    this.metodoPagoSeleccionado.set(rawValue ? Number(rawValue) : null);
+  onPagoSeleccion(seleccion: PagoSeleccion): void {
+    this.pagoSeleccion.set(seleccion);
+    this.metodoPagoSeleccionado.set(seleccion.modo === 'simple' ? seleccion.idMetodoPago : null);
   }
 
   /** Devuelve un href tel: limpio (solo dígitos y +). */
@@ -331,14 +340,32 @@ export class DespachoComponent implements OnInit {
     event.stopPropagation();
     if (this.cobrandoId() !== null) return;
 
-    const idMetodoPago = this.metodoPagoSeleccionado() ?? p.id_metodo_pago ?? null;
-    if (!idMetodoPago) {
-      void this.uiFeedback.alert({
-        title: 'Forma de pago requerida',
-        message: 'Selecciona una forma de pago antes de registrar el cobro.',
-        tone: 'warning',
-      });
-      return;
+    const seleccion = this.pagoSeleccion();
+    const esMulti = seleccion?.modo === 'multi';
+
+    // Construir el cuerpo del cobro: pago simple o multipago.
+    let bodyPago: Record<string, unknown>;
+    if (esMulti) {
+      if (!seleccion?.valido) {
+        void this.uiFeedback.alert({
+          title: 'Multipago incompleto',
+          message: 'La suma de las formas de pago debe ser igual al total del pedido.',
+          tone: 'warning',
+        });
+        return;
+      }
+      bodyPago = { pagos: seleccion.pagos };
+    } else {
+      const idMetodoPago = seleccion?.idMetodoPago ?? this.metodoPagoSeleccionado() ?? p.id_metodo_pago ?? null;
+      if (!idMetodoPago) {
+        void this.uiFeedback.alert({
+          title: 'Forma de pago requerida',
+          message: 'Selecciona una forma de pago antes de registrar el cobro.',
+          tone: 'warning',
+        });
+        return;
+      }
+      bodyPago = { id_metodo_pago: idMetodoPago };
     }
 
     const origenCobro = p.tipo_pedido === 'DOMICILIO' ? 'DOMICILIARIO' : 'CAJA';
@@ -356,13 +383,14 @@ export class DespachoComponent implements OnInit {
 
     this.http.patch<{ success: boolean }>(
       `${environment.apiUrl}/pedidos/${p.id_orden}/marcar-pagado`,
-      { id_metodo_pago: idMetodoPago, origen_cobro: origenCobro, id_caja: idCaja }
+      { ...bodyPago, origen_cobro: origenCobro, id_caja: idCaja }
     ).subscribe({
       next: (res) => {
         if (res?.success) {
+          const idMetodoAplicado = esMulti ? null : (bodyPago['id_metodo_pago'] as number);
           const apply = (ord: PedidoDespacho) =>
             ord.id_orden === p.id_orden
-              ? { ...ord, estado_pago: 'pagado', id_metodo_pago: idMetodoPago }
+              ? { ...ord, estado_pago: 'pagado', id_metodo_pago: idMetodoAplicado }
               : ord;
 
           this.pedidos.update(lista => lista.map(apply));

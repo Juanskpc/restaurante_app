@@ -6,6 +6,10 @@ import { LucideAngularModule } from 'lucide-angular';
 import { AuthService } from '../../../core/services/auth.service';
 import { MesasService, MesaDashboard, MesaCardStatus } from '../../../core/services/mesas.service';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
+import {
+  MultipagoSelectorComponent,
+  PagoSeleccion,
+} from '../../shared/multipago-selector/multipago-selector';
 
 type FiltroEstado = 'all' | 'available' | 'occupied' | 'payment' | 'disabled';
 
@@ -18,7 +22,7 @@ interface ItemPagadoMesa {
 
 @Component({
   selector: 'app-mesas',
-  imports: [LucideAngularModule, FormsModule],
+  imports: [LucideAngularModule, FormsModule, MultipagoSelectorComponent],
   templateUrl: './mesas.html',
   styleUrl: './mesas.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -46,6 +50,13 @@ export class MesasComponent {
   readonly metodosPago = signal<Array<{ id_metodo_pago: number; nombre: string }>>([]);
   readonly metodoPagoId = signal<number | null>(null);
   readonly metodoPagoError = signal(false);
+  readonly pagoSeleccion = signal<PagoSeleccion | null>(null);
+  readonly permiteMultipago = computed(() => this.auth.permiteMultipago());
+  readonly pagoValido = computed(() => {
+    const s = this.pagoSeleccion();
+    if (s?.modo === 'multi') return s.valido;
+    return this.metodoPagoId() != null;
+  });
 
 
   readonly negocioId = computed(() => this.auth.negocio()?.id_negocio ?? null);
@@ -145,6 +156,7 @@ export class MesasComponent {
     this.cobroError.set('');
     this.metodoPagoId.set(mesa.order.id_metodo_pago ?? null);
     this.metodoPagoError.set(false);
+    this.pagoSeleccion.set(null);
   }
 
   closeMesa(): void {
@@ -153,11 +165,19 @@ export class MesasComponent {
     this.cobroError.set('');
     this.metodoPagoId.set(null);
     this.metodoPagoError.set(false);
+    this.pagoSeleccion.set(null);
   }
 
   seleccionarMetodoPago(rawValue: string): void {
     this.metodoPagoId.set(rawValue ? Number(rawValue) : null);
     this.metodoPagoError.set(false);
+  }
+
+  onPagoSeleccion(seleccion: PagoSeleccion): void {
+    this.pagoSeleccion.set(seleccion);
+    this.metodoPagoId.set(seleccion.modo === 'simple' ? seleccion.idMetodoPago : null);
+    this.metodoPagoError.set(false);
+    this.cobroError.set('');
   }
 
   setEfectivoRecibido(rawValue: string): void {
@@ -267,16 +287,24 @@ export class MesasComponent {
       return;
     }
 
-    const recibido = this.efectivoRecibido();
+    const seleccion = this.pagoSeleccion();
+    const esMulti = seleccion?.modo === 'multi';
+
+    // El control de efectivo recibido no aplica al multipago (valores explícitos).
+    const recibido = esMulti ? null : this.efectivoRecibido();
     if (recibido !== null && recibido < mesa.order.total) {
       const faltante = mesa.order.total - recibido;
       this.cobroError.set(`Faltan ${this.formatMoney(faltante)} para completar el pago.`);
       return;
     }
 
-    if (!this.metodoPagoId()) {
+    if (!this.pagoValido()) {
       this.metodoPagoError.set(true);
-      this.cobroError.set('Debes seleccionar una forma de pago para completar el cobro.');
+      this.cobroError.set(
+        esMulti
+          ? 'La suma de las formas de pago debe ser igual al total de la cuenta.'
+          : 'Debes seleccionar una forma de pago para completar el cobro.'
+      );
       return;
     }
 
@@ -294,7 +322,11 @@ export class MesasComponent {
     }
 
     this.guardando.set(true);
-    this.mesasApi.cerrarOrden(idOrden, this.metodoPagoId()).subscribe({
+    this.mesasApi.cerrarOrden(
+      idOrden,
+      this.metodoPagoId(),
+      esMulti ? seleccion?.pagos ?? null : null,
+    ).subscribe({
       next: () => {
         this.persistirItemsPagadosMesaCache(mesa.id_mesa, mesa.order.items);
         this.mesasApi.cambiarEstadoServicio(mesa.id_mesa, 'OCUPADA').subscribe({

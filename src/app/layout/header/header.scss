@@ -20,6 +20,37 @@
   gap: var(--spacing-md);
 }
 
+// Botón "Inicio" → portal central del admin_app (elegir negocio/vertical)
+.home-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color var(--transition-fast),
+              color var(--transition-fast),
+              border-color var(--transition-fast);
+
+  &:hover {
+    background-color: color-mix(in srgb, var(--color-primary) 10%, transparent);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+}
+
 .header-title {
   font-size: var(--font-size-xl);
   font-weight: 700;
@@ -352,6 +383,16 @@
   }
 
   .header-date {
+    display: none;
+  }
+
+  .home-btn {
+    padding: 0;
+    width: 40px;
+    justify-content: center;
+  }
+
+  .home-btn__label {
     display: none;
   }
 }

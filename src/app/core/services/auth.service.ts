@@ -42,6 +42,7 @@ export interface NegocioRestaurante {
   nombre: string;
   tipo_negocio: string | null;
   paleta: { id_paleta: number; nombre: string; colores: Record<string, string> } | null;
+  permite_multipago?: boolean;
   roles: { id_rol: number; descripcion: string }[];
   permisos_vista: PermisoVistaRestaurante[];
   permisos_subnivel: PermisoSubnivelRestaurante[];
@@ -148,6 +149,9 @@ export class AuthService {
     const idx = this._negocioIdx();
     return s.negocios[idx] ?? s.negocios[0];
   });
+
+  /** ¿El negocio activo tiene habilitado el Multipago (varias formas de pago)? */
+  readonly permiteMultipago = computed(() => !!this.negocio()?.permite_multipago);
 
   /** Rol principal (para mostrar en sidebar). */
   readonly rolPrincipal = computed(() => {
@@ -289,6 +293,41 @@ export class AuthService {
     if (isPlatformBrowser(this.platformId)) {
       window.location.href = `${adminUrl}/auth/login`;
     }
+  }
+
+  /**
+   * Vuelve al dashboard del admin_app (portal central del SaaS) sin cerrar la
+   * sesión del negocio. Útil cuando el usuario tiene varios negocios y quiere
+   * elegir otro desde el "home" de la plataforma.
+   *
+   * Como admin_app corre en otro origen (no comparte token), se hace un SSO de
+   * salida: se pide un código de un solo uso y se entra por `/auth/callback`,
+   * que rehidrata la sesión del admin_app. Así se evita caer en el login.
+   */
+  async irAlInicio(): Promise<void> {
+    const adminUrl = environment.adminUrl ?? 'http://localhost:4002';
+    if (!isPlatformBrowser(this.platformId)) return;
+
+    const token = this.getAccessToken();
+    if (token) {
+      try {
+        const res = await firstValueFrom(
+          this.http.post<{ success: boolean; data: { code: string } }>(
+            `${environment.apiUrl}/auth/generar-codigo`,
+            { token }
+          )
+        );
+        const code = res?.data?.code;
+        if (code) {
+          window.location.href = `${adminUrl}/auth/callback?code=${encodeURIComponent(code)}`;
+          return;
+        }
+      } catch {
+        // Si falla la generación del código, se cae al dashboard directo
+        // (admin_app pedirá login si no encuentra sesión propia).
+      }
+    }
+    window.location.href = `${adminUrl}/admin/dashboard`;
   }
 
   canAccessRoute(routePath: string): boolean {

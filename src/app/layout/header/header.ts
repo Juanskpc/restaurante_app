@@ -107,6 +107,11 @@ export class HeaderComponent implements OnDestroy {
     });
   }
 
+  /** Redirige al dashboard inicial del admin_app (sin cerrar sesión). */
+  irAlInicio(): void {
+    void this.auth.irAlInicio();
+  }
+
   toggleSelector(): void {
     const next = !this.selectorOpen();
     this.selectorOpen.set(next);
