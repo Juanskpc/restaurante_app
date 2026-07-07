@@ -54,6 +54,8 @@ export class ConfiguracionComponent {
   readonly paletas = signal<PaletaColor[]>([]);
 
   readonly canEdit = computed(() => this.configuracion()?.can_edit === true);
+  readonly permiteMultipago = computed(() => this.configuracion()?.permite_multipago === true);
+  readonly guardandoMultipago = signal(false);
 
   // ── Métodos de pago ──
   readonly metodosPago = signal<MetodoPago[]>([]);
@@ -97,6 +99,7 @@ export class ConfiguracionComponent {
       nonNullable: true,
       validators: [Validators.maxLength(255), optionalUrlValidator],
     }),
+    permite_multipago: this.fb.control(false, { nonNullable: true }),
     id_paleta: this.fb.control<number | null>(null),
   });
 
@@ -202,6 +205,39 @@ export class ConfiguracionComponent {
     });
   }
 
+  /**
+   * Activa/desactiva el Multipago del negocio. Guarda de inmediato (switch) y
+   * refresca la sesión para que las vistas de cobro tomen el flag sin recargar.
+   */
+  toggleMultipago(activar: boolean): void {
+    const idNegocio = this.negocioActivoId();
+    if (!idNegocio || !this.canEdit()) return;
+
+    this.guardandoMultipago.set(true);
+    this.configuracionService
+      .updateConfiguracion({ id_negocio: idNegocio, permite_multipago: activar })
+      .pipe(finalize(() => this.guardandoMultipago.set(false)))
+      .subscribe({
+        next: async (config) => {
+          this.configuracion.set(config);
+          this.form.controls.permite_multipago.setValue(activar, { emitEvent: false });
+          this.uiFeedback.success(
+            activar ? 'Multipago activado.' : 'Multipago desactivado.',
+            'Opciones de pago'
+          );
+
+          const token = this.auth.getAccessToken();
+          if (token) {
+            const ok = await this.auth.validateAndSetToken(token);
+            if (ok) this.auth.setNegocioActivo(idNegocio);
+          }
+        },
+        error: (e) => {
+          this.uiFeedback.error(e?.error?.message || 'No se pudo actualizar el Multipago.');
+        },
+      });
+  }
+
   cargarConfiguracion(idNegocio: number): void {
     this.loading.set(true);
     this.errorMessage.set(null);
@@ -222,6 +258,7 @@ export class ConfiguracionComponent {
             url_whatsapp: config.url_whatsapp || '',
             url_facebook: config.url_facebook || '',
             url_instagram: config.url_instagram || '',
+            permite_multipago: config.permite_multipago === true,
             id_paleta: config.id_paleta ?? null,
           });
 
@@ -282,6 +319,7 @@ export class ConfiguracionComponent {
         url_whatsapp: value.url_whatsapp?.trim() || null,
         url_facebook: value.url_facebook?.trim() || null,
         url_instagram: value.url_instagram?.trim() || null,
+        permite_multipago: value.permite_multipago,
         id_paleta: value.id_paleta,
       })
       .pipe(finalize(() => this.saving.set(false)))

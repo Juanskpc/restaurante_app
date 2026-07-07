@@ -72,10 +72,16 @@ export class MesasService {
     return this.http.patch<{ success: boolean; data: MesaBase }>(`${environment.apiUrl}/mesas/${idMesa}/liberar`, {});
   }
 
-  cerrarOrden(idOrden: number, idMetodoPago?: number | null): Observable<{ success: boolean; data: unknown }> {
+  cerrarOrden(
+    idOrden: number,
+    idMetodoPago?: number | null,
+    pagos?: { id_metodo_pago: number; valor: number }[] | null,
+  ): Observable<{ success: boolean; data: unknown }> {
+    // Multipago tiene prioridad; si no, se cierra con la forma de pago simple.
+    const body = pagos && pagos.length > 0 ? { pagos } : { id_metodo_pago: idMetodoPago || null };
     return this.http.patch<{ success: boolean; data: unknown }>(
       `${environment.apiUrl}/pedidos/${idOrden}/cerrar`,
-      { id_metodo_pago: idMetodoPago || null },
+      body,
     );
   }
 

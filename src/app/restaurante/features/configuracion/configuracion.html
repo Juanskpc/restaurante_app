@@ -146,6 +146,19 @@
         </div>
       </header>
 
+      <!-- Multipago: dividir un cobro en varias formas de pago -->
+      <label class="multipago-switch" [class.is-disabled]="!canEdit() || guardandoMultipago()">
+        <input type="checkbox"
+               [checked]="permiteMultipago()"
+               [disabled]="!canEdit() || guardandoMultipago()"
+               (change)="toggleMultipago($any($event.target).checked)" />
+        <span class="multipago-switch__text">
+          <strong>Permitir Multipago</strong>
+          <small>El cajero podrá dividir el cobro de un pedido en dos o más formas de pago
+            (por ejemplo, parte en efectivo y parte en transferencia). La suma debe igualar el total.</small>
+        </span>
+      </label>
+
       <div class="form-row metodo-pago-row">
         <input class="input" type="text" maxlength="80" placeholder="Nombre del método (ej: Nequi, Bancolombia)"
                [value]="nuevoMetodoNombre()"

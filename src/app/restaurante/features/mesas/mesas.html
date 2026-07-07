@@ -144,36 +144,35 @@
 
           @if (mesa.status === 'payment') {
             <div class="cash-box">
-              <label class="cash-label" for="mesa-metodo-pago">Forma de pago</label>
-              <select id="mesa-metodo-pago"
-                      class="cash-input"
-                      [class.error]="metodoPagoError()"
-                      (change)="seleccionarMetodoPago($any($event.target).value)">
-                <option value="" [selected]="!metodoPagoId()">Seleccionar forma de pago...</option>
-                @for (mp of metodosPago(); track mp.id_metodo_pago) {
-                  <option [value]="mp.id_metodo_pago"
-                          [selected]="metodoPagoId() === mp.id_metodo_pago">{{ mp.nombre }}</option>
-                }
-              </select>
+              <label class="cash-label">Forma de pago</label>
+              <app-multipago-selector
+                [metodos]="metodosPago()"
+                [total]="mesa.order.total"
+                [permiteMultipago]="permiteMultipago()"
+                [idMetodoPagoInicial]="mesa.order.id_metodo_pago ?? null"
+                (seleccionChange)="onPagoSeleccion($event)"
+              />
 
-              <label class="cash-label" for="mesa-efectivo-input">Efectivo recibido (opcional)</label>
-              <input id="mesa-efectivo-input"
-                     class="cash-input"
-                     type="text"
-                     inputmode="numeric"
-                     placeholder="Ej: 100.000"
-                     [value]="efectivoRecibidoInput()"
-                     (input)="setEfectivoRecibido($any($event.target).value)" />
+              @if (pagoSeleccion()?.modo !== 'multi') {
+                <label class="cash-label" for="mesa-efectivo-input">Efectivo recibido (opcional)</label>
+                <input id="mesa-efectivo-input"
+                       class="cash-input"
+                       type="text"
+                       inputmode="numeric"
+                       placeholder="Ej: 100.000"
+                       [value]="efectivoRecibidoInput()"
+                       (input)="setEfectivoRecibido($any($event.target).value)" />
 
-              @if (efectivoRecibido() !== null) {
-                @if (faltanteCobro()! > 0) {
-                  <p class="cash-feedback error">
-                    Faltan {{ formatMoney(faltanteCobro()!) }} para completar el pago.
-                  </p>
-                } @else {
-                  <p class="cash-feedback success">
-                    Vuelta: {{ formatMoney(vueltaCobro()!) }}
-                  </p>
+                @if (efectivoRecibido() !== null) {
+                  @if (faltanteCobro()! > 0) {
+                    <p class="cash-feedback error">
+                      Faltan {{ formatMoney(faltanteCobro()!) }} para completar el pago.
+                    </p>
+                  } @else {
+                    <p class="cash-feedback success">
+                      Vuelta: {{ formatMoney(vueltaCobro()!) }}
+                    </p>
+                  }
                 }
               }
 

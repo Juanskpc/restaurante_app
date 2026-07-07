@@ -605,3 +605,12 @@
 
   &:hover { background: var(--color-bg-secondary); }
 }
+
+// Fila de forma de pago: el selector (con multipago) ocupa todo el ancho.
+.info-row--pay {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+
+  .info-val { width: 100%; }
+}

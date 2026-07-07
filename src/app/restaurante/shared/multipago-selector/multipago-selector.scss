@@ -1,0 +1,188 @@
+:host {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+// Cuando el desglose multipago está activo, el selector ocupa la fila completa
+// del grid contenedor (Pedidos: comparte fila con el <select> vecino en pago
+// simple, pero se expande a fila entera para mostrar las formas de pago).
+:host(.mp--multi) {
+  grid-column: 1 / -1;
+}
+
+.mp-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.mp-select {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 8px);
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  font: inherit;
+
+  &:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: var(--focus-ring);
+  }
+}
+
+.mp-split {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px dashed color-mix(in srgb, var(--color-primary) 45%, var(--color-border));
+  border-radius: var(--radius-md, 8px);
+  background: color-mix(in srgb, var(--color-primary) 5%, transparent);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.mp-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.mp-row__metodo {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  font: inherit;
+}
+
+.mp-row__valor {
+  width: 108px;
+  flex-shrink: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  font: inherit;
+  text-align: right;
+}
+
+.mp-row__resto {
+  flex-shrink: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 6px);
+  background: transparent;
+  color: var(--color-primary);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+}
+
+.mp-row__del {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 6px);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+
+  &:hover:not(:disabled) { color: var(--color-error); border-color: var(--color-error); }
+  &:disabled { opacity: 0.4; cursor: not-allowed; }
+}
+
+.mp-add {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full, 999px);
+  background: transparent;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover:not(:disabled) { border-color: var(--color-primary); color: var(--color-primary); }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+}
+
+.mp-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  padding-top: 6px;
+  border-top: 1px solid var(--color-border);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+
+  strong { color: var(--color-text-primary); }
+
+  &__rest {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+    font-weight: 700;
+    color: var(--color-error);
+  }
+
+  &.ok .mp-summary__rest { color: var(--color-success, #16a34a); }
+  &.over .mp-summary__rest { color: var(--color-error); }
+}
+
+// ── Móvil: evitar desborde a la derecha y simplificar ──
+// Se ocultan "Resto" y "Asignado"; el resumen deja solo Total y el estado
+// (Falta / Sobra / Completo). Inputs y selects se encogen para caber al 100%.
+@media (max-width: 560px) {
+  .mp-row {
+    flex-wrap: wrap;
+  }
+
+  .mp-row__metodo {
+    flex: 1 1 100%;
+  }
+
+  .mp-row__valor {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+  }
+
+  .mp-row__resto {
+    display: none;
+  }
+
+  .mp-summary__assigned {
+    display: none;
+  }
+
+  .mp-summary__rest {
+    margin-left: 0;
+  }
+}

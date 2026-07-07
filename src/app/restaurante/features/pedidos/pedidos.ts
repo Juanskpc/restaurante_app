@@ -13,6 +13,10 @@ import { CajaService } from '../../../core/services/caja.service';
 import { CatalogoCacheService } from '../../../core/services/catalogo-cache.service';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 import { environment } from '../../../../environments/environment';
+import {
+  MultipagoSelectorComponent,
+  PagoSeleccion,
+} from '../../shared/multipago-selector/multipago-selector';
 
 // ============================================================
 // Interfaces
@@ -143,7 +147,7 @@ interface ItemOrdenCache {
  */
 @Component({
   selector: 'app-pedidos',
-  imports: [LucideAngularModule, FormsModule, CurrencyPipe, RouterLink],
+  imports: [LucideAngularModule, FormsModule, CurrencyPipe, RouterLink, MultipagoSelectorComponent],
   templateUrl: './pedidos.html',
   styleUrl: './pedidos.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -172,6 +176,14 @@ export class PedidosComponent implements OnInit, OnDestroy {
   readonly metodosPago = signal<Array<{ id_metodo_pago: number; nombre: string }>>([]);
   readonly metodoPagoId = signal<number | null>(null);
   readonly metodoPagoRequeridoError = signal(false);
+  readonly pagoSeleccion = signal<PagoSeleccion | null>(null);
+  readonly permiteMultipago = computed(() => this.auth.permiteMultipago());
+  /** ¿La forma de pago actual es válida (simple con método, o multipago cuadrado)? */
+  readonly pagoValido = computed(() => {
+    const s = this.pagoSeleccion();
+    if (s?.modo === 'multi') return s.valido;
+    return this.metodoPagoId() != null;
+  });
 
   // Domicilio
   readonly modalDomicilioAbierto = signal(false);
@@ -483,6 +495,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.notaOrden.set('');
     this.mesaRequeridaError.set(false);
     this.metodoPagoId.set(null);
+    this.pagoSeleccion.set(null);
     this.metodoPagoRequeridoError.set(false);
     this.efectivoRecibidoInput.set('');
     this.domContacto.set('');
@@ -658,6 +671,25 @@ export class PedidosComponent implements OnInit, OnDestroy {
   seleccionarMetodoPago(rawValue: string): void {
     this.metodoPagoId.set(rawValue ? +rawValue : null);
     this.metodoPagoRequeridoError.set(false);
+  }
+
+  onPagoSeleccion(seleccion: PagoSeleccion): void {
+    this.pagoSeleccion.set(seleccion);
+    this.metodoPagoId.set(seleccion.modo === 'simple' ? seleccion.idMetodoPago : null);
+    this.metodoPagoRequeridoError.set(false);
+  }
+
+  /**
+   * Construye el fragmento de body de cobro: `{ pagos }` en multipago o
+   * `{ id_metodo_pago }` en pago simple. Devuelve null si aún no es válido.
+   */
+  private construirBodyPago(): Record<string, unknown> | null {
+    const s = this.pagoSeleccion();
+    if (s?.modo === 'multi') {
+      return s.valido ? { pagos: s.pagos } : null;
+    }
+    const id = this.metodoPagoId();
+    return id ? { id_metodo_pago: id } : null;
   }
 
   setEfectivoRecibido(rawValue: string): void {
@@ -902,7 +934,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
       tone: 'info',
     });
 
-    if (cobrar && !this.metodoPagoId()) {
+    if (cobrar && !this.pagoValido()) {
       this.metodoPagoRequeridoError.set(true);
       await this.uiFeedback.alert({
         title: 'Forma de pago requerida',
@@ -953,7 +985,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
       return;
     }
 
-    if (this.requiereMetodoPago(destino) && !this.metodoPagoId()) {
+    if (this.requiereMetodoPago(destino) && !this.pagoValido()) {
       this.metodoPagoRequeridoError.set(true);
       void this.uiFeedback.alert({
         title: 'Forma de pago requerida',
@@ -1086,7 +1118,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
         const idCaja = origenCobro === 'CAJA' ? this.getIdCaja() : null;
         this.http.patch(
           `${environment.apiUrl}/pedidos/${idOrden}/marcar-pagado`,
-          { id_metodo_pago: this.metodoPagoId(), origen_cobro: origenCobro, id_caja: idCaja }
+          { ...(this.construirBodyPago() ?? {}), origen_cobro: origenCobro, id_caja: idCaja }
         ).subscribe({
           next: () => finalizarDespacho(),
           error: () => this.resetEstadoEnvio(),
@@ -1107,18 +1139,21 @@ export class PedidosComponent implements OnInit, OnDestroy {
   }
 
   private async completarCobroPedido(idOrden: number): Promise<void> {
-    if (!this.metodoPagoId()) {
+    if (!this.pagoValido()) {
       this.metodoPagoRequeridoError.set(true);
       await this.uiFeedback.alert({
         title: 'Forma de pago requerida',
-        message: 'Debes seleccionar una forma de pago para completar el cobro.',
+        message: this.pagoSeleccion()?.modo === 'multi'
+          ? 'La suma de las formas de pago debe ser igual al total del pedido.'
+          : 'Debes seleccionar una forma de pago para completar el cobro.',
         tone: 'warning',
       });
       this.resetEstadoEnvio();
       return;
     }
 
-    const recibido = this.efectivoRecibido();
+    // El control de efectivo recibido no aplica al multipago (los valores son explícitos).
+    const recibido = this.pagoSeleccion()?.modo === 'multi' ? null : this.efectivoRecibido();
     if (recibido !== null && recibido < this.total()) {
       await this.uiFeedback.alert({
         title: 'Pago incompleto',
@@ -1144,7 +1179,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.http.patch(
       `${environment.apiUrl}/pedidos/${idOrden}/cerrar`,
       {
-        id_metodo_pago: this.metodoPagoId() || null,
+        ...(this.construirBodyPago() ?? { id_metodo_pago: this.metodoPagoId() || null }),
         id_caja: this.tipoPedido() === 'DOMICILIO' ? null : this.getIdCaja(),
       }
     ).subscribe({
