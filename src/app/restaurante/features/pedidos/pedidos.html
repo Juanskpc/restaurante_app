@@ -24,6 +24,12 @@
         <span class="cat-label">{{ cat.nombre }}</span>
       </button>
     }
+    @if (categorias().length === 0) {
+      <div class="cat-empty">
+        <lucide-icon name="folder-x" [size]="20" />
+        <span>Sin categorías</span>
+      </div>
+    }
   </aside>
 
   <!-- ════════════════ PANEL PRODUCTOS (centro) ════════════════ -->
@@ -100,6 +106,22 @@
   <!-- ════════════════ PANEL ORDEN (derecha) ════════════════ -->
   @if (!isMobileViewport() || ordenPanelOpen()) {
   <aside class="order-panel" [class.open]="ordenPanelOpen()">
+    @if (cajaCerrada()) {
+    <!-- Estado bloqueado: la caja del turno está cerrada -->
+    <div class="order-locked">
+      <div class="order-locked__icon">
+        <lucide-icon name="lock" [size]="34" />
+      </div>
+      <h3 class="order-locked__title">Caja cerrada</h3>
+      <p class="order-locked__text">
+        Abre la caja del turno para poder tomar y cobrar pedidos.
+      </p>
+      <a class="order-locked__cta" routerLink="/caja">
+        <lucide-icon name="wallet" [size]="18" />
+        Abrir caja
+      </a>
+    </div>
+    } @else {
     <!-- Header de la orden -->
     <div class="order-header">
       <div class="order-title">
@@ -372,12 +394,12 @@
       <!-- Botones de acción -->
       <div class="action-btns">
         <div class="cash-box">
-          <label class="cash-label" for="pedido-efectivo-input">Efectivo recibido (opcional)</label>
           <input id="pedido-efectivo-input"
                  class="cash-input"
                  type="text"
                  inputmode="numeric"
-                 placeholder="Ej: 100.000"
+                 aria-label="Efectivo recibido (opcional)"
+                 placeholder="Efectivo recibido (opcional)"
                  [value]="efectivoRecibidoInput()"
                  (input)="setEfectivoRecibido($any($event.target).value)" />
 
@@ -452,6 +474,7 @@
         </div>
         }
       </div>
+    }
     }
   </aside>
   }

@@ -4,7 +4,12 @@
 
 :host {
   display: flex;
-  min-height: 100vh;
+  // Shell acotado a la altura del viewport: el scroll vive dentro de
+  // `.content`, no en la página. Así el header (dentro de `.main-area`,
+  // encima de `.content`) permanece FIJO en todos los módulos.
+  height: 100vh;
+  height: 100dvh; // móvil: excluye la barra de URL dinámica
+  overflow: hidden;
   background-color: var(--color-bg);
 }
 
@@ -14,12 +19,14 @@
   display: flex;
   flex-direction: column;
   margin-left: 240px;
-  min-height: 100vh;
+  min-height: 0; // permite que `.content` se acote y haga scroll interno
+  height: 100%;
   transition: margin-left var(--transition-normal);
 }
 
 .content {
   flex: 1;
+  min-height: 0; // clave: sin esto el contenido crecería y scrollearía la página
   padding: var(--spacing-xl);
   overflow-y: auto;
 }
