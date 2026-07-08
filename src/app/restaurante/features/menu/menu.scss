@@ -10,6 +10,7 @@
   flex-direction: column;
   height: 100%;
   flex: 1;
+  min-height: 0; // permite que los paneles internos se acoten y hagan scroll
   overflow: hidden;
 }
 
@@ -117,6 +118,7 @@
 .menu-body {
   display: flex;
   flex: 1;
+  min-height: 0; // clave: sin esto crece con el contenido y el grid no scrollea
   overflow: hidden;
 
   @media (max-width: 768px) {
@@ -253,6 +255,8 @@
 // ─── Área de contenido ───────────────────────────────────────
 .menu-content {
   flex: 1;
+  min-width: 0;  // item de un flex en fila: evita desbordes horizontales
+  min-height: 0; // permite que .products-grid se acote y haga scroll vertical
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -343,10 +347,15 @@
   // `min(100%, 280px)` evita que la columna mínima (280px) desborde el
   // contenedor en pantallas más angostas que la tarjeta.
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  // Cada fila toma el alto REAL de su contenido. Sin esto, al ser la grilla un
+  // item flex con basis 0, las filas implícitas se comprimían y las tarjetas
+  // quedaban aplastadas a una franja.
+  grid-auto-rows: max-content;
+  align-content: start;
+  align-items: start;  // no estirar las tarjetas a la altura de la fila
   gap: var(--spacing-md);
   padding: var(--spacing-lg);
   overflow-y: auto;
-  align-content: start;
   min-height: 0;
   scrollbar-width: thin;
   scrollbar-color: var(--color-border) transparent;
@@ -394,8 +403,12 @@
 }
 
 .product-img {
-  // 4:3 fijo: coincide con el recorte del cropper (WYSIWYG).
-  aspect-ratio: 4 / 3;
+  // Altura fija (no aspect-ratio): dentro del grid con scroll interno
+  // (.products-grid { flex:1; overflow-y:auto }) un aspect-ratio sobre un item
+  // estirado (align-items:stretch) colapsa al haber varias filas. La imagen
+  // recortada se sigue viendo bien con object-fit: cover.
+  height: 160px;
+  flex-shrink: 0;
   background: var(--color-menu-icon-bg);
   display: flex;
   align-items: center;
