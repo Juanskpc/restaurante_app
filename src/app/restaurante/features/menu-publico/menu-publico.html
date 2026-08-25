@@ -182,6 +182,47 @@
                   @if (prod.descripcion) {
                     <p class="product-desc">{{ prod.descripcion }}</p>
                   }
+
+                  @if (puedePedir()) {
+                    <!--
+                      Dos estados, no uno. Con el producto ya en el carrito se muestran los
+                      controles de cantidad en vez de un botón que repite «Agregar»: quien quiere
+                      dos hamburguesas necesita ver cuántas lleva, no adivinar si pulsó bien.
+                    -->
+                    @if (carrito.cantidadDe(prod.id_producto) > 0) {
+                      <div class="product-qty">
+                        <button
+                          type="button"
+                          class="qty-btn"
+                          (click)="quitarDelCarrito(prod.id_producto)"
+                          [attr.aria-label]="'Quitar uno de ' + prod.nombre"
+                        >
+                          <lucide-icon name="minus" [size]="16" />
+                        </button>
+                        <span class="qty-value" aria-live="polite">
+                          {{ carrito.cantidadDe(prod.id_producto) }}
+                        </span>
+                        <button
+                          type="button"
+                          class="qty-btn"
+                          (click)="agregarAlCarrito(prod)"
+                          [attr.aria-label]="'Agregar otro ' + prod.nombre"
+                        >
+                          <lucide-icon name="plus" [size]="16" />
+                        </button>
+                      </div>
+                    } @else {
+                      <button
+                        type="button"
+                        class="product-add"
+                        (click)="agregarAlCarrito(prod)"
+                        [attr.aria-label]="'Agregar ' + prod.nombre + ' al pedido'"
+                      >
+                        <lucide-icon name="plus" [size]="16" />
+                        <span>Agregar</span>
+                      </button>
+                    }
+                  }
                 </div>
               </article>
             }
@@ -267,3 +308,87 @@
     </div>
   </footer>
 </div>
+
+<!-- ═══════ PEDIDO: BOTÓN FLOTANTE Y PRE-PEDIDO ═══════
+
+     Solo aparece si el negocio publicó un WhatsApp al que escribir. Sin número, el menú sigue
+     siendo un menú perfectamente útil: se mira, y no se ofrece un botón que no lleva a ningún
+     sitio.
+-->
+@if (puedePedir() && !carrito.vacio()) {
+  <button
+    type="button"
+    class="fab-pedido"
+    (click)="abrirPrePedido()"
+    [attr.aria-label]="'Ver mi pedido (' + carrito.cantidadTotal() + ' productos)'"
+  >
+    <lucide-icon name="shopping-bag" [size]="24" />
+    <span class="fab-badge" aria-hidden="true">{{ carrito.cantidadTotal() }}</span>
+  </button>
+}
+
+@if (prePedidoAbierto()) {
+  <div class="pre-pedido-overlay" (click)="cerrarPrePedido()">
+    <!-- El clic dentro del panel no debe cerrarlo: solo el de fuera. -->
+    <div
+      class="pre-pedido"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="pre-pedido-titulo"
+      (click)="$event.stopPropagation()"
+    >
+      <header class="pre-pedido-header">
+        <h2 id="pre-pedido-titulo">Tu pedido</h2>
+        <button type="button" class="pre-pedido-cerrar" (click)="cerrarPrePedido()" aria-label="Cerrar">
+          <lucide-icon name="x" [size]="20" />
+        </button>
+      </header>
+
+      <ul class="pre-pedido-items">
+        @for (item of carrito.items(); track item.id_producto) {
+          <li class="pre-pedido-item">
+            <div class="pp-info">
+              <span class="pp-nombre">{{ item.nombre }}</span>
+              <span class="pp-precio">{{ formatPrice(item.precio * item.cantidad) }}</span>
+            </div>
+            <div class="pp-qty">
+              <button type="button" class="qty-btn" (click)="quitarDelCarrito(item.id_producto)"
+                      [attr.aria-label]="'Quitar uno de ' + item.nombre">
+                <lucide-icon name="minus" [size]="14" />
+              </button>
+              <span class="qty-value">{{ item.cantidad }}</span>
+              <button type="button" class="qty-btn"
+                      (click)="carrito.agregar({ id_producto: item.id_producto, nombre: item.nombre, precio: item.precio })"
+                      [attr.aria-label]="'Agregar otro ' + item.nombre">
+                <lucide-icon name="plus" [size]="14" />
+              </button>
+            </div>
+          </li>
+        }
+      </ul>
+
+      <div class="pre-pedido-total">
+        <span>Total aproximado</span>
+        <strong>{{ formatPrice(carrito.total()) }}</strong>
+      </div>
+
+      <!--
+        «Aproximado» no es una excusa: el asistente relee el catálogo al crear la orden, así que
+        si algo cambió de precio o se agotó entre que el cliente miró y escribió, manda el
+        catálogo. Prometer aquí un total exacto sería prometer por cuenta de otro.
+      -->
+      <p class="pre-pedido-nota">
+        El total final lo confirma el restaurante al recibir tu pedido.
+      </p>
+
+      <button type="button" class="pre-pedido-enviar" (click)="enviarPorWhatsApp()">
+        <lucide-icon name="message-circle" [size]="18" />
+        <span>Continuar por WhatsApp</span>
+      </button>
+
+      <button type="button" class="pre-pedido-vaciar" (click)="carrito.vaciar(); cerrarPrePedido()">
+        Vaciar pedido
+      </button>
+    </div>
+  </div>
+}

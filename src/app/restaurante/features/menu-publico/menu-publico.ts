@@ -15,6 +15,7 @@ import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
 
+import { CarritoService } from './carrito.service';
 import { environment } from '../../../../environments/environment';
 
 interface CategoriaPublica {
@@ -55,6 +56,20 @@ interface NegocioPublico {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MenuPublicoComponent implements OnInit, AfterViewInit {
+  /**
+   * El carrito del menú digital.
+   *
+   * Vive entero en el navegador y termina en un enlace de WhatsApp: el pedido lo crea el
+   * asistente cuando el cliente escribe, con su número ya verificado por Meta. Ver
+   * `carrito.service.ts` para por qué eso evita construir un chat web autenticado.
+   */
+  readonly carrito = inject(CarritoService);
+
+  /** ¿Se muestra el botón de pedido? Solo si el negocio publicó un WhatsApp al que escribir. */
+  readonly puedePedir = computed(() => Boolean(this.negocio()?.url_whatsapp));
+
+  /** El panel de pre-pedido, para revisar antes de mandar. */
+  readonly prePedidoAbierto = signal(false);
   private readonly http = inject(HttpClient);
   private readonly route = inject(ActivatedRoute);
   private readonly platformId = inject(PLATFORM_ID);
@@ -116,6 +131,9 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit {
       this.categorias.set([]);
       this.productos.set([]);
       this.negocioId.set(id);
+      // El carrito se ata al negocio ANTES de cargar nada: la clave de guardado lleva su id,
+      // para que quien mire dos cartas distintas no se encuentre los platos de una en la otra.
+      this.carrito.iniciar(id);
       this.cargarNegocio(id);
     });
   }
@@ -163,6 +181,41 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit {
     if (chip) {
       chip.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
     }
+  }
+
+  agregarAlCarrito(prod: ProductoPublico): void {
+    this.carrito.agregar({
+      id_producto: prod.id_producto,
+      nombre: prod.nombre,
+      precio: prod.precio,
+    });
+  }
+
+  quitarDelCarrito(idProducto: number): void {
+    this.carrito.quitar(idProducto);
+  }
+
+  abrirPrePedido(): void {
+    if (this.carrito.vacio()) return;
+    this.prePedidoAbierto.set(true);
+  }
+
+  cerrarPrePedido(): void {
+    this.prePedidoAbierto.set(false);
+  }
+
+  /**
+   * Abre WhatsApp con el pedido escrito.
+   *
+   * No se vacía el carrito al salir: si el cliente vuelve atrás sin enviar, encontrarlo vacío
+   * sería perder su trabajo. Lo vacía él, o se pierde cuando ya no le sirve.
+   */
+  enviarPorWhatsApp(): void {
+    const enlace = this.carrito.enlaceWhatsApp(this.negocio()?.url_whatsapp);
+    if (!enlace) return;
+    if (!isPlatformBrowser(this.platformId)) return;
+    window.open(enlace, '_blank', 'noopener');
+    this.cerrarPrePedido();
   }
 
   formatPrice(value: number): string {
