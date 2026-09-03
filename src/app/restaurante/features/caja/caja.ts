@@ -51,7 +51,9 @@ export class CajaComponent implements OnInit, OnDestroy {
   readonly enviando = signal(false);
 
   // ── Apertura ──
-  readonly montoApertura = signal(0);
+  // Arranca vacío (no en 0) para que el cajero escriba directo sin borrar nada.
+  // Si lo deja así, al guardar se envía 0.
+  readonly montoApertura = signal<number | null>(null);
   readonly obsApertura = signal('');
 
   // ── Cierre ──
@@ -60,7 +62,7 @@ export class CajaComponent implements OnInit, OnDestroy {
 
   // ── Movimiento manual ──
   readonly movTipo = signal<'INGRESO' | 'EGRESO'>('INGRESO');
-  readonly movMonto = signal(0);
+  readonly movMonto = signal<number | null>(null);
   readonly movConcepto = signal('');
 
   readonly negocio = computed(() => this.auth.negocio());
@@ -69,6 +71,8 @@ export class CajaComponent implements OnInit, OnDestroy {
   readonly puedeAbrir = computed(() => this.auth.canAccessSubnivel('caja_abrir'));
   readonly puedeCerrar = computed(() => this.auth.canAccessSubnivel('caja_cerrar'));
   readonly puedeMovimiento = computed(() => this.auth.canAccessSubnivel('caja_movimiento'));
+  /** El resumen de domiciliarios sobra en un negocio que no hace domicilios. */
+  readonly puedeVerDomiciliarios = computed(() => this.auth.canAccessSubnivel('pedidos_domicilio'));
 
   readonly diferenciaCierre = computed(() => {
     const reportado = this.montoReportado();
@@ -110,7 +114,7 @@ export class CajaComponent implements OnInit, OnDestroy {
   // ── Modales ──
   abrirModal(modal: Exclude<ModalActivo, null>): void {
     if (modal === 'apertura') {
-      this.montoApertura.set(0);
+      this.montoApertura.set(null);
       this.obsApertura.set('');
     }
     if (modal === 'cierre') {
@@ -119,7 +123,7 @@ export class CajaComponent implements OnInit, OnDestroy {
     }
     if (modal === 'movimiento') {
       this.movTipo.set('INGRESO');
-      this.movMonto.set(0);
+      this.movMonto.set(null);
       this.movConcepto.set('');
     }
     if (modal === 'domiciliarios') {

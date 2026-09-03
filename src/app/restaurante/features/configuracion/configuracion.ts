@@ -57,6 +57,9 @@ export class ConfiguracionComponent {
   readonly permiteMultipago = computed(() => this.configuracion()?.permite_multipago === true);
   readonly guardandoMultipago = signal(false);
 
+  readonly permitePagoDomicilio = computed(() => this.configuracion()?.permite_pago_domicilio === true);
+  readonly guardandoPagoDomicilio = signal(false);
+
   // ── Métodos de pago ──
   readonly metodosPago = signal<MetodoPago[]>([]);
   readonly cargandoMetodos = signal(false);
@@ -100,6 +103,7 @@ export class ConfiguracionComponent {
       validators: [Validators.maxLength(255), optionalUrlValidator],
     }),
     permite_multipago: this.fb.control(false, { nonNullable: true }),
+    permite_pago_domicilio: this.fb.control(false, { nonNullable: true }),
     id_paleta: this.fb.control<number | null>(null),
   });
 
@@ -238,6 +242,39 @@ export class ConfiguracionComponent {
       });
   }
 
+  /**
+   * Activa/desactiva el cobro del domicilio. Guarda de inmediato (switch) y refresca
+   * la sesión para que Pedidos vea la casilla sin necesidad de volver a entrar.
+   */
+  togglePagoDomicilio(activar: boolean): void {
+    const idNegocio = this.negocioActivoId();
+    if (!idNegocio || !this.canEdit()) return;
+
+    this.guardandoPagoDomicilio.set(true);
+    this.configuracionService
+      .updateConfiguracion({ id_negocio: idNegocio, permite_pago_domicilio: activar })
+      .pipe(finalize(() => this.guardandoPagoDomicilio.set(false)))
+      .subscribe({
+        next: async (config) => {
+          this.configuracion.set(config);
+          this.form.controls.permite_pago_domicilio.setValue(activar, { emitEvent: false });
+          this.uiFeedback.success(
+            activar ? 'Cobro de domicilio activado.' : 'Cobro de domicilio desactivado.',
+            'Domicilios'
+          );
+
+          const token = this.auth.getAccessToken();
+          if (token) {
+            const ok = await this.auth.validateAndSetToken(token);
+            if (ok) this.auth.setNegocioActivo(idNegocio);
+          }
+        },
+        error: (e) => {
+          this.uiFeedback.error(e?.error?.message || 'No se pudo actualizar el cobro de domicilio.');
+        },
+      });
+  }
+
   cargarConfiguracion(idNegocio: number): void {
     this.loading.set(true);
     this.errorMessage.set(null);
@@ -259,6 +296,7 @@ export class ConfiguracionComponent {
             url_facebook: config.url_facebook || '',
             url_instagram: config.url_instagram || '',
             permite_multipago: config.permite_multipago === true,
+            permite_pago_domicilio: config.permite_pago_domicilio === true,
             id_paleta: config.id_paleta ?? null,
           });
 
@@ -320,6 +358,7 @@ export class ConfiguracionComponent {
         url_facebook: value.url_facebook?.trim() || null,
         url_instagram: value.url_instagram?.trim() || null,
         permite_multipago: value.permite_multipago,
+        permite_pago_domicilio: value.permite_pago_domicilio,
         id_paleta: value.id_paleta,
       })
       .pipe(finalize(() => this.saving.set(false)))

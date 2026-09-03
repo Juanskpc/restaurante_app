@@ -6,6 +6,7 @@ import { LucideAngularModule } from 'lucide-angular';
 import { AuthService } from '../../../core/services/auth.service';
 import { MesasService, MesaDashboard, MesaCardStatus } from '../../../core/services/mesas.service';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
+import { VistaTarjetasService } from '../../../core/services/vista-tarjetas.service';
 import {
   MultipagoSelectorComponent,
   PagoSeleccion,
@@ -31,6 +32,7 @@ export class MesasComponent {
   private readonly auth = inject(AuthService);
   private readonly mesasApi = inject(MesasService);
   private readonly uiFeedback = inject(UiFeedbackService);
+  private readonly vista = inject(VistaTarjetasService);
   private readonly platformId = inject(PLATFORM_ID);
   private readonly isBrowser = isPlatformBrowser(this.platformId);
   private readonly paidItemsStorageKey = 'pedidos_items_pagados_mesa_v1';
@@ -64,6 +66,21 @@ export class MesasComponent {
   readonly canAccionesPedido = computed(() => this.auth.canAccessSubnivel('mesas_acciones_pedido'));
   readonly canImprimirPedido = computed(() => this.auth.canAccessSubnivel('pedidos_imprimir'));
   readonly canAdministracionMesa = computed(() => this.auth.canAccessSubnivel('mesas_administracion'));
+
+  // ── Preferencias de vista (por dispositivo, ver VistaTarjetasService) ──
+  readonly densidad = this.vista.densidad('mesas');
+  readonly verProductos = this.vista.verProductos('mesas');
+  readonly densidadIcono = computed(() => {
+    const d = this.densidad();
+    if (d === 'normal') return 'layout-grid';
+    return d === 'compacta' ? 'grid-3x3' : 'list';
+  });
+  readonly densidadTitulo = computed(() => {
+    const d = this.densidad();
+    if (d === 'normal') return 'Tarjetas grandes — clic para achicar';
+    if (d === 'compacta') return 'Tarjetas medianas — clic para achicar más';
+    return 'Tarjetas pequeñas — clic para volver al tamaño original';
+  });
 
   readonly maxMesas = 24;
   private readonly moneyFormatter = new Intl.NumberFormat('es-CO', {
@@ -143,6 +160,14 @@ export class MesasComponent {
   actualizarMesas(): void {
     if (this.cargando()) return;
     this.loadMesas();
+  }
+
+  rotarDensidad(): void {
+    this.vista.rotarDensidad('mesas');
+  }
+
+  setVerProductos(valor: boolean): void {
+    this.vista.setVerProductos('mesas', valor);
   }
 
   selectFilter(filter: FiltroEstado): void {

@@ -1,5 +1,5 @@
 import {
-  Component, ChangeDetectionStrategy, OnInit, inject, signal, computed, PLATFORM_ID,
+  Component, ChangeDetectionStrategy, OnInit, effect, inject, signal, computed, PLATFORM_ID,
 } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { CurrencyPipe, DatePipe, isPlatformBrowser } from '@angular/common';
@@ -7,9 +7,12 @@ import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { LucideAngularModule } from 'lucide-angular';
 
+import { Router } from '@angular/router';
+
 import { AuthService } from '../../../core/services/auth.service';
 import { CajaService } from '../../../core/services/caja.service';
 import { CatalogoCacheService } from '../../../core/services/catalogo-cache.service';
+import { VistaTarjetasService } from '../../../core/services/vista-tarjetas.service';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 import { environment } from '../../../../environments/environment';
 import {
@@ -34,6 +37,7 @@ export interface PedidoDespacho {
   id_metodo_pago?: number | null;
   tipo_pedido: TipoPedido;
   total: number;
+  valor_domicilio?: number | string | null;
   fecha_creacion: string;
   estado: string;
   estado_cocina: string | null;
@@ -70,6 +74,8 @@ export class DespachoComponent implements OnInit {
   private readonly cajaSvc = inject(CajaService);
   private readonly catalogo = inject(CatalogoCacheService);
   private readonly uiFeedback = inject(UiFeedbackService);
+  private readonly router = inject(Router);
+  private readonly vista = inject(VistaTarjetasService);
   private readonly platformId = inject(PLATFORM_ID);
   private readonly isBrowser = isPlatformBrowser(this.platformId);
 
@@ -86,6 +92,23 @@ export class DespachoComponent implements OnInit {
   readonly permiteMultipago = computed(() => this.auth.permiteMultipago());
   readonly puedeVerTodos = computed(() => this.auth.canAccessSubnivel('despacho_ver_todos'));
   readonly puedeCancelarNoPagados = computed(() => this.auth.canAccessSubnivel('despacho_cancelar_no_pagado'));
+  readonly puedeUsarDomicilio = computed(() => this.auth.canAccessSubnivel('pedidos_domicilio'));
+  readonly puedeEditarPedido = computed(() => this.auth.canAccessRoute('/pedidos'));
+
+  // ── Preferencias de vista (por dispositivo, ver VistaTarjetasService) ──
+  readonly densidad = this.vista.densidad('despacho');
+  readonly verProductos = this.vista.verProductos('despacho');
+  readonly densidadIcono = computed(() => {
+    const d = this.densidad();
+    if (d === 'normal') return 'layout-grid';
+    return d === 'compacta' ? 'grid-3x3' : 'list';
+  });
+  readonly densidadTitulo = computed(() => {
+    const d = this.densidad();
+    if (d === 'normal') return 'Tarjetas grandes — clic para achicar';
+    if (d === 'compacta') return 'Tarjetas medianas — clic para achicar más';
+    return 'Tarjetas pequeñas — clic para volver al tamaño original';
+  });
 
   readonly pedidosFiltrados = computed(() => {
     const f = this.filtro();
@@ -100,6 +123,13 @@ export class DespachoComponent implements OnInit {
   readonly countDomicilio = computed(() =>
     this.pedidos().filter((p) => p.tipo_pedido === 'DOMICILIO').length,
   );
+
+  /** Si el negocio apaga Domicilios, el filtro activo no puede quedarse ahí colgado. */
+  private readonly filtroPermisoEffect = effect(() => {
+    if (!this.puedeUsarDomicilio() && this.filtro() === 'DOMICILIO') {
+      this.filtro.set('TODOS');
+    }
+  });
 
   ngOnInit(): void {
     this.cargar();
@@ -139,6 +169,46 @@ export class DespachoComponent implements OnInit {
     this.filtro.set(f);
   }
 
+  rotarDensidad(): void {
+    this.vista.rotarDensidad('despacho');
+  }
+
+  setVerProductos(valor: boolean): void {
+    this.vista.setVerProductos('despacho', valor);
+  }
+
+  /** Solo se edita lo que aún no se cobró: tocar un pedido pagado descuadraría la caja. */
+  puedeEditar(p: PedidoDespacho): boolean {
+    return this.puedeEditarPedido() && this.esPendientePago(p);
+  }
+
+  /**
+   * Abre el pedido en el POS con sus productos ya cargados.
+   * Pedidos lo detecta por query param (ver `aplicarEdicionDesdeQueryParams`).
+   */
+  editarPedido(p: PedidoDespacho, event: Event): void {
+    event.stopPropagation();
+    if (!this.puedeEditar(p)) return;
+
+    void this.router.navigate(['/pedidos'], {
+      queryParams: { editar: p.id_orden, tipo: p.tipo_pedido },
+    });
+  }
+
+  /**
+   * "ORD-0004" → "0004". En la tarjeta el prefijo solo gasta ancho (es el mismo para
+   * todas); el modal y el tiquete sí conservan el número completo.
+   */
+  ordenCorto(numeroOrden: string): string {
+    const corto = String(numeroOrden ?? '').replace(/^[A-Za-z]+[-_]/, '');
+    return corto || numeroOrden;
+  }
+
+  valorDomicilio(p: PedidoDespacho): number {
+    const valor = Number(p.valor_domicilio ?? 0);
+    return Number.isFinite(valor) && valor > 0 ? valor : 0;
+  }
+
   abrirPedido(p: PedidoDespacho): void {
     this.pedidoActivo.set(p);
     this.metodoPagoSeleccionado.set(p.id_metodo_pago ?? null);
@@ -175,10 +245,14 @@ export class DespachoComponent implements OnInit {
   }
 
   itemsResumen(p: PedidoDespacho): string {
-    const detalles = p.detalles ?? [];
-    const totalItems = detalles.reduce((s, d) => s + Number(d.cantidad ?? 0), 0);
+    const totalItems = this.unidadesItems(p);
     if (totalItems <= 0) return '—';
     return `${totalItems} ${totalItems === 1 ? 'producto' : 'productos'}`;
+  }
+
+  /** Solo el número. En tarjetas angostas "2 productos" no cabe; "2" con ícono sí. */
+  unidadesItems(p: PedidoDespacho): number {
+    return (p.detalles ?? []).reduce((s, d) => s + Number(d.cantidad ?? 0), 0);
   }
 
   esPendientePago(p: PedidoDespacho): boolean {
@@ -506,6 +580,13 @@ export class DespachoComponent implements OnInit {
       notaDomicilio ? `<div class="ticket-note"><strong>Nota domicilio:</strong> ${notaDomicilio}</div>` : '',
     ].filter(Boolean).join('');
 
+    // El domicilio ya está sumado en el total: se desglosa para que el cliente lo vea.
+    const domicilio = this.valorDomicilio(p);
+    const domicilioRows = domicilio > 0
+      ? `<div class="totals-row"><span>Productos</span><span>${this.formatCurrency(p.total - domicilio)}</span></div>
+         <div class="totals-row"><span>Domicilio</span><span>${this.formatCurrency(domicilio)}</span></div>`
+      : '';
+
     const filasItems = (p.detalles ?? []).map(d => {
       const nombre = this.escapeHtml(d.producto?.nombre ?? '(Producto)');
       const lineTotal = d.cantidad * d.precio_unitario;
@@ -580,6 +661,7 @@ export class DespachoComponent implements OnInit {
     ${notas}
     <hr />
     <div class="totals">
+      ${domicilioRows}
       <div class="totals-row total">
         <span>TOTAL</span>
         <span>${this.formatCurrency(p.total)}</span>

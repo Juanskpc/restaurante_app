@@ -205,5 +205,29 @@
         </ul>
       }
     </article>
+
+    <!-- ── Domicilios ── -->
+    <article class="card" id="pago-domicilio">
+      <header class="card-header">
+        <div>
+          <h2>Domicilios</h2>
+          <p>Cobro del domicilio al cliente y pago al domiciliario desde la caja.</p>
+        </div>
+      </header>
+
+      <label class="multipago-switch" [class.is-disabled]="!canEdit() || guardandoPagoDomicilio()">
+        <input type="checkbox"
+               [checked]="permitePagoDomicilio()"
+               [disabled]="!canEdit() || guardandoPagoDomicilio()"
+               (change)="togglePagoDomicilio($any($event.target).checked)" />
+        <span class="multipago-switch__text">
+          <strong>Cobrar valor del domicilio</strong>
+          <small>Al tomar un pedido <em>Para llevar</em> o <em>Domicilio</em> aparece una casilla para
+            escribir el valor del domicilio. Ese valor se suma al total que paga el cliente y, al
+            cobrarse el pedido, la caja registra un egreso por el mismo monto (el pago al
+            domiciliario). Si lo dejas apagado, nada cambia en la toma de pedidos.</small>
+        </span>
+      </label>
+    </article>
   }
 </section>

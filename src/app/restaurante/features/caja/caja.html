@@ -11,7 +11,7 @@
           Abrir caja
         </button>
       }
-      @if (caja() && puedeMovimiento()) {
+      @if (caja() && puedeMovimiento() && puedeVerDomiciliarios()) {
         <button class="btn btn-outline" (click)="abrirModal('domiciliarios')">
           <lucide-icon name="truck" size="18" />
           Domiciliarios
@@ -163,7 +163,7 @@
         <p class="hint">Registra el dinero con el que inicia el turno.</p>
         <label>
           Monto de apertura
-          <input type="number" min="0" step="100"
+          <input type="number" min="0" step="100" placeholder="0"
                  [ngModel]="montoApertura()"
                  (ngModelChange)="montoApertura.set($event)" />
         </label>
@@ -251,7 +251,7 @@
         </div>
         <label>
           Monto
-          <input type="number" min="0" step="100"
+          <input type="number" min="0" step="100" placeholder="0"
                  [ngModel]="movMonto()"
                  (ngModelChange)="movMonto.set($event)" />
         </label>

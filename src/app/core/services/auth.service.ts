@@ -43,6 +43,7 @@ export interface NegocioRestaurante {
   tipo_negocio: string | null;
   paleta: { id_paleta: number; nombre: string; colores: Record<string, string> } | null;
   permite_multipago?: boolean;
+  permite_pago_domicilio?: boolean;
   roles: { id_rol: number; descripcion: string }[];
   permisos_vista: PermisoVistaRestaurante[];
   permisos_subnivel: PermisoSubnivelRestaurante[];
@@ -152,6 +153,12 @@ export class AuthService {
 
   /** ¿El negocio activo tiene habilitado el Multipago (varias formas de pago)? */
   readonly permiteMultipago = computed(() => !!this.negocio()?.permite_multipago);
+
+  /**
+   * ¿El negocio activo cobra el domicilio y lo paga al domiciliario desde caja?
+   * Opt-in: nace apagado, así que un negocio que no lo activó no ve la casilla.
+   */
+  readonly permitePagoDomicilio = computed(() => !!this.negocio()?.permite_pago_domicilio);
 
   /** Rol principal (para mostrar en sidebar). */
   readonly rolPrincipal = computed(() => {

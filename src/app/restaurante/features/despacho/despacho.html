@@ -15,19 +15,32 @@
     </div>
 
     <div class="header-right">
+      <button class="btn-ghost btn-densidad"
+              type="button"
+              (click)="rotarDensidad()"
+              [title]="densidadTitulo()"
+              aria-label="Cambiar tamaño de las tarjetas">
+        <lucide-icon [name]="densidadIcono()" [size]="16" />
+      </button>
+      <label class="toggle-productos" title="Mostrar los productos en cada tarjeta">
+        <input type="checkbox"
+               [checked]="verProductos()"
+               (change)="setVerProductos($any($event.target).checked)" />
+        <span>Ver productos</span>
+      </label>
       <button class="btn-finalizar-todo"
               (click)="finalizarTodo()"
               [disabled]="cargando() || pedidosFiltrados().length === 0"
               title="Finalizar todos los pedidos cobrados">
         <lucide-icon name="check-square" [size]="16" />
-        Finalizar todo
+        <span class="btn-label">Finalizar todo</span>
       </button>
       <button class="btn-ghost btn-refresh"
               (click)="cargar()"
               [disabled]="cargando()"
               title="Actualizar">
         <lucide-icon name="rotate-cw" [size]="16" [class.spin]="cargando()" />
-        Actualizar
+        <span class="btn-label">Actualizar</span>
       </button>
     </div>
   </header>
@@ -42,11 +55,13 @@
       <lucide-icon name="shopping-bag" [size]="13" />
       Para llevar ({{ countLlevar() }})
     </button>
-    <button class="chip" [class.active]="filtro() === 'DOMICILIO'"
-            (click)="seleccionarFiltro('DOMICILIO')">
-      <lucide-icon name="bike" [size]="13" />
-      Domicilio ({{ countDomicilio() }})
-    </button>
+    @if (puedeUsarDomicilio()) {
+      <button class="chip" [class.active]="filtro() === 'DOMICILIO'"
+              (click)="seleccionarFiltro('DOMICILIO')">
+        <lucide-icon name="bike" [size]="13" />
+        Domicilio ({{ countDomicilio() }})
+      </button>
+    }
   </div>
 
   @if (cargando()) {
@@ -64,12 +79,12 @@
   }
 
   @if (!cargando() && pedidosFiltrados().length > 0) {
-    <div class="grid">
+    <div [class]="'grid densidad-' + densidad()">
       @for (p of pedidosFiltrados(); track p.id_orden) {
         <article class="despacho-card" [class]="'tipo-' + p.tipo_pedido"
                  (click)="abrirPedido(p)">
           <header class="card-top">
-            <span class="orden-num">{{ p.numero_orden }}</span>
+            <span class="orden-num" [title]="p.numero_orden">{{ ordenCorto(p.numero_orden) }}</span>
             <div class="card-top-right">
               <span class="tipo-tag" [class]="'tipo-' + p.tipo_pedido">
                 @if (p.tipo_pedido === 'DOMICILIO') {
@@ -79,6 +94,13 @@
                 }
                 {{ tipoLabel(p.tipo_pedido) }}
               </span>
+              @if (puedeEditar(p)) {
+                <button type="button" class="card-action"
+                        title="Editar pedido"
+                        (click)="editarPedido(p, $event)">
+                  <lucide-icon name="square-pen" [size]="16" />
+                </button>
+              }
               @if (esPendientePago(p)) {
                 @if (puedeCancelarNoPagados()) {
                   <button type="button" class="card-action danger"
@@ -118,8 +140,26 @@
               <lucide-icon name="clock-3" [size]="13" />
               <span>{{ p.fecha_creacion | date:'shortTime' }}</span>
               <span class="dot">·</span>
-              <span>{{ itemsResumen(p) }}</span>
+              @if (densidad() === 'normal') {
+                <span>{{ itemsResumen(p) }}</span>
+              } @else {
+                <span class="items-compacto" [title]="itemsResumen(p)">
+                  <lucide-icon name="package" [size]="12" />
+                  {{ unidadesItems(p) }}
+                </span>
+              }
             </div>
+
+            @if (verProductos() && (p.detalles ?? []).length > 0) {
+              <ul class="card-productos">
+                @for (d of p.detalles ?? []; track $index) {
+                  <li>
+                    <span class="qty">{{ d.cantidad }}×</span>
+                    <span class="ellipsis">{{ d.producto?.nombre || '(Producto)' }}</span>
+                  </li>
+                }
+              </ul>
+            }
           </div>
 
           <footer class="card-bottom">
@@ -281,6 +321,16 @@
                 </li>
               }
             </ul>
+            @if (valorDomicilio(p) > 0) {
+              <div class="items-total muted">
+                <span>Productos</span>
+                <span>{{ p.total - valorDomicilio(p) | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+              </div>
+              <div class="items-total muted">
+                <span>Domicilio</span>
+                <span>{{ valorDomicilio(p) | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+              </div>
+            }
             <div class="items-total">
               <span>Total</span>
               <strong>{{ p.total | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
@@ -290,6 +340,12 @@
       </div>
 
       <footer class="modal-actions">
+        @if (puedeEditar(p)) {
+          <button class="btn-secondary" (click)="editarPedido(p, $event)">
+            <lucide-icon name="square-pen" [size]="16" />
+            Editar pedido
+          </button>
+        }
         @if (esPendientePago(p)) {
           <button class="btn-secondary"
                   (click)="cobrar(p, $event)"

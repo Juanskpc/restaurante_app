@@ -6,7 +6,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { LucideAngularModule } from 'lucide-angular';
 import { FormsModule } from '@angular/forms';
 import { CurrencyPipe, isPlatformBrowser } from '@angular/common';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { AuthService } from '../../../core/services/auth.service';
 import { CajaService } from '../../../core/services/caja.service';
@@ -93,6 +93,14 @@ interface OrdenApi {
   id_mesa: number | null;
   id_metodo_pago?: number | null;
   nota?: string | null;
+  tipo_pedido?: TipoPedido;
+  valor_domicilio?: number | string | null;
+  contacto_nombre?: string | null;
+  contacto_telefono?: string | null;
+  direccion_domicilio?: string | null;
+  nota_domicilio?: string | null;
+  id_domiciliario?: number | null;
+  numero_orden?: string;
   detalles?: DetallePedidoApi[];
 }
 
@@ -117,6 +125,7 @@ interface PedidoDespacho {
   direccion_domicilio: string | null;
   nota_domicilio: string | null;
   id_domiciliario: number | null;
+  valor_domicilio?: number | string | null;
   detalles?: Array<{
     id_detalle: number;
     id_producto: number;
@@ -158,6 +167,8 @@ export class PedidosComponent implements OnInit, OnDestroy {
   private readonly cajaSvc = inject(CajaService);
   private readonly catalogo = inject(CatalogoCacheService);
   private readonly uiFeedback = inject(UiFeedbackService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly platformId = inject(PLATFORM_ID);
   private readonly isBrowser = isPlatformBrowser(this.platformId);
   private readonly paidItemsStorageKey = 'pedidos_items_pagados_mesa_v1';
@@ -226,14 +237,38 @@ export class PedidosComponent implements OnInit, OnDestroy {
   private readonly cobrarAlDespachar = signal(false);
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
 
+  // ── Valor del domicilio (opt-in por negocio, ver Configuración → Domicilios) ──
+  readonly permitePagoDomicilio = computed(() => this.auth.permitePagoDomicilio());
+  readonly cobrarDomicilio = signal(false);
+  readonly valorDomicilioInput = signal('');
+  /** Solo aplica a pedidos que salen del local. */
+  readonly puedeCobrarDomicilio = computed(() =>
+    this.permitePagoDomicilio() && this.tipoPedido() !== 'MESA'
+  );
+  /** Valor ya normalizado: 0 si no aplica o si la casilla está sin marcar. */
+  readonly valorDomicilio = computed(() => {
+    if (!this.puedeCobrarDomicilio() || !this.cobrarDomicilio()) return 0;
+    return this.parseMonto(this.valorDomicilioInput()) ?? 0;
+  });
+  /** Valor ya guardado en la orden que se edita, para detectar si cambió. */
+  private readonly valorDomicilioBase = signal(0);
+
   // --- Computed ---
   readonly totalItems = computed(() =>
     this.items().reduce((sum, i) => sum + i.cantidad, 0)
   );
 
-  readonly total = computed(() =>
+  /** Suma de los productos, sin domicilio. */
+  readonly totalProductos = computed(() =>
     this.items().reduce((sum, i) => sum + i.precio_unitario * i.cantidad, 0)
   );
+
+  /**
+   * Total que paga el cliente = productos + domicilio.
+   * El domicilio va dentro del total (y no aparte) para que el multipago, el
+   * control de efectivo y el cierre de caja cuadren contra un único número.
+   */
+  readonly total = computed(() => this.totalProductos() + this.valorDomicilio());
 
   readonly itemsPagados = computed(() => {
     const idMesa = this.mesaId();
@@ -250,6 +285,12 @@ export class PedidosComponent implements OnInit, OnDestroy {
   readonly cajaAbierta = this.cajaSvc.cajaAbierta;
   readonly cajaCerrada = computed(() => this.cajaSvc.cajaAbierta() === null);
   readonly canUsarParaLlevar = computed(() => this.auth.canAccessSubnivel('pedidos_para_llevar'));
+  readonly canUsarEnMesa = computed(() => this.auth.canAccessSubnivel('pedidos_en_mesa'));
+  readonly canUsarDomicilio = computed(() => this.auth.canAccessSubnivel('pedidos_domicilio'));
+  /** Cuántos tipos de pedido puede usar el rol: con uno solo, el selector sobra. */
+  readonly tiposPedidoDisponibles = computed<TipoPedido[]>(() =>
+    (['MESA', 'LLEVAR', 'DOMICILIO'] as TipoPedido[]).filter(t => this.tipoPedidoPermitido(t))
+  );
   readonly canCobrarPedido = computed(() => this.auth.canAccessSubnivel('pedidos_cobrar'));
   readonly canImprimirPedido = computed(() => this.auth.canAccessSubnivel('pedidos_imprimir'));
   readonly pedidoRegistrado = computed(() => this.ordenActivaId() !== null);
@@ -276,11 +317,25 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.searchTimer = setTimeout(() => this.ejecutarBusqueda(term.trim()), 300);
   });
 
+  /**
+   * Si el rol no tiene permiso sobre el tipo activo (por ejemplo, un negocio que
+   * apagó "En mesa"), cae al primer tipo que sí tenga habilitado.
+   */
   private readonly tipoPedidoPermissionEffect = effect(() => {
-    if (!this.canUsarParaLlevar() && this.tipoPedido() === 'LLEVAR') {
-      this.tipoPedido.set('MESA');
+    const actual = this.tipoPedido();
+    if (this.tipoPedidoPermitido(actual)) return;
+
+    const fallback = this.tiposPedidoDisponibles()[0];
+    if (fallback && fallback !== actual) {
+      this.tipoPedido.set(fallback);
     }
   });
+
+  tipoPedidoPermitido(tipo: TipoPedido): boolean {
+    if (tipo === 'MESA') return this.canUsarEnMesa();
+    if (tipo === 'LLEVAR') return this.canUsarParaLlevar();
+    return this.canUsarDomicilio();
+  }
 
   ngOnInit(): void {
     this.updateViewportState();
@@ -295,6 +350,156 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.loadDomiciliarios();
     const idNeg = this.negocioId();
     if (idNeg) this.cajaSvc.refrescar(idNeg).subscribe();
+
+    this.aplicarEdicionDesdeQueryParams();
+  }
+
+  // ===================== Edición desde Despacho =====================
+
+  /**
+   * Entrada profunda desde Despacho: /pedidos?editar=<id_orden>&tipo=LLEVAR|DOMICILIO.
+   * Deja el POS con los productos del pedido ya cargados, listo para editarlo.
+   *
+   * El query param se limpia de inmediato para que recargar la página (F5) no
+   * vuelva a arrastrar el pedido después de haberlo cerrado.
+   */
+  private aplicarEdicionDesdeQueryParams(): void {
+    const params = this.route.snapshot.queryParamMap;
+    const idOrden = Number(params.get('editar'));
+    if (!Number.isInteger(idOrden) || idOrden <= 0) return;
+
+    const tipo: 'LLEVAR' | 'DOMICILIO' =
+      params.get('tipo') === 'DOMICILIO' ? 'DOMICILIO' : 'LLEVAR';
+
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: {},
+      replaceUrl: true,
+    });
+
+    if (!this.tipoPedidoPermitido(tipo)) {
+      void this.uiFeedback.alert({
+        title: 'Acceso restringido',
+        message: 'Tu rol no tiene permiso para editar este tipo de pedido.',
+        tone: 'warning',
+      });
+      return;
+    }
+
+    this.tipoPedido.set(tipo);
+    this.mesaId.set(null);
+    this.cargarPedidoParaEdicion(idOrden, tipo);
+  }
+
+  /** Trae la lista de despacho, ubica el pedido pedido y lo carga en el POS. */
+  private cargarPedidoParaEdicion(idOrden: number, tipo: 'LLEVAR' | 'DOMICILIO'): void {
+    const id = this.negocioId();
+    if (!id) return;
+
+    this.cargandoPedidosDespacho.set(true);
+    this.http.get<{ success: boolean; data: PedidoDespacho[] }>(
+      `${environment.apiUrl}/despacho?id_negocio=${id}`
+    ).subscribe({
+      next: (res) => {
+        const pedidos = (res?.data ?? [])
+          .filter(p => p.tipo_pedido === tipo && p.estado_pago === 'pendiente_pago');
+        this.pedidosDespacho.set(pedidos);
+        this.cargandoPedidosDespacho.set(false);
+
+        const pedido = pedidos.find(p => p.id_orden === idOrden);
+        if (!pedido) {
+          void this.uiFeedback.alert({
+            title: 'Pedido no editable',
+            message: 'El pedido ya fue cobrado o finalizado, así que no se puede editar.',
+            tone: 'warning',
+          });
+          return;
+        }
+
+        this.http.get<{ success: boolean; data: OrdenApi }>(
+          `${environment.apiUrl}/pedidos/${pedido.id_orden}`
+        ).subscribe({
+          next: (ordenRes) => {
+            const orden = ordenRes?.data;
+            if (!orden) return;
+            this.aplicarOrdenDespachoEnPos(pedido, orden, []);
+            this.uiFeedback.success(
+              `Pedido ${pedido.numero_orden} cargado para editar.`,
+              'Editando pedido'
+            );
+          },
+          error: () => this.uiFeedback.error('No se pudo cargar el pedido para editarlo.'),
+        });
+      },
+      error: () => {
+        this.pedidosDespacho.set([]);
+        this.cargandoPedidosDespacho.set(false);
+        this.uiFeedback.error('No se pudieron cargar los pedidos de despacho.');
+      },
+    });
+  }
+
+  /** Vuelca una orden de despacho (y las adiciones en curso) sobre el POS. */
+  private aplicarOrdenDespachoEnPos(
+    pedido: PedidoDespacho,
+    orden: OrdenApi,
+    itemsPrevios: ItemOrden[],
+  ): void {
+    const mappedItems = this.mapOrdenApiToItems(orden);
+    this.ordenActivaId.set(orden.id_orden);
+    this.pedidoDespachoSeleccionado.set(pedido);
+
+    if (itemsPrevios.length > 0) {
+      const merged = this.agruparItems([
+        ...this.cloneItems(mappedItems),
+        ...this.cloneItems(itemsPrevios),
+      ]);
+      this.items.set(Array.from(merged.values()));
+    } else {
+      this.items.set(mappedItems);
+    }
+
+    this.itemsBaseOrdenActiva.set(this.cloneItems(mappedItems));
+    this.notaOrden.set(orden.nota ?? '');
+    this.notaBaseOrdenActiva.set(orden.nota ?? '');
+    this.metodoPagoId.set(orden.id_metodo_pago ?? null);
+    this.metodoPagoRequeridoError.set(false);
+    this.hidratarValorDomicilio(orden);
+
+    if (pedido.tipo_pedido === 'DOMICILIO') {
+      this.domContacto.set(pedido.contacto_nombre ?? '');
+      this.domTelefono.set(pedido.contacto_telefono ?? '');
+      this.domDireccion.set(pedido.direccion_domicilio ?? '');
+      this.domNota.set(pedido.nota_domicilio ?? '');
+      if (pedido.id_domiciliario) {
+        this.domDomiciliarioId.set(pedido.id_domiciliario);
+      }
+    }
+  }
+
+  // ===================== Valor del domicilio =====================
+
+  toggleCobrarDomicilio(activar: boolean): void {
+    this.cobrarDomicilio.set(activar);
+    if (!activar) this.valorDomicilioInput.set('');
+  }
+
+  setValorDomicilio(rawValue: string): void {
+    this.valorDomicilioInput.set(rawValue);
+  }
+
+  private hidratarValorDomicilio(orden: OrdenApi): void {
+    const valor = Number(orden.valor_domicilio ?? 0);
+    const monto = Number.isFinite(valor) && valor > 0 ? valor : 0;
+    this.valorDomicilioBase.set(monto);
+    this.cobrarDomicilio.set(monto > 0);
+    this.valorDomicilioInput.set(monto > 0 ? String(monto) : '');
+  }
+
+  private resetValorDomicilio(): void {
+    this.cobrarDomicilio.set(false);
+    this.valorDomicilioInput.set('');
+    this.valorDomicilioBase.set(0);
   }
 
   private loadMetodosPago(): void {
@@ -487,6 +692,13 @@ export class PedidosComponent implements OnInit, OnDestroy {
       if (!confirmada) return;
     }
 
+    // `confirmarUsuario === false` significa que el flujo lo cerró la app (se envió a
+    // cocina/despacho o se cobró), no el botón "Limpiar". En móvil el panel de la orden
+    // tapa toda la pantalla, y dejarlo abierto y vacío no aporta nada.
+    if (!confirmarUsuario && this.isMobileViewport()) {
+      this.ordenPanelOpen.set(false);
+    }
+
     this.items.set([]);
     this.itemsBaseOrdenActiva.set([]);
     this.notaBaseOrdenActiva.set('');
@@ -505,18 +717,23 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.domDomiciliarioId.set(null);
     this.pedidosDespacho.set([]);
     this.pedidoDespachoSeleccionado.set(null);
+    this.resetValorDomicilio();
   }
 
   async seleccionarTipoPedido(tipo: TipoPedido): Promise<void> {
-    if (tipo === 'LLEVAR' && !this.canUsarParaLlevar()) {
+    if (!this.tipoPedidoPermitido(tipo)) {
+      const nombre = tipo === 'MESA' ? 'pedidos en mesa'
+        : tipo === 'LLEVAR' ? 'pedidos para llevar'
+        : 'domicilios';
       await this.uiFeedback.alert({
         title: 'Acceso restringido',
-        message: 'Tu rol no tiene permiso para usar pedidos para llevar.',
+        message: `Tu rol no tiene permiso para usar ${nombre}.`,
         tone: 'warning',
       });
       return;
     }
 
+    this.resetValorDomicilio();
     this.tipoPedido.set(tipo);
     this.mesaRequeridaError.set(false);
     this.pedidoDespachoSeleccionado.set(null);
@@ -567,6 +784,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
     if (!selectedId) {
       this.pedidoDespachoSeleccionado.set(null);
       this.ordenActivaId.set(null);
+      this.resetValorDomicilio();
       if (veniaConPedidoActivo) {
         this.items.set([]);
         this.notaOrden.set('');
@@ -582,6 +800,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
       this.ordenActivaId.set(null);
       this.items.set(itemsPrevios);
       this.notaOrden.set(notaPrevia);
+      this.resetValorDomicilio();
     };
 
     this.http.get<{ success: boolean; data: OrdenApi }>(
@@ -609,35 +828,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
           return;
         }
 
-        const mappedItems = this.mapOrdenApiToItems(orden);
-        this.ordenActivaId.set(orden.id_orden);
-        this.pedidoDespachoSeleccionado.set(pedido);
-
-        if (itemsPrevios.length > 0) {
-          const merged = this.agruparItems([
-            ...this.cloneItems(mappedItems),
-            ...this.cloneItems(itemsPrevios),
-          ]);
-          this.items.set(Array.from(merged.values()));
-        } else {
-          this.items.set(mappedItems);
-        }
-
-        this.itemsBaseOrdenActiva.set(this.cloneItems(mappedItems));
-        this.notaOrden.set(orden.nota ?? '');
-        this.notaBaseOrdenActiva.set(orden.nota ?? '');
-        this.metodoPagoId.set(orden.id_metodo_pago ?? null);
-        this.metodoPagoRequeridoError.set(false);
-
-        if (pedido.tipo_pedido === 'DOMICILIO') {
-          this.domContacto.set(pedido.contacto_nombre ?? '');
-          this.domTelefono.set(pedido.contacto_telefono ?? '');
-          this.domDireccion.set(pedido.direccion_domicilio ?? '');
-          this.domNota.set(pedido.nota_domicilio ?? '');
-          if (pedido.id_domiciliario) {
-            this.domDomiciliarioId.set(pedido.id_domiciliario);
-          }
-        }
+        this.aplicarOrdenDespachoEnPos(pedido, orden, itemsPrevios);
       },
       error: () => restaurarEstadoPrevio(),
     });
@@ -1002,11 +1193,40 @@ export class PedidosComponent implements OnInit, OnDestroy {
       this.destinoEnvio.set(destino);
     }
 
+    // Con el cobro de domicilio apagado no se manda el campo: el backend deja
+    // intacto lo que ya tenga la orden y el flujo queda idéntico al de siempre.
+    const bodyDomicilio: Record<string, unknown> = this.permitePagoDomicilio()
+      ? { valor_domicilio: this.valorDomicilio() }
+      : {};
+
     const idOrdenActiva = (this.requiereMesa() || this.pedidoDespachoSeleccionado() !== null) ? this.ordenActivaId() : null;
     if (idOrdenActiva) {
       const itemsNuevos = this.obtenerItemsNuevosOrdenActiva();
+      const domicilioCambio =
+        this.permitePagoDomicilio() && this.valorDomicilio() !== this.valorDomicilioBase();
 
       if (itemsNuevos.length === 0) {
+        // Sin productos nuevos, `agregar-items` no aplica (exige al menos uno).
+        // Si solo se corrigió el domicilio, se ajusta por su endpoint dedicado.
+        if (domicilioCambio) {
+          this.http.patch<{ success: boolean }>(
+            `${environment.apiUrl}/pedidos/${idOrdenActiva}/valor-domicilio`,
+            { id_negocio: this.negocioId(), valor_domicilio: this.valorDomicilio() }
+          ).subscribe({
+            next: () => {
+              this.valorDomicilioBase.set(this.valorDomicilio());
+              this.procesarDestinoEnvio(destino, idOrdenActiva);
+            },
+            error: (err: HttpErrorResponse) => {
+              this.uiFeedback.error(
+                this.getHttpErrorMessage(err) || 'No se pudo actualizar el valor del domicilio.'
+              );
+              this.resetEstadoEnvio();
+            },
+          });
+          return;
+        }
+
         this.procesarDestinoEnvio(destino, idOrdenActiva);
         return;
       }
@@ -1021,6 +1241,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
           porcentaje_impuesto: 0,
           permitir_stock_negativo: permitirStockNegativo,
           items: this.mapItemsPayload(itemsNuevos),
+          ...bodyDomicilio,
         }
       ).subscribe({
         next: res => {
@@ -1031,6 +1252,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
 
           this.itemsBaseOrdenActiva.set(this.cloneItems(this.items()));
           this.notaBaseOrdenActiva.set(this.notaOrden());
+          this.valorDomicilioBase.set(this.valorDomicilio());
           this.procesarDestinoEnvio(destino, idOrdenActiva);
         },
         error: (err: HttpErrorResponse) => void this.manejarErrorEnvio(err, destino, permitirStockNegativo),
@@ -1049,6 +1271,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
       permitir_stock_negativo: permitirStockNegativo,
       items: this.mapItemsPayload(this.items()),
       tipo_pedido: tipo,
+      ...bodyDomicilio,
     };
     if (tipo === 'DOMICILIO') {
       body['contacto_nombre']    = this.domContacto().trim() || null;
@@ -1263,12 +1486,14 @@ export class PedidosComponent implements OnInit, OnDestroy {
     if (this.ordenActivaId()) {
       const itemsChanged = !this.itemsIguales(this.items(), this.itemsBaseOrdenActiva());
       const notaChanged = notaActual !== notaBase;
-      return itemsChanged || notaChanged;
+      const domicilioChanged = this.valorDomicilio() !== this.valorDomicilioBase();
+      return itemsChanged || notaChanged || domicilioChanged;
     }
 
     const tieneItems = this.items().length > 0;
     const tieneNota = notaActual.length > 0;
     const tieneMetodoPago = this.metodoPagoId() !== null;
+    const tieneDomicilioCobrado = this.valorDomicilio() > 0;
     const tieneDomicilio = this.tipoPedido() === 'DOMICILIO' && (
       this.domContacto().trim().length > 0 ||
       this.domTelefono().trim().length > 0 ||
@@ -1277,7 +1502,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
       this.domDomiciliarioId() !== null
     );
 
-    return tieneItems || tieneNota || tieneMetodoPago || tieneDomicilio;
+    return tieneItems || tieneNota || tieneMetodoPago || tieneDomicilio || tieneDomicilioCobrado;
   }
 
   async canDeactivate(): Promise<boolean> {
@@ -1707,6 +1932,18 @@ export class PedidosComponent implements OnInit, OnDestroy {
         ].filter(Boolean).join('')
       : '';
 
+    // El domicilio se desglosa antes del TOTAL para que el cliente vea por qué paga de más.
+    const domicilioTotalRow = this.valorDomicilio() > 0
+      ? `<div class="totals-row">
+              <span>Productos</span>
+              <span>${this.formatCurrency(this.totalProductos())}</span>
+            </div>
+            <div class="totals-row">
+              <span>Domicilio</span>
+              <span>${this.formatCurrency(this.valorDomicilio())}</span>
+            </div>`
+      : '';
+
     const filasItems = this.items().map(item => {
       const totalLinea = item.cantidad * item.precio_unitario;
       const exclusiones = this.getExclusionNames(item);
@@ -1899,6 +2136,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
           <hr />
 
           <div class="totals">
+            ${domicilioTotalRow}
             <div class="totals-row total">
               <span>TOTAL</span>
               <span>${this.formatCurrency(this.total())}</span>
