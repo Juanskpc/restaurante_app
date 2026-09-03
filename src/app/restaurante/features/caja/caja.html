@@ -126,26 +126,44 @@
                 <th>Concepto</th>
                 <th>Usuario</th>
                 <th class="num">Monto</th>
+                @if (puedeEliminarPedido()) {
+                  <th class="acciones">Eliminar</th>
+                }
               </tr>
             </thead>
             <tbody>
               @for (m of movimientos(); track m.id_movimiento) {
-                <tr>
+                <tr [class.fila--anulada]="m.anulado" [class.fila--anulacion]="m.es_anulacion">
                   <td>{{ m.fecha | date:'dd/MM/yyyy HH:mm' }}</td>
                   <td>
-                    <span class="badge" [class.badge--in]="m.tipo === 'INGRESO'" [class.badge--out]="m.tipo === 'EGRESO'">
-                      {{ m.tipo }}
+                    <span class="badge"
+                          [class.badge--in]="m.tipo === 'INGRESO' && !m.es_anulacion && !m.anulado"
+                          [class.badge--out]="m.tipo === 'EGRESO' && !m.es_anulacion && !m.anulado"
+                          [class.badge--anulado]="m.anulado || m.es_anulacion">
+                      {{ etiquetaTipo(m) }}
                     </span>
                   </td>
-                  <td>{{ formatTipoPedido(m.orden?.tipo_pedido) }}</td>
-                  <td>
-                    {{ m.concepto || '—' }}
-                    @if (m.orden?.numero_orden) {
-                      <span class="ref"> · {{ m.orden!.numero_orden }}</span>
-                    }
-                  </td>
+                  <td>{{ tipoPedidoMovimiento(m) }}</td>
+                  <td>{{ conceptoCorto(m) }}</td>
                   <td>{{ m.usuario?.primer_nombre }} {{ m.usuario?.primer_apellido }}</td>
                   <td class="num">{{ m.monto | currency:'COP':'symbol-narrow':'1.0-0' }}</td>
+                  @if (puedeEliminarPedido()) {
+                    <td class="acciones">
+                      @if (puedeAnular(m)) {
+                        <button type="button"
+                                class="btn-eliminar"
+                                [disabled]="anulandoOrdenId() !== null"
+                                [title]="m.tipo === 'INGRESO' ? 'Eliminar el pedido de la caja' : 'Devolver este egreso a la caja'"
+                                (click)="anularPedido(m)">
+                          <lucide-icon name="trash-2" [size]="14" />
+                        </button>
+                      } @else if (m.anulado) {
+                        <span class="marca-anulado">Eliminado</span>
+                      } @else {
+                        <span class="marca-anulado">—</span>
+                      }
+                    </td>
+                  }
                 </tr>
               }
             </tbody>

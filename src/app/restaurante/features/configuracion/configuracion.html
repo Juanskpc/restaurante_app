@@ -115,10 +115,9 @@
               (click)="seleccionarPaleta(paleta.id_paleta)"
             >
               <div class="palette-preview">
-                <span [style.background]="paleta.colores['color-primary']"></span>
-                <span [style.background]="paleta.colores['color-bg']"></span>
-                <span [style.background]="paleta.colores['color-surface']"></span>
-                <span [style.background]="paleta.colores['color-success']"></span>
+                @for (color of coloresPreview(paleta); track $index) {
+                  <span [style.background]="color"></span>
+                }
               </div>
 
               <div class="palette-meta">
@@ -138,13 +137,9 @@
     }
 
     <!-- ── Opciones de pago ── -->
-    <article class="card" id="metodos-pago">
-      <header class="card-header">
-        <div>
-          <h2>Opciones de pago</h2>
-          <p>Define las formas de pago que aceptas. Los pedidos cobrados las usarán al cerrar.</p>
-        </div>
-      </header>
+    <article class="panel panel--wide" id="metodos-pago">
+      <h2>Opciones de pago</h2>
+      <p class="hint">Define las formas de pago que aceptas. Los pedidos cobrados las usarán al cerrar.</p>
 
       <!-- Multipago: dividir un cobro en varias formas de pago -->
       <label class="multipago-switch" [class.is-disabled]="!canEdit() || guardandoMultipago()">
@@ -207,13 +202,9 @@
     </article>
 
     <!-- ── Domicilios ── -->
-    <article class="card" id="pago-domicilio">
-      <header class="card-header">
-        <div>
-          <h2>Domicilios</h2>
-          <p>Cobro del domicilio al cliente y pago al domiciliario desde la caja.</p>
-        </div>
-      </header>
+    <article class="panel panel--wide" id="pago-domicilio">
+      <h2>Domicilios</h2>
+      <p class="hint">Cobro del domicilio al cliente y pago al domiciliario desde la caja.</p>
 
       <label class="multipago-switch" [class.is-disabled]="!canEdit() || guardandoPagoDomicilio()">
         <input type="checkbox"

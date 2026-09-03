@@ -10,11 +10,36 @@ import { finalize } from 'rxjs/operators';
 import { LucideAngularModule } from 'lucide-angular';
 
 import { AuthService } from '../../../core/services/auth.service';
+import { CatalogoCacheService } from '../../../core/services/catalogo-cache.service';
 import { PaletteService } from '../../../core/theme/palette.service';
 import { PaletaColor } from '../../../core/theme/palette.model';
 import { ConfiguracionService, MetodoPago } from './configuracion.service';
 import { ConfiguracionNegocio } from './configuracion.models';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
+
+/**
+ * Mezcla un hex con blanco. `cantidad` = proporción de blanco (0 = el color tal
+ * cual, 1 = blanco puro).
+ *
+ * Se calcula en TS y no con `color-mix()` en el estilo inline para no depender
+ * de cómo Angular trate una función CSS dentro de un binding de estilo.
+ */
+function aclarar(hex: string, cantidad: number): string {
+  const limpio = String(hex).trim().replace('#', '');
+  const full = limpio.length === 3
+    ? limpio.split('').map((c) => c + c).join('')
+    : limpio;
+
+  if (!/^[0-9a-fA-F]{6}$/.test(full)) return hex;
+
+  const canal = (desde: number) => {
+    const valor = parseInt(full.slice(desde, desde + 2), 16);
+    const mezclado = Math.round(valor + (255 - valor) * cantidad);
+    return mezclado.toString(16).padStart(2, '0');
+  };
+
+  return `#${canal(0)}${canal(2)}${canal(4)}`;
+}
 
 function optionalUrlValidator(control: AbstractControl): ValidationErrors | null {
   const rawValue = control.value ?? '';
@@ -41,6 +66,7 @@ function optionalUrlValidator(control: AbstractControl): ValidationErrors | null
 export class ConfiguracionComponent {
   private readonly fb = inject(FormBuilder);
   private readonly auth = inject(AuthService);
+  private readonly catalogo = inject(CatalogoCacheService);
   private readonly paletteService = inject(PaletteService);
   private readonly configuracionService = inject(ConfiguracionService);
   private readonly uiFeedback = inject(UiFeedbackService);
@@ -121,6 +147,15 @@ export class ConfiguracionComponent {
     });
   }
 
+  /**
+   * Pedidos y Despacho leen las formas de pago desde CatalogoCacheService, que
+   * las guarda 5 minutos en sessionStorage. Sin este aviso, un método recién
+   * creado o eliminado tarda en aparecer (o desaparecer) en el POS.
+   */
+  private invalidarCacheMetodos(): void {
+    this.catalogo.invalidate('metodos-pago');
+  }
+
   // ── Métodos de pago ──
   cargarMetodosPago(idNegocio: number): void {
     this.cargandoMetodos.set(true);
@@ -142,6 +177,7 @@ export class ConfiguracionComponent {
         this.guardandoMetodo.set(false);
         this.nuevoMetodoNombre.set('');
         this.uiFeedback.success(`"${nombre}" se agregó correctamente.`, 'Método creado');
+        this.invalidarCacheMetodos();
         this.cargarMetodosPago(idNegocio);
       },
       error: (e) => {
@@ -174,6 +210,7 @@ export class ConfiguracionComponent {
       next: () => {
         this.guardandoMetodo.set(false);
         this.uiFeedback.success(`Se actualizó a "${nombre}".`, 'Método actualizado');
+        this.invalidarCacheMetodos();
         this.cancelarEdicionMetodo();
         this.cargarMetodosPago(idNegocio);
       },
@@ -200,6 +237,7 @@ export class ConfiguracionComponent {
     this.configuracionService.inactivarMetodoPago(m.id_metodo_pago, idNegocio).subscribe({
       next: () => {
         this.uiFeedback.success(`"${m.nombre}" fue eliminado.`, 'Método eliminado');
+        this.invalidarCacheMetodos();
         this.cargarMetodosPago(idNegocio);
       },
       error: (e) => {
@@ -316,6 +354,26 @@ export class ConfiguracionComponent {
       next: (rows) => this.paletas.set(rows),
       error: () => this.paletas.set([]),
     });
+  }
+
+  /**
+   * Colores del recuadro de cada paleta.
+   *
+   * Las paletas se guardan como `{ primario, acento }`; la plantilla leía
+   * `colores['color-primary']`, que no existe, y por eso los recuadros salían
+   * vacíos. Se derivan cuatro tonos para anticipar cómo se verá la app.
+   */
+  coloresPreview(paleta: PaletaColor): string[] {
+    const colores = (paleta?.colores ?? {}) as Record<string, string>;
+    const primario = colores['primario'] || colores['color-primary'] || '#312E81';
+    const acento = colores['acento'] || colores['color-primary-hover'] || primario;
+
+    return [
+      primario,
+      acento,
+      aclarar(acento, 0.55),
+      aclarar(primario, 0.88),
+    ];
   }
 
   seleccionarPaleta(idPaleta: number): void {

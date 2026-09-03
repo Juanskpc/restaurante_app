@@ -86,7 +86,14 @@ export class CatalogoCacheService {
 
     const req$ = this.http.get<{ success: boolean; data: T }>(url).pipe(
       map((res) => (res?.data ?? ([] as unknown as T))),
-      tap((data) => this.write(key, { data, ts: Date.now(), idNegocio })),
+      tap((data) => {
+        // Un catálogo vacío NO se cachea. Es justo el caso de "acabo de crear el
+        // primero y no aparece": guardar el [] lo esconde 5 minutos y, como la
+        // caché vive en sessionStorage, ni recargar la página lo arregla.
+        // Releer un catálogo vacío es barato; esconderlo sale caro.
+        if (Array.isArray(data) && data.length === 0) return;
+        this.write(key, { data, ts: Date.now(), idNegocio });
+      }),
       finalize(() => this.inflight.delete(key)),
       shareReplay(1),
     );
