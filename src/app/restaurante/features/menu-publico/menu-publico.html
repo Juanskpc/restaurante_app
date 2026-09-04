@@ -1,76 +1,47 @@
 <div class="public-menu">
-  <!-- ═══════════ HERO HEADER ═══════════ -->
-  <header class="hero">
-    <div class="hero-inner">
-      @if (cargandoNegocio()) {
-        <div class="hero-skeleton">
-          <div class="skeleton-bar skeleton-title"></div>
-          <div class="skeleton-bar skeleton-sub"></div>
-        </div>
-      } @else if (negocioInvalido()) {
-        <div class="hero-error">
-          <lucide-icon name="alert-triangle" [size]="28" class="hero-error-icon" />
-          <span>Negocio no encontrado</span>
-        </div>
-      } @else {
-        <div class="hero-brand">
-          <div class="hero-logo">
-            <lucide-icon name="utensils-crossed" [size]="22" />
+  <!-- ═══════════ BARRA SUPERIOR FIJA (cabecera + categorías) ═══════════ -->
+  <div class="menu-topbar">
+    <!-- ═══════════ HERO HEADER ═══════════ -->
+    <header class="hero">
+      <div class="hero-inner">
+        @if (cargandoNegocio()) {
+          <div class="hero-skeleton">
+            <div class="skeleton-bar skeleton-title"></div>
+            <div class="skeleton-bar skeleton-sub"></div>
           </div>
-          <div class="hero-text">
-            <span class="hero-pill">Menú Digital</span>
-            <h1 class="hero-name">{{ negocio()?.nombre }}</h1>
-            @if (negocio()?.direccion) {
-              <div class="hero-addr">
-                <lucide-icon name="map-pin" [size]="12" />
-                <span>{{ negocio()?.direccion }}</span>
-              </div>
-            }
+        } @else if (negocioInvalido()) {
+          <div class="hero-error">
+            <lucide-icon name="alert-triangle" [size]="28" class="hero-error-icon" />
+            <span>Negocio no encontrado</span>
           </div>
-        </div>
-        @if (negocio()?.telefono) {
-          <a class="hero-call" [href]="'tel:' + negocio()?.telefono" aria-label="Llamar al restaurante">
-            <lucide-icon name="phone" [size]="16" />
-          </a>
+        } @else {
+          <div class="hero-brand">
+            <div class="hero-logo">
+              <lucide-icon name="utensils-crossed" [size]="22" />
+            </div>
+            <div class="hero-text">
+              <span class="hero-pill">Menú Digital</span>
+              <h1 class="hero-name">{{ negocio()?.nombre }}</h1>
+              @if (negocio()?.direccion) {
+                <div class="hero-addr">
+                  <lucide-icon name="map-pin" [size]="12" />
+                  <span>{{ negocio()?.direccion }}</span>
+                </div>
+              }
+            </div>
+          </div>
+          @if (negocio()?.telefono) {
+            <a class="hero-call" [href]="'tel:' + negocio()?.telefono" aria-label="Llamar al restaurante">
+              <lucide-icon name="phone" [size]="16" />
+            </a>
+          }
         }
-      }
-    </div>
-  </header>
-
-  <!-- ═══════════ ERROR: NEGOCIO INVÁLIDO ═══════════ -->
-  @if (negocioInvalido() && !cargandoNegocio()) {
-    <main class="main-content">
-      <div class="state-card state-card--error">
-        <div class="state-icon state-icon--error">
-          <lucide-icon name="folder-x" [size]="40" />
-        </div>
-        <h2>Menú no disponible</h2>
-        <p>La URL no es válida o el negocio no corresponde a un restaurante activo.</p>
       </div>
-    </main>
-  }
+    </header>
 
-  <!-- ═══════════ PLAN INACTIVO ═══════════ -->
-  @if (planInactivo() && !cargandoNegocio()) {
-    <main class="main-content">
-      <div class="state-card state-card--plan">
-        <div class="state-icon state-icon--plan">
-          <lucide-icon name="credit-card" [size]="40" />
-        </div>
-        <h2>Suscripción inactiva</h2>
-        <p>Este menú digital no está disponible porque el restaurante no cuenta con un plan activo.</p>
-        <p class="state-hint">
-          ¿Eres el propietario?
-          <a [href]="appSiteUrl" target="_blank" rel="noopener">Activa tu plan en Escalapp</a>
-        </p>
-      </div>
-    </main>
-  }
-
-  <!-- ═══════════ MENU CONTENT ═══════════ -->
-  @if (!negocioInvalido() && !planInactivo() && negocio()) {
-    <main class="main-content">
-      <!-- Categories -->
+    <!-- Las categorías viajan con la cabecera: pinchadas juntas, así no hay una altura
+         que adivinar entre una y otra. -->
+    @if (!negocioInvalido() && !planInactivo() && negocio()) {
       <nav class="categories-bar" aria-label="Categorías del menú">
         @if (cargandoCategorias()) {
           <div class="categories-skeleton">
@@ -130,6 +101,42 @@
           </div>
         }
       </nav>
+    }
+  </div>
+
+  <!-- ═══════════ ERROR: NEGOCIO INVÁLIDO ═══════════ -->
+  @if (negocioInvalido() && !cargandoNegocio()) {
+    <main class="main-content">
+      <div class="state-card state-card--error">
+        <div class="state-icon state-icon--error">
+          <lucide-icon name="folder-x" [size]="40" />
+        </div>
+        <h2>Menú no disponible</h2>
+        <p>La URL no es válida o el negocio no corresponde a un restaurante activo.</p>
+      </div>
+    </main>
+  }
+
+  <!-- ═══════════ PLAN INACTIVO ═══════════ -->
+  @if (planInactivo() && !cargandoNegocio()) {
+    <main class="main-content">
+      <div class="state-card state-card--plan">
+        <div class="state-icon state-icon--plan">
+          <lucide-icon name="credit-card" [size]="40" />
+        </div>
+        <h2>Suscripción inactiva</h2>
+        <p>Este menú digital no está disponible porque el restaurante no cuenta con un plan activo.</p>
+        <p class="state-hint">
+          ¿Eres el propietario?
+          <a [href]="appSiteUrl" target="_blank" rel="noopener">Activa tu plan en Escalapp</a>
+        </p>
+      </div>
+    </main>
+  }
+
+  <!-- ═══════════ MENU CONTENT ═══════════ -->
+  @if (!negocioInvalido() && !planInactivo() && negocio()) {
+    <main class="main-content">
 
       <!-- Products -->
       <section class="products-section">
@@ -302,6 +309,16 @@
         </a>
       </div>
 
+      <div class="footer-legal">
+        <a [href]="urlTerminos" target="_blank" rel="noopener" class="footer-link">
+          Términos y condiciones
+        </a>
+        <span aria-hidden="true">·</span>
+        <a [href]="urlPrivacidad" target="_blank" rel="noopener" class="footer-link">
+          Política de tratamiento de datos
+        </a>
+      </div>
+
       <div class="footer-copy">
         <span>&copy; {{ currentYear }} Escalapp. Todos los derechos reservados.</span>
       </div>
@@ -385,6 +402,16 @@
         <lucide-icon name="message-circle" [size]="18" />
         <span>Continuar por WhatsApp</span>
       </button>
+
+      <!--
+        Aquí es donde el número de esta persona empieza a viajar. El aviso va pegado al botón y
+        no escondido en el pie: el consentimiento tiene que estar donde se consiente.
+      -->
+      <p class="pre-pedido-legal">
+        Al continuar, tu número de WhatsApp y tu pedido se tratarán conforme a la
+        <a [href]="urlPrivacidad" target="_blank" rel="noopener">política de tratamiento de datos</a>,
+        que incluye su almacenamiento en servidores fuera de Colombia.
+      </p>
 
       <button type="button" class="pre-pedido-vaciar" (click)="carrito.vaciar(); cerrarPrePedido()">
         Vaciar pedido

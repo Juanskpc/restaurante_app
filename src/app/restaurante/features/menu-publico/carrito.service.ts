@@ -38,12 +38,34 @@ export interface ItemCarrito {
  * algo cambió de precio o se agotó entre que el cliente miró y escribió, gana el catálogo. Lo que
  * se muestra aquí es una estimación honesta, no una promesa.
  */
+/**
+ * Cuánto tiempo sigue valiendo un carrito guardado.
+ *
+ * Guardarlo sirve para que cerrar la pestaña sin querer no borre veinte minutos de elegir. No
+ * sirve para nada más allá de esa visita: un carrito de anteayer no es «lo que iba a pedir», es
+ * basura que aparece con la insignia encendida y hace creer que hay un pedido en marcha.
+ *
+ * Cuatro horas cubren de sobra una visita —incluida la de un sitio que abre de 8 de la tarde a
+ * 2 de la madrugada— y no llegan nunca a la cena del día siguiente.
+ */
+const VIGENCIA_MS = 4 * 60 * 60 * 1000;
+
+/** Forma con la que se guarda. La versión permite tirar formatos viejos sin adivinar su edad. */
+interface CarritoGuardado {
+  v: 2;
+  guardado: number;
+  /** Cuándo se abrió WhatsApp con este pedido, o `null` si todavía no. */
+  enviadoEn: number | null;
+  items: ItemCarrito[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class CarritoService {
   private readonly platformId = inject(PLATFORM_ID);
 
   private readonly _items = signal<ItemCarrito[]>([]);
   private readonly _idNegocio = signal<number | null>(null);
+  private readonly _enviadoEn = signal<number | null>(null);
 
   readonly items = this._items.asReadonly();
 
@@ -65,6 +87,7 @@ export class CarritoService {
    */
   iniciar(idNegocio: number): void {
     this._idNegocio.set(idNegocio);
+    this._enviadoEn.set(null);
     this._items.set(this.leerGuardado(idNegocio));
   }
 
@@ -98,6 +121,19 @@ export class CarritoService {
 
   vaciar(): void {
     this._items.set([]);
+    this._enviadoEn.set(null);
+    this.guardar();
+  }
+
+  /**
+   * El pedido ya se entregó a WhatsApp.
+   *
+   * No se vacía aquí: si el cliente vuelve atrás sin darle a enviar en WhatsApp, encontrarse el
+   * carrito vacío sería perderle el trabajo. Lo que se hace es marcarlo, y así **la próxima vez
+   * que abra la página** empieza limpio en vez de resucitar un pedido que ya salió.
+   */
+  marcarEnviado(): void {
+    this._enviadoEn.set(Date.now());
     this.guardar();
   }
 
@@ -177,20 +213,52 @@ export class CarritoService {
   private guardar(): void {
     const id = this._idNegocio();
     if (id === null || !isPlatformBrowser(this.platformId)) return;
+    const sobre: CarritoGuardado = {
+      v: 2,
+      guardado: Date.now(),
+      enviadoEn: this._enviadoEn(),
+      items: this._items(),
+    };
     try {
-      localStorage.setItem(this.clave(id), JSON.stringify(this._items()));
+      localStorage.setItem(this.clave(id), JSON.stringify(sobre));
     } catch {
       // Un carrito que no se puede guardar sigue sirviendo mientras la pestaña esté abierta.
     }
   }
 
+  /**
+   * Lo guardado, si todavía vale.
+   *
+   * Se descarta en tres casos: cuando no trae la forma actual —incluido el formato viejo, que
+   * era un array pelado sin fecha y por tanto de edad desconocida—, cuando ha pasado la
+   * vigencia, y cuando ese pedido ya se mandó por WhatsApp.
+   *
+   * Descartar es también BORRAR. Si solo se ignorara, lo viejo se quedaría en el navegador del
+   * cliente para siempre, y cualquier cambio futuro de criterio lo haría reaparecer.
+   */
   private leerGuardado(idNegocio: number): ItemCarrito[] {
     if (!isPlatformBrowser(this.platformId)) return [];
+
+    const descartar = (): ItemCarrito[] => {
+      try {
+        localStorage.removeItem(this.clave(idNegocio));
+      } catch {
+        // Si no se puede borrar, se sigue ignorando igual.
+      }
+      return [];
+    };
+
     try {
       const crudo = localStorage.getItem(this.clave(idNegocio));
       if (!crudo) return [];
-      const datos = JSON.parse(crudo);
-      if (!Array.isArray(datos)) return [];
+      const sobre = JSON.parse(crudo);
+
+      if (!sobre || sobre.v !== 2 || !Number.isFinite(sobre.guardado)) return descartar();
+      if (Date.now() - sobre.guardado > VIGENCIA_MS) return descartar();
+      if (sobre.enviadoEn !== null && sobre.enviadoEn !== undefined) return descartar();
+
+      const datos = sobre.items;
+      if (!Array.isArray(datos)) return descartar();
       // Se valida lo que vuelve: es entrada del exterior, aunque la haya escrito esta misma
       // aplicación hace una semana con otra versión del formato.
       return datos
@@ -210,7 +278,8 @@ export class CarritoService {
           cantidad: i.cantidad,
         }));
     } catch {
-      return [];
+      // JSON corrupto: no hay nada que rescatar, y dejarlo repetiría el fallo en cada carga.
+      return descartar();
     }
   }
 }

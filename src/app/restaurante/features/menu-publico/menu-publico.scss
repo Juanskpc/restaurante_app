@@ -25,17 +25,37 @@
 }
 
 /* ═══════════════════════════════════════════
-   HERO HEADER
+   BARRA SUPERIOR FIJA
    ═══════════════════════════════════════════ */
-.hero {
+
+/**
+ * Cabecera y categorías se quedan arriba COMO UN SOLO BLOQUE.
+ *
+ * Antes cada una se pinchaba por su cuenta y la barra de categorías llevaba `top: 58px`, un
+ * número escrito a mano que tenía que coincidir con la altura de la cabecera. Nunca coincidió:
+ * la cabecera mide entre ~76 y ~85 px según el ancho de la pantalla (su relleno es un `clamp`)
+ * y según si el negocio publicó dirección, que añade una línea. Con 58 px las pestañas se
+ * pinchaban DEBAJO de la cabecera y desaparecían al bajar, en móvil y en escritorio.
+ *
+ * Envolviéndolas en un único elemento pegajoso el número desaparece del todo: la cabecera mide
+ * lo que mida y las categorías van detrás. No hay nada que mantener sincronizado.
+ */
+.menu-topbar {
   position: sticky;
   top: 0;
   z-index: 100;
+  background: var(--color-bg);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ═══════════════════════════════════════════
+   HERO HEADER
+   ═══════════════════════════════════════════ */
+.hero {
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  box-shadow: var(--shadow-sm);
 }
 
 .hero-inner {
@@ -242,11 +262,13 @@
    CATEGORIES BAR
    ═══════════════════════════════════════════ */
 .categories-bar {
-  position: sticky;
-  top: 58px;
-  z-index: 90;
+  /* Ya no se pincha por su cuenta: lo hace `.menu-topbar` por las dos. Y como ahora cuelga del
+     envoltorio y no de `.main-content`, se centra ella misma en vez de salirse del relleno del
+     contenedor con márgenes negativos. */
+  max-width: 960px;
+  width: 100%;
+  margin: 0 auto;
   padding: var(--spacing-sm) 0;
-  margin: 0 calc(-1 * clamp(12px, 4vw, 24px));
   background: var(--color-bg);
 }
 
@@ -772,6 +794,23 @@
   }
 }
 
+.footer-legal {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+
+  a {
+    color: var(--color-text-secondary);
+    text-decoration: underline;
+
+    &:hover { color: var(--color-primary); }
+  }
+}
+
 .footer-copy {
   padding-top: var(--spacing-sm);
   border-top: 1px solid var(--color-border);
@@ -952,7 +991,9 @@
 .pre-pedido-overlay {
   position: fixed;
   inset: 0;
-  z-index: 70;
+  /* Por encima de `.menu-topbar` (100): si no, el velo oscuro deja la cabecera flotando
+     iluminada sobre el pedido. Ya pasaba antes con `.hero`, que también valía 100. */
+  z-index: 110;
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -1078,6 +1119,21 @@
   cursor: pointer;
 
   &:hover { background: var(--color-primary-hover); }
+}
+
+/* Aviso de privacidad del pre-pedido. Va pegado al botón que envía el pedido por WhatsApp,
+   porque es ahí donde el número de esta persona empieza a viajar — no en el pie de página. */
+.pre-pedido-legal {
+  margin: 0.7rem 0 0;
+  font-size: var(--font-size-xs);
+  line-height: 1.45;
+  text-align: center;
+  color: var(--color-text-secondary);
+
+  a {
+    color: var(--color-primary);
+    text-decoration: underline;
+  }
 }
 
 .pre-pedido-vaciar {

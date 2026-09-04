@@ -96,6 +96,19 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit {
   readonly appSiteUrl = 'https://escalapp.cloud/admin/';
   readonly appContactEmail = 'escalappsystem@gmail.com';
 
+  /**
+   * Las políticas viven en la app de administración, que se sirve bajo `/admin/` — de ahí que la
+   * URL no sea `escalapp.cloud/privacidad`. Son absolutas a propósito: este menú es otra
+   * aplicación y no comparte router con aquella.
+   *
+   * Este menú es **el punto más expuesto de toda la plataforma**: lo abre alguien que no es
+   * cliente nuestro ni tiene cuenta, y al pulsar «Continuar por WhatsApp» su número pasa a
+   * nuestros servidores —que están en Estados Unidos—. Por eso el aviso no está solo en el pie
+   * sino junto al botón que inicia ese envío.
+   */
+  readonly urlTerminos = 'https://escalapp.cloud/admin/terminos';
+  readonly urlPrivacidad = 'https://escalapp.cloud/admin/privacidad';
+
   readonly socialLinks = computed(() => {
     const info = this.negocio();
     if (!info) return [];
@@ -208,13 +221,15 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit {
    * Abre WhatsApp con el pedido escrito.
    *
    * No se vacía el carrito al salir: si el cliente vuelve atrás sin enviar, encontrarlo vacío
-   * sería perder su trabajo. Lo vacía él, o se pierde cuando ya no le sirve.
+   * sería perder su trabajo. Se marca como entregado, y con eso la próxima carga de la página
+   * arranca limpia en vez de resucitar un pedido que ya salió hace días.
    */
   enviarPorWhatsApp(): void {
     const enlace = this.carrito.enlaceWhatsApp(this.negocio()?.url_whatsapp);
     if (!enlace) return;
     if (!isPlatformBrowser(this.platformId)) return;
     window.open(enlace, '_blank', 'noopener');
+    this.carrito.marcarEnviado();
     this.cerrarPrePedido();
   }
 

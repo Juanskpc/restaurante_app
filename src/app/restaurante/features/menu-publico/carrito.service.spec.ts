@@ -140,5 +140,76 @@ describe('CarritoService', () => {
 
       expect(carrito.items()).toEqual([]);
     });
+
+    it('el formato viejo (un array pelado) se descarta: no se sabe de cuándo es', () => {
+      // Así se guardaba antes. Sin fecha no hay forma de saber si es de hace diez minutos o de
+      // hace un mes, y un carrito de hace un mes enciende la insignia como si hubiera un pedido.
+      localStorage.setItem(
+        'escalapp.carrito.12',
+        JSON.stringify([
+          { id_producto: 39, nombre: 'Hamburguesa doble', precio: 32000, cantidad: 1 },
+        ])
+      );
+      carrito.iniciar(12);
+
+      expect(carrito.vacio()).toBe(true);
+    });
+
+    it('lo descartado se borra, no se queda ocupando sitio en el navegador', () => {
+      localStorage.setItem('escalapp.carrito.12', JSON.stringify([{ id_producto: 39 }]));
+      carrito.iniciar(12);
+
+      expect(localStorage.getItem('escalapp.carrito.12')).toBeNull();
+    });
+
+    it('un carrito de anteayer no vuelve', () => {
+      carrito.agregar(hamburguesa);
+
+      const sobre = JSON.parse(localStorage.getItem('escalapp.carrito.12')!);
+      sobre.guardado = Date.now() - 48 * 60 * 60 * 1000;
+      localStorage.setItem('escalapp.carrito.12', JSON.stringify(sobre));
+
+      carrito.iniciar(12);
+      expect(carrito.vacio()).toBe(true);
+    });
+
+    it('dentro de la vigencia sí vuelve', () => {
+      carrito.agregar(hamburguesa);
+
+      const sobre = JSON.parse(localStorage.getItem('escalapp.carrito.12')!);
+      sobre.guardado = Date.now() - 30 * 60 * 1000; // media hora
+      localStorage.setItem('escalapp.carrito.12', JSON.stringify(sobre));
+
+      carrito.iniciar(12);
+      expect(carrito.cantidadTotal()).toBe(1);
+    });
+  });
+
+  describe('un pedido que ya salió no resucita', () => {
+    it('tras abrir WhatsApp, la siguiente visita empieza limpia', () => {
+      carrito.agregar(hamburguesa);
+      carrito.marcarEnviado();
+
+      carrito.iniciar(12); // el cliente vuelve a abrir el menú
+      expect(carrito.vacio()).toBe(true);
+    });
+
+    it('pero en la MISMA pestaña sigue ahí, por si vuelve sin haber enviado', () => {
+      // Abrir WhatsApp no es haber enviado. Si vuelve atrás, su trabajo tiene que seguir.
+      carrito.agregar(hamburguesa);
+      carrito.marcarEnviado();
+
+      expect(carrito.cantidadTotal()).toBe(1);
+    });
+
+    it('vaciar a mano borra también la marca: lo que se añada después es un pedido nuevo', () => {
+      carrito.agregar(hamburguesa);
+      carrito.marcarEnviado();
+      carrito.vaciar();
+      carrito.agregar(limonada);
+
+      carrito.iniciar(12);
+      expect(carrito.cantidadTotal()).toBe(1);
+    });
   });
 });
