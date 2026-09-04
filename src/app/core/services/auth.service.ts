@@ -421,11 +421,28 @@ export class AuthService {
     }
   }
 
+  /**
+   * Manda el negocio que eligió el backend, no el que quedó de la sesión anterior.
+   *
+   * `data.negocio` viene de canjear el código SSO: el admin dice a qué negocio se entra. Antes
+   * esto no tocaba `_negocioIdx`, así que se quedaba el que `restoreSession()` había leído de
+   * `localStorage` al arrancar — y con dos negocios del mismo tipo se entraba a uno y se
+   * aterrizaba en el otro. Con uno solo el fallo es invisible, porque el guardado coincide.
+   */
   private setSession(token: string, data: SesionRestaurante): void {
     if (!isPlatformBrowser(this.platformId)) return;
     localStorage.setItem(TOKEN_KEY, token);
     localStorage.setItem(SESSION_KEY, JSON.stringify(data));
     this.session.set(data);
+
+    const elegido = data.negocio?.id_negocio ?? null;
+    const idx = elegido !== null
+      ? (data.negocios?.findIndex((n: NegocioRestaurante) => n.id_negocio === elegido) ?? -1)
+      : -1;
+    if (idx >= 0) {
+      this._negocioIdx.set(idx);
+      localStorage.setItem(NEGOCIO_KEY, String(elegido));
+    }
   }
 
   private clearSession(): void {
