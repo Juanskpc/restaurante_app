@@ -268,3 +268,61 @@
     small { color: var(--color-text-secondary); font-size: var(--font-size-xs); line-height: 1.4; }
   }
 }
+
+// ═══════════════════════════════════════════════════════════
+// Secciones a lo ancho (Opciones de pago, Domicilios).
+// Comparten `.panel` con las tarjetas de arriba para que toda la
+// pantalla tenga la misma identidad visual.
+// ═══════════════════════════════════════════════════════════
+
+.panel--wide {
+  .hint { margin: 0; }
+}
+
+// El tema global define `.btn--primary` / `.btn--outline` (BEM), pero esta
+// sección usa `.btn-primary` / `.btn-ghost`. Sin estas reglas los botones
+// salían sin fondo ni borde, desligados del resto de la pantalla.
+#metodos-pago,
+#pago-domicilio {
+  .btn-primary {
+    background-color: var(--color-primary);
+    color: var(--color-on-primary);
+    border: 1px solid var(--color-primary);
+
+    &:hover:not(:disabled) { background-color: var(--color-primary-hover); }
+  }
+
+  .btn-ghost {
+    background-color: var(--color-surface);
+    color: var(--color-text-secondary);
+    border: 1px solid var(--color-border);
+
+    &:hover:not(:disabled) {
+      background-color: var(--color-bg-secondary);
+      border-color: var(--color-primary);
+      color: var(--color-primary);
+    }
+  }
+
+  // Los iconos de editar/eliminar de cada método: cuadrados y compactos.
+  .metodos-list .btn-ghost {
+    padding: 6px 8px;
+    border-radius: var(--radius-sm);
+  }
+
+  .muted {
+    margin: .75rem 0 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+  }
+
+  .msg {
+    margin: .5rem 0 0;
+    font-size: var(--font-size-sm);
+
+    &--error { color: var(--color-error); }
+  }
+
+  // El switch ya vive dentro del panel: sin margen extra al final.
+  .multipago-switch { margin-bottom: 0; }
+}

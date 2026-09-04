@@ -41,8 +41,20 @@ export class SidebarComponent {
     { icon: 'settings',          label: 'Configuración',   route: '/configuracion',   section: 'secondary' },
   ];
 
+  /**
+   * Subnivel que además del permiso de módulo debe estar activo para mostrar el item.
+   * Un negocio que solo vende para llevar apaga "En mesa" y el salón desaparece del menú.
+   */
+  private readonly subnivelPorRuta: Record<string, string> = {
+    '/mesas': 'pedidos_en_mesa',
+  };
+
   readonly navItemsPermitidos = computed(() =>
-    this.navItems.filter((item) => this.auth.canAccessRoute(item.route))
+    this.navItems.filter((item) => {
+      if (!this.auth.canAccessRoute(item.route)) return false;
+      const subnivel = this.subnivelPorRuta[item.route];
+      return !subnivel || this.auth.canAccessSubnivel(subnivel);
+    })
   );
 
   /** Items principales (bottom nav). */

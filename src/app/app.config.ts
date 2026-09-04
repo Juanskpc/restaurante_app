@@ -24,7 +24,8 @@ import {
   AlertTriangle, Bike, Wallet, Play, PlusCircle, Square, Banknote,
   Home, Phone, PhoneCall, MapPin, User, StickyNote, ShoppingBag,
   Copy, ArrowLeft, Lock, Truck, MessageCircle, Facebook, Instagram, CheckSquare, ExternalLink,
-  Utensils, Coffee, FolderX, Globe, Mail, ArrowRight, ImagePlus, Crop
+  Utensils, Coffee, FolderX, Globe, Mail, ArrowRight, ImagePlus, Crop,
+  LayoutGrid, Grid3x3, List, SquarePen
 } from 'lucide-angular';
 
 const icons = {
@@ -39,7 +40,8 @@ const icons = {
   AlertTriangle, Bike, Wallet, Play, PlusCircle, Square, Banknote,
   Home, Phone, PhoneCall, MapPin, User, StickyNote, ShoppingBag,
   Copy, ArrowLeft, Lock, Truck, MessageCircle, Facebook, Instagram, CheckSquare, ExternalLink,
-  Utensils, Coffee, FolderX, Globe, Mail, ArrowRight, ImagePlus, Crop
+  Utensils, Coffee, FolderX, Globe, Mail, ArrowRight, ImagePlus, Crop,
+  LayoutGrid, Grid3x3, List, SquarePen
 };
 
 export const appConfig: ApplicationConfig = {

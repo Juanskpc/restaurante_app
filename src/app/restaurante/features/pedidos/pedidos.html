@@ -139,16 +139,16 @@
 
     <!-- Campo de mesa -->
     <div class="mesa-field">
-      <div class="order-type-switch"
-           [class.single-option]="!canUsarParaLlevar()"
-           role="group"
-           aria-label="Tipo de pedido">
+      @if (tiposPedidoDisponibles().length > 1) {
+      <div class="order-type-switch" role="group" aria-label="Tipo de pedido">
+        @if (canUsarEnMesa()) {
         <button class="type-btn"
                 [class.active]="tipoPedido() === 'MESA'"
                 (click)="seleccionarTipoPedido('MESA')">
           <lucide-icon name="armchair" [size]="16" />
           <span class="type-btn-label">En mesa</span>
         </button>
+        }
         @if (canUsarParaLlevar()) {
         <button class="type-btn"
                 [class.active]="tipoPedido() === 'LLEVAR'"
@@ -156,6 +156,8 @@
           <lucide-icon name="shopping-bag" [size]="16" />
           <span class="type-btn-label">Para llevar</span>
         </button>
+        }
+        @if (canUsarDomicilio()) {
         <button class="type-btn"
                 [class.active]="tipoPedido() === 'DOMICILIO'"
                 (click)="seleccionarTipoPedido('DOMICILIO')">
@@ -164,6 +166,7 @@
         </button>
         }
       </div>
+      }
 
       @if (requiereMesa()) {
         @if (mesas().length > 0) {
@@ -285,6 +288,28 @@
         }
       }
 
+      <!-- Cobro del domicilio (visible solo si el negocio lo activó en Configuración) -->
+      @if (puedeCobrarDomicilio()) {
+        <div class="domicilio-cobro">
+          <label class="domicilio-cobro__check">
+            <input type="checkbox"
+                   [checked]="cobrarDomicilio()"
+                   (change)="toggleCobrarDomicilio($any($event.target).checked)" />
+            <span>Cobrar domicilio</span>
+          </label>
+
+          @if (cobrarDomicilio()) {
+            <input class="domicilio-cobro__input"
+                   type="text"
+                   inputmode="numeric"
+                   aria-label="Valor del domicilio"
+                   placeholder="Valor del domicilio"
+                   [value]="valorDomicilioInput()"
+                   (input)="setValorDomicilio($any($event.target).value)" />
+          }
+        </div>
+      }
+
       @if (metodoPagoRequeridoError()) {
         <p class="mesa-error">Debes seleccionar una forma de pago.</p>
       }
@@ -383,6 +408,16 @@
           <div class="total-row paid">
             <span>Ya pagado</span>
             <span class="paid-value">{{ totalPagado() | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+          </div>
+        }
+        @if (valorDomicilio() > 0) {
+          <div class="total-row">
+            <span>Productos</span>
+            <span>{{ totalProductos() | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+          </div>
+          <div class="total-row">
+            <span>Domicilio</span>
+            <span>{{ valorDomicilio() | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
           </div>
         }
         <div class="total-row final">

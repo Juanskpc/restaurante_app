@@ -10,11 +10,36 @@ import { finalize } from 'rxjs/operators';
 import { LucideAngularModule } from 'lucide-angular';
 
 import { AuthService } from '../../../core/services/auth.service';
+import { CatalogoCacheService } from '../../../core/services/catalogo-cache.service';
 import { PaletteService } from '../../../core/theme/palette.service';
 import { PaletaColor } from '../../../core/theme/palette.model';
 import { ConfiguracionService, MetodoPago } from './configuracion.service';
 import { ConfiguracionNegocio } from './configuracion.models';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
+
+/**
+ * Mezcla un hex con blanco. `cantidad` = proporción de blanco (0 = el color tal
+ * cual, 1 = blanco puro).
+ *
+ * Se calcula en TS y no con `color-mix()` en el estilo inline para no depender
+ * de cómo Angular trate una función CSS dentro de un binding de estilo.
+ */
+function aclarar(hex: string, cantidad: number): string {
+  const limpio = String(hex).trim().replace('#', '');
+  const full = limpio.length === 3
+    ? limpio.split('').map((c) => c + c).join('')
+    : limpio;
+
+  if (!/^[0-9a-fA-F]{6}$/.test(full)) return hex;
+
+  const canal = (desde: number) => {
+    const valor = parseInt(full.slice(desde, desde + 2), 16);
+    const mezclado = Math.round(valor + (255 - valor) * cantidad);
+    return mezclado.toString(16).padStart(2, '0');
+  };
+
+  return `#${canal(0)}${canal(2)}${canal(4)}`;
+}
 
 function optionalUrlValidator(control: AbstractControl): ValidationErrors | null {
   const rawValue = control.value ?? '';
@@ -41,6 +66,7 @@ function optionalUrlValidator(control: AbstractControl): ValidationErrors | null
 export class ConfiguracionComponent {
   private readonly fb = inject(FormBuilder);
   private readonly auth = inject(AuthService);
+  private readonly catalogo = inject(CatalogoCacheService);
   private readonly paletteService = inject(PaletteService);
   private readonly configuracionService = inject(ConfiguracionService);
   private readonly uiFeedback = inject(UiFeedbackService);
@@ -56,6 +82,9 @@ export class ConfiguracionComponent {
   readonly canEdit = computed(() => this.configuracion()?.can_edit === true);
   readonly permiteMultipago = computed(() => this.configuracion()?.permite_multipago === true);
   readonly guardandoMultipago = signal(false);
+
+  readonly permitePagoDomicilio = computed(() => this.configuracion()?.permite_pago_domicilio === true);
+  readonly guardandoPagoDomicilio = signal(false);
 
   // ── Métodos de pago ──
   readonly metodosPago = signal<MetodoPago[]>([]);
@@ -100,6 +129,7 @@ export class ConfiguracionComponent {
       validators: [Validators.maxLength(255), optionalUrlValidator],
     }),
     permite_multipago: this.fb.control(false, { nonNullable: true }),
+    permite_pago_domicilio: this.fb.control(false, { nonNullable: true }),
     id_paleta: this.fb.control<number | null>(null),
   });
 
@@ -115,6 +145,15 @@ export class ConfiguracionComponent {
       this.cargarConfiguracion(idNegocio);
       this.cargarMetodosPago(idNegocio);
     });
+  }
+
+  /**
+   * Pedidos y Despacho leen las formas de pago desde CatalogoCacheService, que
+   * las guarda 5 minutos en sessionStorage. Sin este aviso, un método recién
+   * creado o eliminado tarda en aparecer (o desaparecer) en el POS.
+   */
+  private invalidarCacheMetodos(): void {
+    this.catalogo.invalidate('metodos-pago');
   }
 
   // ── Métodos de pago ──
@@ -138,6 +177,7 @@ export class ConfiguracionComponent {
         this.guardandoMetodo.set(false);
         this.nuevoMetodoNombre.set('');
         this.uiFeedback.success(`"${nombre}" se agregó correctamente.`, 'Método creado');
+        this.invalidarCacheMetodos();
         this.cargarMetodosPago(idNegocio);
       },
       error: (e) => {
@@ -170,6 +210,7 @@ export class ConfiguracionComponent {
       next: () => {
         this.guardandoMetodo.set(false);
         this.uiFeedback.success(`Se actualizó a "${nombre}".`, 'Método actualizado');
+        this.invalidarCacheMetodos();
         this.cancelarEdicionMetodo();
         this.cargarMetodosPago(idNegocio);
       },
@@ -196,6 +237,7 @@ export class ConfiguracionComponent {
     this.configuracionService.inactivarMetodoPago(m.id_metodo_pago, idNegocio).subscribe({
       next: () => {
         this.uiFeedback.success(`"${m.nombre}" fue eliminado.`, 'Método eliminado');
+        this.invalidarCacheMetodos();
         this.cargarMetodosPago(idNegocio);
       },
       error: (e) => {
@@ -238,6 +280,39 @@ export class ConfiguracionComponent {
       });
   }
 
+  /**
+   * Activa/desactiva el cobro del domicilio. Guarda de inmediato (switch) y refresca
+   * la sesión para que Pedidos vea la casilla sin necesidad de volver a entrar.
+   */
+  togglePagoDomicilio(activar: boolean): void {
+    const idNegocio = this.negocioActivoId();
+    if (!idNegocio || !this.canEdit()) return;
+
+    this.guardandoPagoDomicilio.set(true);
+    this.configuracionService
+      .updateConfiguracion({ id_negocio: idNegocio, permite_pago_domicilio: activar })
+      .pipe(finalize(() => this.guardandoPagoDomicilio.set(false)))
+      .subscribe({
+        next: async (config) => {
+          this.configuracion.set(config);
+          this.form.controls.permite_pago_domicilio.setValue(activar, { emitEvent: false });
+          this.uiFeedback.success(
+            activar ? 'Cobro de domicilio activado.' : 'Cobro de domicilio desactivado.',
+            'Domicilios'
+          );
+
+          const token = this.auth.getAccessToken();
+          if (token) {
+            const ok = await this.auth.validateAndSetToken(token);
+            if (ok) this.auth.setNegocioActivo(idNegocio);
+          }
+        },
+        error: (e) => {
+          this.uiFeedback.error(e?.error?.message || 'No se pudo actualizar el cobro de domicilio.');
+        },
+      });
+  }
+
   cargarConfiguracion(idNegocio: number): void {
     this.loading.set(true);
     this.errorMessage.set(null);
@@ -259,6 +334,7 @@ export class ConfiguracionComponent {
             url_facebook: config.url_facebook || '',
             url_instagram: config.url_instagram || '',
             permite_multipago: config.permite_multipago === true,
+            permite_pago_domicilio: config.permite_pago_domicilio === true,
             id_paleta: config.id_paleta ?? null,
           });
 
@@ -278,6 +354,26 @@ export class ConfiguracionComponent {
       next: (rows) => this.paletas.set(rows),
       error: () => this.paletas.set([]),
     });
+  }
+
+  /**
+   * Colores del recuadro de cada paleta.
+   *
+   * Las paletas se guardan como `{ primario, acento }`; la plantilla leía
+   * `colores['color-primary']`, que no existe, y por eso los recuadros salían
+   * vacíos. Se derivan cuatro tonos para anticipar cómo se verá la app.
+   */
+  coloresPreview(paleta: PaletaColor): string[] {
+    const colores = (paleta?.colores ?? {}) as Record<string, string>;
+    const primario = colores['primario'] || colores['color-primary'] || '#312E81';
+    const acento = colores['acento'] || colores['color-primary-hover'] || primario;
+
+    return [
+      primario,
+      acento,
+      aclarar(acento, 0.55),
+      aclarar(primario, 0.88),
+    ];
   }
 
   seleccionarPaleta(idPaleta: number): void {
@@ -320,6 +416,7 @@ export class ConfiguracionComponent {
         url_facebook: value.url_facebook?.trim() || null,
         url_instagram: value.url_instagram?.trim() || null,
         permite_multipago: value.permite_multipago,
+        permite_pago_domicilio: value.permite_pago_domicilio,
         id_paleta: value.id_paleta,
       })
       .pipe(finalize(() => this.saving.set(false)))

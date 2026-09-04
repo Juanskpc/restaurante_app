@@ -614,3 +614,237 @@
 
   .info-val { width: 100%; }
 }
+
+// ═══════════════════════════════════════════════════════════
+// Preferencias de vista (botón de tamaño + "Ver productos")
+// Ver VistaTarjetasService: la elección es por dispositivo.
+// ═══════════════════════════════════════════════════════════
+
+.btn-densidad {
+  padding: 7px 10px;
+}
+
+.toggle-productos {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  white-space: nowrap;
+
+  input[type='checkbox'] {
+    width: 15px;
+    height: 15px;
+    accent-color: var(--color-primary);
+    cursor: inherit;
+  }
+
+  &:has(input:checked) {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    background: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface));
+  }
+}
+
+// Productos listados dentro de la tarjeta, sin abrir el detalle.
+.card-productos {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 6px 0 0;
+  border-top: 1px dashed var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  li {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+    min-width: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+  }
+
+  .qty {
+    font-weight: 700;
+    color: var(--color-text-primary);
+    flex-shrink: 0;
+  }
+
+  .ellipsis {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Botones del encabezado: una sola identidad visual (píldora),
+// misma altura y mismo radio que "Ver productos".
+// ═══════════════════════════════════════════════════════════
+
+// Acotado al encabezado para no tocar los botones de los modales.
+.despacho-header .header-right {
+  .btn-densidad,
+  .btn-refresh,
+  .btn-finalizar-todo,
+  .toggle-productos {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 34px;
+    padding: 0 14px;
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-sm);
+    white-space: nowrap;
+  }
+
+  // Solo ícono: no lleva etiqueta.
+  .btn-densidad { padding: 0 11px; }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Contención: el contenido de la tarjeta nunca debe desbordar
+// su columna. Sin esto, el ancho mínimo del contenido empuja la
+// rejilla y aparece scroll horizontal dentro de la tarjeta.
+// ═══════════════════════════════════════════════════════════
+
+.despacho-card { min-width: 0; }
+
+.card-top {
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
+.card-top-right {
+  flex-wrap: wrap;
+  row-gap: 4px;
+  margin-left: auto;
+}
+
+.orden-num {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.tipo-tag,
+.pago-badge {
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+.card-bottom {
+  flex-wrap: wrap;
+  row-gap: 4px;
+
+  .total { min-width: 0; }
+}
+
+// La fila hora · productos es la que desbordaba: ahora envuelve.
+.row {
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+
+// "2 productos" no cabe en una tarjeta angosta; "[ícono] 2" sí.
+.items-compacto {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+
+// ═══════════════════════════════════════════════════════════
+// Tamaños que rota el botón.
+//
+// Qué se muestra depende del TAMAÑO DE LA TARJETA, no del ancho de
+// pantalla: en móvil con una tarjeta por fila sobra espacio para los
+// íconos y el texto completo, así que ahí no se oculta nada.
+// ═══════════════════════════════════════════════════════════
+
+.grid.densidad-compacta {
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+
+  .despacho-card { padding: 8px 9px; gap: 4px; }
+  .orden-num     { font-size: var(--font-size-sm); }
+  .total         { font-size: var(--font-size-sm); }
+  .card-action   { width: 22px; height: 22px; }
+}
+
+.grid.densidad-mini {
+  grid-template-columns: repeat(auto-fill, minmax(136px, 1fr));
+
+  .despacho-card { padding: 6px 7px; gap: 3px; }
+  .orden-num     { font-size: var(--font-size-xs); }
+  .total         { font-size: var(--font-size-xs); }
+  .card-body     { font-size: 10px; }
+  .card-action   { width: 20px; height: 20px; }
+  .tipo-tag      { font-size: 9px; padding: 1px 5px; }
+  .pago-badge    { font-size: 9px; padding: 1px 5px; }
+  .dom-name      { font-size: 9px; }
+
+  // A este ancho el encabezado queda justo en el límite y unas tarjetas
+  // envolvían y otras no. Apilarlo siempre las deja todas iguales.
+  .card-top {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .card-top-right {
+    width: 100%;
+    margin-left: 0;
+    gap: 4px;
+  }
+}
+
+// Con la tarjeta ya angosta, el ícono de la etiqueta solo roba ancho.
+.grid.densidad-compacta,
+.grid.densidad-mini {
+  .tipo-tag lucide-icon,
+  .pago-badge lucide-icon { display: none; }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Móvil: solo cambia el encabezado y cuántas tarjetas por fila.
+// El contenido de la tarjeta lo gobierna la densidad, arriba.
+// ═══════════════════════════════════════════════════════════
+@media (max-width: 560px) {
+  .despacho-layout { padding: var(--spacing-sm); }
+
+  // El header global de la app ya muestra "Despacho".
+  .brand { display: none; }
+
+  .despacho-header { justify-content: flex-start; }
+
+  // Sin wrap, "Actualizar" quedaba cortado fuera de la pantalla.
+  .header-right {
+    flex-wrap: wrap;
+    width: 100%;
+    gap: 6px;
+  }
+
+  // Refrescar pasa a ser solo el ícono para que la fila quepa completa.
+  .despacho-header .header-right {
+    .btn-refresh {
+      padding: 0 11px;
+
+      .btn-label { display: none; }
+    }
+
+    .btn-finalizar-todo,
+    .toggle-productos { padding: 0 11px; }
+  }
+
+  // Cuántas tarjetas por fila da cada paso del botón de tamaño.
+  .grid                    { grid-template-columns: minmax(0, 1fr); }
+  .grid.densidad-compacta  { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid.densidad-mini      { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}

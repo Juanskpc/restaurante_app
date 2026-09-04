@@ -15,6 +15,7 @@ export interface ConfiguracionNegocio {
   id_paleta: number | null;
   paleta: PaletaColor | null;
   permite_multipago: boolean;
+  permite_pago_domicilio: boolean;
   can_edit: boolean;
 }
 
@@ -29,6 +30,7 @@ export interface ConfiguracionNegocioPayload {
   url_facebook?: string | null;
   url_instagram?: string | null;
   permite_multipago?: boolean;
+  permite_pago_domicilio?: boolean;
   id_paleta?: number | null;
 }
 

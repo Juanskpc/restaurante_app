@@ -6,9 +6,10 @@ import { CurrencyPipe, DatePipe, DecimalPipe, isPlatformBrowser } from '@angular
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { LucideAngularModule } from 'lucide-angular';
+import { Observable } from 'rxjs';
 
 import { AuthService } from '../../../core/services/auth.service';
-import { CajaService, DomiciliarioResumen, MovimientoCaja } from '../../../core/services/caja.service';
+import { ApiResponse, CajaService, DomiciliarioResumen, MovimientoCaja } from '../../../core/services/caja.service';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 
 type ModalActivo = null | 'apertura' | 'cierre' | 'movimiento' | 'domiciliarios';
@@ -51,7 +52,9 @@ export class CajaComponent implements OnInit, OnDestroy {
   readonly enviando = signal(false);
 
   // ── Apertura ──
-  readonly montoApertura = signal(0);
+  // Arranca vacío (no en 0) para que el cajero escriba directo sin borrar nada.
+  // Si lo deja así, al guardar se envía 0.
+  readonly montoApertura = signal<number | null>(null);
   readonly obsApertura = signal('');
 
   // ── Cierre ──
@@ -60,7 +63,7 @@ export class CajaComponent implements OnInit, OnDestroy {
 
   // ── Movimiento manual ──
   readonly movTipo = signal<'INGRESO' | 'EGRESO'>('INGRESO');
-  readonly movMonto = signal(0);
+  readonly movMonto = signal<number | null>(null);
   readonly movConcepto = signal('');
 
   readonly negocio = computed(() => this.auth.negocio());
@@ -69,6 +72,14 @@ export class CajaComponent implements OnInit, OnDestroy {
   readonly puedeAbrir = computed(() => this.auth.canAccessSubnivel('caja_abrir'));
   readonly puedeCerrar = computed(() => this.auth.canAccessSubnivel('caja_cerrar'));
   readonly puedeMovimiento = computed(() => this.auth.canAccessSubnivel('caja_movimiento'));
+  /** El resumen de domiciliarios sobra en un negocio que no hace domicilios. */
+  readonly puedeVerDomiciliarios = computed(() => this.auth.canAccessSubnivel('pedidos_domicilio'));
+  /**
+   * Eliminar un pedido ya cobrado. Nace denegado para todos los roles de todos
+   * los negocios; se habilita a mano en Usuarios → Roles y permisos.
+   */
+  readonly puedeEliminarPedido = computed(() => this.auth.canAccessSubnivel('caja_eliminar_pedido'));
+  readonly anulandoOrdenId = signal<number | null>(null);
 
   readonly diferenciaCierre = computed(() => {
     const reportado = this.montoReportado();
@@ -110,7 +121,7 @@ export class CajaComponent implements OnInit, OnDestroy {
   // ── Modales ──
   abrirModal(modal: Exclude<ModalActivo, null>): void {
     if (modal === 'apertura') {
-      this.montoApertura.set(0);
+      this.montoApertura.set(null);
       this.obsApertura.set('');
     }
     if (modal === 'cierre') {
@@ -119,7 +130,7 @@ export class CajaComponent implements OnInit, OnDestroy {
     }
     if (modal === 'movimiento') {
       this.movTipo.set('INGRESO');
-      this.movMonto.set(0);
+      this.movMonto.set(null);
       this.movConcepto.set('');
     }
     if (modal === 'domiciliarios') {
@@ -289,5 +300,99 @@ export class CajaComponent implements OnInit, OnDestroy {
     if (value === 'LLEVAR') return 'Para llevar';
     if (value === 'DOMICILIO') return 'Domicilio';
     return 'No aplica';
+  }
+
+  /**
+   * Concepto corto: cuando el movimiento viene de un pedido basta el número de
+   * orden. El texto largo repetía "Orden ORD-0031 · ORD-0031".
+   */
+  conceptoCorto(m: MovimientoCaja): string {
+    if (m.orden?.numero_orden) return m.orden.numero_orden;
+    return m.concepto || '—';
+  }
+
+  /** Etiqueta de la columna Tipo, que además distingue las anulaciones. */
+  etiquetaTipo(m: MovimientoCaja): string {
+    if (m.es_anulacion) return 'ELIMINADO';
+    if (m.anulado) return `${m.tipo} · ANULADO`;
+    return m.tipo;
+  }
+
+  /**
+   * En la columna "Tipo pedido": el egreso del domiciliario se etiqueta como
+   * Domicilio aunque el pedido sea Para llevar, para saber de qué es ese egreso.
+   */
+  tipoPedidoMovimiento(m: MovimientoCaja): string {
+    if (m.es_pago_domicilio) return 'Domicilio';
+    return this.formatTipoPedido(m.orden?.tipo_pedido);
+  }
+
+  /** Se elimina cualquier movimiento de este turno que aún no se haya reversado. */
+  puedeAnular(m: MovimientoCaja): boolean {
+    if (!this.puedeEliminarPedido() || m.es_anulacion || m.anulado) return false;
+    // El cobro de un pedido se elimina completo (con su egreso de domicilio).
+    if (m.tipo === 'INGRESO') return !!m.orden?.id_orden;
+    // Cualquier egreso vuelve a caja por su cuenta.
+    return true;
+  }
+
+  /**
+   * Elimina de la caja un pedido ya cobrado. No borra nada: el backend registra
+   * movimientos compensatorios, así que el original sigue listado como anulado y
+   * queda constancia de quién lo hizo.
+   */
+  async anularPedido(m: MovimientoCaja): Promise<void> {
+    const idNegocio = this.idNegocio();
+    if (!idNegocio || this.anulandoOrdenId() !== null || !this.puedeAnular(m)) return;
+
+    // El cobro de un pedido se reversa completo (incluido su egreso de domicilio);
+    // un egreso suelto se reversa por sí mismo y su monto vuelve a la caja.
+    const esPedido = m.tipo === 'INGRESO' && !!m.orden?.id_orden;
+    const etiqueta = esPedido
+      ? `el pedido ${m.orden!.numero_orden || '#' + m.orden!.id_orden}`
+      : `el egreso "${m.concepto || 'sin concepto'}"`;
+
+    const confirmar = await this.ui.confirm({
+      title: esPedido ? 'Eliminar pedido' : 'Eliminar egreso',
+      message: `¿Está seguro que desea eliminar ${etiqueta} por ${this.formatMonto(m.monto)}? `
+        + (esPedido
+          ? 'Esta acción no se puede revertir. '
+          : 'El monto volverá a la caja y esta acción no se puede revertir. ')
+        + 'No se borra: queda listado como eliminado, con su nombre y la fecha.',
+      confirmText: esPedido ? 'Eliminar pedido' : 'Eliminar egreso',
+      cancelText: 'Cancelar',
+      tone: 'warning',
+    });
+    if (!confirmar) return;
+
+    // Se anota el tipo porque las dos ramas devuelven ApiResponse de payloads
+    // distintos y su unión no es invocable con .subscribe().
+    const peticion$: Observable<ApiResponse<unknown>> = esPedido
+      ? this.cajaSvc.anularPedido(m.orden!.id_orden, idNegocio)
+      : this.cajaSvc.anularMovimiento(m.id_movimiento, idNegocio);
+
+    this.anulandoOrdenId.set(m.id_movimiento);
+    peticion$.subscribe({
+      next: (res) => {
+        this.anulandoOrdenId.set(null);
+        if (res?.success) {
+          this.ui.success(
+            esPedido ? 'El pedido se eliminó de la caja.' : 'El egreso volvió a la caja.',
+            'Eliminado'
+          );
+          this.refrescarCaja();
+        }
+      },
+      error: (err) => {
+        this.anulandoOrdenId.set(null);
+        this.ui.error(err?.error?.message || 'No se pudo eliminar el movimiento de la caja.');
+      },
+    });
+  }
+
+  private formatMonto(valor: number): string {
+    return new Intl.NumberFormat('es-CO', {
+      style: 'currency', currency: 'COP', maximumFractionDigits: 0,
+    }).format(Number(valor) || 0);
   }
 }

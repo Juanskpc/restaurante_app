@@ -9,17 +9,30 @@
     </div>
 
     <div class="header-right">
+      <button class="btn-ghost btn-densidad"
+              type="button"
+              (click)="rotarDensidad()"
+              [title]="densidadTitulo()"
+              aria-label="Cambiar tamaño de las tarjetas">
+        <lucide-icon [name]="densidadIcono()" [size]="16" />
+      </button>
+      <label class="toggle-productos" title="Mostrar los productos del pedido en cada tarjeta">
+        <input type="checkbox"
+               [checked]="verProductos()"
+               (change)="setVerProductos($any($event.target).checked)" />
+        <span>Ver productos</span>
+      </label>
       <button class="btn-ghost btn-refresh"
               (click)="actualizarMesas()"
               [disabled]="cargando() || guardando()"
               title="Actualizar estado de mesas y pedidos">
         <lucide-icon name="rotate-cw" [size]="16" [class.spin]="cargando()" />
-        Actualizar
+        <span class="btn-label">Actualizar</span>
       </button>
       @if (canCrearMesa()) {
       <button class="btn-primary" (click)="openNuevaMesa()" [disabled]="mesas().length >= maxMesas">
         <lucide-icon name="plus" [size]="16" />
-        Nueva Mesa
+        <span class="btn-label">Nueva Mesa</span>
       </button>
       }
     </div>
@@ -42,7 +55,7 @@
   }
 
   @if (!cargando() && mesasFiltradas().length > 0) {
-    <div class="grid">
+    <div [class]="'grid densidad-' + densidad()">
       @for (mesa of mesasFiltradas(); track mesa.id_mesa) {
         <article class="mesa-card" [class]="'status-' + mesa.status" (click)="openMesa(mesa)">
           <header class="mesa-card-header" [class]="'status-' + mesa.status">
@@ -68,6 +81,17 @@
               <span>{{ getMesaTimeLabel(mesa) }}</span>
             </div>
             <span class="badge" [class]="'badge status-' + mesa.status">{{ statusLabel(mesa.status) }}</span>
+
+            @if (verProductos() && mesa.order.items.length > 0) {
+              <ul class="card-productos">
+                @for (item of mesa.order.items; track $index) {
+                  <li>
+                    <span class="qty">{{ item.cantidad }}×</span>
+                    <span class="ellipsis">{{ item.name }}</span>
+                  </li>
+                }
+              </ul>
+            }
           </div>
         </article>
       }

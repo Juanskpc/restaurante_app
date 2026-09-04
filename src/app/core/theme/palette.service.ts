@@ -21,6 +21,22 @@ import { PaletaColor, PaletaColores } from './palette.model';
 
 const PALETTE_STORAGE_KEY = 'negocio_palette_id';
 
+/**
+ * Puente entre cómo se guardan las paletas y los tokens que el tema realmente lee.
+ *
+ * En BD cada paleta es `{ primario, acento }`, pero `_theme.scss` consume
+ * `--color-primary` / `--color-primary-hover`. Sin este mapeo se inyectaban
+ * `--primario` y `--acento`, que ningún estilo mira: elegir una paleta no
+ * cambiaba nada en pantalla.
+ *
+ * Una paleta que ya traiga los tokens completos (`color-primary`, …) se aplica
+ * tal cual, porque su clave no aparece aquí.
+ */
+const TOKENS_ALIAS: Record<string, string[]> = {
+  primario: ['color-primary'],
+  acento: ['color-primary-hover'],
+};
+
 @Injectable({ providedIn: 'root' })
 export class PaletteService {
   private readonly document = inject(DOCUMENT);
@@ -72,11 +88,15 @@ export class PaletteService {
     if (!isPlatformBrowser(this.platformId)) return;
 
     const root = this.document.documentElement;
-    const colores = paleta.colores;
+    const colores = paleta.colores ?? {};
 
-    // Inyectar cada token como CSS custom property
+    // Inyectar cada token como CSS custom property, más sus alias del tema.
     Object.entries(colores).forEach(([key, value]) => {
+      if (!value) return;
       root.style.setProperty(`--${key}`, value);
+      for (const alias of TOKENS_ALIAS[key] ?? []) {
+        root.style.setProperty(`--${alias}`, value);
+      }
     });
 
     this.activePalette.set(paleta);
@@ -162,8 +182,11 @@ export class PaletteService {
     const root = this.document.documentElement;
     const current = this.activePalette();
     if (current) {
-      Object.keys(current.colores).forEach(key => {
+      Object.keys(current.colores ?? {}).forEach(key => {
         root.style.removeProperty(`--${key}`);
+        for (const alias of TOKENS_ALIAS[key] ?? []) {
+          root.style.removeProperty(`--${alias}`);
+        }
       });
     }
     this.activePalette.set(null);

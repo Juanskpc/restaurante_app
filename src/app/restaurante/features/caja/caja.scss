@@ -165,8 +165,10 @@
   h2 { margin: 0 0 .75rem; font-size: 1.05rem; }
 
   &__table {
-    max-height: min(60vh, 520px);
-    overflow: auto;
+    // Sin alto máximo: la tabla crece y quien hace scroll vertical es la vista
+    // completa (`.content` del layout), no una caja interna. Solo se conserva el
+    // scroll horizontal, que la tabla necesita por su min-width en pantallas angostas.
+    overflow-x: auto;
   }
 
   table {
@@ -183,9 +185,59 @@
 
   .badge {
     display: inline-flex; padding: .15rem .5rem; border-radius: var(--radius-full);
-    font-size: .7rem; font-weight: 600;
+    font-size: .7rem; font-weight: 600; white-space: nowrap;
     &--in  { background: var(--color-success-bg); color: var(--color-success); }
     &--out { background: var(--color-error-bg);   color: var(--color-error); }
+
+    // Alerta: el pedido fue eliminado de la caja. El registro NO se oculta,
+    // se marca — tanto el cobro original como su fila compensatoria.
+    &--anulado {
+      background: var(--color-warning-bg, color-mix(in srgb, #f59e0b 14%, transparent));
+      color: var(--color-warning, #b45309);
+      border: 1px solid color-mix(in srgb, var(--color-warning, #f59e0b) 45%, transparent);
+    }
+  }
+
+  // La fila anulada queda tenue y tachada en el monto: se ve, pero no cuenta.
+  .fila--anulada {
+    color: var(--color-text-secondary);
+
+    .num { text-decoration: line-through; }
+  }
+
+  .fila--anulacion {
+    background: color-mix(in srgb, var(--color-warning, #f59e0b) 7%, transparent);
+  }
+
+  th.acciones,
+  td.acciones { text-align: center; width: 1%; white-space: nowrap; }
+
+  .btn-eliminar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+
+    &:hover:not(:disabled) {
+      background: var(--color-error-bg);
+      border-color: var(--color-error);
+      color: var(--color-error);
+    }
+
+    &:disabled { opacity: .45; cursor: not-allowed; }
+  }
+
+  .marca-anulado {
+    font-size: .7rem;
+    color: var(--color-text-secondary);
   }
 }
 

@@ -40,7 +40,14 @@ export interface MovimientoCaja {
   id_usuario: number;
   fecha: string;
   usuario?: CajaUsuario | null;
-  orden?: { id_orden: number; numero_orden: string; tipo_pedido?: string | null } | null;
+  orden?: { id_orden: number; numero_orden: string; tipo_pedido?: string | null; estado?: string | null } | null;
+  /** La fila reversa a otro movimiento (es el compensatorio de una anulación). */
+  es_anulacion?: boolean;
+  /** A esta fila la reversó otra: el pedido fue eliminado, pero el registro queda. */
+  anulado?: boolean;
+  /** Egreso del pago al domiciliario: se etiqueta como Domicilio en el listado. */
+  es_pago_domicilio?: boolean;
+  id_movimiento_anula?: number | null;
 }
 
 export interface DomiciliarioResumen {
@@ -69,7 +76,7 @@ export interface DomiciliariosResumen {
   rows: DomiciliarioResumen[];
 }
 
-interface ApiResponse<T> {
+export interface ApiResponse<T> {
   success: boolean;
   message: string;
   data?: T;
@@ -133,6 +140,36 @@ export class CajaService {
 
   getMovimientos(idCaja: number): Observable<ApiResponse<MovimientoCaja[]>> {
     return this.http.get<ApiResponse<MovimientoCaja[]>>(`${this.base}/${idCaja}/movimientos`);
+  }
+
+  /** Elimina de la caja un pedido ya cobrado. No borra el historial: lo reversa. */
+  anularPedido(idOrden: number, idNegocio: number): Observable<ApiResponse<{
+    id_orden: number;
+    numero_orden: string;
+    movimientos_revertidos: number;
+    monto_revertido: number;
+  }>> {
+    return this.http.post<ApiResponse<{
+      id_orden: number;
+      numero_orden: string;
+      movimientos_revertidos: number;
+      monto_revertido: number;
+    }>>(`${this.base}/ordenes/${idOrden}/anular`, { id_negocio: idNegocio });
+  }
+
+  /** Devuelve a la caja un egreso (o un ingreso manual), dejándolo marcado. */
+  anularMovimiento(idMovimiento: number, idNegocio: number): Observable<ApiResponse<{
+    id_movimiento: number;
+    tipo: 'INGRESO' | 'EGRESO';
+    concepto?: string | null;
+    monto: number;
+  }>> {
+    return this.http.post<ApiResponse<{
+      id_movimiento: number;
+      tipo: 'INGRESO' | 'EGRESO';
+      concepto?: string | null;
+      monto: number;
+    }>>(`${this.base}/movimientos/${idMovimiento}/anular`, { id_negocio: idNegocio });
   }
 
   getDomiciliariosResumen(idNegocio: number): Observable<ApiResponse<DomiciliariosResumen>> {
