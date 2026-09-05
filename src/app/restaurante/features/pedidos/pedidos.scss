@@ -75,6 +75,49 @@
   }
 }
 
+/**
+ * Categorías a la izquierda en móvil (botón de la barra de búsqueda).
+ *
+ * Reutiliza la misma columna del escritorio en vez de inventar otra: lo único
+ * que cambia es que aparece por debajo de 992px, se estrecha un poco y esconde
+ * la tira horizontal. La gracia es que la lista se ve ENTERA de un vistazo, que
+ * era el problema de la tira: había que arrastrarla para encontrar una categoría.
+ */
+@media (max-width: 991px) {
+  .pos-layout.cat-lateral {
+    .cat-panel {
+      display: flex;
+      width: 82px;
+      min-width: 82px;
+      padding-top: var(--spacing-sm);
+      // `overflow-y: auto` (heredado de la regla base) sólo saca barra si la lista
+      // no cabe en el alto de la columna. Con las tarjetas compactas de abajo caben
+      // muchas más que en la tira horizontal, que es de lo que se trata.
+    }
+
+    .cat-item {
+      padding: var(--spacing-xs) 4px;
+
+      .cat-icon { font-size: 1.2rem; }
+      .cat-label {
+        max-width: 70px;
+        font-size: 0.68rem;
+      }
+    }
+
+    // La tira horizontal sobra: sus categorías ya están en la columna.
+    .cat-scroll-mobile { display: none; }
+
+    .products-panel { padding-left: var(--spacing-sm); }
+
+    // Con menos ancho disponible, tarjetas más angostas para que sigan cabiendo dos.
+    .products-grid {
+      grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+      gap: var(--spacing-xs);
+    }
+  }
+}
+
 // Estado vacío: mantiene el contenedor (misma estructura) pero sustituye
 // la "línea blanca fantasma" por un placeholder claro y alineado.
 .cat-empty {
@@ -212,10 +255,40 @@
   background: var(--color-surface);
   padding-bottom: var(--spacing-sm);
   margin-bottom: calc(-1 * var(--spacing-sm));
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
 }
 
 .search-wrapper {
   position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+// Botón que mueve las categorías de la tira de arriba a la columna izquierda.
+// Solo existe en móvil/tablet: en escritorio la columna ya está siempre.
+.btn-cat-vista {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast),
+              border-color var(--transition-fast);
+
+  &:hover {
+    background: var(--color-bg-secondary);
+    color: var(--color-text-primary);
+  }
+
+  @media (min-width: 992px) { display: none; }
 }
 
 .search-icon {
@@ -949,6 +1022,12 @@
 
 .total-value {
   color: var(--color-primary);
+}
+
+// La rebaja se lee de un vistazo como lo que resta, no como una línea más.
+.total-row.discount {
+  color: var(--color-success);
+  font-weight: 600;
 }
 
 .paid-value {

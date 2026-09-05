@@ -38,6 +38,7 @@ export interface PedidoDespacho {
   tipo_pedido: TipoPedido;
   total: number;
   valor_domicilio?: number | string | null;
+  descuento?: number | string | null;
   fecha_creacion: string;
   estado: string;
   estado_cocina: string | null;
@@ -88,8 +89,15 @@ export class DespachoComponent implements OnInit {
   readonly metodoPagoSeleccionado = signal<number | null>(null);
   readonly pagoSeleccion = signal<PagoSeleccion | null>(null);
 
+  // ── Cobro del domicilio desde despacho ──
+  /** Texto en crudo del campo; se normaliza al guardar. */
+  readonly domicilioInput = signal('');
+  readonly guardandoDomicilio = signal(false);
+
   readonly negocioId = computed(() => this.auth.negocio()?.id_negocio ?? null);
   readonly permiteMultipago = computed(() => this.auth.permiteMultipago());
+  /** Opt-in del negocio (Configuración → Domicilios): sin él no se ve el campo. */
+  readonly permitePagoDomicilio = computed(() => this.auth.permitePagoDomicilio());
   readonly puedeVerTodos = computed(() => this.auth.canAccessSubnivel('despacho_ver_todos'));
   readonly puedeCancelarNoPagados = computed(() => this.auth.canAccessSubnivel('despacho_cancelar_no_pagado'));
   readonly puedeUsarDomicilio = computed(() => this.auth.canAccessSubnivel('pedidos_domicilio'));
@@ -209,16 +217,89 @@ export class DespachoComponent implements OnInit {
     return Number.isFinite(valor) && valor > 0 ? valor : 0;
   }
 
+  descuento(p: PedidoDespacho): number {
+    const valor = Number(p.descuento ?? 0);
+    return Number.isFinite(valor) && valor > 0 ? valor : 0;
+  }
+
+  /** Lo que costaron los productos: el total ya trae sumado el domicilio y restada la rebaja. */
+  subtotalProductos(p: PedidoDespacho): number {
+    return Number(p.total) - this.valorDomicilio(p) + this.descuento(p);
+  }
+
   abrirPedido(p: PedidoDespacho): void {
     this.pedidoActivo.set(p);
     this.metodoPagoSeleccionado.set(p.id_metodo_pago ?? null);
     this.pagoSeleccion.set(null);
+    const valor = this.valorDomicilio(p);
+    this.domicilioInput.set(valor > 0 ? String(valor) : '');
   }
 
   cerrarPedido(): void {
     this.pedidoActivo.set(null);
     this.metodoPagoSeleccionado.set(null);
     this.pagoSeleccion.set(null);
+    this.domicilioInput.set('');
+    this.guardandoDomicilio.set(false);
+  }
+
+  // ── Valor del domicilio ──
+
+  /**
+   * ¿Se puede poner (o corregir) el valor del domicilio de este pedido?
+   *
+   * Hasta ahora solo se podía al tomar el pedido, y un domiciliario que descubre
+   * el recargo al llegar tenía que devolverse al POS. Se exige pedido sin cobrar:
+   * mover el total de uno ya pagado descuadraría la caja, y el backend lo rechaza
+   * igualmente (ORDEN_PAGADA).
+   */
+  puedeCobrarDomicilio(p: PedidoDespacho): boolean {
+    return this.permitePagoDomicilio() && this.puedeUsarDomicilio() && this.esPendientePago(p);
+  }
+
+  setDomicilioInput(rawValue: string): void {
+    this.domicilioInput.set(rawValue);
+  }
+
+  /** Solo dígitos: el campo acepta "12.000" o "$12000" y se queda con 12000. */
+  private parseMonto(rawValue: string): number {
+    const digits = String(rawValue ?? '').replace(/\D/g, '');
+    return digits ? Number(digits) : 0;
+  }
+
+  guardarValorDomicilio(p: PedidoDespacho): void {
+    if (!this.puedeCobrarDomicilio(p) || this.guardandoDomicilio()) return;
+
+    const nuevo = this.parseMonto(this.domicilioInput());
+    if (nuevo === this.valorDomicilio(p)) return;
+
+    this.guardandoDomicilio.set(true);
+    this.http.patch<{ success: boolean; data?: { total?: number; valor_domicilio?: number } }>(
+      `${environment.apiUrl}/pedidos/${p.id_orden}/valor-domicilio`,
+      { id_negocio: this.negocioId(), valor_domicilio: nuevo }
+    ).subscribe({
+      next: (res) => {
+        // El total lo recalcula el backend (productos + domicilio - descuento):
+        // se toma de la respuesta en vez de sumarlo aquí, para no discrepar.
+        const total = Number(res?.data?.total ?? p.total);
+        const apply = (ord: PedidoDespacho) =>
+          ord.id_orden === p.id_orden
+            ? { ...ord, valor_domicilio: nuevo, total }
+            : ord;
+
+        this.pedidos.update((lista) => lista.map(apply));
+        const activo = this.pedidoActivo();
+        if (activo?.id_orden === p.id_orden) this.pedidoActivo.set(apply(activo));
+
+        this.guardandoDomicilio.set(false);
+        this.uiFeedback.success('Valor del domicilio actualizado.', 'Domicilio');
+      },
+      error: (err: HttpErrorResponse) => {
+        this.guardandoDomicilio.set(false);
+        this.domicilioInput.set(this.valorDomicilio(p) > 0 ? String(this.valorDomicilio(p)) : '');
+        this.uiFeedback.error(err?.error?.message || 'No se pudo actualizar el valor del domicilio.');
+      },
+    });
   }
 
   onPagoSeleccion(seleccion: PagoSeleccion): void {
@@ -242,6 +323,28 @@ export class DespachoComponent implements OnInit {
   domiciliarioNombre(p: PedidoDespacho): string {
     if (!p.domiciliario) return 'Sin asignar';
     return `${p.domiciliario.primer_nombre} ${p.domiciliario.primer_apellido}`.trim();
+  }
+
+  /** Quién tomó el pedido. Nombre completo, para el modal y el `title` de la tarjeta. */
+  tomadoPorNombre(p: PedidoDespacho): string {
+    if (!p.usuario) return 'Desconocido';
+    return `${p.usuario.primer_nombre} ${p.usuario.primer_apellido}`.trim() || 'Desconocido';
+  }
+
+  /**
+   * Versión corta para la tarjeta: nombre + inicial del apellido («Ana G.»).
+   *
+   * En las densidades compacta y mini la tarjeta baja de ~150 px de ancho, y un
+   * «María Fernanda Gutiérrez» completo o rompe la línea o se corta a la mitad.
+   * Con la inicial cabe entero, y el nombre completo sigue disponible en el
+   * `title` y en el modal.
+   */
+  tomadoPorCorto(p: PedidoDespacho): string {
+    if (!p.usuario) return 'Desconocido';
+    const nombre = String(p.usuario.primer_nombre ?? '').trim();
+    const apellido = String(p.usuario.primer_apellido ?? '').trim();
+    if (!nombre) return apellido || 'Desconocido';
+    return apellido ? `${nombre} ${apellido[0]}.` : nombre;
   }
 
   itemsResumen(p: PedidoDespacho): string {
@@ -580,11 +683,16 @@ export class DespachoComponent implements OnInit {
       notaDomicilio ? `<div class="ticket-note"><strong>Nota domicilio:</strong> ${notaDomicilio}</div>` : '',
     ].filter(Boolean).join('');
 
-    // El domicilio ya está sumado en el total: se desglosa para que el cliente lo vea.
+    // El domicilio ya viene sumado en el total y el descuento restado: se desglosan
+    // para que el cliente vea de dónde sale lo que paga.
     const domicilio = this.valorDomicilio(p);
-    const domicilioRows = domicilio > 0
-      ? `<div class="totals-row"><span>Productos</span><span>${this.formatCurrency(p.total - domicilio)}</span></div>
-         <div class="totals-row"><span>Domicilio</span><span>${this.formatCurrency(domicilio)}</span></div>`
+    const rebaja = this.descuento(p);
+    const desgloseRows = (domicilio > 0 || rebaja > 0)
+      ? [
+          `<div class="totals-row"><span>Productos</span><span>${this.formatCurrency(this.subtotalProductos(p))}</span></div>`,
+          domicilio > 0 ? `<div class="totals-row"><span>Domicilio</span><span>${this.formatCurrency(domicilio)}</span></div>` : '',
+          rebaja > 0 ? `<div class="totals-row"><span>Descuento</span><span>-${this.formatCurrency(rebaja)}</span></div>` : '',
+        ].join('')
       : '';
 
     const filasItems = (p.detalles ?? []).map(d => {
@@ -661,7 +769,7 @@ export class DespachoComponent implements OnInit {
     ${notas}
     <hr />
     <div class="totals">
-      ${domicilioRows}
+      ${desgloseRows}
       <div class="totals-row total">
         <span>TOTAL</span>
         <span>${this.formatCurrency(p.total)}</span>

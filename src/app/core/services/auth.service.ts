@@ -44,6 +44,8 @@ export interface NegocioRestaurante {
   paleta: { id_paleta: number; nombre: string; colores: Record<string, string> } | null;
   permite_multipago?: boolean;
   permite_pago_domicilio?: boolean;
+  permite_descuento?: boolean;
+  pregunta_cobro_envio?: boolean;
   roles: { id_rol: number; descripcion: string }[];
   permisos_vista: PermisoVistaRestaurante[];
   permisos_subnivel: PermisoSubnivelRestaurante[];
@@ -159,6 +161,18 @@ export class AuthService {
    * Opt-in: nace apagado, así que un negocio que no lo activó no ve la casilla.
    */
   readonly permitePagoDomicilio = computed(() => !!this.negocio()?.permite_pago_domicilio);
+
+  /**
+   * ¿El negocio permite rebajar el pedido con un descuento?
+   * Opt-in: nace apagado, así que quien no lo activó no ve el campo en el POS.
+   */
+  readonly permiteDescuento = computed(() => !!this.negocio()?.permite_descuento);
+
+  /**
+   * ¿Al enviar un pedido se pregunta "Cobrar ahora" / "Enviar sin cobrar"?
+   * Opt-in: apagado (el default) el pedido sale sin cobrar y sin interrumpir.
+   */
+  readonly preguntaCobroEnvio = computed(() => !!this.negocio()?.pregunta_cobro_envio);
 
   /** Rol principal (para mostrar en sidebar). */
   readonly rolPrincipal = computed(() => {

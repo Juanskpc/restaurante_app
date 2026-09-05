@@ -3,6 +3,7 @@ import {
   ChangeDetectionStrategy, OnInit, OnDestroy, PLATFORM_ID,
 } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { Observable, concat } from 'rxjs';
 import { LucideAngularModule } from 'lucide-angular';
 import { FormsModule } from '@angular/forms';
 import { CurrencyPipe, isPlatformBrowser } from '@angular/common';
@@ -95,6 +96,7 @@ interface OrdenApi {
   nota?: string | null;
   tipo_pedido?: TipoPedido;
   valor_domicilio?: number | string | null;
+  descuento?: number | string | null;
   contacto_nombre?: string | null;
   contacto_telefono?: string | null;
   direccion_domicilio?: string | null;
@@ -126,6 +128,7 @@ interface PedidoDespacho {
   nota_domicilio: string | null;
   id_domiciliario: number | null;
   valor_domicilio?: number | string | null;
+  descuento?: number | string | null;
   detalles?: Array<{
     id_detalle: number;
     id_producto: number;
@@ -172,6 +175,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
   private readonly platformId = inject(PLATFORM_ID);
   private readonly isBrowser = isPlatformBrowser(this.platformId);
   private readonly paidItemsStorageKey = 'pedidos_items_pagados_mesa_v1';
+  private readonly catLateralStorageKey = 'pedidos_cat_lateral_movil_v1';
   private readonly mobileBreakpoint = 992;
   private readonly onResize = () => this.updateViewportState();
 
@@ -189,6 +193,8 @@ export class PedidosComponent implements OnInit, OnDestroy {
   readonly metodoPagoRequeridoError = signal(false);
   readonly pagoSeleccion = signal<PagoSeleccion | null>(null);
   readonly permiteMultipago = computed(() => this.auth.permiteMultipago());
+  /** ¿Se pregunta «Cobrar ahora / Enviar sin cobrar» al enviar? Opt-in del negocio. */
+  readonly preguntaCobroEnvio = computed(() => this.auth.preguntaCobroEnvio());
   /** ¿La forma de pago actual es válida (simple con método, o multipago cuadrado)? */
   readonly pagoValido = computed(() => {
     const s = this.pagoSeleccion();
@@ -224,6 +230,17 @@ export class PedidosComponent implements OnInit, OnDestroy {
   readonly ordenPanelOpen = signal(false);
   readonly isMobileViewport = signal(this.isBrowser ? window.innerWidth < this.mobileBreakpoint : false);
 
+  /**
+   * En móvil, ¿las categorías van en una columna a la izquierda en vez de en la tira
+   * de chips de arriba? En columna se ven todas de un vistazo, sin arrastrar la tira
+   * horizontal para encontrar una. Es preferencia del dispositivo (cada pantalla del
+   * local es distinta), así que vive en localStorage, igual que la densidad de
+   * tarjetas de Mesas y Despacho.
+   */
+  readonly catLateralMovil = signal(this.leerCatLateral());
+  /** Solo tiene efecto por debajo de 992px: en escritorio la columna ya existe siempre. */
+  readonly catLateralActiva = computed(() => this.isMobileViewport() && this.catLateralMovil());
+
   readonly pedidosDespacho = signal<PedidoDespacho[]>([]);
   readonly cargandoPedidosDespacho = signal(false);
   readonly pedidoDespachoSeleccionado = signal<PedidoDespacho | null>(null);
@@ -253,6 +270,29 @@ export class PedidosComponent implements OnInit, OnDestroy {
   /** Valor ya guardado en la orden que se edita, para detectar si cambió. */
   private readonly valorDomicilioBase = signal(0);
 
+  // ── Descuento (opt-in por negocio, ver Configuración → Descuentos) ──
+  readonly permiteDescuento = computed(() => this.auth.permiteDescuento());
+  readonly aplicarDescuento = signal(false);
+  readonly descuentoInput = signal('');
+  /** Valor ya guardado en la orden que se edita, para detectar si cambió. */
+  private readonly descuentoBase = signal(0);
+
+  /** Lo máximo que se puede rebajar: productos + domicilio. Nunca deja el total negativo. */
+  readonly baseDescontable = computed(() => this.totalProductos() + this.valorDomicilio());
+
+  /** Descuento ya normalizado: 0 si no está habilitado o si la casilla está sin marcar. */
+  readonly descuento = computed(() => {
+    if (!this.permiteDescuento() || !this.aplicarDescuento()) return 0;
+    const monto = this.parseMonto(this.descuentoInput()) ?? 0;
+    return Math.min(monto, this.baseDescontable());
+  });
+
+  /** Se escribió más de lo que cuesta el pedido: se avisa y se cobra el tope. */
+  readonly descuentoExcedido = computed(() => {
+    if (!this.aplicarDescuento()) return false;
+    return (this.parseMonto(this.descuentoInput()) ?? 0) > this.baseDescontable();
+  });
+
   // --- Computed ---
   readonly totalItems = computed(() =>
     this.items().reduce((sum, i) => sum + i.cantidad, 0)
@@ -268,7 +308,9 @@ export class PedidosComponent implements OnInit, OnDestroy {
    * El domicilio va dentro del total (y no aparte) para que el multipago, el
    * control de efectivo y el cierre de caja cuadren contra un único número.
    */
-  readonly total = computed(() => this.totalProductos() + this.valorDomicilio());
+  readonly total = computed(() =>
+    this.totalProductos() + this.valorDomicilio() - this.descuento()
+  );
 
   readonly itemsPagados = computed(() => {
     const idMesa = this.mesaId();
@@ -464,7 +506,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.notaBaseOrdenActiva.set(orden.nota ?? '');
     this.metodoPagoId.set(orden.id_metodo_pago ?? null);
     this.metodoPagoRequeridoError.set(false);
-    this.hidratarValorDomicilio(orden);
+    this.hidratarAjustesPrecio(orden);
 
     if (pedido.tipo_pedido === 'DOMICILIO') {
       this.domContacto.set(pedido.contacto_nombre ?? '');
@@ -488,18 +530,51 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.valorDomicilioInput.set(rawValue);
   }
 
-  private hidratarValorDomicilio(orden: OrdenApi): void {
-    const valor = Number(orden.valor_domicilio ?? 0);
-    const monto = Number.isFinite(valor) && valor > 0 ? valor : 0;
-    this.valorDomicilioBase.set(monto);
-    this.cobrarDomicilio.set(monto > 0);
-    this.valorDomicilioInput.set(monto > 0 ? String(monto) : '');
+  // ===================== Descuento =====================
+
+  toggleAplicarDescuento(activar: boolean): void {
+    this.aplicarDescuento.set(activar);
+    if (!activar) this.descuentoInput.set('');
   }
 
-  private resetValorDomicilio(): void {
+  setDescuento(rawValue: string): void {
+    this.descuentoInput.set(rawValue);
+  }
+
+  /**
+   * Vuelca domicilio y descuento de una orden que se va a editar.
+   *
+   * Si el negocio apagó la opción después de haber tomado la orden, el valor guardado
+   * no se refleja: el campo no se ve, `valorDomicilio()`/`descuento()` valen 0 y la
+   * base tiene que valer 0 también, o el guard de cambios sin guardar avisaría de una
+   * diferencia que el usuario no puede ni ver ni corregir.
+   */
+  private hidratarAjustesPrecio(orden: OrdenApi): void {
+    const domicilio = Number(orden.valor_domicilio ?? 0);
+    const montoDomicilio = this.permitePagoDomicilio() && Number.isFinite(domicilio) && domicilio > 0
+      ? domicilio
+      : 0;
+    this.valorDomicilioBase.set(montoDomicilio);
+    this.cobrarDomicilio.set(montoDomicilio > 0);
+    this.valorDomicilioInput.set(montoDomicilio > 0 ? String(montoDomicilio) : '');
+
+    const rebaja = Number(orden.descuento ?? 0);
+    const montoRebaja = this.permiteDescuento() && Number.isFinite(rebaja) && rebaja > 0
+      ? rebaja
+      : 0;
+    this.descuentoBase.set(montoRebaja);
+    this.aplicarDescuento.set(montoRebaja > 0);
+    this.descuentoInput.set(montoRebaja > 0 ? String(montoRebaja) : '');
+  }
+
+  /** Deja domicilio y descuento como en un pedido nuevo. */
+  private resetAjustesPrecio(): void {
     this.cobrarDomicilio.set(false);
     this.valorDomicilioInput.set('');
     this.valorDomicilioBase.set(0);
+    this.aplicarDescuento.set(false);
+    this.descuentoInput.set('');
+    this.descuentoBase.set(0);
   }
 
   private loadMetodosPago(): void {
@@ -717,7 +792,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.domDomiciliarioId.set(null);
     this.pedidosDespacho.set([]);
     this.pedidoDespachoSeleccionado.set(null);
-    this.resetValorDomicilio();
+    this.resetAjustesPrecio();
   }
 
   async seleccionarTipoPedido(tipo: TipoPedido): Promise<void> {
@@ -733,7 +808,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.resetValorDomicilio();
+    this.resetAjustesPrecio();
     this.tipoPedido.set(tipo);
     this.mesaRequeridaError.set(false);
     this.pedidoDespachoSeleccionado.set(null);
@@ -784,7 +859,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
     if (!selectedId) {
       this.pedidoDespachoSeleccionado.set(null);
       this.ordenActivaId.set(null);
-      this.resetValorDomicilio();
+      this.resetAjustesPrecio();
       if (veniaConPedidoActivo) {
         this.items.set([]);
         this.notaOrden.set('');
@@ -800,7 +875,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
       this.ordenActivaId.set(null);
       this.items.set(itemsPrevios);
       this.notaOrden.set(notaPrevia);
-      this.resetValorDomicilio();
+      this.resetAjustesPrecio();
     };
 
     this.http.get<{ success: boolean; data: OrdenApi }>(
@@ -1114,8 +1189,20 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.enviarPedido('CAJA');
   }
 
+  /**
+   * El aviso «Cobrar ahora / Enviar sin cobrar» es opt-in del negocio
+   * (Configuración → Envío de pedidos). Apagado —como nace— el pedido sale
+   * directo a despacho y el cobro se hace luego desde Despacho o Caja, sin
+   * interrumpir a quien está tomando el pedido.
+   */
   async enviarADespacho(): Promise<void> {
     if (this.items().length === 0) return;
+
+    if (!this.preguntaCobroEnvio()) {
+      this.cobrarAlDespachar.set(false);
+      this.enviarPedido('DESPACHO');
+      return;
+    }
 
     const cobrar = await this.uiFeedback.confirm({
       title: 'Enviar a despacho',
@@ -1193,10 +1280,14 @@ export class PedidosComponent implements OnInit, OnDestroy {
       this.destinoEnvio.set(destino);
     }
 
-    // Con el cobro de domicilio apagado no se manda el campo: el backend deja
-    // intacto lo que ya tenga la orden y el flujo queda idéntico al de siempre.
+    // Con el cobro de domicilio (o el descuento) apagados no se manda el campo: el
+    // backend deja intacto lo que ya tenga la orden y el flujo queda idéntico al de
+    // siempre para quien no activó la opción.
     const bodyDomicilio: Record<string, unknown> = this.permitePagoDomicilio()
       ? { valor_domicilio: this.valorDomicilio() }
+      : {};
+    const bodyDescuento: Record<string, unknown> = this.permiteDescuento()
+      ? { descuento: this.descuento() }
       : {};
 
     const idOrdenActiva = (this.requiereMesa() || this.pedidoDespachoSeleccionado() !== null) ? this.ordenActivaId() : null;
@@ -1204,24 +1295,39 @@ export class PedidosComponent implements OnInit, OnDestroy {
       const itemsNuevos = this.obtenerItemsNuevosOrdenActiva();
       const domicilioCambio =
         this.permitePagoDomicilio() && this.valorDomicilio() !== this.valorDomicilioBase();
+      const descuentoCambio =
+        this.permiteDescuento() && this.descuento() !== this.descuentoBase();
 
       if (itemsNuevos.length === 0) {
         // Sin productos nuevos, `agregar-items` no aplica (exige al menos uno).
-        // Si solo se corrigió el domicilio, se ajusta por su endpoint dedicado.
+        // Si solo se corrigieron domicilio o descuento, van por sus endpoints
+        // dedicados, en secuencia: ambos recalculan el total de la misma orden.
+        const ajustes: Observable<unknown>[] = [];
         if (domicilioCambio) {
-          this.http.patch<{ success: boolean }>(
+          ajustes.push(this.http.patch(
             `${environment.apiUrl}/pedidos/${idOrdenActiva}/valor-domicilio`,
             { id_negocio: this.negocioId(), valor_domicilio: this.valorDomicilio() }
-          ).subscribe({
-            next: () => {
-              this.valorDomicilioBase.set(this.valorDomicilio());
-              this.procesarDestinoEnvio(destino, idOrdenActiva);
-            },
+          ));
+        }
+        if (descuentoCambio) {
+          ajustes.push(this.http.patch(
+            `${environment.apiUrl}/pedidos/${idOrdenActiva}/descuento`,
+            { id_negocio: this.negocioId(), descuento: this.descuento() }
+          ));
+        }
+
+        if (ajustes.length > 0) {
+          concat(...ajustes).subscribe({
             error: (err: HttpErrorResponse) => {
               this.uiFeedback.error(
-                this.getHttpErrorMessage(err) || 'No se pudo actualizar el valor del domicilio.'
+                this.getHttpErrorMessage(err) || 'No se pudo actualizar el pedido.'
               );
               this.resetEstadoEnvio();
+            },
+            complete: () => {
+              this.valorDomicilioBase.set(this.valorDomicilio());
+              this.descuentoBase.set(this.descuento());
+              this.procesarDestinoEnvio(destino, idOrdenActiva);
             },
           });
           return;
@@ -1242,6 +1348,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
           permitir_stock_negativo: permitirStockNegativo,
           items: this.mapItemsPayload(itemsNuevos),
           ...bodyDomicilio,
+          ...bodyDescuento,
         }
       ).subscribe({
         next: res => {
@@ -1253,6 +1360,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
           this.itemsBaseOrdenActiva.set(this.cloneItems(this.items()));
           this.notaBaseOrdenActiva.set(this.notaOrden());
           this.valorDomicilioBase.set(this.valorDomicilio());
+          this.descuentoBase.set(this.descuento());
           this.procesarDestinoEnvio(destino, idOrdenActiva);
         },
         error: (err: HttpErrorResponse) => void this.manejarErrorEnvio(err, destino, permitirStockNegativo),
@@ -1272,6 +1380,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
       items: this.mapItemsPayload(this.items()),
       tipo_pedido: tipo,
       ...bodyDomicilio,
+      ...bodyDescuento,
     };
     if (tipo === 'DOMICILIO') {
       body['contacto_nombre']    = this.domContacto().trim() || null;
@@ -1487,7 +1596,8 @@ export class PedidosComponent implements OnInit, OnDestroy {
       const itemsChanged = !this.itemsIguales(this.items(), this.itemsBaseOrdenActiva());
       const notaChanged = notaActual !== notaBase;
       const domicilioChanged = this.valorDomicilio() !== this.valorDomicilioBase();
-      return itemsChanged || notaChanged || domicilioChanged;
+      const descuentoChanged = this.descuento() !== this.descuentoBase();
+      return itemsChanged || notaChanged || domicilioChanged || descuentoChanged;
     }
 
     const tieneItems = this.items().length > 0;
@@ -1502,7 +1612,8 @@ export class PedidosComponent implements OnInit, OnDestroy {
       this.domDomiciliarioId() !== null
     );
 
-    return tieneItems || tieneNota || tieneMetodoPago || tieneDomicilio || tieneDomicilioCobrado;
+    return tieneItems || tieneNota || tieneMetodoPago || tieneDomicilio
+      || tieneDomicilioCobrado || this.descuento() > 0;
   }
 
   async canDeactivate(): Promise<boolean> {
@@ -1944,6 +2055,18 @@ export class PedidosComponent implements OnInit, OnDestroy {
             </div>`
       : '';
 
+    // El descuento también se desglosa: el cliente ve la rebaja que se le hizo.
+    const descuentoTotalRow = this.descuento() > 0
+      ? `${domicilioTotalRow ? '' : `<div class="totals-row">
+              <span>Productos</span>
+              <span>${this.formatCurrency(this.totalProductos())}</span>
+            </div>`}
+            <div class="totals-row">
+              <span>Descuento</span>
+              <span>-${this.formatCurrency(this.descuento())}</span>
+            </div>`
+      : '';
+
     const filasItems = this.items().map(item => {
       const totalLinea = item.cantidad * item.precio_unitario;
       const exclusiones = this.getExclusionNames(item);
@@ -2137,6 +2260,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
 
           <div class="totals">
             ${domicilioTotalRow}
+            ${descuentoTotalRow}
             <div class="totals-row total">
               <span>TOTAL</span>
               <span>${this.formatCurrency(this.total())}</span>
@@ -2190,6 +2314,27 @@ export class PedidosComponent implements OnInit, OnDestroy {
   }
 
   // ===================== Móvil =====================
+
+  /** Alterna categorías arriba (chips) ↔ categorías a la izquierda (columna). */
+  toggleCatLateral(): void {
+    const valor = !this.catLateralMovil();
+    this.catLateralMovil.set(valor);
+    if (!this.isBrowser) return;
+    try {
+      localStorage.setItem(this.catLateralStorageKey, valor ? '1' : '0');
+    } catch {
+      // Modo privado o almacenamiento lleno: la preferencia solo dura la sesión.
+    }
+  }
+
+  private leerCatLateral(): boolean {
+    if (!this.isBrowser) return false;
+    try {
+      return localStorage.getItem(this.catLateralStorageKey) === '1';
+    } catch {
+      return false;
+    }
+  }
 
   toggleOrdenPanel(): void {
     this.ordenPanelOpen.update(v => !v);

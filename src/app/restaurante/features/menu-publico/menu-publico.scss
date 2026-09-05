@@ -48,6 +48,40 @@
   box-shadow: var(--shadow-sm);
 }
 
+/**
+ * En móvil, al bajar por la carta la cabecera se pliega y deja pinchadas solo las
+ * categorías.
+ *
+ * El bloque pegajoso completo (cabecera + categorías) mide unos 145 px en un móvil:
+ * más de un quinto de la pantalla ocupado por el nombre y el teléfono del negocio
+ * mientras se busca un plato, y las categorías quedaban comidas por él. Plegando la
+ * cabecera quedan arriba las categorías —lo único que hace falta para seguir
+ * navegando— y al volver al tope reaparece entera.
+ *
+ * Se anima `grid-template-rows` en vez de `height`/`display` porque no exige saber
+ * cuánto mide la cabecera, que varía con el ancho y con si el negocio publicó
+ * dirección. De escritorio para arriba no aplica: allí sobra alto y la cabecera no
+ * estorba.
+ */
+@media (max-width: 768px) {
+  .menu-topbar > .hero {
+    display: grid;
+    grid-template-rows: 1fr;
+    transition: grid-template-rows 0.22s ease, opacity 0.18s ease;
+
+    > .hero-inner {
+      overflow: hidden;
+      min-height: 0;
+    }
+  }
+
+  .menu-topbar.is-compact > .hero {
+    grid-template-rows: 0fr;
+    opacity: 0;
+    border-bottom-color: transparent;
+  }
+}
+
 /* ═══════════════════════════════════════════
    HERO HEADER
    ═══════════════════════════════════════════ */

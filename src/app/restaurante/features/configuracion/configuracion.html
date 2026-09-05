@@ -5,21 +5,41 @@
       <p>Administra los datos principales de tu restaurante y su estilo visual.</p>
     </div>
 
-    <button
-      type="button"
-      class="btn-save"
-      [disabled]="saving() || loading() || !canEdit()"
-      (click)="guardarConfiguracion()"
-    >
-      @if (saving()) {
-        <lucide-icon name="loader" [size]="16" class="spin" />
-        Guardando...
-      } @else {
-        <lucide-icon name="save" [size]="16" />
-        Guardar cambios
-      }
-    </button>
+    <!-- Solo las pestañas con formulario se guardan con este botón. Cobros y
+         Operación son interruptores y listas que se guardan solos al tocarlos. -->
+    @if (tabUsaFormulario()) {
+      <button
+        type="button"
+        class="btn-save"
+        [disabled]="saving() || loading() || !canEdit()"
+        (click)="guardarConfiguracion()"
+      >
+        @if (saving()) {
+          <lucide-icon name="loader" [size]="16" class="spin" />
+          Guardando...
+        } @else {
+          <lucide-icon name="save" [size]="16" />
+          Guardar cambios
+        }
+      </button>
+    }
   </header>
+
+  <nav class="tabs" role="tablist" aria-label="Secciones de configuración">
+    @for (t of tabs; track t.id) {
+      <button
+        type="button"
+        role="tab"
+        class="tab"
+        [class.tab--on]="tab() === t.id"
+        [attr.aria-selected]="tab() === t.id"
+        (click)="tab.set(t.id)"
+      >
+        <lucide-icon [name]="t.icono" [size]="15" />
+        {{ t.label }}
+      </button>
+    }
+  </nav>
 
   @if (errorMessage(); as error) {
     <div class="state state--error">{{ error }}</div>
@@ -32,103 +52,6 @@
   @if (loading()) {
     <div class="state">Cargando configuracion...</div>
   } @else if (configuracion(); as config) {
-    <form class="config-grid" [formGroup]="form" (ngSubmit)="guardarConfiguracion()">
-      <article class="panel">
-        <h2>Informacion general</h2>
-
-        <label class="field">
-          <span>Nombre comercial *</span>
-          <input type="text" formControlName="nombre" placeholder="Ej: Restaurante Central" />
-        </label>
-
-        <label class="field">
-          <span>NIT</span>
-          <input type="text" formControlName="nit" placeholder="Ej: 900123456-7" />
-        </label>
-
-        <label class="field">
-          <span>Correo de contacto</span>
-          <input type="email" formControlName="email_contacto" placeholder="contacto@negocio.com" />
-        </label>
-
-        <label class="field">
-          <span>Telefono</span>
-          <input type="text" formControlName="telefono" placeholder="Ej: 3001234567" />
-        </label>
-
-        <label class="field">
-          <span>Direccion</span>
-          <input type="text" formControlName="direccion" placeholder="Ej: Cra 12 # 45-67" />
-        </label>
-
-        <div class="meta-grid">
-          <div>
-            <span class="meta-label">Tipo de negocio</span>
-            <strong>{{ config.tipo_negocio || 'Restaurante' }}</strong>
-          </div>
-          <div>
-            <span class="meta-label">ID negocio</span>
-            <strong>#{{ config.id_negocio }}</strong>
-          </div>
-        </div>
-      </article>
-
-      <article class="panel">
-        <h2>Contacto y redes</h2>
-        <p class="hint">Comparte tus enlaces para que los clientes encuentren tu negocio.</p>
-
-        <label class="field">
-          <span>WhatsApp (URL)</span>
-          <input type="url" formControlName="url_whatsapp" placeholder="https://wa.me/573001234567" />
-          @if (form.controls.url_whatsapp.touched && form.controls.url_whatsapp.invalid) {
-            <small class="field-error">Ingresa un link valido con https://</small>
-          }
-        </label>
-
-        <label class="field">
-          <span>Facebook (URL)</span>
-          <input type="url" formControlName="url_facebook" placeholder="https://facebook.com/tu-negocio" />
-          @if (form.controls.url_facebook.touched && form.controls.url_facebook.invalid) {
-            <small class="field-error">Ingresa un link valido con https://</small>
-          }
-        </label>
-
-        <label class="field">
-          <span>Instagram (URL)</span>
-          <input type="url" formControlName="url_instagram" placeholder="https://instagram.com/tu-negocio" />
-          @if (form.controls.url_instagram.touched && form.controls.url_instagram.invalid) {
-            <small class="field-error">Ingresa un link valido con https://</small>
-          }
-        </label>
-      </article>
-
-      <article class="panel">
-        <h2>Paleta de color</h2>
-        <p class="hint">Selecciona una paleta para aplicar la identidad visual del negocio.</p>
-
-        <div class="palette-grid">
-          @for (paleta of paletas(); track paleta.id_paleta) {
-            <button
-              type="button"
-              class="palette-card"
-              [class.palette-card--active]="form.controls.id_paleta.value === paleta.id_paleta"
-              (click)="seleccionarPaleta(paleta.id_paleta)"
-            >
-              <div class="palette-preview">
-                @for (color of coloresPreview(paleta); track $index) {
-                  <span [style.background]="color"></span>
-                }
-              </div>
-
-              <div class="palette-meta">
-                <strong>{{ paleta.nombre }}</strong>
-                <small>{{ paleta.descripcion || 'Paleta de color' }}</small>
-              </div>
-            </button>
-          }
-        </div>
-      </article>
-    </form>
 
     @if (!canEdit()) {
       <div class="state state--warn">
@@ -136,89 +59,229 @@
       </div>
     }
 
-    <!-- ── Opciones de pago ── -->
-    <article class="panel panel--wide" id="metodos-pago">
-      <h2>Opciones de pago</h2>
-      <p class="hint">Define las formas de pago que aceptas. Los pedidos cobrados las usarán al cerrar.</p>
+    <form [formGroup]="form" (ngSubmit)="guardarConfiguracion()">
 
-      <!-- Multipago: dividir un cobro en varias formas de pago -->
-      <label class="multipago-switch" [class.is-disabled]="!canEdit() || guardandoMultipago()">
-        <input type="checkbox"
-               [checked]="permiteMultipago()"
-               [disabled]="!canEdit() || guardandoMultipago()"
-               (change)="toggleMultipago($any($event.target).checked)" />
-        <span class="multipago-switch__text">
-          <strong>Permitir Multipago</strong>
-          <small>El cajero podrá dividir el cobro de un pedido en dos o más formas de pago
-            (por ejemplo, parte en efectivo y parte en transferencia). La suma debe igualar el total.</small>
-        </span>
-      </label>
+      <!-- ───────── General ───────── -->
+      @if (tab() === 'general') {
+        <div class="config-grid">
+          <article class="panel">
+            <h2>Informacion general</h2>
 
-      <div class="form-row metodo-pago-row">
-        <input class="input" type="text" maxlength="80" placeholder="Nombre del método (ej: Nequi, Bancolombia)"
-               [value]="nuevoMetodoNombre()"
-               (input)="nuevoMetodoNombre.set($any($event.target).value)"
-               (keydown.enter)="agregarMetodoPago()" />
-        <button type="button" class="btn btn-primary"
-                (click)="agregarMetodoPago()"
-                [disabled]="guardandoMetodo() || !nuevoMetodoNombre().trim()">
-          <lucide-icon name="circle-plus" [size]="16" /> Agregar
-        </button>
-      </div>
+            <label class="field">
+              <span>Nombre comercial *</span>
+              <input type="text" formControlName="nombre" placeholder="Ej: Restaurante Central" />
+            </label>
 
-      @if (errorMetodo()) {
-        <p class="msg msg--error">{{ errorMetodo() }}</p>
-      }
+            <label class="field">
+              <span>NIT</span>
+              <input type="text" formControlName="nit" placeholder="Ej: 900123456-7" />
+            </label>
 
-      @if (cargandoMetodos()) {
-        <p class="muted">Cargando…</p>
-      } @else if (metodosPago().length === 0) {
-        <p class="muted">Aún no hay métodos de pago configurados.</p>
-      } @else {
-        <ul class="metodos-list">
-          @for (m of metodosPago(); track m.id_metodo_pago) {
-            <li>
-              @if (editandoMetodoId() === m.id_metodo_pago) {
-                <input class="input flex-1" type="text" maxlength="80"
-                       [value]="editandoMetodoNombre()"
-                       (input)="editandoMetodoNombre.set($any($event.target).value)"
-                       (keydown.enter)="guardarEdicionMetodo()" />
-                <button type="button" class="btn btn-primary"
-                        (click)="guardarEdicionMetodo()" [disabled]="guardandoMetodo()">Guardar</button>
-                <button type="button" class="btn btn-ghost" (click)="cancelarEdicionMetodo()">Cancelar</button>
-              } @else {
-                <strong class="flex-1">{{ m.nombre }}</strong>
-                <button type="button" class="btn btn-ghost" (click)="iniciarEdicionMetodo(m)" title="Editar">
-                  <lucide-icon name="pencil" [size]="14" />
-                </button>
-                <button type="button" class="btn btn-ghost" (click)="inactivarMetodo(m)" title="Eliminar">
-                  <lucide-icon name="trash-2" [size]="14" />
-                </button>
+            <label class="field">
+              <span>Correo de contacto</span>
+              <input type="email" formControlName="email_contacto" placeholder="contacto@negocio.com" />
+            </label>
+
+            <label class="field">
+              <span>Telefono</span>
+              <input type="text" formControlName="telefono" placeholder="Ej: 3001234567" />
+            </label>
+
+            <label class="field">
+              <span>Direccion</span>
+              <input type="text" formControlName="direccion" placeholder="Ej: Cra 12 # 45-67" />
+            </label>
+
+            <div class="meta-grid">
+              <div>
+                <span class="meta-label">Tipo de negocio</span>
+                <strong>{{ config.tipo_negocio || 'Restaurante' }}</strong>
+              </div>
+              <div>
+                <span class="meta-label">ID negocio</span>
+                <strong>#{{ config.id_negocio }}</strong>
+              </div>
+            </div>
+          </article>
+
+          <article class="panel">
+            <h2>Contacto y redes</h2>
+            <p class="hint">Comparte tus enlaces para que los clientes encuentren tu negocio.</p>
+
+            <label class="field">
+              <span>WhatsApp (URL)</span>
+              <input type="url" formControlName="url_whatsapp" placeholder="https://wa.me/573001234567" />
+              @if (form.controls.url_whatsapp.touched && form.controls.url_whatsapp.invalid) {
+                <small class="field-error">Ingresa un link valido con https://</small>
               }
-            </li>
-          }
-        </ul>
+            </label>
+
+            <label class="field">
+              <span>Facebook (URL)</span>
+              <input type="url" formControlName="url_facebook" placeholder="https://facebook.com/tu-negocio" />
+              @if (form.controls.url_facebook.touched && form.controls.url_facebook.invalid) {
+                <small class="field-error">Ingresa un link valido con https://</small>
+              }
+            </label>
+
+            <label class="field">
+              <span>Instagram (URL)</span>
+              <input type="url" formControlName="url_instagram" placeholder="https://instagram.com/tu-negocio" />
+              @if (form.controls.url_instagram.touched && form.controls.url_instagram.invalid) {
+                <small class="field-error">Ingresa un link valido con https://</small>
+              }
+            </label>
+          </article>
+        </div>
       }
-    </article>
 
-    <!-- ── Domicilios ── -->
-    <article class="panel panel--wide" id="pago-domicilio">
-      <h2>Domicilios</h2>
-      <p class="hint">Cobro del domicilio al cliente y pago al domiciliario desde la caja.</p>
+      <!-- ───────── Apariencia ───────── -->
+      @if (tab() === 'apariencia') {
+        <article class="panel panel--wide">
+          <h2>Paleta de color</h2>
+          <p class="hint">Selecciona una paleta para aplicar la identidad visual del negocio.</p>
 
-      <label class="multipago-switch" [class.is-disabled]="!canEdit() || guardandoPagoDomicilio()">
-        <input type="checkbox"
-               [checked]="permitePagoDomicilio()"
-               [disabled]="!canEdit() || guardandoPagoDomicilio()"
-               (change)="togglePagoDomicilio($any($event.target).checked)" />
-        <span class="multipago-switch__text">
-          <strong>Cobrar valor del domicilio</strong>
-          <small>Al tomar un pedido <em>Para llevar</em> o <em>Domicilio</em> aparece una casilla para
-            escribir el valor del domicilio. Ese valor se suma al total que paga el cliente y, al
-            cobrarse el pedido, la caja registra un egreso por el mismo monto (el pago al
-            domiciliario). Si lo dejas apagado, nada cambia en la toma de pedidos.</small>
-        </span>
-      </label>
-    </article>
+          <div class="palette-grid">
+            @for (paleta of paletas(); track paleta.id_paleta) {
+              <button
+                type="button"
+                class="palette-card"
+                [class.palette-card--active]="form.controls.id_paleta.value === paleta.id_paleta"
+                (click)="seleccionarPaleta(paleta.id_paleta)"
+              >
+                <div class="palette-preview">
+                  @for (color of coloresPreview(paleta); track $index) {
+                    <span [style.background]="color"></span>
+                  }
+                </div>
+
+                <div class="palette-meta">
+                  <strong>{{ paleta.nombre }}</strong>
+                  <small>{{ paleta.descripcion || 'Paleta de color' }}</small>
+                </div>
+              </button>
+            }
+          </div>
+        </article>
+      }
+    </form>
+
+    <!-- ───────── Cobros ───────── -->
+    @if (tab() === 'cobros') {
+      <article class="panel panel--wide" id="metodos-pago">
+        <h2>Formas de pago</h2>
+        <p class="hint">Define las formas de pago que aceptas. Los pedidos cobrados las usarán al cerrar.</p>
+
+        <label class="multipago-switch" [class.is-disabled]="!canEdit() || guardandoMultipago()">
+          <input type="checkbox"
+                 [checked]="permiteMultipago()"
+                 [disabled]="!canEdit() || guardandoMultipago()"
+                 (change)="toggleMultipago($any($event.target).checked)" />
+          <span class="multipago-switch__text">
+            <strong>Permitir Multipago</strong>
+            <small>El cajero podrá dividir el cobro de un pedido en dos o más formas de pago
+              (por ejemplo, parte en efectivo y parte en transferencia). La suma debe igualar el total.</small>
+          </span>
+        </label>
+
+        <div class="form-row metodo-pago-row">
+          <input class="input" type="text" maxlength="80" placeholder="Nombre del método (ej: Nequi, Bancolombia)"
+                 [value]="nuevoMetodoNombre()"
+                 (input)="nuevoMetodoNombre.set($any($event.target).value)"
+                 (keydown.enter)="agregarMetodoPago()" />
+          <button type="button" class="btn btn-primary"
+                  (click)="agregarMetodoPago()"
+                  [disabled]="guardandoMetodo() || !nuevoMetodoNombre().trim()">
+            <lucide-icon name="circle-plus" [size]="16" /> Agregar
+          </button>
+        </div>
+
+        @if (errorMetodo()) {
+          <p class="msg msg--error">{{ errorMetodo() }}</p>
+        }
+
+        @if (cargandoMetodos()) {
+          <p class="muted">Cargando…</p>
+        } @else if (metodosPago().length === 0) {
+          <p class="muted">Aún no hay métodos de pago configurados.</p>
+        } @else {
+          <ul class="metodos-list">
+            @for (m of metodosPago(); track m.id_metodo_pago) {
+              <li>
+                @if (editandoMetodoId() === m.id_metodo_pago) {
+                  <input class="input flex-1" type="text" maxlength="80"
+                         [value]="editandoMetodoNombre()"
+                         (input)="editandoMetodoNombre.set($any($event.target).value)"
+                         (keydown.enter)="guardarEdicionMetodo()" />
+                  <button type="button" class="btn btn-primary"
+                          (click)="guardarEdicionMetodo()" [disabled]="guardandoMetodo()">Guardar</button>
+                  <button type="button" class="btn btn-ghost" (click)="cancelarEdicionMetodo()">Cancelar</button>
+                } @else {
+                  <strong class="flex-1">{{ m.nombre }}</strong>
+                  <button type="button" class="btn btn-ghost" (click)="iniciarEdicionMetodo(m)" title="Editar">
+                    <lucide-icon name="pencil" [size]="14" />
+                  </button>
+                  <button type="button" class="btn btn-ghost" (click)="inactivarMetodo(m)" title="Eliminar">
+                    <lucide-icon name="trash-2" [size]="14" />
+                  </button>
+                }
+              </li>
+            }
+          </ul>
+        }
+      </article>
+    }
+
+    <!-- ───────── Operación ─────────
+         Los tres interruptores viven juntos en una lista compacta: cada uno es
+         solo un sí/no, y darle un panel entero a cada uno hacía scrollear la
+         pantalla para leer tres frases. -->
+    @if (tab() === 'operacion') {
+      <article class="panel panel--wide" id="operacion">
+        <h2>Opciones de operación</h2>
+        <p class="hint">
+          Funciones opcionales de la toma de pedidos. Todas nacen apagadas: mientras no
+          actives una, nada cambia en el día a día.
+        </p>
+
+        <div class="switch-list">
+          <label class="switch-row" [class.is-disabled]="!canEdit() || guardandoDescuento()">
+            <input type="checkbox"
+                   [checked]="permiteDescuento()"
+                   [disabled]="!canEdit() || guardandoDescuento()"
+                   (change)="toggleDescuento($any($event.target).checked)" />
+            <span class="switch-row__text">
+              <strong>Permitir registrar descuento</strong>
+              <small>Aparece una casilla en el pedido para escribir la rebaja. Se resta del total
+                y queda guardada, así caja y reportes cuadran con lo que se cobró.</small>
+            </span>
+          </label>
+
+          <label class="switch-row" [class.is-disabled]="!canEdit() || guardandoCobroEnvio()">
+            <input type="checkbox"
+                   [checked]="preguntaCobroEnvio()"
+                   [disabled]="!canEdit() || guardandoCobroEnvio()"
+                   (change)="toggleCobroEnvio($any($event.target).checked)" />
+            <span class="switch-row__text">
+              <strong>Preguntar por el cobro al enviar</strong>
+              <small>Al mandar un pedido a despacho se pregunta <em>Cobrar ahora</em> o
+                <em>Enviar sin cobrar</em>. Apagado, sale directo y se cobra después.</small>
+            </span>
+          </label>
+
+          <label class="switch-row" [class.is-disabled]="!canEdit() || guardandoPagoDomicilio()">
+            <input type="checkbox"
+                   [checked]="permitePagoDomicilio()"
+                   [disabled]="!canEdit() || guardandoPagoDomicilio()"
+                   (change)="togglePagoDomicilio($any($event.target).checked)" />
+            <span class="switch-row__text">
+              <strong>Cobrar valor del domicilio</strong>
+              <small>Se puede poner un valor de domicilio en el pedido y en Despacho. Suma al total
+                del cliente y, al cobrarse, deja un egreso en caja por el pago al domiciliario.</small>
+            </span>
+          </label>
+        </div>
+      </article>
+    }
   }
 </section>

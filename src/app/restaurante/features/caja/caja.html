@@ -17,6 +17,12 @@
           Domiciliarios
         </button>
       }
+      <!-- Disponible con o sin caja abierta: consultar turnos pasados no depende
+           de que haya uno en curso. -->
+      <button class="btn btn-outline" (click)="abrirModal('historial')">
+        <lucide-icon name="clock-3" size="18" />
+        Historial
+      </button>
       @if (caja()) {
         <button class="btn btn-outline" (click)="refrescarCaja()" [disabled]="cargando()">
           <lucide-icon name="rotate-cw" size="18" />
@@ -57,37 +63,47 @@
           <span class="label">Apertura</span>
           <strong>{{ caja()!.fecha_apertura | date:'dd/MM/yyyy HH:mm' }}</strong>
         </div>
-        <div>
-          <span class="label">Monto apertura</span>
-          <strong>{{ caja()!.monto_apertura | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
-        </div>
+        @if (puedeVerIngresos()) {
+          <div>
+            <span class="label">Monto apertura</span>
+            <strong>{{ caja()!.monto_apertura | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+          </div>
+        }
       </div>
 
-      <div class="totales">
-        <div class="total total--ingresos">
-          <lucide-icon name="trending-up" size="18" />
-          <div>
-            <span class="label">Ingresos</span>
-            <strong>{{ (caja()!.ingresos || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+      @if (puedeVerIngresos()) {
+        <div class="totales">
+          <div class="total total--ingresos">
+            <lucide-icon name="trending-up" size="18" />
+            <div>
+              <span class="label">Ingresos</span>
+              <strong>{{ (caja()!.ingresos || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+            </div>
+          </div>
+          <div class="total total--egresos">
+            <lucide-icon name="trending-down" size="18" />
+            <div>
+              <span class="label">Egresos</span>
+              <strong>{{ (caja()!.egresos || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+            </div>
+          </div>
+          <div class="total total--esperado">
+            <lucide-icon name="banknote" size="18" />
+            <div>
+              <span class="label">Esperado en caja</span>
+              <strong>{{ (caja()!.monto_esperado || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+            </div>
           </div>
         </div>
-        <div class="total total--egresos">
-          <lucide-icon name="trending-down" size="18" />
-          <div>
-            <span class="label">Egresos</span>
-            <strong>{{ (caja()!.egresos || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
-          </div>
-        </div>
-        <div class="total total--esperado">
-          <lucide-icon name="banknote" size="18" />
-          <div>
-            <span class="label">Esperado en caja</span>
-            <strong>{{ (caja()!.monto_esperado || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
-          </div>
-        </div>
-      </div>
+      } @else {
+        <p class="sin-importes">
+          <lucide-icon name="lock" size="14" />
+          Tu rol no tiene permiso para ver los valores de la caja. Abajo quedan los
+          movimientos del turno, sin montos.
+        </p>
+      }
 
-      @if ((caja()!.ingresos_por_metodo || []).length > 0) {
+      @if (puedeVerIngresos() && (caja()!.ingresos_por_metodo || []).length > 0) {
         <div class="desglose-metodos">
           <h3 class="desglose-metodos__titulo">
             <lucide-icon name="credit-card" size="14" />
@@ -125,7 +141,9 @@
                 <th>Tipo pedido</th>
                 <th>Concepto</th>
                 <th>Usuario</th>
-                <th class="num">Monto</th>
+                @if (puedeVerIngresos()) {
+                  <th class="num">Monto</th>
+                }
                 @if (puedeEliminarPedido()) {
                   <th class="acciones">Eliminar</th>
                 }
@@ -146,7 +164,9 @@
                   <td>{{ tipoPedidoMovimiento(m) }}</td>
                   <td>{{ conceptoCorto(m) }}</td>
                   <td>{{ m.usuario?.primer_nombre }} {{ m.usuario?.primer_apellido }}</td>
-                  <td class="num">{{ m.monto | currency:'COP':'symbol-narrow':'1.0-0' }}</td>
+                  @if (puedeVerIngresos()) {
+                    <td class="num">{{ m.monto | currency:'COP':'symbol-narrow':'1.0-0' }}</td>
+                  }
                   @if (puedeEliminarPedido()) {
                     <td class="acciones">
                       @if (puedeAnular(m)) {
@@ -206,14 +226,22 @@
     <div class="modal" (click)="cerrarModal()">
       <div class="modal__panel" (click)="$event.stopPropagation()">
         <h2>Cerrar caja</h2>
-        <div class="resumen-cierre">
-          <div><span>Apertura</span><strong>{{ caja()!.monto_apertura | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
-          <div><span>Ingresos</span><strong>{{ (caja()!.ingresos || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
-          <div><span>Egresos</span><strong>{{ (caja()!.egresos || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
-          <div class="row-esperado"><span>Esperado en caja</span><strong>{{ (caja()!.monto_esperado || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
-        </div>
+        @if (puedeVerIngresos()) {
+          <div class="resumen-cierre">
+            <div><span>Apertura</span><strong>{{ caja()!.monto_apertura | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
+            <div><span>Ingresos</span><strong>{{ (caja()!.ingresos || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
+            <div><span>Egresos</span><strong>{{ (caja()!.egresos || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
+            <div class="row-esperado"><span>Esperado en caja</span><strong>{{ (caja()!.monto_esperado || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
+          </div>
+        } @else {
+          <p class="sin-importes">
+            <lucide-icon name="lock" size="14" />
+            Cierre a ciegas: cuenta el efectivo y anótalo. El cuadre contra lo esperado
+            lo hace el sistema, y lo revisa quien tenga permiso para ver los valores.
+          </p>
+        }
 
-        @if ((caja()!.ingresos_por_metodo || []).length > 0) {
+        @if (puedeVerIngresos() && (caja()!.ingresos_por_metodo || []).length > 0) {
           <div class="resumen-metodos">
             <p class="resumen-metodos__titulo">Desglose por forma de pago</p>
             @for (item of (caja()!.ingresos_por_metodo || []); track (item.id_metodo_pago ?? 'manual')) {
@@ -289,6 +317,222 @@
     </div>
   }
 
+  <!-- ── Modal: historial de cajas ──
+       Dos vistas en el mismo modal: la lista de turnos cerrados y, al elegir uno,
+       su detalle con movimientos. `cajaHistSel()` decide cuál se muestra. -->
+  @if (modal() === 'historial') {
+    <div class="modal" (click)="cerrarModal()">
+      <div class="modal__panel modal__panel--wide" (click)="$event.stopPropagation()">
+
+        @if (cajaHistSel(); as sel) {
+          <!-- ─── Detalle de un turno ─── -->
+          <div class="hist-detalle-head">
+            <button type="button" class="btn btn-ghost btn-sm" (click)="volverAListaHistorial()">
+              <lucide-icon name="arrow-left" size="15" />
+              Volver
+            </button>
+            <h2>Caja #{{ sel.id_caja }}</h2>
+          </div>
+
+          <div class="hist-fechas">
+            <span>
+              <lucide-icon name="play" size="13" />
+              {{ sel.fecha_apertura | date:'dd/MM/yyyy HH:mm' }}
+            </span>
+            <span>
+              <lucide-icon name="square" size="13" />
+              {{ sel.fecha_cierre ? (sel.fecha_cierre | date:'dd/MM/yyyy HH:mm') : 'Sin cerrar' }}
+            </span>
+            <span>
+              <lucide-icon name="user" size="13" />
+              {{ sel.usuario?.primer_nombre }} {{ sel.usuario?.primer_apellido }}
+            </span>
+          </div>
+
+          @if (puedeVerIngresos()) {
+            <div class="resumen-cierre">
+              <div><span>Apertura</span><strong>{{ sel.monto_apertura | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
+              <div><span>Ingresos</span><strong>{{ (sel.ingresos || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
+              <div><span>Egresos</span><strong>{{ (sel.egresos || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
+              <div class="row-esperado"><span>Esperado en caja</span><strong>{{ (sel.monto_esperado || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
+              @if (sel.monto_reportado != null) {
+                <div><span>Contado</span><strong>{{ sel.monto_reportado | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
+              }
+              @if (sel.diferencia != null) {
+                <div>
+                  <span>Diferencia</span>
+                  <strong [class.dif--up]="sel.diferencia > 0"
+                          [class.dif--down]="sel.diferencia < 0"
+                          [class.dif--ok]="sel.diferencia === 0">
+                    {{ sel.diferencia | currency:'COP':'symbol-narrow':'1.0-0' }}
+                  </strong>
+                </div>
+              }
+            </div>
+
+            @if ((sel.ingresos_por_metodo || []).length > 0) {
+              <div class="resumen-metodos">
+                <p class="resumen-metodos__titulo">Desglose por forma de pago</p>
+                @for (item of (sel.ingresos_por_metodo || []); track (item.id_metodo_pago ?? 'manual')) {
+                  <div class="resumen-metodos__item">
+                    <span>{{ item.nombre }}</span>
+                    <strong>{{ item.total | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+                  </div>
+                }
+              </div>
+            }
+          } @else {
+            <p class="sin-importes">
+              <lucide-icon name="lock" size="14" />
+              Tu rol no tiene permiso para ver los valores de la caja. Abajo quedan los
+              movimientos del turno, sin montos.
+            </p>
+          }
+
+          @if (sel.observaciones) {
+            <p class="obs">{{ sel.observaciones }}</p>
+          }
+
+          <h3 class="hist-sub">Movimientos</h3>
+          @if (movimientosHist().length === 0) {
+            <p class="estado">Este turno no registró movimientos.</p>
+          } @else {
+            <div class="movimientos__table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Tipo</th>
+                    <th>Tipo pedido</th>
+                    <th>Concepto</th>
+                    <th>Usuario</th>
+                    @if (puedeVerIngresos()) {
+                      <th class="num">Monto</th>
+                    }
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (m of movimientosHist(); track m.id_movimiento) {
+                    <tr [class.fila--anulada]="m.anulado" [class.fila--anulacion]="m.es_anulacion">
+                      <td>{{ m.fecha | date:'dd/MM/yyyy HH:mm' }}</td>
+                      <td>
+                        <span class="badge"
+                              [class.badge--in]="m.tipo === 'INGRESO' && !m.es_anulacion && !m.anulado"
+                              [class.badge--out]="m.tipo === 'EGRESO' && !m.es_anulacion && !m.anulado"
+                              [class.badge--anulado]="m.anulado || m.es_anulacion">
+                          {{ etiquetaTipo(m) }}
+                        </span>
+                      </td>
+                      <td>{{ tipoPedidoMovimiento(m) }}</td>
+                      <td>{{ conceptoCorto(m) }}</td>
+                      <td>{{ m.usuario?.primer_nombre }} {{ m.usuario?.primer_apellido }}</td>
+                      @if (puedeVerIngresos()) {
+                        <td class="num">{{ m.monto | currency:'COP':'symbol-narrow':'1.0-0' }}</td>
+                      }
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+
+        } @else {
+          <!-- ─── Lista de turnos cerrados ─── -->
+          <h2>Historial de cajas</h2>
+          <p class="hint">Turnos ya cerrados. Elige uno para ver sus movimientos.</p>
+
+          <div class="hist-filtros">
+            <label>
+              Desde
+              <input type="date" [ngModel]="histDesde()" (ngModelChange)="histDesde.set($event)" />
+            </label>
+            <label>
+              Hasta
+              <input type="date" [ngModel]="histHasta()" (ngModelChange)="histHasta.set($event)" />
+            </label>
+            <button type="button" class="btn btn-primary btn-sm"
+                    (click)="aplicarFiltroHistorial()" [disabled]="cargandoHistorial()">
+              <lucide-icon name="search" size="15" />
+              Filtrar
+            </button>
+            @if (histDesde() || histHasta()) {
+              <button type="button" class="btn btn-ghost btn-sm"
+                      (click)="limpiarFiltroHistorial()" [disabled]="cargandoHistorial()">
+                Limpiar
+              </button>
+            }
+          </div>
+
+          @if (errorHistorial()) {
+            <div class="estado">{{ errorHistorial() }}</div>
+          } @else if (cargandoHistorial() && historial().length === 0) {
+            <div class="estado">Cargando…</div>
+          } @else if (historial().length === 0) {
+            <div class="estado">No hay cajas cerradas en este rango.</div>
+          } @else {
+            <div class="hist-lista">
+              @for (c of historial(); track c.id_caja) {
+                <article class="hist-item">
+                  <div class="hist-item__info">
+                    <span class="hist-item__rango">
+                      {{ c.fecha_apertura | date:'dd/MM/yyyy HH:mm' }}
+                      <lucide-icon name="arrow-right" size="13" />
+                      {{ c.fecha_cierre ? (c.fecha_cierre | date:'dd/MM/yyyy HH:mm') : 'Sin cerrar' }}
+                    </span>
+                    <span class="hist-item__meta">
+                      <lucide-icon name="user" size="12" />
+                      {{ c.usuario.primer_nombre }} {{ c.usuario.primer_apellido }}
+                      <span class="punto">·</span>
+                      {{ c.total_movimientos }}
+                      {{ c.total_movimientos === 1 ? 'movimiento' : 'movimientos' }}
+                    </span>
+                  </div>
+
+                  @if (puedeVerIngresos()) {
+                    <div class="hist-item__montos">
+                      <strong>{{ (c.monto_esperado || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+                      @if (c.diferencia != null) {
+                        <small [class.dif--up]="c.diferencia > 0"
+                               [class.dif--down]="c.diferencia < 0"
+                               [class.dif--ok]="c.diferencia === 0">
+                          Diferencia: {{ c.diferencia | currency:'COP':'symbol-narrow':'1.0-0' }}
+                        </small>
+                      } @else {
+                        <small>Sin arqueo</small>
+                      }
+                    </div>
+                  }
+
+                  <button type="button"
+                          class="btn btn-outline btn-sm hist-item__ver"
+                          [disabled]="cargandoDetalleHist()"
+                          (click)="verDetalleHistorial(c)">
+                    <lucide-icon name="eye" size="15" />
+                    Ver detalle
+                  </button>
+                </article>
+              }
+            </div>
+
+            @if (hayMasHistorial()) {
+              <button type="button" class="btn btn-outline hist-mas"
+                      (click)="cargarHistorial()" [disabled]="cargandoHistorial()">
+                {{ cargandoHistorial() ? 'Cargando…' : 'Cargar más' }}
+              </button>
+            }
+            <p class="hist-conteo">
+              Mostrando {{ historial().length }} de {{ historialTotal() }} turnos cerrados.
+            </p>
+          }
+        }
+
+        <div class="modal__actions">
+          <button class="btn btn-ghost" (click)="cerrarModal()">Cerrar</button>
+        </div>
+      </div>
+    </div>
+  }
+
   <!-- ── Modal: domiciliarios ── -->
   @if (modal() === 'domiciliarios' && caja()) {
     <div class="modal" (click)="cerrarModal()">
@@ -319,18 +563,20 @@
                 <span>Pendientes</span>
                 <strong>{{ resumen.pedidos_cobrados }}</strong>
               </article>
-              <article>
-                <span>Monto adelantado</span>
-                <strong>{{ resumen.monto_adelantado | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
-              </article>
-              <article>
-                <span>Monto pendiente</span>
-                <strong>{{ resumen.monto_cobrado | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
-              </article>
-              <article>
-                <span>En posesion</span>
-                <strong>{{ resumen.monto_en_posesion | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
-              </article>
+              @if (puedeVerIngresos()) {
+                <article>
+                  <span>Monto adelantado</span>
+                  <strong>{{ resumen.monto_adelantado | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+                </article>
+                <article>
+                  <span>Monto pendiente</span>
+                  <strong>{{ resumen.monto_cobrado | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+                </article>
+                <article>
+                  <span>En posesion</span>
+                  <strong>{{ resumen.monto_en_posesion | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+                </article>
+              }
             </section>
           }
 
@@ -350,7 +596,7 @@
                       <button
                         class="btn btn-danger btn-sm"
                         type="button"
-                        [disabled]="item.monto_en_posesion <= 0 || transferiendoDomiciliarioId() === item.id_domiciliario"
+                        [disabled]="item.pedidos_en_posesion <= 0 || transferiendoDomiciliarioId() === item.id_domiciliario"
                         (click)="transferirDomiciliario(item)">
                         {{ transferiendoDomiciliarioId() === item.id_domiciliario ? 'Transfiriendo...' : 'Pasar a caja' }}
                       </button>
@@ -370,18 +616,20 @@
                       <span>En posesion</span>
                       <strong>{{ item.pedidos_en_posesion }}</strong>
                     </div>
-                    <div>
-                      <span>Por adelantado</span>
-                      <strong>{{ item.monto_adelantado | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
-                    </div>
-                    <div>
-                      <span>Por cobrar</span>
-                      <strong>{{ item.monto_cobrado | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
-                    </div>
-                    <div>
-                      <span>En posesion</span>
-                      <strong>{{ item.monto_en_posesion | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
-                    </div>
+                    @if (puedeVerIngresos()) {
+                      <div>
+                        <span>Por adelantado</span>
+                        <strong>{{ item.monto_adelantado | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+                      </div>
+                      <div>
+                        <span>Por cobrar</span>
+                        <strong>{{ item.monto_cobrado | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+                      </div>
+                      <div>
+                        <span>En posesion</span>
+                        <strong>{{ item.monto_en_posesion | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+                      </div>
+                    }
                   </div>
                 </article>
               }

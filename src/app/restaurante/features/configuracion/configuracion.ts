@@ -1,4 +1,6 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy, Component, WritableSignal, computed, effect, inject, signal,
+} from '@angular/core';
 import {
   AbstractControl,
   FormBuilder,
@@ -71,6 +73,24 @@ export class ConfiguracionComponent {
   private readonly configuracionService = inject(ConfiguracionService);
   private readonly uiFeedback = inject(UiFeedbackService);
 
+  /**
+   * Pestañas de la pantalla.
+   *
+   * Antes todo colgaba en una sola columna y había que bajar hasta el final para
+   * llegar a tres interruptores; ahora cada bloque vive en su pestaña, igual que en
+   * `reserva_app`. «Operación» agrupa los sí/no, que no dan para un panel cada uno.
+   */
+  readonly tabs = [
+    { id: 'general'    as const, label: 'General',    icono: 'settings' },
+    { id: 'apariencia' as const, label: 'Apariencia', icono: 'star' },
+    { id: 'cobros'     as const, label: 'Cobros',     icono: 'wallet' },
+    { id: 'operacion'  as const, label: 'Operación',  icono: 'toggle-right' },
+  ];
+  readonly tab = signal<'general' | 'apariencia' | 'cobros' | 'operacion'>('general');
+
+  /** Solo General y Apariencia editan el formulario; el resto se guarda al tocarlo. */
+  readonly tabUsaFormulario = computed(() => this.tab() === 'general' || this.tab() === 'apariencia');
+
   readonly negocioActivoId = computed(() => this.auth.negocio()?.id_negocio ?? null);
   readonly loading = signal(false);
   readonly saving = signal(false);
@@ -85,6 +105,12 @@ export class ConfiguracionComponent {
 
   readonly permitePagoDomicilio = computed(() => this.configuracion()?.permite_pago_domicilio === true);
   readonly guardandoPagoDomicilio = signal(false);
+
+  readonly permiteDescuento = computed(() => this.configuracion()?.permite_descuento === true);
+  readonly guardandoDescuento = signal(false);
+
+  readonly preguntaCobroEnvio = computed(() => this.configuracion()?.pregunta_cobro_envio === true);
+  readonly guardandoCobroEnvio = signal(false);
 
   // ── Métodos de pago ──
   readonly metodosPago = signal<MetodoPago[]>([]);
@@ -130,6 +156,8 @@ export class ConfiguracionComponent {
     }),
     permite_multipago: this.fb.control(false, { nonNullable: true }),
     permite_pago_domicilio: this.fb.control(false, { nonNullable: true }),
+    permite_descuento: this.fb.control(false, { nonNullable: true }),
+    pregunta_cobro_envio: this.fb.control(false, { nonNullable: true }),
     id_paleta: this.fb.control<number | null>(null),
   });
 
@@ -248,25 +276,28 @@ export class ConfiguracionComponent {
   }
 
   /**
-   * Activa/desactiva el Multipago del negocio. Guarda de inmediato (switch) y
-   * refresca la sesión para que las vistas de cobro tomen el flag sin recargar.
+   * Guarda uno de los interruptores del negocio en el acto (sin pasar por «Guardar
+   * cambios») y revalida el token: la sesión lleva estos flags, y Pedidos/Despacho
+   * los leen desde ahí, así que sin refrescarla el cambio no se vería hasta el
+   * siguiente ingreso.
    */
-  toggleMultipago(activar: boolean): void {
+  private actualizarFlag(
+    campo: 'permite_multipago' | 'permite_pago_domicilio' | 'permite_descuento' | 'pregunta_cobro_envio',
+    activar: boolean,
+    textos: { guardando: WritableSignal<boolean>; titulo: string; on: string; off: string; error: string },
+  ): void {
     const idNegocio = this.negocioActivoId();
     if (!idNegocio || !this.canEdit()) return;
 
-    this.guardandoMultipago.set(true);
+    textos.guardando.set(true);
     this.configuracionService
-      .updateConfiguracion({ id_negocio: idNegocio, permite_multipago: activar })
-      .pipe(finalize(() => this.guardandoMultipago.set(false)))
+      .updateConfiguracion({ id_negocio: idNegocio, [campo]: activar })
+      .pipe(finalize(() => textos.guardando.set(false)))
       .subscribe({
         next: async (config) => {
           this.configuracion.set(config);
-          this.form.controls.permite_multipago.setValue(activar, { emitEvent: false });
-          this.uiFeedback.success(
-            activar ? 'Multipago activado.' : 'Multipago desactivado.',
-            'Opciones de pago'
-          );
+          this.form.controls[campo].setValue(activar, { emitEvent: false });
+          this.uiFeedback.success(activar ? textos.on : textos.off, textos.titulo);
 
           const token = this.auth.getAccessToken();
           if (token) {
@@ -275,42 +306,53 @@ export class ConfiguracionComponent {
           }
         },
         error: (e) => {
-          this.uiFeedback.error(e?.error?.message || 'No se pudo actualizar el Multipago.');
+          this.uiFeedback.error(e?.error?.message || textos.error);
         },
       });
   }
 
-  /**
-   * Activa/desactiva el cobro del domicilio. Guarda de inmediato (switch) y refresca
-   * la sesión para que Pedidos vea la casilla sin necesidad de volver a entrar.
-   */
+  /** Dividir el cobro de un pedido en varias formas de pago. */
+  toggleMultipago(activar: boolean): void {
+    this.actualizarFlag('permite_multipago', activar, {
+      guardando: this.guardandoMultipago,
+      titulo: 'Opciones de pago',
+      on: 'Multipago activado.',
+      off: 'Multipago desactivado.',
+      error: 'No se pudo actualizar el Multipago.',
+    });
+  }
+
+  /** Cobrar el valor del domicilio al cliente y pagarlo al domiciliario desde caja. */
   togglePagoDomicilio(activar: boolean): void {
-    const idNegocio = this.negocioActivoId();
-    if (!idNegocio || !this.canEdit()) return;
+    this.actualizarFlag('permite_pago_domicilio', activar, {
+      guardando: this.guardandoPagoDomicilio,
+      titulo: 'Domicilios',
+      on: 'Cobro de domicilio activado.',
+      off: 'Cobro de domicilio desactivado.',
+      error: 'No se pudo actualizar el cobro de domicilio.',
+    });
+  }
 
-    this.guardandoPagoDomicilio.set(true);
-    this.configuracionService
-      .updateConfiguracion({ id_negocio: idNegocio, permite_pago_domicilio: activar })
-      .pipe(finalize(() => this.guardandoPagoDomicilio.set(false)))
-      .subscribe({
-        next: async (config) => {
-          this.configuracion.set(config);
-          this.form.controls.permite_pago_domicilio.setValue(activar, { emitEvent: false });
-          this.uiFeedback.success(
-            activar ? 'Cobro de domicilio activado.' : 'Cobro de domicilio desactivado.',
-            'Domicilios'
-          );
+  /** Registrar un descuento sobre el pedido en el POS. */
+  toggleDescuento(activar: boolean): void {
+    this.actualizarFlag('permite_descuento', activar, {
+      guardando: this.guardandoDescuento,
+      titulo: 'Descuentos',
+      on: 'Descuentos activados.',
+      off: 'Descuentos desactivados.',
+      error: 'No se pudieron actualizar los descuentos.',
+    });
+  }
 
-          const token = this.auth.getAccessToken();
-          if (token) {
-            const ok = await this.auth.validateAndSetToken(token);
-            if (ok) this.auth.setNegocioActivo(idNegocio);
-          }
-        },
-        error: (e) => {
-          this.uiFeedback.error(e?.error?.message || 'No se pudo actualizar el cobro de domicilio.');
-        },
-      });
+  /** Preguntar «Cobrar ahora» / «Enviar sin cobrar» al enviar un pedido. */
+  toggleCobroEnvio(activar: boolean): void {
+    this.actualizarFlag('pregunta_cobro_envio', activar, {
+      guardando: this.guardandoCobroEnvio,
+      titulo: 'Envío de pedidos',
+      on: 'Se preguntará por el cobro al enviar.',
+      off: 'Los pedidos se enviarán sin preguntar por el cobro.',
+      error: 'No se pudo actualizar el aviso de cobro.',
+    });
   }
 
   cargarConfiguracion(idNegocio: number): void {
@@ -335,6 +377,8 @@ export class ConfiguracionComponent {
             url_instagram: config.url_instagram || '',
             permite_multipago: config.permite_multipago === true,
             permite_pago_domicilio: config.permite_pago_domicilio === true,
+            permite_descuento: config.permite_descuento === true,
+            pregunta_cobro_envio: config.pregunta_cobro_envio === true,
             id_paleta: config.id_paleta ?? null,
           });
 
@@ -417,6 +461,8 @@ export class ConfiguracionComponent {
         url_instagram: value.url_instagram?.trim() || null,
         permite_multipago: value.permite_multipago,
         permite_pago_domicilio: value.permite_pago_domicilio,
+        permite_descuento: value.permite_descuento,
+        pregunta_cobro_envio: value.pregunta_cobro_envio,
         id_paleta: value.id_paleta,
       })
       .pipe(finalize(() => this.saving.set(false)))

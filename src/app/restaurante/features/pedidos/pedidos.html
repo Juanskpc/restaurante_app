@@ -12,9 +12,9 @@
   </div>
 }
 
-<div class="pos-layout">
+<div class="pos-layout" [class.cat-lateral]="catLateralActiva()">
 
-  <!-- ════════════════ PANEL CATEGORÍAS (desktop/tablet) ════════════════ -->
+  <!-- ════════════════ PANEL CATEGORÍAS (desktop/tablet, y móvil con el botón) ════════════════ -->
   <aside class="cat-panel">
     @for (cat of categorias(); track cat.id_categoria) {
       <button class="cat-item"
@@ -44,6 +44,18 @@
                [value]="searchTerm()"
                (input)="searchTerm.set($any($event.target).value)" />
       </div>
+
+      <!-- Solo en móvil: mueve las categorías de la tira de arriba a una columna
+           a la izquierda, donde se ven todas sin arrastrar. -->
+      <button type="button"
+              class="btn-cat-vista"
+              (click)="toggleCatLateral()"
+              [title]="catLateralMovil()
+                ? 'Categorías arriba — clic para volver a la tira horizontal'
+                : 'Categorías a la izquierda — clic para verlas todas en columna'"
+              aria-label="Cambiar la ubicación de las categorías">
+        <lucide-icon [name]="catLateralMovil() ? 'panel-top' : 'panel-left'" [size]="16" />
+      </button>
     </div>
 
     <!-- Categorías horizontales (móvil) -->
@@ -310,6 +322,35 @@
         </div>
       }
 
+      <!-- Descuento (visible solo si el negocio lo activó en Configuración) -->
+      @if (permiteDescuento()) {
+        <div class="domicilio-cobro">
+          <label class="domicilio-cobro__check">
+            <input type="checkbox"
+                   [checked]="aplicarDescuento()"
+                   (change)="toggleAplicarDescuento($any($event.target).checked)" />
+            <span>Aplicar descuento</span>
+          </label>
+
+          @if (aplicarDescuento()) {
+            <input class="domicilio-cobro__input"
+                   type="text"
+                   inputmode="numeric"
+                   aria-label="Valor del descuento"
+                   placeholder="Valor del descuento"
+                   [value]="descuentoInput()"
+                   (input)="setDescuento($any($event.target).value)" />
+          }
+        </div>
+
+        @if (descuentoExcedido()) {
+          <p class="mesa-error">
+            El descuento no puede superar
+            {{ baseDescontable() | currency:'COP':'symbol-narrow':'1.0-0' }}; se aplicará ese tope.
+          </p>
+        }
+      }
+
       @if (metodoPagoRequeridoError()) {
         <p class="mesa-error">Debes seleccionar una forma de pago.</p>
       }
@@ -410,14 +451,22 @@
             <span class="paid-value">{{ totalPagado() | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
           </div>
         }
-        @if (valorDomicilio() > 0) {
+        @if (valorDomicilio() > 0 || descuento() > 0) {
           <div class="total-row">
             <span>Productos</span>
             <span>{{ totalProductos() | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
           </div>
+        }
+        @if (valorDomicilio() > 0) {
           <div class="total-row">
             <span>Domicilio</span>
             <span>{{ valorDomicilio() | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+          </div>
+        }
+        @if (descuento() > 0) {
+          <div class="total-row discount">
+            <span>Descuento</span>
+            <span>-{{ descuento() | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
           </div>
         }
         <div class="total-row final">

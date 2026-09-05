@@ -3,6 +3,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   ElementRef,
+  OnDestroy,
   OnInit,
   computed,
   inject,
@@ -55,7 +56,7 @@ interface NegocioPublico {
   styleUrl: './menu-publico.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class MenuPublicoComponent implements OnInit, AfterViewInit {
+export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
   /**
    * El carrito del menú digital.
    *
@@ -127,6 +128,22 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit {
   readonly puedeScrollIzq = signal(false);
   readonly puedeScrollDer = signal(false);
 
+  /**
+   * ¿Se replegó la cabecera del negocio?
+   *
+   * Cabecera y categorías se pinchan arriba como un solo bloque, y en un móvil ese
+   * bloque se come unos 145 px: al bajar por la carta las categorías quedaban tapadas
+   * por el nombre y el teléfono del negocio. En cuanto se empieza a bajar, la cabecera
+   * se pliega y deja arriba solo las categorías, que es lo que hace falta para seguir
+   * navegando. Al volver al tope reaparece entera.
+   *
+   * El umbral tiene histéresis (56 px para plegar, 24 px para desplegar) para que un
+   * arrastre corto justo en el borde no la haga parpadear.
+   */
+  readonly headerCompacto = signal(false);
+  private readonly umbralPlegar = 56;
+  private readonly umbralDesplegar = 24;
+
   private readonly priceFormatter = new Intl.NumberFormat('es-CO', {
     style: 'currency',
     currency: 'COP',
@@ -156,9 +173,26 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit {
     queueMicrotask(() => this.actualizarFlechas());
 
     window.addEventListener('resize', this._onResize);
+    window.addEventListener('scroll', this._onScroll, { passive: true });
+    this._onScroll();
+  }
+
+  ngOnDestroy(): void {
+    if (!isPlatformBrowser(this.platformId)) return;
+    window.removeEventListener('resize', this._onResize);
+    window.removeEventListener('scroll', this._onScroll);
   }
 
   private _onResize = (): void => this.actualizarFlechas();
+
+  private _onScroll = (): void => {
+    const y = window.scrollY ?? 0;
+    if (!this.headerCompacto() && y > this.umbralPlegar) {
+      this.headerCompacto.set(true);
+    } else if (this.headerCompacto() && y < this.umbralDesplegar) {
+      this.headerCompacto.set(false);
+    }
+  };
 
   actualizarFlechas(): void {
     const el = this.categoriasScroll()?.nativeElement;

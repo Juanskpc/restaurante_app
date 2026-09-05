@@ -150,6 +150,15 @@
               }
             </div>
 
+            <!-- Quién tomó el pedido: para saber a quién preguntarle si algo no cuadra. -->
+            @if (p.usuario) {
+              <div class="row muted taker-row"
+                   [title]="'Pedido tomado por ' + tomadoPorNombre(p)">
+                <lucide-icon name="clipboard-list" [size]="13" />
+                <span class="ellipsis">{{ tomadoPorCorto(p) }}</span>
+              </div>
+            }
+
             @if (verProductos() && (p.detalles ?? []).length > 0) {
               <ul class="card-productos">
                 @for (d of p.detalles ?? []; track $index) {
@@ -259,6 +268,14 @@
             </span>
           </div>
 
+          <div class="info-row">
+            <span class="info-label">
+              <lucide-icon name="clipboard-list" [size]="14" />
+              Tomado por
+            </span>
+            <span class="info-val">{{ tomadoPorNombre(p) }}</span>
+          </div>
+
           @if (puedeVerTodos()) {
             <div class="info-row">
               <span class="info-label">
@@ -266,6 +283,46 @@
                 Domiciliario
               </span>
               <span class="info-val">{{ domiciliarioNombre(p) }}</span>
+            </div>
+          }
+
+          <!-- Cobro del domicilio: opt-in del negocio y solo mientras no esté cobrado.
+               Antes solo se podía fijar al tomar el pedido; ahora también aquí. -->
+          @if (puedeCobrarDomicilio(p)) {
+            <div class="info-row">
+              <span class="info-label">
+                <lucide-icon name="truck" [size]="14" />
+                Valor domicilio
+              </span>
+              <span class="info-val domicilio-edit">
+                <input class="domicilio-edit__input"
+                       type="text"
+                       inputmode="numeric"
+                       aria-label="Valor del domicilio"
+                       placeholder="Sin cobro"
+                       [value]="domicilioInput()"
+                       [disabled]="guardandoDomicilio()"
+                       (input)="setDomicilioInput($any($event.target).value)"
+                       (keydown.enter)="guardarValorDomicilio(p)" />
+                <button type="button"
+                        class="domicilio-edit__save"
+                        [disabled]="guardandoDomicilio()"
+                        (click)="guardarValorDomicilio(p)"
+                        title="Guardar el valor del domicilio">
+                  <lucide-icon [name]="guardandoDomicilio() ? 'loader' : 'save'" [size]="15"
+                               [class.spin]="guardandoDomicilio()" />
+                </button>
+              </span>
+            </div>
+          } @else if (valorDomicilio(p) > 0) {
+            <div class="info-row">
+              <span class="info-label">
+                <lucide-icon name="truck" [size]="14" />
+                Valor domicilio
+              </span>
+              <span class="info-val">
+                {{ valorDomicilio(p) | currency:'COP':'symbol-narrow':'1.0-0' }}
+              </span>
             </div>
           }
 
@@ -321,14 +378,22 @@
                 </li>
               }
             </ul>
-            @if (valorDomicilio(p) > 0) {
+            @if (valorDomicilio(p) > 0 || descuento(p) > 0) {
               <div class="items-total muted">
                 <span>Productos</span>
-                <span>{{ p.total - valorDomicilio(p) | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+                <span>{{ subtotalProductos(p) | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
               </div>
+            }
+            @if (valorDomicilio(p) > 0) {
               <div class="items-total muted">
                 <span>Domicilio</span>
                 <span>{{ valorDomicilio(p) | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+              </div>
+            }
+            @if (descuento(p) > 0) {
+              <div class="items-total muted">
+                <span>Descuento</span>
+                <span>-{{ descuento(p) | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
               </div>
             }
             <div class="items-total">

@@ -62,6 +62,24 @@
 
 .estado { color: var(--color-text-secondary); padding: 1rem 0; }
 
+// Reemplaza a la tira de totales cuando el rol no tiene `caja_ver_ingresos`.
+// Ocupa el hueco explicando por qué está vacío, en vez de dejar un salto raro.
+.sin-importes {
+  display: flex;
+  align-items: flex-start;
+  gap: .5rem;
+  margin: 0;
+  padding: .75rem .85rem;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+  font-size: .82rem;
+  line-height: 1.45;
+
+  lucide-icon { flex-shrink: 0; margin-top: .12rem; }
+}
+
 .caja-vacia {
   display: flex; flex-direction: column; align-items: center; gap: .75rem;
   padding: 3rem 1.5rem;
@@ -155,16 +173,16 @@
   }
 }
 
-.movimientos {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: 1rem 1.25rem;
-  color: var(--color-text-primary);
-
-  h2 { margin: 0 0 .75rem; font-size: 1.05rem; }
-
-  &__table {
+/**
+ * Tabla de movimientos.
+ *
+ * Es un mixin y no reglas sueltas porque el mismo marcado se usa en dos sitios muy
+ * distintos: la sección del turno en curso y el modal del historial. Estaba anidado
+ * bajo `.movimientos`, así que dentro del modal la tabla salía sin formato — sin
+ * padding, sin líneas y con las celdas pegadas.
+ */
+@mixin tabla-movimientos {
+  .movimientos__table {
     // Sin alto máximo: la tabla crece y quien hace scroll vertical es la vista
     // completa (`.content` del layout), no una caja interna. Solo se conserva el
     // scroll horizontal, que la tabla necesita por su min-width en pantallas angostas.
@@ -241,6 +259,18 @@
   }
 }
 
+.movimientos {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 1rem 1.25rem;
+  color: var(--color-text-primary);
+
+  h2 { margin: 0 0 .75rem; font-size: 1.05rem; }
+
+  @include tabla-movimientos;
+}
+
 // ── Modal ──
 .modal {
   position: fixed; inset: 0; background: rgba(0, 0, 0, .55);
@@ -269,6 +299,163 @@
   &__panel--wide {
     max-width: 760px;
   }
+
+  // ═══════════════════════════════════════════════════════════
+  // Historial de cajas — lista de turnos y detalle de uno
+  // ═══════════════════════════════════════════════════════════
+
+  // La cabecera del detalle: «Volver» pegado al título, no en una fila aparte.
+  .hist-detalle-head {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+
+    h2 { margin: 0; }
+  }
+
+  .hist-fechas {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem 1rem;
+    font-size: .82rem;
+    color: var(--color-text-secondary);
+
+    span { display: inline-flex; align-items: center; gap: .3rem; }
+  }
+
+  .hist-sub {
+    margin: .35rem 0 0;
+    font-size: .92rem;
+    color: var(--color-text-primary);
+  }
+
+  // El filtro se mantiene en una línea mientras quepa; en móvil los dos campos
+  // pasan a ocupar el ancho completo y los botones bajan.
+  .hist-filtros {
+    display: flex;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: .5rem;
+
+    label { flex: 1 1 140px; min-width: 0; }
+
+    .btn { flex: 0 0 auto; }
+  }
+
+  // La tabla de movimientos del detalle usa el mismo marcado que la del turno en
+  // curso, así que hereda su formato en vez de duplicarlo.
+  @include tabla-movimientos;
+
+  // Dentro del modal la tabla no tiene 640 px que gastar: baja el mínimo para que
+  // quepa sin scroll horizontal, y las celdas se aprietan un poco.
+  table {
+    min-width: 520px;
+    font-size: .84rem;
+
+    th, td { padding: .5rem .4rem; }
+  }
+
+  /**
+   * Un turno del historial.
+   *
+   * Era una tabla de seis columnas metida en un modal: sin sitio para respirar, las
+   * celdas quedaban pegadas y la única señal de que la fila se podía abrir era un
+   * chevron suelto. Como tarjeta cabe el rango de fechas completo, quién lo abrió y
+   * un botón que dice lo que hace.
+   */
+  .hist-lista {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+  }
+
+  .hist-item {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .5rem .85rem;
+    padding: .7rem .85rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    transition: border-color var(--transition-fast), background var(--transition-fast);
+
+    &:hover {
+      border-color: var(--color-primary);
+      background: color-mix(in srgb, var(--color-primary) 4%, var(--color-surface));
+    }
+
+    // Fechas + quién lo abrió. Es lo que empuja al resto a su sitio.
+    &__info {
+      flex: 1 1 240px;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: .2rem;
+    }
+
+    &__rango {
+      display: flex;
+      align-items: center;
+      gap: .4rem;
+      flex-wrap: wrap;
+      font-size: .88rem;
+      font-weight: 600;
+      color: var(--color-text-primary);
+
+      lucide-icon { color: var(--color-text-secondary); flex-shrink: 0; }
+    }
+
+    &__meta {
+      display: flex;
+      align-items: center;
+      gap: .35rem;
+      flex-wrap: wrap;
+      font-size: .76rem;
+      color: var(--color-text-secondary);
+
+      .punto { opacity: .5; }
+    }
+
+    // Importes alineados a la derecha para poder compararlos de un vistazo entre
+    // turnos, que es justo para lo que se abre esta pantalla.
+    &__montos {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: .1rem;
+      margin-left: auto;
+      text-align: right;
+
+      strong { font-size: .95rem; color: var(--color-text-primary); }
+
+      small {
+        font-size: .72rem;
+        color: var(--color-text-secondary);
+      }
+    }
+
+    &__ver {
+      flex-shrink: 0;
+    }
+  }
+
+  .hist-mas {
+    align-self: center;
+  }
+
+  .hist-conteo {
+    margin: 0;
+    text-align: center;
+    font-size: .78rem;
+    color: var(--color-text-secondary);
+  }
+
+  // Diferencia de arqueo dentro de una celda o del resumen: solo color, sin la
+  // caja de `.diferencia`, que aquí quedaría enorme.
+  .dif--ok   { color: var(--color-primary); }
+  .dif--up   { color: var(--color-success); }
+  .dif--down { color: var(--color-error); }
 
   label {
     display: flex; flex-direction: column; gap: .3rem;

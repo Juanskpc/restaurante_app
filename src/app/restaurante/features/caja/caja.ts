@@ -9,10 +9,13 @@ import { LucideAngularModule } from 'lucide-angular';
 import { Observable } from 'rxjs';
 
 import { AuthService } from '../../../core/services/auth.service';
-import { ApiResponse, CajaService, DomiciliarioResumen, MovimientoCaja } from '../../../core/services/caja.service';
+import {
+  ApiResponse, Caja, CajaHistorial, CajaService, DomiciliarioResumen, DomiciliariosResumen,
+  MovimientoCaja,
+} from '../../../core/services/caja.service';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 
-type ModalActivo = null | 'apertura' | 'cierre' | 'movimiento' | 'domiciliarios';
+type ModalActivo = null | 'apertura' | 'cierre' | 'movimiento' | 'domiciliarios' | 'historial';
 
 @Component({
   selector: 'app-caja',
@@ -34,22 +37,30 @@ export class CajaComponent implements OnInit, OnDestroy {
   readonly movimientos = signal<MovimientoCaja[]>([]);
   readonly cargandoMovimientos = signal(false);
   readonly domiciliariosResumen = signal<DomiciliarioResumen[]>([]);
-  readonly resumenDomiciliarios = signal<{
-    domiciliarios: number;
-    total_pedidos: number;
-    pedidos_adelantados: number;
-    pedidos_cobrados: number;
-    pedidos_en_posesion: number;
-    monto_adelantado: number;
-    monto_cobrado: number;
-    monto_en_posesion: number;
-  } | null>(null);
+  readonly resumenDomiciliarios = signal<DomiciliariosResumen['resumen'] | null>(null);
   readonly cargandoDomiciliarios = signal(false);
   readonly errorDomiciliarios = signal('');
   readonly transferiendoDomiciliarioId = signal<number | null>(null);
 
   readonly modal = signal<ModalActivo>(null);
   readonly enviando = signal(false);
+
+  // ── Historial de turnos cerrados ──
+  // El modal tiene dos vistas: la lista de turnos y, al elegir uno, su detalle.
+  // `cajaHistSel` es lo que decide cuál se ve.
+  private readonly HIST_PAGINA = 20;
+  readonly historial = signal<CajaHistorial[]>([]);
+  readonly historialTotal = signal(0);
+  readonly cargandoHistorial = signal(false);
+  readonly errorHistorial = signal('');
+  readonly histDesde = signal('');
+  readonly histHasta = signal('');
+
+  readonly cajaHistSel = signal<Caja | null>(null);
+  readonly movimientosHist = signal<MovimientoCaja[]>([]);
+  readonly cargandoDetalleHist = signal(false);
+
+  readonly hayMasHistorial = computed(() => this.historial().length < this.historialTotal());
 
   // ── Apertura ──
   // Arranca vacío (no en 0) para que el cajero escriba directo sin borrar nada.
@@ -81,7 +92,25 @@ export class CajaComponent implements OnInit, OnDestroy {
   readonly puedeEliminarPedido = computed(() => this.auth.canAccessSubnivel('caja_eliminar_pedido'));
   readonly anulandoOrdenId = signal<number | null>(null);
 
+  /**
+   * Ver el dinero del turno: ingresos, egresos, esperado, desglose por forma de
+   * pago y el monto de cada movimiento.
+   *
+   * Sin el permiso, Caja se abre igual y los movimientos se siguen listando —fecha,
+   * tipo, concepto, usuario— pero sin cifras. Sirve para que un cajero opere y
+   * cuente a ciegas sin ver el acumulado del turno. El backend además vacía los
+   * importes en la respuesta, así que esto no es solo cosmético.
+   */
+  readonly puedeVerIngresos = computed(() => this.auth.canAccessSubnivel('caja_ver_ingresos'));
+
+  /**
+   * Con los importes ocultos no hay contra qué comparar: el cierre se hace a ciegas
+   * y es el backend quien calcula la diferencia contra el esperado real.
+   */
+  readonly puedeVerDiferenciaCierre = computed(() => this.puedeVerIngresos());
+
   readonly diferenciaCierre = computed(() => {
+    if (!this.puedeVerIngresos()) return null;
     const reportado = this.montoReportado();
     const esperado = this.caja()?.monto_esperado ?? 0;
     if (reportado === null || Number.isNaN(Number(reportado))) return null;
@@ -137,6 +166,12 @@ export class CajaComponent implements OnInit, OnDestroy {
       this.errorDomiciliarios.set('');
       this.cargarResumenDomiciliarios();
     }
+    if (modal === 'historial') {
+      this.cajaHistSel.set(null);
+      this.movimientosHist.set([]);
+      this.errorHistorial.set('');
+      this.cargarHistorial(true);
+    }
     this.modal.set(modal);
     this.toggleBodyScroll(true);
   }
@@ -154,6 +189,89 @@ export class CajaComponent implements OnInit, OnDestroy {
   private toggleBodyScroll(lock: boolean): void {
     if (!this.isBrowser) return;
     document.body.style.overflow = lock ? 'hidden' : '';
+  }
+
+  // ===================== Historial =====================
+
+  /** `reiniciar` vuelve a la primera página; si no, añade la siguiente. */
+  cargarHistorial(reiniciar = false): void {
+    const id = this.idNegocio();
+    if (!id || this.cargandoHistorial()) return;
+
+    const offset = reiniciar ? 0 : this.historial().length;
+    this.cargandoHistorial.set(true);
+
+    this.cajaSvc.getHistorial(id, {
+      desde: this.histDesde() || null,
+      hasta: this.histHasta() || null,
+      limite: this.HIST_PAGINA,
+      offset,
+    }).subscribe({
+      next: (res) => {
+        const rows = res?.data?.rows ?? [];
+        this.historial.set(reiniciar ? rows : [...this.historial(), ...rows]);
+        this.historialTotal.set(res?.data?.total ?? 0);
+        this.errorHistorial.set('');
+        this.cargandoHistorial.set(false);
+      },
+      error: (err: HttpErrorResponse) => {
+        if (reiniciar) {
+          this.historial.set([]);
+          this.historialTotal.set(0);
+        }
+        this.errorHistorial.set(
+          err?.error?.message || 'No se pudo cargar el historial de cajas.',
+        );
+        this.cargandoHistorial.set(false);
+      },
+    });
+  }
+
+  /** Al cambiar el rango de fechas se relee desde la primera página. */
+  aplicarFiltroHistorial(): void {
+    this.cajaHistSel.set(null);
+    this.movimientosHist.set([]);
+    this.cargarHistorial(true);
+  }
+
+  limpiarFiltroHistorial(): void {
+    this.histDesde.set('');
+    this.histHasta.set('');
+    this.aplicarFiltroHistorial();
+  }
+
+  /** Abre el detalle de un turno: sus totales y sus movimientos. */
+  verDetalleHistorial(item: CajaHistorial): void {
+    const id = this.idNegocio();
+    if (!id || this.cargandoDetalleHist()) return;
+
+    this.cargandoDetalleHist.set(true);
+    this.movimientosHist.set([]);
+
+    this.cajaSvc.getDetalleCaja(item.id_caja, id).subscribe({
+      next: (res) => {
+        this.cajaHistSel.set(res?.data ?? null);
+        this.cargandoDetalleHist.set(false);
+        if (res?.data) this.cargarMovimientosHistorial(item.id_caja);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.cargandoDetalleHist.set(false);
+        this.ui.error(err?.error?.message || 'No se pudo cargar el detalle de la caja.');
+      },
+    });
+  }
+
+  private cargarMovimientosHistorial(idCaja: number): void {
+    this.cajaSvc.getMovimientos(idCaja).subscribe({
+      next: (res) => this.movimientosHist.set(res?.data ?? []),
+      error: () => this.movimientosHist.set([]),
+    });
+  }
+
+  /** Vuelve de la vista de detalle a la lista, sin recargarla. */
+  volverAListaHistorial(): void {
+    this.cajaHistSel.set(null);
+    this.movimientosHist.set([]);
   }
 
   private cargarResumenDomiciliarios(): void {
@@ -187,9 +305,14 @@ export class CajaComponent implements OnInit, OnDestroy {
       next: (res) => {
         const total = res?.data?.total_pedidos ?? 0;
         const monto = res?.data?.total_monto ?? 0;
+        // Sin permiso para ver importes, el aviso confirma la acción sin decir cuánto:
+        // esconder las cifras en pantalla y soltarlas en el toast sería inútil.
+        const detalle = this.puedeVerIngresos()
+          ? ` por ${monto.toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })}`
+          : '';
         this.ui.success(
           total > 0
-            ? `Se transfirieron ${total} pedido(s) por ${monto.toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })}.`
+            ? `Se transfirieron ${total} pedido(s)${detalle}.`
             : 'No hay pedidos en posesion para transferir.',
           'Transferencia a caja',
         );
@@ -354,7 +477,9 @@ export class CajaComponent implements OnInit, OnDestroy {
 
     const confirmar = await this.ui.confirm({
       title: esPedido ? 'Eliminar pedido' : 'Eliminar egreso',
-      message: `¿Está seguro que desea eliminar ${etiqueta} por ${this.formatMonto(m.monto)}? `
+      // Sin permiso para ver importes el monto llega en null: la pregunta se hace
+      // igual, solo sin la cifra.
+      message: `¿Está seguro que desea eliminar ${etiqueta}${this.sufijoMonto(m.monto)}? `
         + (esPedido
           ? 'Esta acción no se puede revertir. '
           : 'El monto volverá a la caja y esta acción no se puede revertir. ')
@@ -394,5 +519,11 @@ export class CajaComponent implements OnInit, OnDestroy {
     return new Intl.NumberFormat('es-CO', {
       style: 'currency', currency: 'COP', maximumFractionDigits: 0,
     }).format(Number(valor) || 0);
+  }
+
+  /** " por $12.000", o cadena vacía si el rol no puede ver importes. */
+  private sufijoMonto(valor: number | null | undefined): string {
+    if (valor === null || valor === undefined) return '';
+    return ` por ${this.formatMonto(valor)}`;
   }
 }

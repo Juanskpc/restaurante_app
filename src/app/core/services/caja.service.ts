@@ -1,5 +1,5 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
@@ -14,7 +14,7 @@ export interface Caja {
   id_caja: number;
   id_negocio: number;
   id_usuario: number;
-  monto_apertura: number;
+  monto_apertura: number | null;
   monto_cierre?: number | null;
   monto_reportado?: number | null;
   diferencia?: number | null;
@@ -24,17 +24,24 @@ export interface Caja {
   observaciones?: string | null;
   usuario?: CajaUsuario | null;
   /** Calculados por el backend al consultar la caja abierta. */
-  ingresos?: number;
-  egresos?: number;
-  monto_esperado?: number;
+  ingresos?: number | null;
+  egresos?: number | null;
+  monto_esperado?: number | null;
   ingresos_por_metodo?: Array<{ id_metodo_pago: number | null; nombre: string; total: number }>;
+  /**
+   * El backend vació las cifras porque el rol no tiene el subnivel
+   * `caja_ver_ingresos`. El turno sigue llegando entero (id, usuario, fechas):
+   * lo único que falta es el dinero.
+   */
+  importes_ocultos?: boolean;
 }
 
 export interface MovimientoCaja {
   id_movimiento: number;
   id_caja: number;
   tipo: 'INGRESO' | 'EGRESO';
-  monto: number;
+  /** `null` cuando el rol no puede ver importes (ver `Caja.importes_ocultos`). */
+  monto: number | null;
   concepto?: string | null;
   id_orden?: number | null;
   id_usuario: number;
@@ -57,9 +64,9 @@ export interface DomiciliarioResumen {
   pedidos_adelantados: number;
   pedidos_cobrados: number;
   pedidos_en_posesion: number;
-  monto_adelantado: number;
-  monto_cobrado: number;
-  monto_en_posesion: number;
+  monto_adelantado: number | null;
+  monto_cobrado: number | null;
+  monto_en_posesion: number | null;
 }
 
 export interface DomiciliariosResumen {
@@ -69,11 +76,35 @@ export interface DomiciliariosResumen {
     pedidos_adelantados: number;
     pedidos_cobrados: number;
     pedidos_en_posesion: number;
-    monto_adelantado: number;
-    monto_cobrado: number;
-    monto_en_posesion: number;
+    monto_adelantado: number | null;
+    monto_cobrado: number | null;
+    monto_en_posesion: number | null;
   };
   rows: DomiciliarioResumen[];
+}
+
+/** Un turno ya cerrado, tal como lo lista el historial. */
+export interface CajaHistorial {
+  id_caja: number;
+  fecha_apertura: string;
+  fecha_cierre: string | null;
+  estado: string;
+  observaciones?: string | null;
+  usuario: CajaUsuario;
+  /** Todos los importes llegan en `null` si el rol no tiene `caja_ver_ingresos`. */
+  monto_apertura: number | null;
+  ingresos: number | null;
+  egresos: number | null;
+  monto_esperado: number | null;
+  monto_reportado: number | null;
+  diferencia: number | null;
+  total_movimientos: number;
+  importes_ocultos?: boolean;
+}
+
+export interface HistorialCajas {
+  total: number;
+  rows: CajaHistorial[];
 }
 
 export interface ApiResponse<T> {
@@ -140,6 +171,30 @@ export class CajaService {
 
   getMovimientos(idCaja: number): Observable<ApiResponse<MovimientoCaja[]>> {
     return this.http.get<ApiResponse<MovimientoCaja[]>>(`${this.base}/${idCaja}/movimientos`);
+  }
+
+  /**
+   * Turnos ya cerrados, del más reciente al más antiguo.
+   * `desde`/`hasta` son fechas de pared (YYYY-MM-DD) y el rango incluye ambos días.
+   */
+  getHistorial(
+    idNegocio: number,
+    opciones: { desde?: string | null; hasta?: string | null; limite?: number; offset?: number } = {},
+  ): Observable<ApiResponse<HistorialCajas>> {
+    let params = new HttpParams().set('id_negocio', String(idNegocio));
+    if (opciones.desde) params = params.set('desde', opciones.desde);
+    if (opciones.hasta) params = params.set('hasta', opciones.hasta);
+    if (opciones.limite != null) params = params.set('limite', String(opciones.limite));
+    if (opciones.offset != null) params = params.set('offset', String(opciones.offset));
+
+    return this.http.get<ApiResponse<HistorialCajas>>(`${this.base}/historial`, { params });
+  }
+
+  /** Un turno concreto con sus totales y el desglose por forma de pago. */
+  getDetalleCaja(idCaja: number, idNegocio: number): Observable<ApiResponse<Caja>> {
+    return this.http.get<ApiResponse<Caja>>(
+      `${this.base}/${idCaja}/detalle?id_negocio=${idNegocio}`,
+    );
   }
 
   /** Elimina de la caja un pedido ya cobrado. No borra el historial: lo reversa. */
