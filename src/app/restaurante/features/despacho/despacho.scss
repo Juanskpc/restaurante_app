@@ -86,6 +86,17 @@
     color: var(--color-primary);
     background: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface));
   }
+
+  // El origen no es un tipo de pedido: se distingue con el verde del canal, no con el color
+  // de marca del inquilino. Sale de `--color-success` y no de un verde fijo para no romper la
+  // paleta dinámica por negocio.
+  &.chip-whatsapp {
+    &.active {
+      border-color: var(--color-success);
+      color: var(--color-success);
+      background: color-mix(in srgb, var(--color-success) 10%, var(--color-surface));
+    }
+  }
 }
 
 .state {
@@ -212,7 +223,64 @@
     background: var(--color-success-bg);
     color: var(--color-success);
   }
+
+  // Convive con el tag del tipo: un pedido del bot es ADEMÁS para llevar o a domicilio, así que
+  // los dos distintivos se ven a la vez y ninguno puede parecer el mismo.
+  &.tag-whatsapp {
+    background: color-mix(in srgb, var(--color-success) 14%, var(--color-surface));
+    color: var(--color-success);
+    border: 1px solid color-mix(in srgb, var(--color-success) 35%, transparent);
+  }
 }
+
+// ── El aviso de «ya está listo» ─────────────────────────────────────────────────────────────
+//
+// Verde del canal y ancho completo. Es el único botón de esta pantalla que le manda algo a una
+// persona de fuera y se lo cobra al negocio: tiene que verse distinto de los que solo mueven
+// datos por dentro, y tiene que costar acertarle sin querer.
+.btn-avisar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 6px;
+  padding: 7px 10px;
+  border: 1px solid color-mix(in srgb, var(--color-success) 40%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-success) 12%, var(--color-surface));
+  color: var(--color-success);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--color-success) 20%, var(--color-surface));
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+
+  &.ancho {
+    margin-top: var(--spacing-sm);
+    padding: 10px;
+    font-size: var(--font-size-sm);
+  }
+}
+
+// Ya avisado: se dice a qué hora. La primera pregunta de quien mira un pedido que nadie recogió
+// es justamente ésa, y guardarla costaba lo mismo que un booleano.
+.aviso-hecho {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  color: var(--color-success);
+  font-size: 11px;
+}
+
 
 .card-body {
   display: flex;

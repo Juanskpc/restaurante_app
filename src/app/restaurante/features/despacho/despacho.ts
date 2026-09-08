@@ -21,7 +21,15 @@ import {
 } from '../../shared/multipago-selector/multipago-selector';
 
 type TipoPedido = 'MESA' | 'LLEVAR' | 'DOMICILIO';
-type FiltroTipo = 'TODOS' | 'LLEVAR' | 'DOMICILIO';
+/**
+ * Los filtros del despacho.
+ *
+ * `WHATSAPP` es distinto de los otros dos y conviene saberlo: LLEVAR y DOMICILIO filtran por el
+ * **tipo** de pedido, y WhatsApp por su **origen**. Se cruzan a propósito — un pedido del bot es
+ * además para llevar o a domicilio, y aparece en los dos sitios. No son pestañas excluyentes que
+ * repartan la lista: son tres maneras de mirar la misma.
+ */
+type FiltroTipo = 'TODOS' | 'LLEVAR' | 'DOMICILIO' | 'WHATSAPP';
 
 interface DetalleDespacho {
   id_producto: number;
@@ -49,6 +57,33 @@ export interface PedidoDespacho {
   direccion_domicilio: string | null;
   nota_domicilio: string | null;
   id_domiciliario: number | null;
+  /**
+   * Lo tomó el asistente de WhatsApp **y este negocio tiene el asistente en su plan**.
+   *
+   * No es una columna: el backend lo deduce de quién figura como autor de la orden (los pedidos
+   * del bot nacen a nombre del usuario «Asistente» del negocio). Puede faltar si el backend es
+   * anterior a este cambio — por eso es opcional y se lee como falso.
+   *
+   * Las dos cosas en una bandera a propósito: sin la feature, esta parte de la pantalla no debe
+   * existir —ni filtro, ni etiqueta, ni botón—, y apagarla por trozos dejaría media función de
+   * pago asomando. El backend la calcula; aquí solo se pinta.
+   */
+  de_whatsapp?: boolean;
+  /**
+   * ¿Se le puede ofrecer el aviso de «ya está listo»?
+   *
+   * Lo decide el **backend**, y por eso aquí no se recalcula. Son cuatro condiciones y una de
+   * ellas es comercial (el plan): repetirlas en la pantalla garantiza que un día discrepen, y el
+   * lado que discrepe sería el que ofrece un botón que el backend rechaza.
+   */
+  puede_avisar_listo?: boolean;
+  /**
+   * Cuándo se le avisó al cliente que su pedido estaba listo. `null` = todavía no.
+   *
+   * Apaga el botón, pero **no es la garantía**: quien impide el segundo cobro es el backend, con
+   * su `FOR UPDATE`. Esto es comodidad — el frontend siempre puede venir de otra pestaña.
+   */
+  aviso_listo_en?: string | null;
   domiciliario?: {
     id_usuario: number;
     primer_nombre: string;
@@ -94,6 +129,9 @@ export class DespachoComponent implements OnInit {
   readonly domicilioInput = signal('');
   readonly guardandoDomicilio = signal(false);
 
+  /** El pedido cuyo aviso está en vuelo. Bloquea el botón mientras tanto. */
+  readonly avisandoId = signal<number | null>(null);
+
   readonly negocioId = computed(() => this.auth.negocio()?.id_negocio ?? null);
   readonly permiteMultipago = computed(() => this.auth.permiteMultipago());
   /** Opt-in del negocio (Configuración → Domicilios): sin él no se ve el campo. */
@@ -122,6 +160,7 @@ export class DespachoComponent implements OnInit {
     const f = this.filtro();
     const lista = this.pedidos();
     if (f === 'TODOS') return lista;
+    if (f === 'WHATSAPP') return lista.filter((p) => p.de_whatsapp);
     return lista.filter((p) => p.tipo_pedido === f);
   });
 
@@ -131,10 +170,23 @@ export class DespachoComponent implements OnInit {
   readonly countDomicilio = computed(() =>
     this.pedidos().filter((p) => p.tipo_pedido === 'DOMICILIO').length,
   );
+  readonly countWhatsapp = computed(() => this.pedidos().filter((p) => p.de_whatsapp).length);
 
   /** Si el negocio apaga Domicilios, el filtro activo no puede quedarse ahí colgado. */
   private readonly filtroPermisoEffect = effect(() => {
     if (!this.puedeUsarDomicilio() && this.filtro() === 'DOMICILIO') {
+      this.filtro.set('TODOS');
+    }
+  });
+
+  /**
+   * El chip de WhatsApp se esconde cuando no queda ninguno, y el filtro no puede sobrevivirle.
+   *
+   * Pasa solo: se despacha el último pedido del bot, el chip desaparece —y sin esto la pantalla
+   * se queda vacía con el filtro puesto en algo que ya no se ve, o sea sin manera de volver.
+   */
+  private readonly filtroWhatsappEffect = effect(() => {
+    if (this.countWhatsapp() === 0 && this.filtro() === 'WHATSAPP') {
       this.filtro.set('TODOS');
     }
   });
@@ -265,6 +317,56 @@ export class DespachoComponent implements OnInit {
   private parseMonto(rawValue: string): number {
     const digits = String(rawValue ?? '').replace(/\D/g, '');
     return digits ? Number(digits) : 0;
+  }
+
+  /**
+   * ¿Se le puede ofrecer el aviso? La respuesta la da el backend, entera.
+   *
+   * Allí se comprueban las cuatro condiciones —el plan incluye el asistente, el pedido vino por
+   * WhatsApp, el cliente va a **venir** (a un domicilio lo que le llega es el domiciliario) y no
+   * se le ha avisado ya— y se vuelven a comprobar al pulsar. Aquí solo se lee.
+   */
+  puedeAvisarListo(p: PedidoDespacho): boolean {
+    return Boolean(p.puede_avisar_listo);
+  }
+
+  /**
+   * Le manda al cliente «tu pedido ya está listo».
+   *
+   * **Cuesta dinero**: es una plantilla de WhatsApp y Meta se la cobra al negocio. Por eso el
+   * botón se bloquea en cuanto se pulsa (`avisandoId`) y se apaga para siempre en cuanto el
+   * backend confirma. El candado de verdad está allí; esto solo evita el doble clic obvio.
+   */
+  avisarListo(p: PedidoDespacho, ev?: Event): void {
+    ev?.stopPropagation();
+    if (!this.puedeAvisarListo(p) || this.avisandoId() !== null) return;
+
+    this.avisandoId.set(p.id_orden);
+    this.http.post<{ success: boolean; data?: { avisado_en?: string } }>(
+      `${environment.apiUrl}/despacho/${p.id_orden}/avisar-listo`,
+      { id_negocio: this.negocioId() }
+    ).subscribe({
+      next: (res) => {
+        const avisadoEn = res?.data?.avisado_en ?? new Date().toISOString();
+        const apply = (ord: PedidoDespacho) =>
+          ord.id_orden === p.id_orden
+            ? { ...ord, aviso_listo_en: avisadoEn, puede_avisar_listo: false }
+            : ord;
+
+        this.pedidos.update((lista) => lista.map(apply));
+        const activo = this.pedidoActivo();
+        if (activo?.id_orden === p.id_orden) this.pedidoActivo.set(apply(activo));
+
+        this.avisandoId.set(null);
+        this.uiFeedback.success('Le avisamos al cliente por WhatsApp.', 'Pedido listo');
+      },
+      error: (err: HttpErrorResponse) => {
+        this.avisandoId.set(null);
+        // El backend ya escribe estos mensajes para que los lea quien apretó el botón (no tiene
+        // conversación, pidió la baja, ya se le avisó): se enseñan tal cual.
+        this.uiFeedback.error(err?.error?.message || 'No se pudo avisar al cliente.');
+      },
+    });
   }
 
   guardarValorDomicilio(p: PedidoDespacho): void {

@@ -62,6 +62,17 @@
         Domicilio ({{ countDomicilio() }})
       </button>
     }
+    <!--
+      Solo aparece si hay alguno. Un chip con «(0)» permanente en un restaurante que no usa el
+      asistente es ruido en la única barra que se mira con prisa.
+    -->
+    @if (countWhatsapp() > 0) {
+      <button class="chip chip-whatsapp" [class.active]="filtro() === 'WHATSAPP'"
+              (click)="seleccionarFiltro('WHATSAPP')">
+        <lucide-icon name="message-circle" [size]="13" />
+        WhatsApp ({{ countWhatsapp() }})
+      </button>
+    }
   </div>
 
   @if (cargando()) {
@@ -94,6 +105,13 @@
                 }
                 {{ tipoLabel(p.tipo_pedido) }}
               </span>
+              <!-- Se distingue de un vistazo tambien en «Todos», que es donde se mira con prisa. -->
+              @if (p.de_whatsapp) {
+                <span class="tipo-tag tag-whatsapp" title="Pedido tomado por el asistente de WhatsApp">
+                  <lucide-icon name="message-circle" [size]="12" />
+                  WhatsApp
+                </span>
+              }
               @if (puedeEditar(p)) {
                 <button type="button" class="card-action"
                         title="Editar pedido"
@@ -193,6 +211,26 @@
               {{ domiciliarioNombre(p) }}
             </div>
           }
+
+          <!--
+            Botón propio y con texto, no un icono más en la fila de acciones: esto le manda un
+            mensaje de WhatsApp a una persona y se lo cobra al negocio. No puede parecerse a
+            imprimir un tiquete.
+          -->
+          @if (puedeAvisarListo(p)) {
+            <button type="button" class="btn-avisar"
+                    [disabled]="avisandoId() !== null"
+                    (click)="avisarListo(p, $event)">
+              <lucide-icon [name]="avisandoId() === p.id_orden ? 'loader' : 'send'" [size]="14"
+                           [class.spin]="avisandoId() === p.id_orden" />
+              Avisar que está listo
+            </button>
+          } @else if (p.aviso_listo_en) {
+            <div class="aviso-hecho" [title]="'Se le avisó por WhatsApp'">
+              <lucide-icon name="check-circle" [size]="12" />
+              Avisado {{ p.aviso_listo_en | date:'shortTime' }}
+            </div>
+          }
         </article>
       }
     </div>
@@ -214,6 +252,12 @@
             }
             {{ tipoLabel(p.tipo_pedido) }}
           </span>
+          @if (p.de_whatsapp) {
+            <span class="tipo-tag tag-whatsapp">
+              <lucide-icon name="message-circle" [size]="12" />
+              WhatsApp
+            </span>
+          }
         </div>
         <button class="icon-btn" (click)="cerrarPedido()" title="Cerrar">
           <lucide-icon name="x" [size]="18" />
@@ -267,6 +311,24 @@
               {{ p.nota_domicilio || 'Sin nota' }}
             </span>
           </div>
+
+          @if (puedeAvisarListo(p)) {
+            <button type="button" class="btn-avisar ancho"
+                    [disabled]="avisandoId() !== null"
+                    (click)="avisarListo(p)">
+              <lucide-icon [name]="avisandoId() === p.id_orden ? 'loader' : 'send'" [size]="15"
+                           [class.spin]="avisandoId() === p.id_orden" />
+              Avisar que está listo
+            </button>
+          } @else if (p.aviso_listo_en) {
+            <div class="info-row">
+              <span class="info-label">
+                <lucide-icon name="check-circle" [size]="14" />
+                Avisado
+              </span>
+              <span class="info-val">{{ p.aviso_listo_en | date:'short' }}</span>
+            </div>
+          }
 
           <div class="info-row">
             <span class="info-label">
