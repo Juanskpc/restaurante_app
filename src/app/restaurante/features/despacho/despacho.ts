@@ -78,12 +78,18 @@ export interface PedidoDespacho {
    */
   puede_avisar_listo?: boolean;
   /**
-   * Cuándo se le avisó al cliente que su pedido estaba listo. `null` = todavía no.
+   * Cuándo se **intentó** avisar al cliente. `null` = todavía no se ha intentado.
    *
-   * Apaga el botón, pero **no es la garantía**: quien impide el segundo cobro es el backend, con
-   * su `FOR UPDATE`. Esto es comodidad — el frontend siempre puede venir de otra pestaña.
+   * Ojo con el verbo: intentar no es llegar. El primer aviso real de producción quedó marcado
+   * aquí y su mensaje murió en dead letter, así que la pantalla decía «Avisado» sobre alguien
+   * que no había recibido nada. Para saber qué pasó de verdad está `aviso_listo_estado`.
    */
   aviso_listo_en?: string | null;
+  /**
+   * Qué pasó con ese mensaje: `entregado`, `pendiente` (en cola), `fallido`, o `null` si ya no
+   * se puede consultar. Lo resuelve el backend leyendo el Ledger.
+   */
+  aviso_listo_estado?: 'entregado' | 'pendiente' | 'fallido' | null;
   domiciliario?: {
     id_usuario: number;
     primer_nombre: string;
@@ -337,6 +343,16 @@ export class DespachoComponent implements OnInit {
    * botón se bloquea en cuanto se pulsa (`avisandoId`) y se apaga para siempre en cuanto el
    * backend confirma. El candado de verdad está allí; esto solo evita el doble clic obvio.
    */
+  /** El aviso salió y murió por el camino: se puede —y se debe— volver a intentarlo. */
+  avisoFallido(p: PedidoDespacho): boolean {
+    return Boolean(p.aviso_listo_en) && p.aviso_listo_estado === 'fallido';
+  }
+
+  /** Se avisó y el mensaje sigue vivo (entregado, o en cola). */
+  avisoHecho(p: PedidoDespacho): boolean {
+    return Boolean(p.aviso_listo_en) && p.aviso_listo_estado !== 'fallido';
+  }
+
   avisarListo(p: PedidoDespacho, ev?: Event): void {
     ev?.stopPropagation();
     if (!this.puedeAvisarListo(p) || this.avisandoId() !== null) return;
@@ -350,7 +366,14 @@ export class DespachoComponent implements OnInit {
         const avisadoEn = res?.data?.avisado_en ?? new Date().toISOString();
         const apply = (ord: PedidoDespacho) =>
           ord.id_orden === p.id_orden
-            ? { ...ord, aviso_listo_en: avisadoEn, puede_avisar_listo: false }
+            ? {
+                ...ord,
+                aviso_listo_en: avisadoEn,
+                // Recién creado: está en cola, todavía no entregado. Decir «entregado» aquí
+                // sería adelantar una noticia que aún no tenemos.
+                aviso_listo_estado: 'pendiente' as const,
+                puede_avisar_listo: false,
+              }
             : ord;
 
         this.pedidos.update((lista) => lista.map(apply));

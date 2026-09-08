@@ -268,6 +268,18 @@
     padding: 10px;
     font-size: var(--font-size-sm);
   }
+
+  // El reintento no es el mismo botón: el anterior no llegó, y pintarlo en verde de «todo bien»
+  // sería repetir el error que se está corrigiendo.
+  &.reintento {
+    border-color: color-mix(in srgb, var(--color-danger) 45%, transparent);
+    background: color-mix(in srgb, var(--color-danger) 10%, var(--color-surface));
+    color: var(--color-danger);
+
+    &:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--color-danger) 18%, var(--color-surface));
+    }
+  }
 }
 
 // Ya avisado: se dice a qué hora. La primera pregunta de quien mira un pedido que nadie recogió

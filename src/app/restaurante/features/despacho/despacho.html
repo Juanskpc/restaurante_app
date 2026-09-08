@@ -218,17 +218,24 @@
             imprimir un tiquete.
           -->
           @if (puedeAvisarListo(p)) {
-            <button type="button" class="btn-avisar"
+            <!--
+              Cuando el envío anterior murió, el botón vuelve — y lo dice. Callarlo sería lo
+              peor de los dos mundos: el negocio creyendo que avisó y el cliente esperando.
+            -->
+            <button type="button" class="btn-avisar" [class.reintento]="avisoFallido(p)"
                     [disabled]="avisandoId() !== null"
                     (click)="avisarListo(p, $event)">
               <lucide-icon [name]="avisandoId() === p.id_orden ? 'loader' : 'send'" [size]="14"
                            [class.spin]="avisandoId() === p.id_orden" />
-              Avisar que está listo
+              {{ avisoFallido(p) ? 'No salió — reintentar' : 'Avisar que está listo' }}
             </button>
-          } @else if (p.aviso_listo_en) {
-            <div class="aviso-hecho" [title]="'Se le avisó por WhatsApp'">
-              <lucide-icon name="check-circle" [size]="12" />
-              Avisado {{ p.aviso_listo_en | date:'shortTime' }}
+          } @else if (avisoHecho(p)) {
+            <div class="aviso-hecho"
+                 [title]="p.aviso_listo_estado === 'pendiente' ? 'En cola de envío' : 'Se le avisó por WhatsApp'">
+              <lucide-icon [name]="p.aviso_listo_estado === 'pendiente' ? 'clock-3' : 'check-circle'"
+                           [size]="12" />
+              {{ p.aviso_listo_estado === 'pendiente' ? 'Enviando…' : 'Avisado' }}
+              {{ p.aviso_listo_en | date:'shortTime' }}
             </div>
           }
         </article>
@@ -313,18 +320,19 @@
           </div>
 
           @if (puedeAvisarListo(p)) {
-            <button type="button" class="btn-avisar ancho"
+            <button type="button" class="btn-avisar ancho" [class.reintento]="avisoFallido(p)"
                     [disabled]="avisandoId() !== null"
                     (click)="avisarListo(p)">
               <lucide-icon [name]="avisandoId() === p.id_orden ? 'loader' : 'send'" [size]="15"
                            [class.spin]="avisandoId() === p.id_orden" />
-              Avisar que está listo
+              {{ avisoFallido(p) ? 'El aviso no salió — reintentar' : 'Avisar que está listo' }}
             </button>
-          } @else if (p.aviso_listo_en) {
+          } @else if (avisoHecho(p)) {
             <div class="info-row">
               <span class="info-label">
-                <lucide-icon name="check-circle" [size]="14" />
-                Avisado
+                <lucide-icon [name]="p.aviso_listo_estado === 'pendiente' ? 'clock-3' : 'check-circle'"
+                             [size]="14" />
+                {{ p.aviso_listo_estado === 'pendiente' ? 'Enviando' : 'Avisado' }}
               </span>
               <span class="info-val">{{ p.aviso_listo_en | date:'short' }}</span>
             </div>
