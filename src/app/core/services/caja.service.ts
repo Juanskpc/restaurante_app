@@ -1,5 +1,5 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpParams, HttpResponse } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
@@ -195,6 +195,20 @@ export class CajaService {
     return this.http.get<ApiResponse<Caja>>(
       `${this.base}/${idCaja}/detalle?id_negocio=${idNegocio}`,
     );
+  }
+
+  /**
+   * El turno en un Excel: formas de pago con su valor, el total y los pedidos.
+   *
+   * Va con `observe: 'response'` porque el nombre del archivo lo decide el servidor
+   * y viaja en `Content-Disposition`; con la respuesta pelada solo llegaría el cuerpo.
+   */
+  exportarCaja(idCaja: number, idNegocio: number): Observable<HttpResponse<Blob>> {
+    return this.http.get(`${this.base}/${idCaja}/exportar`, {
+      params: new HttpParams().set('id_negocio', idNegocio),
+      responseType: 'blob',
+      observe: 'response',
+    });
   }
 
   /** Elimina de la caja un pedido ya cobrado. No borra el historial: lo reversa. */

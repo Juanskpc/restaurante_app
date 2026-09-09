@@ -311,6 +311,9 @@
     gap: .6rem;
 
     h2 { margin: 0; }
+
+    // El botón de Excel se va al extremo opuesto de «Volver».
+    &__excel { margin-left: auto; flex: 0 0 auto; }
   }
 
   .hist-fechas {
@@ -345,6 +348,30 @@
   // La tabla de movimientos del detalle usa el mismo marcado que la del turno en
   // curso, así que hereda su formato en vez de duplicarlo.
   @include tabla-movimientos;
+
+  /**
+   * El scroll del modal es UNO SOLO y es el del panel.
+   *
+   * `.movimientos__table` lleva `overflow-x: auto` (lo necesita: la tabla tiene
+   * min-width). Y ahí está la trampa: un ítem flex cuyo `overflow` no es `visible`
+   * pasa a tener `min-height: 0` en vez de `auto`, así que se encoge; y como
+   * `overflow-x: auto` obliga a `overflow-y` a computar `auto`, el hueco encogido se
+   * convierte en su propio scroll vertical. Resultado en móvil: el listado de pedidos
+   * aplastado en una franja de dos filas con scroll propio, mientras el resto del
+   * modal ni se movía.
+   *
+   * `flex-shrink: 0` lo deja crecer con su contenido: no hay desbordamiento vertical
+   * que scrollear, y quien hace scroll es el panel entero.
+   */
+  .movimientos__table {
+    flex-shrink: 0;
+  }
+
+  // Misma razón por la que la lista de turnos tampoco debe encogerse: en móvil la
+  // cabecera y los filtros se comen el alto y las tarjetas quedaban en un sobre.
+  .hist-lista {
+    flex-shrink: 0;
+  }
 
   // Dentro del modal la tabla no tiene 640 px que gastar: baja el mínimo para que
   // quepa sin scroll horizontal, y las celdas se aprietan un poco.
@@ -472,7 +499,23 @@
     }
   }
 
-  &__actions { display: flex; justify-content: flex-end; gap: .5rem; }
+  /**
+   * Pegado al fondo del panel mientras se hace scroll.
+   *
+   * Ahora que scrollea el modal entero, un historial de setenta filas dejaba el botón
+   * de cerrar a setenta filas de distancia. En los modales cortos el `sticky` no hace
+   * nada, porque no hay desbordamiento del que despegarse.
+   */
+  &__actions {
+    display: flex; justify-content: flex-end; gap: .5rem;
+    position: sticky;
+    bottom: -1.25rem;          // compensa el padding del panel: se pega al borde real
+    margin: 0 -1.25rem -1.25rem;
+    padding: .75rem 1.25rem;
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-border);
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  }
 
   .resumen-cierre {
     display: grid; grid-template-columns: 1fr 1fr; gap: .35rem .75rem;
@@ -636,6 +679,17 @@
   .modal .domiciliarios-kpis,
   .modal .domiciliario-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  // En el teléfono el 15% que dejaba libre el 85vh es justo lo que le falta al
+  // historial. `dvh` en vez de `vh` para que la barra del navegador al aparecer y
+  // desaparecer no deje el modal cortado por abajo.
+  .modal {
+    padding: .5rem;
+
+    &__panel {
+      max-height: calc(100dvh - 1rem);
+    }
   }
 }
 

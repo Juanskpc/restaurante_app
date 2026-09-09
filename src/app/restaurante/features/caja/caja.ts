@@ -4,7 +4,7 @@ import {
 } from '@angular/core';
 import { CurrencyPipe, DatePipe, DecimalPipe, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { HttpErrorResponse } from '@angular/common/http';
+import { HttpErrorResponse, HttpResponse } from '@angular/common/http';
 import { LucideAngularModule } from 'lucide-angular';
 import { Observable } from 'rxjs';
 
@@ -58,6 +58,7 @@ export class CajaComponent implements OnInit, OnDestroy {
 
   readonly cajaHistSel = signal<Caja | null>(null);
   readonly movimientosHist = signal<MovimientoCaja[]>([]);
+  readonly exportandoCaja = signal(false);
   readonly cargandoDetalleHist = signal(false);
 
   readonly hayMasHistorial = computed(() => this.historial().length < this.historialTotal());
@@ -266,6 +267,63 @@ export class CajaComponent implements OnInit, OnDestroy {
       next: (res) => this.movimientosHist.set(res?.data ?? []),
       error: () => this.movimientosHist.set([]),
     });
+  }
+
+  /**
+   * Baja el turno abierto en el detalle como archivo de Excel.
+   *
+   * El error llega como Blob, no como JSON, porque la petición pidió `responseType:
+   * 'blob'` y eso vale también para las respuestas de error: hay que leerlo como texto
+   * antes de poder sacarle el mensaje, o el usuario solo vería "[object Blob]".
+   */
+  exportarCajaHistorial(): void {
+    const sel = this.cajaHistSel();
+    const idNegocio = this.idNegocio();
+    if (!sel || !idNegocio || this.exportandoCaja()) return;
+
+    this.exportandoCaja.set(true);
+    this.cajaSvc.exportarCaja(sel.id_caja, idNegocio).subscribe({
+      next: (res) => {
+        this.exportandoCaja.set(false);
+        if (!res.body) {
+          this.ui.error('El servidor no devolvió ningún archivo.');
+          return;
+        }
+        this.descargarArchivo(res.body, this.nombreArchivo(res, sel.id_caja));
+      },
+      error: async (err: HttpErrorResponse) => {
+        this.exportandoCaja.set(false);
+        this.ui.error(await this.mensajeErrorBlob(err));
+      },
+    });
+  }
+
+  /** El nombre lo manda el servidor en `Content-Disposition`; si no llega, uno propio. */
+  private nombreArchivo(res: HttpResponse<Blob>, idCaja: number): string {
+    const cabecera = res.headers.get('content-disposition') || '';
+    const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(cabecera);
+    if (match?.[1]) return decodeURIComponent(match[1]);
+    return `caja_${idCaja}.xlsx`;
+  }
+
+  private async mensajeErrorBlob(err: HttpErrorResponse): Promise<string> {
+    const generico = 'No se pudo exportar el reporte de caja.';
+    if (!(err.error instanceof Blob)) return err?.error?.message || generico;
+    try {
+      return JSON.parse(await err.error.text())?.message || generico;
+    } catch {
+      return generico;
+    }
+  }
+
+  private descargarArchivo(blob: Blob, nombre: string): void {
+    if (!this.isBrowser) return;
+    const url = URL.createObjectURL(blob);
+    const enlace = document.createElement('a');
+    enlace.href = url;
+    enlace.download = nombre;
+    enlace.click();
+    URL.revokeObjectURL(url);
   }
 
   /** Vuelve de la vista de detalle a la lista, sin recargarla. */

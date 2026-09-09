@@ -332,6 +332,17 @@
               Volver
             </button>
             <h2>Caja #{{ sel.id_caja }}</h2>
+
+            <!-- El servidor rechaza la exportación sin `caja_ver_ingresos`, así que
+                 sin el permiso el botón ni se ofrece: el archivo ES las cifras. -->
+            @if (puedeVerIngresos()) {
+              <button type="button" class="btn btn-outline btn-sm hist-detalle-head__excel"
+                      [disabled]="exportandoCaja()"
+                      (click)="exportarCajaHistorial()">
+                <lucide-icon name="download" size="15" />
+                {{ exportandoCaja() ? 'Generando…' : 'Excel' }}
+              </button>
+            }
           </div>
 
           <div class="hist-fechas">
