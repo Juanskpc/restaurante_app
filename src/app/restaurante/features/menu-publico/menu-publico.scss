@@ -731,11 +731,35 @@
   gap: var(--spacing-xs);
 }
 
-.footer-logo {
+.footer-marca {
+  display: inline-flex;
+  align-items: center;
+  gap: .55rem;
+  margin-bottom: 4px;
+}
+
+/* El icono tiene el interior del hexagono transparente, asi que en tema oscuro
+   la E —azul marino— se pierde contra el fondo. La pastilla solo hace falta ahi. */
+.footer-icono {
   display: block;
   height: 40px;
   width: auto;
-  margin-bottom: 4px;
+  flex-shrink: 0;
+
+  :root[data-theme='dark'] & {
+    box-sizing: content-box;
+    padding: 5px;
+    background: #ffffff;
+    border-radius: 12px;
+  }
+}
+
+.footer-nombre {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--color-text-primary);
+  white-space: nowrap;
 }
 
 .footer-powered {

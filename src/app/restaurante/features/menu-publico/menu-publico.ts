@@ -93,7 +93,7 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
 
   readonly currentYear = new Date().getFullYear();
 
-  readonly appLogoPath = `${environment.assetPath}/images/escalapplogo.png`;
+  readonly appLogoPath = `${environment.assetPath}/images/icono-escalapp.png`;
   readonly appSiteUrl = 'https://escalapp.cloud/admin/';
   readonly appContactEmail = 'escalappsystem@gmail.com';
 
