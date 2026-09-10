@@ -15,6 +15,7 @@ import { CatalogoCacheService } from '../../../core/services/catalogo-cache.serv
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 import { environment } from '../../../../environments/environment';
 import {
+  FilaPago,
   MultipagoSelectorComponent,
   PagoSeleccion,
 } from '../../shared/multipago-selector/multipago-selector';
@@ -104,6 +105,8 @@ interface OrdenApi {
   id_domiciliario?: number | null;
   numero_orden?: string;
   detalles?: DetallePedidoApi[];
+  /** Desglose de multipago guardado con la orden. */
+  pagos?: { id_metodo_pago: number; valor: number | string }[];
 }
 
 type DestinoEnvio = 'COCINA' | 'CAJA' | 'DESPACHO' | 'COBRAR';
@@ -193,6 +196,13 @@ export class PedidosComponent implements OnInit, OnDestroy {
   readonly metodoPagoRequeridoError = signal(false);
   readonly pagoSeleccion = signal<PagoSeleccion | null>(null);
   readonly permiteMultipago = computed(() => this.auth.permiteMultipago());
+  /**
+   * Desglose de multipago en crudo. Cada tipo de pedido (mesa / llevar / domicilio)
+   * pinta su propio `app-multipago-selector`, así que al cambiar de pestaña el
+   * componente se destruye y se recrea; devolviéndole estas filas conserva lo
+   * escrito. También arranca con el desglose de una orden que se carga para editar.
+   */
+  readonly filasPago = signal<FilaPago[]>([]);
   /** ¿Se pregunta «Cobrar ahora / Enviar sin cobrar» al enviar? Opt-in del negocio. */
   readonly preguntaCobroEnvio = computed(() => this.auth.preguntaCobroEnvio());
   /** ¿La forma de pago actual es válida (simple con método, o multipago cuadrado)? */
@@ -505,6 +515,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.notaOrden.set(orden.nota ?? '');
     this.notaBaseOrdenActiva.set(orden.nota ?? '');
     this.metodoPagoId.set(orden.id_metodo_pago ?? null);
+    this.filasPago.set(this.mapPagosOrden(orden));
     this.metodoPagoRequeridoError.set(false);
     this.hidratarAjustesPrecio(orden);
 
@@ -783,6 +794,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.mesaRequeridaError.set(false);
     this.metodoPagoId.set(null);
     this.pagoSeleccion.set(null);
+    this.filasPago.set([]);
     this.metodoPagoRequeridoError.set(false);
     this.efectivoRecibidoInput.set('');
     this.domContacto.set('');
@@ -808,7 +820,11 @@ export class PedidosComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.resetAjustesPrecio();
+    // El descuento y el cobro del domicilio NO se limpian al cambiar de pestaña:
+    // son del pedido que se está tomando, no del tipo. Cambiar a «En mesa» ya deja
+    // el domicilio en 0 por `puedeCobrarDomicilio()`, y al volver a llevar/domicilio
+    // reaparece lo escrito. Se limpian donde sí toca: al limpiar la orden o al
+    // cargar otro pedido, que es cuando dejan de tener dueño.
     this.tipoPedido.set(tipo);
     this.mesaRequeridaError.set(false);
     this.pedidoDespachoSeleccionado.set(null);
@@ -941,6 +957,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
 
   onPagoSeleccion(seleccion: PagoSeleccion): void {
     this.pagoSeleccion.set(seleccion);
+    this.filasPago.set(seleccion.modo === 'multi' ? seleccion.filas : []);
     this.metodoPagoId.set(seleccion.modo === 'simple' ? seleccion.idMetodoPago : null);
     this.metodoPagoRequeridoError.set(false);
   }
@@ -956,6 +973,25 @@ export class PedidosComponent implements OnInit, OnDestroy {
     }
     const id = this.metodoPagoId();
     return id ? { id_metodo_pago: id } : null;
+  }
+
+  /** Desglose guardado de una orden, en filas para el selector. */
+  private mapPagosOrden(orden: OrdenApi): FilaPago[] {
+    return (orden.pagos ?? []).map((p) => ({
+      id_metodo_pago: p.id_metodo_pago,
+      valor: Number(p.valor ?? 0),
+    }));
+  }
+
+  /**
+   * Desglose de multipago que viaja al crear o ajustar el pedido, aunque no se
+   * cobre todavía: así Despacho y Mesas lo encuentran y lo pueden editar. Solo
+   * las filas completas; el cuadre exacto se exige al cobrar.
+   */
+  private construirPagosPedido(): { pagos: { id_metodo_pago: number; valor: number }[] } | Record<string, never> {
+    const s = this.pagoSeleccion();
+    if (s?.modo === 'multi' && s.pagos.length >= 2) return { pagos: s.pagos };
+    return {};
   }
 
   setEfectivoRecibido(rawValue: string): void {
@@ -1053,6 +1089,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
             this.notaOrden.set(orden.nota ?? '');
             this.notaBaseOrdenActiva.set(orden.nota ?? '');
             this.metodoPagoId.set(orden.id_metodo_pago ?? null);
+            this.filasPago.set(this.mapPagosOrden(orden));
             this.metodoPagoRequeridoError.set(false);
           },
           error: () => restaurarEstadoPrevio(),
@@ -1349,6 +1386,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
           items: this.mapItemsPayload(itemsNuevos),
           ...bodyDomicilio,
           ...bodyDescuento,
+          ...this.construirPagosPedido(),
         }
       ).subscribe({
         next: res => {
@@ -1381,6 +1419,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
       tipo_pedido: tipo,
       ...bodyDomicilio,
       ...bodyDescuento,
+      ...this.construirPagosPedido(),
     };
     if (tipo === 'DOMICILIO') {
       body['contacto_nombre']    = this.domContacto().trim() || null;

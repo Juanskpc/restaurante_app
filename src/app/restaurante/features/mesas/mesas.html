@@ -161,6 +161,31 @@
             </div>
           }
 
+          <!-- Descuento: opt-in del negocio y solo mientras la cuenta siga sin cobrar. -->
+          @if (puedeEditarDescuento(mesa)) {
+            <div class="descuento-row">
+              <label class="descuento-row__label" for="mesa-descuento-input">
+                <lucide-icon name="tag" [size]="14" />
+                Descuento
+              </label>
+              <input id="mesa-descuento-input"
+                     class="descuento-row__input"
+                     type="text"
+                     inputmode="numeric"
+                     placeholder="Sin descuento"
+                     [value]="descuentoInput()"
+                     (input)="setDescuentoInput($any($event.target).value)" />
+              @if (guardandoDescuento()) {
+                <lucide-icon class="descuento-row__saving" name="loader" [size]="15" />
+              }
+            </div>
+          } @else if (mesa.order.descuento) {
+            <div class="total-row muted">
+              <span>Descuento</span>
+              <span>-{{ formatMoney(mesa.order.descuento) }}</span>
+            </div>
+          }
+
           <div class="total-row">
             <span>Total pendiente</span>
             <strong>{{ formatMoney(mesa.order.total) }}</strong>
@@ -174,6 +199,7 @@
                 [total]="mesa.order.total"
                 [permiteMultipago]="permiteMultipago()"
                 [idMetodoPagoInicial]="mesa.order.id_metodo_pago ?? null"
+                [pagosIniciales]="filasPagoMesaActiva()"
                 (seleccionChange)="onPagoSeleccion($event)"
               />
 

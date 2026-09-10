@@ -5,22 +5,21 @@
 // ============================================================
 
 // ─── Host ────────────────────────────────────────────────────
+// A diferencia del resto de módulos (que fijan su header y scrollean
+// paneles internos), el menú usa UN solo scroll: el de `.content` (shell,
+// layout.scss). Por eso aquí no se acota altura ni se oculta overflow —
+// todo el contenido (header + categorías + productos) fluye junto.
 :host {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  flex: 1;
-  min-height: 0; // permite que los paneles internos se acoten y hagan scroll
-  overflow: hidden;
+  display: block;
+  min-height: 100%;
 }
 
 // ─── Layout principal ────────────────────────────────────────
 .menu-layout {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  min-height: 100%;
   background: var(--color-bg);
-  overflow: hidden;
 }
 
 // ─── Header ──────────────────────────────────────────────────
@@ -117,9 +116,10 @@
 // ─── Cuerpo principal ────────────────────────────────────────
 .menu-body {
   display: flex;
+  // Sin `overflow` ni altura acotada: las dos columnas crecen con su contenido y
+  // el scroll es el de la página. El `stretch` por defecto las iguala en alto,
+  // que es lo que mantiene el borde del sidebar de arriba abajo.
   flex: 1;
-  min-height: 0; // clave: sin esto crece con el contenido y el grid no scrollea
-  overflow: hidden;
 
   @media (max-width: 768px) {
     flex-direction: column;
@@ -134,13 +134,10 @@
   border-right: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
   padding: var(--spacing-md) 0;
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-border) transparent;
 
   @media (max-width: 1024px) { width: 240px; min-width: 240px; }
-  @media (max-width: 768px)  { width: 100%; min-width: unset; max-height: 180px; border-right: none; border-bottom: 1px solid var(--color-border); }
+  @media (max-width: 768px)  { width: 100%; min-width: unset; border-right: none; border-bottom: 1px solid var(--color-border); }
 }
 
 .sidebar-heading {
@@ -255,11 +252,9 @@
 // ─── Área de contenido ───────────────────────────────────────
 .menu-content {
   flex: 1;
-  min-width: 0;  // item de un flex en fila: evita desbordes horizontales
-  min-height: 0; // permite que .products-grid se acote y haga scroll vertical
+  min-width: 0; // item de un flex en fila: evita desbordes horizontales
   display: flex;
   flex-direction: column;
-  overflow: hidden;
 }
 
 .content-bar {
@@ -342,46 +337,16 @@
 
 // ─── Grid de productos ───────────────────────────────────────
 .products-grid {
-  flex: 1;
   display: grid;
   // `min(100%, 280px)` evita que la columna mínima (280px) desborde el
   // contenedor en pantallas más angostas que la tarjeta.
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
-  // Cada fila toma el alto REAL de su contenido. Sin esto, al ser la grilla un
-  // item flex con basis 0, las filas implícitas se comprimían y las tarjetas
-  // quedaban aplastadas a una franja.
+  // Cada fila toma el alto REAL de su contenido.
   grid-auto-rows: max-content;
   align-content: start;
   align-items: start;  // no estirar las tarjetas a la altura de la fila
   gap: var(--spacing-md);
   padding: var(--spacing-lg);
-  overflow-y: auto;
-  min-height: 0;
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-border) transparent;
-}
-
-// ─── Responsive del cuerpo: un solo scroll en pantallas pequeñas ──
-// En desktop el menú son dos paneles con scrolls independientes. En
-// viewports bajos eso reducía el área de productos a pocos píxeles (se
-// veía solo el ícono de la tarjeta). En móvil el cuerpo pasa a un único
-// scroll vertical y las tarjetas se muestran completas.
-@media (max-width: 768px) {
-  .menu-body {
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .menu-content {
-    flex: 0 0 auto;
-    overflow: visible;
-    min-height: 0;
-  }
-
-  .products-grid {
-    flex: 0 0 auto;
-    overflow: visible;
-  }
 }
 
 // ─── Tarjeta de producto ─────────────────────────────────────

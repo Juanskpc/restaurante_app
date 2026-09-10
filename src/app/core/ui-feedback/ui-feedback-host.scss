@@ -204,10 +204,13 @@
 
 @media (max-width: 640px) {
   .feedback-stack {
-    top: auto;
+    // Anclados arriba, bajo el header (56 px en móvil). Abajo se montaban sobre
+    // la barra de navegación inferior y, al capturar el clic, la inutilizaban
+    // mientras durara el aviso.
+    top: calc(56px + 0.6rem);
     right: 0.75rem;
     left: 0.75rem;
-    bottom: 0.8rem;
+    bottom: auto;
     width: auto;
   }
 

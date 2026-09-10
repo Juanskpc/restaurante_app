@@ -15,20 +15,28 @@ export interface MetodoPagoLite {
   nombre: string;
 }
 
+/** Fila del desglose de multipago; admite filas a medio llenar. */
+export interface FilaPago {
+  id_metodo_pago: number | null;
+  valor: number | null;
+}
+
 /** Resultado de la selección de forma(s) de pago. */
 export interface PagoSeleccion {
   modo: 'simple' | 'multi';
   /** Método único (pago simple). null en multipago. */
   idMetodoPago: number | null;
-  /** Desglose (multipago). Vacío en pago simple. */
+  /** Desglose (multipago) con las filas completas. Vacío en pago simple. */
   pagos: { id_metodo_pago: number; valor: number }[];
+  /**
+   * Desglose EN CRUDO, incluidas las filas a medio llenar. El padre lo guarda
+   * para poder devolverlo por `pagosIniciales` y así no perder lo escrito
+   * cuando el selector se destruye y se vuelve a crear (p. ej. al cambiar de
+   * pestaña En mesa / Para llevar / Domicilio).
+   */
+  filas: FilaPago[];
   /** ¿La selección está completa y cuadrada? */
   valido: boolean;
-}
-
-interface FilaPago {
-  id_metodo_pago: number | null;
-  valor: number | null;
 }
 
 const MULTI_VALUE = '__multi__';
@@ -60,6 +68,12 @@ export class MultipagoSelectorComponent {
   readonly permiteMultipago = input<boolean>(false);
   readonly disabled = input<boolean>(false);
   readonly idMetodoPagoInicial = input<number | null>(null);
+  /**
+   * Desglose con el que arranca el selector: abre directamente en multipago con
+   * estas filas. Sirve tanto para editar el desglose que ya trae un pedido
+   * (Despacho, Mesas) como para restaurar lo escrito tras recrear el componente.
+   */
+  readonly pagosIniciales = input<FilaPago[]>([]);
 
   /** Emite la selección actual cada vez que cambia. */
   readonly seleccionChange = output<PagoSeleccion>();
@@ -69,6 +83,9 @@ export class MultipagoSelectorComponent {
   protected readonly modo = signal<'simple' | 'multi'>('simple');
   protected readonly metodoSimple = signal<number | null>(null);
   protected readonly filas = signal<FilaPago[]>([]);
+
+  /** Ya se aplicó el desglose inicial: no volver a pisar lo que edite el usuario. */
+  private sembrado = false;
 
   protected readonly sumaMulti = computed(() =>
     this.filas().reduce((acc, f) => acc + (Number(f.valor) || 0), 0)
@@ -82,7 +99,7 @@ export class MultipagoSelectorComponent {
   readonly seleccion = computed<PagoSeleccion>(() => {
     if (this.modo() === 'simple') {
       const id = this.metodoSimple();
-      return { modo: 'simple', idMetodoPago: id, pagos: [], valido: id != null };
+      return { modo: 'simple', idMetodoPago: id, pagos: [], filas: [], valido: id != null };
     }
 
     const filas = this.filas();
@@ -99,10 +116,26 @@ export class MultipagoSelectorComponent {
     const valido =
       filas.length >= 2 && completas.length === filas.length && totalCuadra;
 
-    return { modo: 'multi', idMetodoPago: null, pagos, valido };
+    return { modo: 'multi', idMetodoPago: null, pagos, filas, valido };
   });
 
   constructor() {
+    // Arranca en multipago cuando llega un desglose inicial. Una sola vez por
+    // instancia: después manda lo que edite el usuario, aunque el padre nos
+    // devuelva por este mismo input las filas que acabamos de emitir.
+    effect(() => {
+      const iniciales = this.pagosIniciales();
+      if (this.sembrado || iniciales.length === 0) return;
+      this.sembrado = true;
+      this.modo.set('multi');
+      this.filas.set(
+        iniciales.map((f) => ({
+          id_metodo_pago: f.id_metodo_pago != null ? Number(f.id_metodo_pago) : null,
+          valor: f.valor != null ? Number(f.valor) : null,
+        }))
+      );
+    });
+
     // Inicializa el método simple desde el valor inicial (una sola vez).
     effect(() => {
       const init = this.idMetodoPagoInicial();
@@ -116,6 +149,9 @@ export class MultipagoSelectorComponent {
   }
 
   protected onSelectChange(raw: string): void {
+    // Desde que el usuario elige, manda su selección: ya no se siembra nada.
+    this.sembrado = true;
+
     if (raw === MULTI_VALUE) {
       this.modo.set('multi');
       if (this.filas().length < 2) {

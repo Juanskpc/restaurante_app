@@ -16,7 +16,12 @@ export interface MesaOrderItem {
 export interface MesaOrder {
   id_orden?: number;
   total: number;
+  /** Rebaja ya restada del total; editable desde el cobro de la mesa. */
+  descuento?: number;
+  estado_pago?: string | null;
   id_metodo_pago?: number | null;
+  /** Desglose de multipago elegido al tomar el pedido; editable antes de cobrar. */
+  pagos?: { id_metodo_pago: number; valor: number }[];
   nota?: string | null;
   items: MesaOrderItem[];
 }
@@ -82,6 +87,17 @@ export class MesasService {
     return this.http.patch<{ success: boolean; data: unknown }>(
       `${environment.apiUrl}/pedidos/${idOrden}/cerrar`,
       body,
+    );
+  }
+
+  actualizarDescuento(
+    idOrden: number,
+    idNegocio: number,
+    descuento: number,
+  ): Observable<{ success: boolean; data: { total?: number; descuento?: number } }> {
+    return this.http.patch<{ success: boolean; data: { total?: number; descuento?: number } }>(
+      `${environment.apiUrl}/pedidos/${idOrden}/descuento`,
+      { id_negocio: idNegocio, descuento },
     );
   }
 

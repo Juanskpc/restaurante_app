@@ -431,26 +431,10 @@
     &:disabled { opacity: .6; cursor: progress; }
   }
 
-  &__save {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+  // El valor se guarda solo mientras se escribe; esto es solo el acuse.
+  &__saving {
     flex: 0 0 auto;
-    width: 32px;
-    height: 32px;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    background: var(--color-surface);
-    color: var(--color-primary);
-    cursor: pointer;
-    transition: background var(--transition-fast), border-color var(--transition-fast);
-
-    &:hover:not(:disabled) {
-      background: color-mix(in srgb, var(--color-primary) 10%, transparent);
-      border-color: var(--color-primary);
-    }
-
-    &:disabled { opacity: .6; cursor: progress; }
+    color: var(--color-text-secondary);
   }
 }
 

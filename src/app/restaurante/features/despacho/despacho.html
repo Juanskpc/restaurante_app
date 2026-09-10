@@ -371,17 +371,10 @@
                        aria-label="Valor del domicilio"
                        placeholder="Sin cobro"
                        [value]="domicilioInput()"
-                       [disabled]="guardandoDomicilio()"
-                       (input)="setDomicilioInput($any($event.target).value)"
-                       (keydown.enter)="guardarValorDomicilio(p)" />
-                <button type="button"
-                        class="domicilio-edit__save"
-                        [disabled]="guardandoDomicilio()"
-                        (click)="guardarValorDomicilio(p)"
-                        title="Guardar el valor del domicilio">
-                  <lucide-icon [name]="guardandoDomicilio() ? 'loader' : 'save'" [size]="15"
-                               [class.spin]="guardandoDomicilio()" />
-                </button>
+                       (input)="setDomicilioInput($any($event.target).value)" />
+                @if (guardandoDomicilio()) {
+                  <lucide-icon class="domicilio-edit__saving spin" name="loader" [size]="15" />
+                }
               </span>
             </div>
           } @else if (valorDomicilio(p) > 0) {
@@ -392,6 +385,38 @@
               </span>
               <span class="info-val">
                 {{ valorDomicilio(p) | currency:'COP':'symbol-narrow':'1.0-0' }}
+              </span>
+            </div>
+          }
+
+          <!-- Descuento: opt-in del negocio y solo mientras no esté cobrado. -->
+          @if (puedeEditarDescuento(p)) {
+            <div class="info-row">
+              <span class="info-label">
+                <lucide-icon name="tag" [size]="14" />
+                Descuento
+              </span>
+              <span class="info-val domicilio-edit">
+                <input class="domicilio-edit__input"
+                       type="text"
+                       inputmode="numeric"
+                       aria-label="Descuento"
+                       placeholder="Sin descuento"
+                       [value]="descuentoInput()"
+                       (input)="setDescuentoInput($any($event.target).value)" />
+                @if (guardandoDescuento()) {
+                  <lucide-icon class="domicilio-edit__saving spin" name="loader" [size]="15" />
+                }
+              </span>
+            </div>
+          } @else if (descuento(p) > 0) {
+            <div class="info-row">
+              <span class="info-label">
+                <lucide-icon name="tag" [size]="14" />
+                Descuento
+              </span>
+              <span class="info-val">
+                -{{ descuento(p) | currency:'COP':'symbol-narrow':'1.0-0' }}
               </span>
             </div>
           }
@@ -426,6 +451,7 @@
                   [total]="p.total"
                   [permiteMultipago]="permiteMultipago()"
                   [idMetodoPagoInicial]="p.id_metodo_pago ?? null"
+                  [pagosIniciales]="filasPagoActivo()"
                   (seleccionChange)="onPagoSeleccion($event)"
                 />
               </span>

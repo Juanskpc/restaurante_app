@@ -1,10 +1,11 @@
 import {
-  Component, ChangeDetectionStrategy, OnInit, effect, inject, signal, computed, PLATFORM_ID,
+  Component, ChangeDetectionStrategy, DestroyRef, OnInit, effect, inject, signal, computed, PLATFORM_ID,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { CurrencyPipe, DatePipe, isPlatformBrowser } from '@angular/common';
-import { forkJoin, of } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { Observable, Subject, forkJoin, of } from 'rxjs';
+import { catchError, debounceTime, map, switchMap, tap } from 'rxjs/operators';
 import { LucideAngularModule } from 'lucide-angular';
 
 import { Router } from '@angular/router';
@@ -16,6 +17,7 @@ import { VistaTarjetasService } from '../../../core/services/vista-tarjetas.serv
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 import { environment } from '../../../../environments/environment';
 import {
+  FilaPago,
   MultipagoSelectorComponent,
   PagoSeleccion,
 } from '../../shared/multipago-selector/multipago-selector';
@@ -30,6 +32,9 @@ type TipoPedido = 'MESA' | 'LLEVAR' | 'DOMICILIO';
  * repartan la lista: son tres maneras de mirar la misma.
  */
 type FiltroTipo = 'TODOS' | 'LLEVAR' | 'DOMICILIO' | 'WHATSAPP';
+
+/** Espera tras la última tecla antes de guardar domicilio o descuento. */
+const AUTOGUARDADO_MS = 500;
 
 interface DetalleDespacho {
   id_producto: number;
@@ -101,6 +106,8 @@ export interface PedidoDespacho {
     primer_apellido: string;
   };
   detalles?: DetalleDespacho[];
+  /** Desglose de multipago: el elegido al tomar el pedido, o el ya cobrado. */
+  pagos?: { id_metodo_pago: number; valor: number | string }[];
 }
 
 @Component({
@@ -119,6 +126,7 @@ export class DespachoComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly vista = inject(VistaTarjetasService);
   private readonly platformId = inject(PLATFORM_ID);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly isBrowser = isPlatformBrowser(this.platformId);
 
   readonly pedidos = signal<PedidoDespacho[]>([]);
@@ -138,10 +146,25 @@ export class DespachoComponent implements OnInit {
   /** El pedido cuyo aviso está en vuelo. Bloquea el botón mientras tanto. */
   readonly avisandoId = signal<number | null>(null);
 
+  // ── Descuento desde despacho (mismo criterio que el domicilio) ──
+  readonly descuentoInput = signal('');
+  readonly guardandoDescuento = signal(false);
+
+  /**
+   * Los dos ajustes se guardan solos mientras se escribe: sin botón, el total del
+   * pedido y su desglose se actualizan al vuelo. Cada campo tiene su propio canal
+   * —con `switchMap` una petición cancela la anterior— para que editar uno no
+   * anule el guardado del otro.
+   */
+  private readonly domicilioEditado$ = new Subject<{ idOrden: number; valor: number }>();
+  private readonly descuentoEditado$ = new Subject<{ idOrden: number; valor: number }>();
+
   readonly negocioId = computed(() => this.auth.negocio()?.id_negocio ?? null);
   readonly permiteMultipago = computed(() => this.auth.permiteMultipago());
   /** Opt-in del negocio (Configuración → Domicilios): sin él no se ve el campo. */
   readonly permitePagoDomicilio = computed(() => this.auth.permitePagoDomicilio());
+  /** Opt-in del negocio (Configuración → Descuentos): sin él no se ve el campo. */
+  readonly permiteDescuento = computed(() => this.auth.permiteDescuento());
   readonly puedeVerTodos = computed(() => this.auth.canAccessSubnivel('despacho_ver_todos'));
   readonly puedeCancelarNoPagados = computed(() => this.auth.canAccessSubnivel('despacho_cancelar_no_pagado'));
   readonly puedeUsarDomicilio = computed(() => this.auth.canAccessSubnivel('pedidos_domicilio'));
@@ -200,6 +223,22 @@ export class DespachoComponent implements OnInit {
   ngOnInit(): void {
     this.cargar();
     this.loadMetodosPago();
+
+    this.domicilioEditado$
+      .pipe(
+        debounceTime(AUTOGUARDADO_MS),
+        switchMap(({ idOrden, valor }) => this.guardarValorDomicilio(idOrden, valor)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe();
+
+    this.descuentoEditado$
+      .pipe(
+        debounceTime(AUTOGUARDADO_MS),
+        switchMap(({ idOrden, valor }) => this.guardarDescuento(idOrden, valor)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe();
   }
 
   private loadMetodosPago(): void {
@@ -291,6 +330,8 @@ export class DespachoComponent implements OnInit {
     this.pagoSeleccion.set(null);
     const valor = this.valorDomicilio(p);
     this.domicilioInput.set(valor > 0 ? String(valor) : '');
+    const rebaja = this.descuento(p);
+    this.descuentoInput.set(rebaja > 0 ? String(rebaja) : '');
   }
 
   cerrarPedido(): void {
@@ -299,6 +340,8 @@ export class DespachoComponent implements OnInit {
     this.pagoSeleccion.set(null);
     this.domicilioInput.set('');
     this.guardandoDomicilio.set(false);
+    this.descuentoInput.set('');
+    this.guardandoDescuento.set(false);
   }
 
   // ── Valor del domicilio ──
@@ -315,8 +358,20 @@ export class DespachoComponent implements OnInit {
     return this.permitePagoDomicilio() && this.puedeUsarDomicilio() && this.esPendientePago(p);
   }
 
+  /**
+   * Cada tecla programa el guardado; el `debounceTime` espera a que pare de escribir.
+   * Se emite SIEMPRE (aunque el valor coincida con el guardado) y se descarta luego
+   * en el pipeline: filtrar aquí dejaba pasar un valor intermedio como último evento
+   * cuando el usuario volvía atrás, y se guardaba algo distinto de lo que se veía.
+   */
   setDomicilioInput(rawValue: string): void {
     this.domicilioInput.set(rawValue);
+
+    const p = this.pedidoActivo();
+    if (!p || !this.puedeCobrarDomicilio(p)) return;
+
+    this.guardandoDomicilio.set(true);
+    this.domicilioEditado$.next({ idOrden: p.id_orden, valor: this.parseMonto(rawValue) });
   }
 
   /** Solo dígitos: el campo acepta "12.000" o "$12000" y se queda con 12000. */
@@ -392,45 +447,123 @@ export class DespachoComponent implements OnInit {
     });
   }
 
-  guardarValorDomicilio(p: PedidoDespacho): void {
-    if (!this.puedeCobrarDomicilio(p) || this.guardandoDomicilio()) return;
+  private guardarValorDomicilio(idOrden: number, valor: number): Observable<unknown> {
+    const guardado = this.pedidos().find((ord) => ord.id_orden === idOrden);
+    if (guardado && valor === this.valorDomicilio(guardado)) {
+      this.guardandoDomicilio.set(false);
+      return of(null);
+    }
 
-    const nuevo = this.parseMonto(this.domicilioInput());
-    if (nuevo === this.valorDomicilio(p)) return;
-
-    this.guardandoDomicilio.set(true);
-    this.http.patch<{ success: boolean; data?: { total?: number; valor_domicilio?: number } }>(
-      `${environment.apiUrl}/pedidos/${p.id_orden}/valor-domicilio`,
-      { id_negocio: this.negocioId(), valor_domicilio: nuevo }
-    ).subscribe({
-      next: (res) => {
+    return this.http.patch<{ success: boolean; data?: { total?: number; valor_domicilio?: number } }>(
+      `${environment.apiUrl}/pedidos/${idOrden}/valor-domicilio`,
+      { id_negocio: this.negocioId(), valor_domicilio: valor }
+    ).pipe(
+      tap((res) => {
         // El total lo recalcula el backend (productos + domicilio - descuento):
         // se toma de la respuesta en vez de sumarlo aquí, para no discrepar.
-        const total = Number(res?.data?.total ?? p.total);
-        const apply = (ord: PedidoDespacho) =>
-          ord.id_orden === p.id_orden
-            ? { ...ord, valor_domicilio: nuevo, total }
-            : ord;
-
-        this.pedidos.update((lista) => lista.map(apply));
-        const activo = this.pedidoActivo();
-        if (activo?.id_orden === p.id_orden) this.pedidoActivo.set(apply(activo));
-
+        this.aplicarAjuste(idOrden, {
+          valor_domicilio: Number(res?.data?.valor_domicilio ?? valor),
+          total: res?.data?.total,
+        });
         this.guardandoDomicilio.set(false);
-        this.uiFeedback.success('Valor del domicilio actualizado.', 'Domicilio');
-      },
-      error: (err: HttpErrorResponse) => {
+      }),
+      catchError((err: HttpErrorResponse) => {
         this.guardandoDomicilio.set(false);
-        this.domicilioInput.set(this.valorDomicilio(p) > 0 ? String(this.valorDomicilio(p)) : '');
+        const guardado = this.pedidos().find((ord) => ord.id_orden === idOrden);
+        const actual = guardado ? this.valorDomicilio(guardado) : 0;
+        this.domicilioInput.set(actual > 0 ? String(actual) : '');
         this.uiFeedback.error(err?.error?.message || 'No se pudo actualizar el valor del domicilio.');
-      },
-    });
+        return of(null);
+      }),
+      map(() => null),
+    );
+  }
+
+  /** Vuelca el total recalculado (y el campo tocado) sobre la lista y el modal. */
+  private aplicarAjuste(
+    idOrden: number,
+    cambios: { valor_domicilio?: number; descuento?: number; total?: number },
+  ): void {
+    const apply = (ord: PedidoDespacho): PedidoDespacho =>
+      ord.id_orden === idOrden
+        ? { ...ord, ...cambios, total: Number(cambios.total ?? ord.total) }
+        : ord;
+
+    this.pedidos.update((lista) => lista.map(apply));
+    const activo = this.pedidoActivo();
+    if (activo?.id_orden === idOrden) this.pedidoActivo.set(apply(activo));
+  }
+
+  // ── Descuento ──
+
+  /**
+   * Mismo criterio que el domicilio: opt-in del negocio y solo mientras el pedido
+   * no esté cobrado — mover el total de uno pagado descuadraría la caja, y el
+   * backend lo rechaza igualmente (ORDEN_PAGADA).
+   */
+  puedeEditarDescuento(p: PedidoDespacho): boolean {
+    return this.permiteDescuento() && this.esPendientePago(p);
+  }
+
+  setDescuentoInput(rawValue: string): void {
+    this.descuentoInput.set(rawValue);
+
+    const p = this.pedidoActivo();
+    if (!p || !this.puedeEditarDescuento(p)) return;
+
+    this.guardandoDescuento.set(true);
+    this.descuentoEditado$.next({ idOrden: p.id_orden, valor: this.parseMonto(rawValue) });
+  }
+
+  private guardarDescuento(idOrden: number, valor: number): Observable<unknown> {
+    const guardado = this.pedidos().find((ord) => ord.id_orden === idOrden);
+    if (guardado && valor === this.descuento(guardado)) {
+      this.guardandoDescuento.set(false);
+      return of(null);
+    }
+
+    return this.http.patch<{ success: boolean; data?: { total?: number; descuento?: number } }>(
+      `${environment.apiUrl}/pedidos/${idOrden}/descuento`,
+      { id_negocio: this.negocioId(), descuento: valor }
+    ).pipe(
+      tap((res) => {
+        // El backend recorta la rebaja para que el total no baje de cero, así que
+        // manda lo que respondió y no lo que se tecleó.
+        const descuento = Number(res?.data?.descuento ?? valor);
+        this.aplicarAjuste(idOrden, { descuento, total: res?.data?.total });
+        // Solo se corrige el campo cuando el backend recortó: reescribirlo siempre
+        // movería el cursor mientras se teclea. Y se dice por qué cambió, que si no
+        // el número se corrige solo delante del usuario sin explicación.
+        if (descuento !== valor) {
+          this.descuentoInput.set(descuento > 0 ? String(descuento) : '');
+          this.uiFeedback.warning('El descuento no puede superar el total del pedido.');
+        }
+        this.guardandoDescuento.set(false);
+      }),
+      catchError((err: HttpErrorResponse) => {
+        this.guardandoDescuento.set(false);
+        const guardado = this.pedidos().find((ord) => ord.id_orden === idOrden);
+        const actual = guardado ? this.descuento(guardado) : 0;
+        this.descuentoInput.set(actual > 0 ? String(actual) : '');
+        this.uiFeedback.error(err?.error?.message || 'No se pudo actualizar el descuento.');
+        return of(null);
+      }),
+      map(() => null),
+    );
   }
 
   onPagoSeleccion(seleccion: PagoSeleccion): void {
     this.pagoSeleccion.set(seleccion);
     this.metodoPagoSeleccionado.set(seleccion.modo === 'simple' ? seleccion.idMetodoPago : null);
   }
+
+  /** Filas con las que abre el selector: el desglose guardado del pedido. */
+  readonly filasPagoActivo = computed<FilaPago[]>(() =>
+    (this.pedidoActivo()?.pagos ?? []).map((f) => ({
+      id_metodo_pago: f.id_metodo_pago,
+      valor: Number(f.valor ?? 0),
+    }))
+  );
 
   /** Devuelve un href tel: limpio (solo dígitos y +). */
   telHref(numero: string | null | undefined): string | null {
@@ -690,9 +823,10 @@ export class DespachoComponent implements OnInit {
       next: (res) => {
         if (res?.success) {
           const idMetodoAplicado = esMulti ? null : (bodyPago['id_metodo_pago'] as number);
+          const pagosAplicados = esMulti ? seleccion?.pagos ?? [] : [];
           const apply = (ord: PedidoDespacho) =>
             ord.id_orden === p.id_orden
-              ? { ...ord, estado_pago: 'pagado', id_metodo_pago: idMetodoAplicado }
+              ? { ...ord, estado_pago: 'pagado', id_metodo_pago: idMetodoAplicado, pagos: pagosAplicados }
               : ord;
 
           this.pedidos.update(lista => lista.map(apply));

@@ -1,6 +1,9 @@
 import { Component, ChangeDetectionStrategy, computed, effect, inject, signal, PLATFORM_ID } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Observable, Subject, of } from 'rxjs';
+import { catchError, debounceTime, map, switchMap, tap } from 'rxjs/operators';
 import { LucideAngularModule } from 'lucide-angular';
 
 import { AuthService } from '../../../core/services/auth.service';
@@ -8,11 +11,15 @@ import { MesasService, MesaDashboard, MesaCardStatus } from '../../../core/servi
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 import { VistaTarjetasService } from '../../../core/services/vista-tarjetas.service';
 import {
+  FilaPago,
   MultipagoSelectorComponent,
   PagoSeleccion,
 } from '../../shared/multipago-selector/multipago-selector';
 
 type FiltroEstado = 'all' | 'available' | 'occupied' | 'payment' | 'disabled';
+
+/** Espera tras la última tecla antes de guardar el descuento. */
+const AUTOGUARDADO_MS = 500;
 
 interface ItemPagadoMesa {
   name: string;
@@ -54,11 +61,28 @@ export class MesasComponent {
   readonly metodoPagoError = signal(false);
   readonly pagoSeleccion = signal<PagoSeleccion | null>(null);
   readonly permiteMultipago = computed(() => this.auth.permiteMultipago());
+  /** Opt-in del negocio (Configuración → Descuentos): sin él no se ve el campo. */
+  readonly permiteDescuento = computed(() => this.auth.permiteDescuento());
+  readonly descuentoInput = signal('');
+  readonly guardandoDescuento = signal(false);
+  /**
+   * El descuento se guarda solo mientras se escribe: sin botón, el total de la
+   * cuenta se actualiza al vuelo. `switchMap` cancela la petición anterior, así
+   * que la última tecla es la que manda.
+   */
+  private readonly descuentoEditado$ = new Subject<{ idMesa: number; idOrden: number; valor: number }>();
   readonly pagoValido = computed(() => {
     const s = this.pagoSeleccion();
     if (s?.modo === 'multi') return s.valido;
     return this.metodoPagoId() != null;
   });
+  /** Filas con las que abre el selector: el desglose guardado de la cuenta. */
+  readonly filasPagoMesaActiva = computed<FilaPago[]>(() =>
+    (this.mesaActiva()?.order.pagos ?? []).map((p) => ({
+      id_metodo_pago: p.id_metodo_pago,
+      valor: Number(p.valor ?? 0),
+    }))
+  );
 
 
   readonly negocioId = computed(() => this.auth.negocio()?.id_negocio ?? null);
@@ -134,6 +158,14 @@ export class MesasComponent {
     }
   });
 
+  private readonly autoguardadoDescuento = this.descuentoEditado$
+    .pipe(
+      debounceTime(AUTOGUARDADO_MS),
+      switchMap(({ idMesa, idOrden, valor }) => this.guardarDescuento(idMesa, idOrden, valor)),
+      takeUntilDestroyed(),
+    )
+    .subscribe();
+
   private loadMetodosPago(idNegocio: number): void {
     this.mesasApi.listarMetodosPago(idNegocio).subscribe({
       next: (res) => this.metodosPago.set(res?.data ?? []),
@@ -182,6 +214,9 @@ export class MesasComponent {
     this.metodoPagoId.set(mesa.order.id_metodo_pago ?? null);
     this.metodoPagoError.set(false);
     this.pagoSeleccion.set(null);
+    const rebaja = Number(mesa.order.descuento ?? 0);
+    this.descuentoInput.set(rebaja > 0 ? String(rebaja) : '');
+    this.guardandoDescuento.set(false);
   }
 
   closeMesa(): void {
@@ -191,6 +226,80 @@ export class MesasComponent {
     this.metodoPagoId.set(null);
     this.metodoPagoError.set(false);
     this.pagoSeleccion.set(null);
+    this.descuentoInput.set('');
+    this.guardandoDescuento.set(false);
+  }
+
+  // ── Descuento de la cuenta ──
+
+  /**
+   * Se puede corregir la rebaja mientras la cuenta siga sin cobrar: mover el total
+   * de una ya pagada descuadraría la caja, y el backend lo rechaza (ORDEN_PAGADA).
+   */
+  puedeEditarDescuento(mesa: MesaDashboard | null): boolean {
+    if (!mesa?.order.id_orden) return false;
+    return this.permiteDescuento() && this.canAccionesPedido() && mesa.order.estado_pago !== 'pagado';
+  }
+
+  /**
+   * Cada tecla programa el guardado; el `debounceTime` espera a que pare de escribir.
+   * Se emite SIEMPRE (aunque el valor coincida con el guardado) y se descarta luego
+   * en el pipeline: filtrar aquí dejaba pasar un valor intermedio como último evento
+   * cuando el usuario volvía atrás, y se guardaba algo distinto de lo que se veía.
+   */
+  setDescuentoInput(rawValue: string): void {
+    this.descuentoInput.set(rawValue);
+
+    const mesa = this.mesaActiva();
+    const idOrden = mesa?.order.id_orden;
+    if (!mesa || !idOrden || !this.puedeEditarDescuento(mesa)) return;
+
+    this.guardandoDescuento.set(true);
+    this.descuentoEditado$.next({
+      idMesa: mesa.id_mesa,
+      idOrden,
+      valor: this.parseMonto(rawValue) ?? 0,
+    });
+  }
+
+  private guardarDescuento(idMesa: number, idOrden: number, nuevo: number): Observable<unknown> {
+    const idNegocio = this.negocioId();
+    const mesa = this.mesas().find((m) => m.id_mesa === idMesa);
+    if (!idNegocio || !mesa || nuevo === Number(mesa.order.descuento ?? 0)) {
+      this.guardandoDescuento.set(false);
+      return of(null);
+    }
+
+    return this.mesasApi.actualizarDescuento(idOrden, idNegocio, nuevo).pipe(
+      tap((res) => {
+        // El backend recorta la rebaja para que el total no baje de cero: manda
+        // lo que respondió, no lo que se tecleó.
+        const descuento = Number(res?.data?.descuento ?? nuevo);
+        const total = Number(res?.data?.total ?? mesa.order.total);
+
+        this.mesas.update((lista) =>
+          lista.map((m) =>
+            m.id_mesa === idMesa ? { ...m, order: { ...m.order, descuento, total } } : m
+          )
+        );
+        // Solo se corrige el campo cuando el backend recortó: reescribirlo siempre
+        // movería el cursor mientras se teclea. Y se dice por qué cambió, que si no
+        // el número se corrige solo delante del usuario sin explicación.
+        if (descuento !== nuevo) {
+          this.descuentoInput.set(descuento > 0 ? String(descuento) : '');
+          this.uiFeedback.warning('El descuento no puede superar el total de la cuenta.');
+        }
+        this.guardandoDescuento.set(false);
+      }),
+      catchError((err: { error?: { message?: string } }) => {
+        this.guardandoDescuento.set(false);
+        const actual = Number(mesa.order.descuento ?? 0);
+        this.descuentoInput.set(actual > 0 ? String(actual) : '');
+        this.uiFeedback.error(err?.error?.message || 'No fue posible actualizar el descuento.');
+        return of(null);
+      }),
+      map(() => null),
+    );
   }
 
   seleccionarMetodoPago(rawValue: string): void {
