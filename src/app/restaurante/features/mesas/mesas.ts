@@ -187,6 +187,8 @@ export class MesasComponent {
     .subscribe();
 
   private loadCuentasCliente(idNegocio: number): void {
+    // Ver `pedidos.ts`: sin el interruptor encendido no hay a quién preguntar.
+    if (!this.auth.permiteCuentasCliente()) return;
     this.clientesApi.listar(idNegocio).subscribe({
       next: (res) => this.cuentasCliente.set(res?.data ?? []),
       error: () => this.cuentasCliente.set([]),

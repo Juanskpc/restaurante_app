@@ -1031,7 +1031,9 @@ export class PedidosComponent implements OnInit, OnDestroy {
 
   private loadCuentasCliente(): void {
     const id = this.negocioId();
-    if (!id) return;
+    // Las cuentas son opt-in: sin encenderlas, ni se pregunta. Pedirlas igual devolvía un 403
+    // por cada carga de pantalla en todos los negocios que no las usan.
+    if (!id || !this.auth.permiteCuentasCliente()) return;
     this.clientesApi.listar(id).subscribe({
       next: (res) => this.cuentasCliente.set(res?.data ?? []),
       error: () => this.cuentasCliente.set([]),

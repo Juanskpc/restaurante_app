@@ -57,6 +57,35 @@ export interface MovimientoCaja {
   id_movimiento_anula?: number | null;
 }
 
+/** Una línea del pedido, tal como se despliega bajo su fila en Caja. */
+export interface ItemOrden {
+  id_detalle: number;
+  nombre: string;
+  icono: string | null;
+  cantidad: number;
+  /** `null` cuando el rol no puede ver importes (ver `Caja.importes_ocultos`). */
+  precio_unitario: number | null;
+  subtotal: number | null;
+  nota: string | null;
+  /** Ingredientes que el cliente pidió quitar. */
+  sin: string[];
+}
+
+export interface OrdenItems {
+  id_orden: number;
+  numero_orden: string;
+  tipo_pedido: string | null;
+  estado: string | null;
+  nota: string | null;
+  subtotal: number | null;
+  impuesto: number | null;
+  descuento: number | null;
+  valor_domicilio: number | null;
+  total: number | null;
+  items: ItemOrden[];
+  importes_ocultos?: boolean;
+}
+
 export interface DomiciliarioResumen {
   id_domiciliario: number | null;
   domiciliario: string;
@@ -225,6 +254,17 @@ export class CajaService {
 
   getMovimientos(idCaja: number): Observable<ApiResponse<MovimientoCaja[]>> {
     return this.http.get<ApiResponse<MovimientoCaja[]>>(`${this.base}/${idCaja}/movimientos`);
+  }
+
+  /**
+   * Los productos del pedido de una fila de caja. Se pide al abrir el acordeón y
+   * no con el listado: un turno largo son cientos de filas y casi ninguna se abre.
+   */
+  getItemsOrden(idOrden: number, idNegocio: number): Observable<ApiResponse<OrdenItems>> {
+    return this.http.get<ApiResponse<OrdenItems>>(
+      `${this.base}/ordenes/${idOrden}/items`,
+      { params: new HttpParams().set('id_negocio', String(idNegocio)) },
+    );
   }
 
   /**

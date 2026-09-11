@@ -2,7 +2,9 @@ import {
   ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, inject, signal,
   PLATFORM_ID,
 } from '@angular/core';
-import { CurrencyPipe, DatePipe, DecimalPipe, isPlatformBrowser } from '@angular/common';
+import {
+  CurrencyPipe, DatePipe, DecimalPipe, NgTemplateOutlet, isPlatformBrowser,
+} from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse, HttpResponse } from '@angular/common/http';
 import { LucideAngularModule } from 'lucide-angular';
@@ -11,7 +13,7 @@ import { Observable } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
 import {
   ApiResponse, Caja, CajaHistorial, CajaService, DomiciliarioResumen, DomiciliariosResumen,
-  MovimientoCaja,
+  MovimientoCaja, OrdenItems,
 } from '../../../core/services/caja.service';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 import { RealtimeService } from '../../../core/services/realtime.service';
@@ -21,7 +23,9 @@ type ModalActivo = null | 'apertura' | 'cierre' | 'movimiento' | 'domiciliarios'
 @Component({
   selector: 'app-caja',
   standalone: true,
-  imports: [FormsModule, LucideAngularModule, CurrencyPipe, DatePipe, DecimalPipe],
+  imports: [
+    FormsModule, LucideAngularModule, NgTemplateOutlet, CurrencyPipe, DatePipe, DecimalPipe,
+  ],
   templateUrl: './caja.html',
   styleUrl: './caja.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -48,6 +52,15 @@ export class CajaComponent implements OnInit, OnDestroy {
   readonly modal = signal<ModalActivo>(null);
   readonly enviando = signal(false);
 
+  // ── Acordeón de productos por fila ──
+  // Qué filas están abiertas se guarda por `id_movimiento` (es la fila), y lo que
+  // se trae del servidor se cachea por `id_orden` (es el pedido): el cobro y el
+  // egreso del domicilio del mismo pedido comparten productos y una sola consulta.
+  readonly filasAbiertas = signal<ReadonlySet<number>>(new Set());
+  readonly itemsPorOrden = signal<ReadonlyMap<number, OrdenItems>>(new Map());
+  readonly ordenesCargando = signal<ReadonlySet<number>>(new Set());
+  readonly erroresPorOrden = signal<ReadonlyMap<number, string>>(new Map());
+
   // ── Historial de turnos cerrados ──
   // El modal tiene dos vistas: la lista de turnos y, al elegir uno, su detalle.
   // `cajaHistSel` es lo que decide cuál se ve.
@@ -65,6 +78,16 @@ export class CajaComponent implements OnInit, OnDestroy {
   readonly cargandoDetalleHist = signal(false);
 
   readonly hayMasHistorial = computed(() => this.historial().length < this.historialTotal());
+
+  /**
+   * Ancho de la fila desplegada, que tiene que cubrir la tabla entera: la columna
+   * del chevron más las cinco fijas, y las dos que dependen de permisos.
+   */
+  readonly colspanMovimientos = computed(
+    () => 6 + (this.puedeVerIngresos() ? 1 : 0) + (this.puedeEliminarPedido() ? 1 : 0),
+  );
+  /** La del historial es la misma tabla sin la columna de eliminar. */
+  readonly colspanMovimientosHist = computed(() => 6 + (this.puedeVerIngresos() ? 1 : 0));
 
   // ── Apertura ──
   // Arranca vacío (no en 0) para que el cajero escriba directo sin borrar nada.
@@ -159,6 +182,102 @@ export class CajaComponent implements OnInit, OnDestroy {
     });
   }
 
+  // ===================== Acordeón de productos =====================
+
+  /** Solo las filas que cuelgan de un pedido tienen productos que desplegar. */
+  tieneDetalle(m: MovimientoCaja): boolean {
+    return !!m.orden?.id_orden;
+  }
+
+  estaAbierta(m: MovimientoCaja): boolean {
+    return this.filasAbiertas().has(m.id_movimiento);
+  }
+
+  itemsDe(m: MovimientoCaja): OrdenItems | null {
+    const id = m.orden?.id_orden;
+    return id ? this.itemsPorOrden().get(id) ?? null : null;
+  }
+
+  cargandoItemsDe(m: MovimientoCaja): boolean {
+    const id = m.orden?.id_orden;
+    return !!id && this.ordenesCargando().has(id);
+  }
+
+  errorItemsDe(m: MovimientoCaja): string {
+    const id = m.orden?.id_orden;
+    return id ? this.erroresPorOrden().get(id) ?? '' : '';
+  }
+
+  /**
+   * Abre o cierra la fila. Los productos se piden la primera vez que se abre y se
+   * quedan cacheados: volver a plegarla y desplegarla no repite la consulta.
+   */
+  alternarDetalle(m: MovimientoCaja): void {
+    if (!this.tieneDetalle(m)) return;
+
+    const abiertas = new Set(this.filasAbiertas());
+    if (abiertas.delete(m.id_movimiento)) {
+      this.filasAbiertas.set(abiertas);
+      return;
+    }
+    abiertas.add(m.id_movimiento);
+    this.filasAbiertas.set(abiertas);
+
+    const idOrden = m.orden!.id_orden;
+    if (this.itemsPorOrden().has(idOrden)) return;
+    this.cargarItems(idOrden);
+  }
+
+  private cargarItems(idOrden: number): void {
+    const idNegocio = this.idNegocio();
+    if (!idNegocio || this.ordenesCargando().has(idOrden)) return;
+
+    this.ordenesCargando.set(new Set(this.ordenesCargando()).add(idOrden));
+    this.borrarErrorOrden(idOrden);
+
+    this.cajaSvc.getItemsOrden(idOrden, idNegocio).subscribe({
+      next: (res) => {
+        if (res?.data) {
+          this.itemsPorOrden.set(new Map(this.itemsPorOrden()).set(idOrden, res.data));
+        }
+        this.terminarCarga(idOrden);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.erroresPorOrden.set(
+          new Map(this.erroresPorOrden()).set(
+            idOrden,
+            err?.error?.message || 'No se pudieron cargar los productos del pedido.',
+          ),
+        );
+        this.terminarCarga(idOrden);
+      },
+    });
+  }
+
+  /** Reintento manual: se borra lo que falló y se vuelve a pedir. */
+  reintentarItems(m: MovimientoCaja): void {
+    const idOrden = m.orden?.id_orden;
+    if (idOrden) this.cargarItems(idOrden);
+  }
+
+  private terminarCarga(idOrden: number): void {
+    const cargando = new Set(this.ordenesCargando());
+    cargando.delete(idOrden);
+    this.ordenesCargando.set(cargando);
+  }
+
+  private borrarErrorOrden(idOrden: number): void {
+    if (!this.erroresPorOrden().has(idOrden)) return;
+    const errores = new Map(this.erroresPorOrden());
+    errores.delete(idOrden);
+    this.erroresPorOrden.set(errores);
+  }
+
+  /** Al cambiar de listado, ninguna fila del anterior sigue abierta. */
+  private cerrarTodasLasFilas(): void {
+    this.filasAbiertas.set(new Set());
+  }
+
   // ── Modales ──
   abrirModal(modal: Exclude<ModalActivo, null>): void {
     if (modal === 'apertura') {
@@ -182,6 +301,7 @@ export class CajaComponent implements OnInit, OnDestroy {
       this.cajaHistSel.set(null);
       this.movimientosHist.set([]);
       this.errorHistorial.set('');
+      this.cerrarTodasLasFilas();
       this.cargarHistorial(true);
     }
     this.modal.set(modal);
@@ -260,6 +380,7 @@ export class CajaComponent implements OnInit, OnDestroy {
 
     this.cargandoDetalleHist.set(true);
     this.movimientosHist.set([]);
+    this.cerrarTodasLasFilas();
 
     this.cajaSvc.getDetalleCaja(item.id_caja, id).subscribe({
       next: (res) => {
@@ -342,6 +463,7 @@ export class CajaComponent implements OnInit, OnDestroy {
   volverAListaHistorial(): void {
     this.cajaHistSel.set(null);
     this.movimientosHist.set([]);
+    this.cerrarTodasLasFilas();
   }
 
   private cargarResumenDomiciliarios(): void {

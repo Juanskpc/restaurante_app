@@ -136,6 +136,7 @@
           <table>
             <thead>
               <tr>
+                <th class="col-expandir"><span class="sr-only">Productos</span></th>
                 <th>Fecha</th>
                 <th>Tipo</th>
                 <th>Tipo pedido</th>
@@ -151,7 +152,21 @@
             </thead>
             <tbody>
               @for (m of movimientos(); track m.id_movimiento) {
-                <tr [class.fila--anulada]="m.anulado" [class.fila--anulacion]="m.es_anulacion">
+                <tr [class.fila--anulada]="m.anulado"
+                    [class.fila--anulacion]="m.es_anulacion"
+                    [class.fila--abierta]="estaAbierta(m)">
+                  <td class="col-expandir">
+                    @if (tieneDetalle(m)) {
+                      <button type="button"
+                              class="btn-expandir"
+                              [class.btn-expandir--abierto]="estaAbierta(m)"
+                              [attr.aria-expanded]="estaAbierta(m)"
+                              [title]="estaAbierta(m) ? 'Ocultar productos' : 'Ver productos del pedido'"
+                              (click)="alternarDetalle(m)">
+                        <lucide-icon name="chevron-right" [size]="15" />
+                      </button>
+                    }
+                  </td>
                   <td>{{ m.fecha | date:'dd/MM/yyyy HH:mm' }}</td>
                   <td>
                     <span class="badge"
@@ -185,6 +200,14 @@
                     </td>
                   }
                 </tr>
+                @if (estaAbierta(m)) {
+                  <tr class="fila-detalle">
+                    <td [attr.colspan]="colspanMovimientos()">
+                      <ng-container
+                        *ngTemplateOutlet="detalleProductos; context: { $implicit: m }" />
+                    </td>
+                  </tr>
+                }
               }
             </tbody>
           </table>
@@ -412,6 +435,7 @@
               <table>
                 <thead>
                   <tr>
+                    <th class="col-expandir"><span class="sr-only">Productos</span></th>
                     <th>Fecha</th>
                     <th>Tipo</th>
                     <th>Tipo pedido</th>
@@ -424,7 +448,21 @@
                 </thead>
                 <tbody>
                   @for (m of movimientosHist(); track m.id_movimiento) {
-                    <tr [class.fila--anulada]="m.anulado" [class.fila--anulacion]="m.es_anulacion">
+                    <tr [class.fila--anulada]="m.anulado"
+                        [class.fila--anulacion]="m.es_anulacion"
+                        [class.fila--abierta]="estaAbierta(m)">
+                      <td class="col-expandir">
+                        @if (tieneDetalle(m)) {
+                          <button type="button"
+                                  class="btn-expandir"
+                                  [class.btn-expandir--abierto]="estaAbierta(m)"
+                                  [attr.aria-expanded]="estaAbierta(m)"
+                                  [title]="estaAbierta(m) ? 'Ocultar productos' : 'Ver productos del pedido'"
+                                  (click)="alternarDetalle(m)">
+                            <lucide-icon name="chevron-right" [size]="15" />
+                          </button>
+                        }
+                      </td>
                       <td>{{ m.fecha | date:'dd/MM/yyyy HH:mm' }}</td>
                       <td>
                         <span class="badge"
@@ -441,6 +479,14 @@
                         <td class="num">{{ m.monto | currency:'COP':'symbol-narrow':'1.0-0' }}</td>
                       }
                     </tr>
+                    @if (estaAbierta(m)) {
+                      <tr class="fila-detalle">
+                        <td [attr.colspan]="colspanMovimientosHist()">
+                          <ng-container
+                            *ngTemplateOutlet="detalleProductos; context: { $implicit: m }" />
+                        </td>
+                      </tr>
+                    }
                   }
                 </tbody>
               </table>
@@ -654,4 +700,85 @@
       </div>
     </div>
   }
+
+  <!-- ── Productos de un pedido (contenido del acordeón) ──
+       Uno solo para las dos tablas —la del turno y la del historial—, que pintan
+       exactamente lo mismo: duplicarlo era garantizar que se arreglaran a medias. -->
+  <ng-template #detalleProductos let-m>
+    <div class="detalle-pedido">
+      @if (cargandoItemsDe(m)) {
+        <p class="detalle-pedido__estado">Cargando productos…</p>
+      } @else if (errorItemsDe(m); as error) {
+        <p class="detalle-pedido__estado detalle-pedido__estado--error">
+          {{ error }}
+          <button type="button" class="btn btn-ghost btn-sm" (click)="reintentarItems(m)">
+            Reintentar
+          </button>
+        </p>
+      } @else if (itemsDe(m); as orden) {
+        @if (orden.items.length === 0) {
+          <p class="detalle-pedido__estado">Este pedido no tiene productos registrados.</p>
+        } @else {
+          <ul class="detalle-items">
+            @for (item of orden.items; track item.id_detalle) {
+              <li class="detalle-item">
+                <span class="detalle-item__cantidad">{{ item.cantidad }}×</span>
+                <span class="detalle-item__texto">
+                  <strong>
+                    @if (item.icono) {
+                      <span class="detalle-item__icono">{{ item.icono }}</span>
+                    }
+                    {{ item.nombre }}
+                  </strong>
+                  @if (item.sin.length > 0) {
+                    <small class="detalle-item__sin">Sin {{ item.sin.join(', ') }}</small>
+                  }
+                  @if (item.nota) {
+                    <small class="detalle-item__nota">{{ item.nota }}</small>
+                  }
+                </span>
+                @if (puedeVerIngresos()) {
+                  <span class="detalle-item__monto">
+                    {{ item.subtotal | currency:'COP':'symbol-narrow':'1.0-0' }}
+                  </span>
+                }
+              </li>
+            }
+          </ul>
+
+          @if (orden.nota) {
+            <p class="detalle-pedido__nota">
+              <lucide-icon name="sticky-note" size="13" />
+              {{ orden.nota }}
+            </p>
+          }
+
+          @if (puedeVerIngresos()) {
+            <div class="detalle-totales">
+              <div>
+                <span>Subtotal</span>
+                <strong>{{ orden.subtotal | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+              </div>
+              @if (orden.descuento) {
+                <div>
+                  <span>Descuento</span>
+                  <strong>−{{ orden.descuento | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+                </div>
+              }
+              @if (orden.valor_domicilio) {
+                <div>
+                  <span>Domicilio</span>
+                  <strong>{{ orden.valor_domicilio | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+                </div>
+              }
+              <div class="detalle-totales__total">
+                <span>Total del pedido</span>
+                <strong>{{ orden.total | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+              </div>
+            </div>
+          }
+        }
+      }
+    </div>
+  </ng-template>
 </section>

@@ -257,6 +257,163 @@
     font-size: .7rem;
     color: var(--color-text-secondary);
   }
+
+  // ── Acordeón: productos del pedido bajo su fila ──
+
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  th.col-expandir,
+  td.col-expandir { width: 1%; padding-right: 0; text-align: center; }
+
+  .btn-expandir {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: background var(--transition-fast), color var(--transition-fast);
+
+    lucide-icon { transition: transform var(--transition-fast); }
+
+    &:hover {
+      background: var(--color-surface-alt, color-mix(in srgb, currentColor 10%, transparent));
+      color: var(--color-text-primary);
+    }
+
+    &--abierto {
+      color: var(--color-primary, var(--color-text-primary));
+      lucide-icon { transform: rotate(90deg); }
+    }
+  }
+
+  // La fila con su detalle abierto se lee como un bloque: se resalta la cabecera
+  // y se le quita la línea de abajo para que no corte contra el desplegable.
+  .fila--abierta > td {
+    background: color-mix(in srgb, var(--color-text-primary) 4%, transparent);
+    border-bottom-color: transparent;
+  }
+
+  .fila-detalle > td {
+    padding: 0 .35rem .7rem;
+    background: color-mix(in srgb, var(--color-text-primary) 4%, transparent);
+  }
+
+  .detalle-pedido {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md, .5rem);
+    background: var(--color-surface);
+    padding: .7rem .85rem;
+
+    &__estado {
+      margin: 0;
+      font-size: .82rem;
+      color: var(--color-text-secondary);
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+
+      &--error { color: var(--color-error); }
+    }
+
+    &__nota {
+      display: flex;
+      align-items: center;
+      gap: .35rem;
+      margin: .6rem 0 0;
+      font-size: .78rem;
+      color: var(--color-text-secondary);
+      font-style: italic;
+    }
+  }
+
+  .detalle-items {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .35rem;
+  }
+
+  .detalle-item {
+    display: flex;
+    align-items: flex-start;
+    gap: .6rem;
+    font-size: .84rem;
+    line-height: 1.35;
+
+    & + & { border-top: 1px dashed var(--color-border); padding-top: .35rem; }
+
+    &__cantidad {
+      flex: 0 0 auto;
+      min-width: 2rem;
+      font-weight: 700;
+      color: var(--color-text-secondary);
+    }
+
+    &__texto {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      gap: .1rem;
+      min-width: 0;
+    }
+
+    &__icono { margin-right: .15rem; }
+
+    &__sin,
+    &__nota {
+      font-size: .74rem;
+      color: var(--color-text-secondary);
+    }
+
+    &__sin { color: var(--color-error); }
+
+    &__monto {
+      flex: 0 0 auto;
+      font-variant-numeric: tabular-nums;
+      font-weight: 600;
+    }
+  }
+
+  .detalle-totales {
+    margin-top: .7rem;
+    padding-top: .55rem;
+    border-top: 1px solid var(--color-border);
+    display: flex;
+    flex-direction: column;
+    gap: .2rem;
+    font-size: .82rem;
+
+    div {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      color: var(--color-text-secondary);
+    }
+
+    strong { font-variant-numeric: tabular-nums; }
+
+    div.detalle-totales__total {
+      margin-top: .2rem;
+      font-size: .9rem;
+      color: var(--color-text-primary);
+      font-weight: 600;
+    }
+  }
 }
 
 .movimientos {
