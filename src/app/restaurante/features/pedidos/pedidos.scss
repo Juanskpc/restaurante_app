@@ -580,6 +580,24 @@
 
     &:hover { background: var(--color-primary-hover); }
   }
+
+  // Releer el estado de la caja sin recargar la página: el turno pudo abrirlo
+  // otro equipo mientras esta pantalla estaba abierta.
+  &__refresh {
+    margin-top: var(--spacing-xs);
+    padding: 6px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    cursor: pointer;
+    transition: background var(--transition-fast);
+
+    &:hover:not(:disabled) { background: var(--color-bg); }
+    &:disabled { opacity: .6; cursor: default; }
+  }
 }
 
 // ─── Header de la orden ─────────────────────────────────────
@@ -1500,6 +1518,43 @@
     text-decoration: none;
     transition: background var(--transition-fast);
     &:hover { background: var(--color-primary-hover); }
+  }
+  &__refresh {
+    flex: 0 0 auto;
+    padding: .4rem .85rem;
+    border: 1px solid color-mix(in srgb, var(--color-primary) 40%, var(--color-border));
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-weight: 600; font-size: .85rem;
+    cursor: pointer;
+    &:hover:not(:disabled) { background: var(--color-bg); }
+    &:disabled { opacity: .6; cursor: default; }
+  }
+}
+
+// Selector del cliente cuando se cobra contra su cuenta (tiquetera o fiado).
+.cuenta-cobro {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--spacing-sm) var(--spacing-md);
+  margin: 0 var(--spacing-md);
+  background: color-mix(in srgb, var(--color-primary) 6%, var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-primary) 25%, var(--color-border));
+  border-radius: var(--radius-md);
+
+  &__label {
+    font-size: .75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    color: var(--color-text-secondary);
+  }
+
+  &__saldo {
+    font-size: .78rem;
+    color: var(--color-text-secondary);
   }
 }
 

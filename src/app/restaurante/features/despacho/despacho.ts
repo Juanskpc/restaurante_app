@@ -12,6 +12,8 @@ import { Router } from '@angular/router';
 
 import { AuthService } from '../../../core/services/auth.service';
 import { CajaService } from '../../../core/services/caja.service';
+import { RealtimeService } from '../../../core/services/realtime.service';
+import { ClientesService, CuentaCliente } from '../../../core/services/clientes.service';
 import { CatalogoCacheService } from '../../../core/services/catalogo-cache.service';
 import { VistaTarjetasService } from '../../../core/services/vista-tarjetas.service';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
@@ -48,6 +50,8 @@ export interface PedidoDespacho {
   id_orden: number;
   numero_orden: string;
   id_metodo_pago?: number | null;
+  /** Cuenta de cliente elegida al tomar el pedido (tiquetera o fiado). */
+  id_cuenta?: number | null;
   tipo_pedido: TipoPedido;
   total: number;
   valor_domicilio?: number | string | null;
@@ -121,6 +125,8 @@ export class DespachoComponent implements OnInit {
   private readonly http = inject(HttpClient);
   private readonly auth = inject(AuthService);
   private readonly cajaSvc = inject(CajaService);
+  private readonly realtime = inject(RealtimeService);
+  private readonly clientesApi = inject(ClientesService);
   private readonly catalogo = inject(CatalogoCacheService);
   private readonly uiFeedback = inject(UiFeedbackService);
   private readonly router = inject(Router);
@@ -134,7 +140,9 @@ export class DespachoComponent implements OnInit {
   readonly filtro = signal<FiltroTipo>('TODOS');
   readonly pedidoActivo = signal<PedidoDespacho | null>(null);
   readonly cobrandoId = signal<number | null>(null);
-  readonly metodosPago = signal<Array<{ id_metodo_pago: number; nombre: string }>>([]);
+  readonly metodosPago = signal<Array<{ id_metodo_pago: number; nombre: string; es_cuenta?: boolean }>>([]);
+  /** Cuentas de cliente: despacho también cobra, y también contra una tiquetera. */
+  readonly cuentasCliente = signal<CuentaCliente[]>([]);
   readonly metodoPagoSeleccionado = signal<number | null>(null);
   readonly pagoSeleccion = signal<PagoSeleccion | null>(null);
 
@@ -223,6 +231,20 @@ export class DespachoComponent implements OnInit {
   ngOnInit(): void {
     this.cargar();
     this.loadMetodosPago();
+    // Despacho también cobra, así que necesita saber si hay turno abierto. Sin esto
+    // dependía de que el usuario hubiera pasado antes por POS o por Caja: entrando
+    // directo aquí, el estado seguía vacío y el cobro se rechazaba con «caja cerrada».
+    const idNegocioCaja = this.negocioId();
+    if (idNegocioCaja) {
+      this.cajaSvc.asegurarCargada(idNegocioCaja);
+      this.loadCuentasCliente(idNegocioCaja);
+    }
+
+    // Despacho es la pantalla que espera a cocina: en cuanto marcan un plato listo, aquí
+    // tiene que verse. Y los pedidos que entran por WhatsApp aparecen por este mismo camino.
+    this.destroyRef.onDestroy(
+      this.realtime.alCambiar(['pedidos'], () => this.cargar()),
+    );
 
     this.domicilioEditado$
       .pipe(
@@ -239,6 +261,13 @@ export class DespachoComponent implements OnInit {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe();
+  }
+
+  private loadCuentasCliente(idNegocio: number): void {
+    this.clientesApi.listar(idNegocio).subscribe({
+      next: (res) => this.cuentasCliente.set(res?.data ?? []),
+      error: () => this.cuentasCliente.set([]),
+    });
   }
 
   private loadMetodosPago(): void {
@@ -771,7 +800,7 @@ export class DespachoComponent implements OnInit {
     });
   }
 
-  cobrar(p: PedidoDespacho, event: Event): void {
+  async cobrar(p: PedidoDespacho, event: Event): Promise<void> {
     event.stopPropagation();
     if (this.cobrandoId() !== null) return;
 
@@ -804,21 +833,34 @@ export class DespachoComponent implements OnInit {
     }
 
     const origenCobro = p.tipo_pedido === 'DOMICILIO' ? 'DOMICILIARIO' : 'CAJA';
-    const idCaja = origenCobro === 'CAJA' ? this.cajaSvc.cajaAbierta()?.id_caja ?? null : null;
+    let idCaja = origenCobro === 'CAJA' ? this.cajaSvc.cajaAbierta()?.id_caja ?? null : null;
     if (origenCobro === 'CAJA' && !idCaja) {
-      void this.uiFeedback.alert({
-        title: 'Caja cerrada',
-        message: 'La caja está cerrada. Ábrela antes de registrar cobros en despacho.',
-        tone: 'warning',
-      });
-      return;
+      // El estado local puede estar viejo (otro equipo abrió el turno, o la consulta
+      // falló): se pregunta al servidor antes de negar el cobro.
+      const idNeg = this.negocioId();
+      const caja = idNeg ? await this.cajaSvc.verificar(idNeg) : null;
+      if (!caja) {
+        void this.uiFeedback.alert({
+          title: 'Caja cerrada',
+          message: 'La caja está cerrada. Ábrela antes de registrar cobros en despacho.',
+          tone: 'warning',
+        });
+        return;
+      }
+      idCaja = caja.id_caja;
     }
 
     this.cobrandoId.set(p.id_orden);
 
     this.http.patch<{ success: boolean }>(
       `${environment.apiUrl}/pedidos/${p.id_orden}/marcar-pagado`,
-      { ...bodyPago, origen_cobro: origenCobro, id_caja: idCaja }
+      {
+        ...bodyPago,
+        // De quién es la tiquetera, cuando el cobro va contra una cuenta de cliente.
+        ...(seleccion?.idCuenta ? { id_cuenta: seleccion.idCuenta } : {}),
+        origen_cobro: origenCobro,
+        id_caja: idCaja,
+      }
     ).subscribe({
       next: (res) => {
         if (res?.success) {
@@ -841,6 +883,8 @@ export class DespachoComponent implements OnInit {
       error: (err: HttpErrorResponse) => {
         const codigo = err?.error?.errors?.code || err?.error?.code;
         if (codigo === 'CAJA_CERRADA') {
+          const idNeg = this.negocioId();
+          if (idNeg) void this.cajaSvc.verificar(idNeg);
           void this.uiFeedback.alert({
             title: 'Caja cerrada',
             message: err?.error?.message || 'La caja está cerrada. Ábrela antes de registrar cobros.',

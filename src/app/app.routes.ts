@@ -60,6 +60,13 @@ export const routes: Routes = [
           import('./restaurante/features/menu/menu').then(m => m.MenuComponent),
       },
       {
+        path: 'clientes',
+        title: 'Clientes',
+        canActivate: [planGuard],
+        loadComponent: () =>
+          import('./restaurante/features/clientes/clientes').then(m => m.ClientesComponent),
+      },
+      {
         path: 'mesas',
         title: 'Mesas',
         canActivate: [planGuard],

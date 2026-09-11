@@ -20,6 +20,8 @@ export interface MesaOrder {
   descuento?: number;
   estado_pago?: string | null;
   id_metodo_pago?: number | null;
+  /** Cuenta de cliente elegida al tomar el pedido (tiquetera o fiado). */
+  id_cuenta?: number | null;
   /** Desglose de multipago elegido al tomar el pedido; editable antes de cobrar. */
   pagos?: { id_metodo_pago: number; valor: number }[];
   nota?: string | null;
@@ -81,9 +83,15 @@ export class MesasService {
     idOrden: number,
     idMetodoPago?: number | null,
     pagos?: { id_metodo_pago: number; valor: number }[] | null,
+    idCuenta?: number | null,
   ): Observable<{ success: boolean; data: unknown }> {
     // Multipago tiene prioridad; si no, se cierra con la forma de pago simple.
-    const body = pagos && pagos.length > 0 ? { pagos } : { id_metodo_pago: idMetodoPago || null };
+    // `id_cuenta` viaja cuando se paga con la tiquetera o el fiado de un cliente: el servidor
+    // lo exige y no lo adivina, porque adivinarlo se lo descontaría a otra persona.
+    const body = {
+      ...(pagos && pagos.length > 0 ? { pagos } : { id_metodo_pago: idMetodoPago || null }),
+      ...(idCuenta ? { id_cuenta: idCuenta } : {}),
+    };
     return this.http.patch<{ success: boolean; data: unknown }>(
       `${environment.apiUrl}/pedidos/${idOrden}/cerrar`,
       body,

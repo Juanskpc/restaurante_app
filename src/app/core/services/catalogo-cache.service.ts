@@ -55,6 +55,18 @@ export class CatalogoCacheService {
     return this.get(`domiciliarios:${idNegocio}`, `${environment.apiUrl}/domiciliarios?id_negocio=${idNegocio}`, idNegocio);
   }
 
+  /**
+   * Los productos de la carta. Lo usa el selector de tiquetes de Clientes: una tiquetera «de 20
+   * almuerzos» necesita saber de qué almuerzo habla.
+   *
+   * Va contra `/carta/admin/productos` y **no** contra `/carta/productos`: el segundo exige
+   * `id_categoria` —está hecho para pintar la carta categoría a categoría— y sin él responde
+   * 400. Aquí hace falta la lista entera del negocio.
+   */
+  productos(idNegocio: number): Observable<Array<{ id_producto: number; nombre: string; precio: number }>> {
+    return this.get(`productos:${idNegocio}`, `${environment.apiUrl}/carta/admin/productos?id_negocio=${idNegocio}`, idNegocio);
+  }
+
   categorias(idNegocio: number): Observable<unknown[]> {
     return this.get(`categorias:${idNegocio}`, `${environment.apiUrl}/carta/categorias?id_negocio=${idNegocio}`, idNegocio);
   }

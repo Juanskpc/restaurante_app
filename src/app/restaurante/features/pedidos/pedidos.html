@@ -8,6 +8,12 @@
       <strong>Caja cerrada.</strong>
       No se pueden tomar ni cobrar pedidos hasta abrir la caja del turno.
     </div>
+    <!-- Si el turno lo abrió otro equipo, basta releer el estado: antes había que
+         recargar la página entera para que el POS se enterara. -->
+    <button type="button" class="caja-cerrada-banner__refresh"
+            [disabled]="verificandoCaja()" (click)="revisarCaja()">
+      {{ verificandoCaja() ? 'Comprobando…' : 'Ya la abrí' }}
+    </button>
     <a class="caja-cerrada-banner__cta" routerLink="/caja">Ir a Caja</a>
   </div>
 }
@@ -132,6 +138,10 @@
         <lucide-icon name="wallet" [size]="18" />
         Abrir caja
       </a>
+      <button type="button" class="order-locked__refresh"
+              [disabled]="verificandoCaja()" (click)="revisarCaja()">
+        {{ verificandoCaja() ? 'Comprobando…' : 'Ya la abrieron, comprobar' }}
+      </button>
     </div>
     } @else {
     <!-- Header de la orden -->
@@ -199,6 +209,7 @@
               [permiteMultipago]="permiteMultipago()"
               [idMetodoPagoInicial]="metodoPagoId()"
               [pagosIniciales]="filasPago()"
+              [cuentas]="cuentasCliente()"
               (seleccionChange)="onPagoSeleccion($event)"
             />
 
@@ -244,6 +255,7 @@
             [permiteMultipago]="permiteMultipago()"
             [idMetodoPagoInicial]="metodoPagoId()"
             [pagosIniciales]="filasPago()"
+            [cuentas]="cuentasCliente()"
             (seleccionChange)="onPagoSeleccion($event)"
           />
         </div>
@@ -283,6 +295,7 @@
             [permiteMultipago]="permiteMultipago()"
             [idMetodoPagoInicial]="metodoPagoId()"
             [pagosIniciales]="filasPago()"
+            [cuentas]="cuentasCliente()"
             (seleccionChange)="onPagoSeleccion($event)"
           />
         </div>

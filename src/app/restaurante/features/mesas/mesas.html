@@ -200,6 +200,8 @@
                 [permiteMultipago]="permiteMultipago()"
                 [idMetodoPagoInicial]="mesa.order.id_metodo_pago ?? null"
                 [pagosIniciales]="filasPagoMesaActiva()"
+                [cuentas]="cuentasCliente()"
+                [idCuentaInicial]="mesa.order.id_cuenta ?? null"
                 (seleccionChange)="onPagoSeleccion($event)"
               />
 

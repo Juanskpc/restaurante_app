@@ -18,6 +18,31 @@
     }
   </select>
 
+  <!-- ¿De quién es la tiquetera? Vive aquí, junto a la forma de pago, y no en cada pantalla:
+       cobran tres (POS, Mesas y Despacho) y tenerlo repetido significaba que una se quedara
+       sin él y el cobro fallara con un 422 que no explica nada. -->
+  @if (pagaConCuenta() && cuentas().length > 0) {
+    <div class="mp-cuenta">
+      <select class="mp-select"
+              [disabled]="disabled()"
+              (change)="onCuentaChange($any($event.target).value)">
+        <option value="" [selected]="cuentaElegida() == null">¿De quién es la cuenta?</option>
+        @for (c of cuentas(); track c.id_cuenta) {
+          <option [value]="c.id_cuenta" [selected]="cuentaElegida() === c.id_cuenta">
+            {{ c.cliente }}
+          </option>
+        }
+      </select>
+      @if (resumenCuenta()) {
+        <span class="mp-cuenta__saldo">{{ resumenCuenta() }}</span>
+      }
+    </div>
+  } @else if (pagaConCuenta()) {
+    <p class="mp-cuenta__aviso">
+      Este negocio todavía no tiene clientes con cuenta. Créalos en <strong>Clientes</strong>.
+    </p>
+  }
+
   @if (modo() === 'multi') {
     <div class="mp-split">
       @for (fila of filas(); track $index) {

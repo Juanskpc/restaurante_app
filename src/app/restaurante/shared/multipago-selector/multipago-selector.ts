@@ -13,6 +13,20 @@ import { LucideAngularModule } from 'lucide-angular';
 export interface MetodoPagoLite {
   id_metodo_pago: number;
   nombre: string;
+  /**
+   * Es la forma de pago «Cuenta / Tiquetera». Se reconoce por esta marca y **nunca por el
+   * nombre**: el negocio puede renombrarla desde Configuración.
+   */
+  es_cuenta?: boolean;
+}
+
+/** Una cuenta de cliente, lo justo para elegirla al cobrar. */
+export interface CuentaLite {
+  id_cuenta: number;
+  cliente: string;
+  modo: 'DINERO' | 'TIQUETES';
+  saldo: number;
+  total_tiquetes?: number;
 }
 
 /** Fila del desglose de multipago; admite filas a medio llenar. */
@@ -37,6 +51,13 @@ export interface PagoSeleccion {
   filas: FilaPago[];
   /** ¿La selección está completa y cuadrada? */
   valido: boolean;
+  /**
+   * De quién es la cuenta, cuando se paga con «Cuenta / Tiquetera». `null` en los demás casos.
+   *
+   * El servidor lo exige y **no lo deduce** del teléfono del pedido: adivinarlo le descontaría
+   * el almuerzo a otra persona.
+   */
+  idCuenta: number | null;
 }
 
 const MULTI_VALUE = '__multi__';
@@ -74,6 +95,17 @@ export class MultipagoSelectorComponent {
    * (Despacho, Mesas) como para restaurar lo escrito tras recrear el componente.
    */
   readonly pagosIniciales = input<FilaPago[]>([]);
+  /**
+   * Cuentas de cliente del negocio. Si está vacío, el selector de cliente no aparece aunque se
+   * elija la forma de pago de cuenta — que es lo correcto para un negocio que no las usa.
+   */
+  readonly cuentas = input<CuentaLite[]>([]);
+  /**
+   * Cuenta con la que abre el selector: la que se eligió al tomar el pedido y quedó guardada
+   * en él. Sin esto, cobrar una mesa volvía a preguntar de quién es la tiquetera aunque el
+   * cajero ya lo hubiera dicho en el POS.
+   */
+  readonly idCuentaInicial = input<number | null>(null);
 
   /** Emite la selección actual cada vez que cambia. */
   readonly seleccionChange = output<PagoSeleccion>();
@@ -83,6 +115,34 @@ export class MultipagoSelectorComponent {
   protected readonly modo = signal<'simple' | 'multi'>('simple');
   protected readonly metodoSimple = signal<number | null>(null);
   protected readonly filas = signal<FilaPago[]>([]);
+  protected readonly cuentaElegida = signal<number | null>(null);
+
+  /**
+   * ¿El cobro va contra la cuenta de un cliente? Vale tanto en pago simple como dentro de un
+   * desglose de multipago: una tiquetera que no alcanza se completa con efectivo, y ese caso
+   * tiene que pedir el cliente igual.
+   */
+  protected readonly pagaConCuenta = computed(() => {
+    const idCuentaPago = this.metodos().find((m) => m.es_cuenta)?.id_metodo_pago;
+    if (!idCuentaPago) return false;
+
+    if (this.modo() === 'multi') {
+      return this.filas().some((f) => Number(f.id_metodo_pago) === idCuentaPago);
+    }
+    return this.metodoSimple() === idCuentaPago;
+  });
+
+  /** Lo que le queda al cliente elegido, para verlo antes de cobrar. */
+  protected readonly resumenCuenta = computed(() => {
+    const c = this.cuentas().find((x) => x.id_cuenta === this.cuentaElegida());
+    if (!c) return '';
+    if (c.modo === 'TIQUETES') {
+      const n = c.total_tiquetes ?? 0;
+      return n === 1 ? 'Le queda 1 tiquete' : `Le quedan ${n} tiquetes`;
+    }
+    if (c.saldo < 0) return `Debe $${Math.abs(c.saldo).toLocaleString('es-CO')}`;
+    return `Tiene a favor $${c.saldo.toLocaleString('es-CO')}`;
+  });
 
   /** Ya se aplicó el desglose inicial: no volver a pisar lo que edite el usuario. */
   private sembrado = false;
@@ -97,9 +157,17 @@ export class MultipagoSelectorComponent {
 
   /** Selección expuesta al componente padre. */
   readonly seleccion = computed<PagoSeleccion>(() => {
+    // Cobrar con una cuenta sin decir de quién es lo rechaza el servidor con un 422. Marcarlo
+    // aquí como no válido hace que el botón de cobrar no deje llegar hasta ahí.
+    const idCuenta = this.pagaConCuenta() ? this.cuentaElegida() : null;
+    const faltaCuenta = this.pagaConCuenta() && idCuenta == null;
+
     if (this.modo() === 'simple') {
       const id = this.metodoSimple();
-      return { modo: 'simple', idMetodoPago: id, pagos: [], filas: [], valido: id != null };
+      return {
+        modo: 'simple', idMetodoPago: id, pagos: [], filas: [],
+        valido: id != null && !faltaCuenta, idCuenta,
+      };
     }
 
     const filas = this.filas();
@@ -114,9 +182,9 @@ export class MultipagoSelectorComponent {
     const totalCuadra =
       Math.round(this.sumaMulti() * 100) === Math.round(this.total() * 100);
     const valido =
-      filas.length >= 2 && completas.length === filas.length && totalCuadra;
+      filas.length >= 2 && completas.length === filas.length && totalCuadra && !faltaCuenta;
 
-    return { modo: 'multi', idMetodoPago: null, pagos, filas, valido };
+    return { modo: 'multi', idMetodoPago: null, pagos, filas, valido, idCuenta };
   });
 
   constructor() {
@@ -136,6 +204,15 @@ export class MultipagoSelectorComponent {
       );
     });
 
+    // Siembra la cuenta guardada en el pedido. Una sola vez, y solo si el usuario no ha
+    // elegido ya: después manda lo que él diga.
+    effect(() => {
+      const init = this.idCuentaInicial();
+      if (init != null && this.cuentaElegida() === null) {
+        this.cuentaElegida.set(Number(init));
+      }
+    });
+
     // Inicializa el método simple desde el valor inicial (una sola vez).
     effect(() => {
       const init = this.idMetodoPagoInicial();
@@ -146,6 +223,10 @@ export class MultipagoSelectorComponent {
 
     // Propaga la selección al componente padre en cada cambio.
     effect(() => this.seleccionChange.emit(this.seleccion()));
+  }
+
+  protected onCuentaChange(raw: string): void {
+    this.cuentaElegida.set(raw ? Number(raw) : null);
   }
 
   protected onSelectChange(raw: string): void {

@@ -1,0 +1,344 @@
+<!-- ============================================================
+     Clientes — tiqueteras y fiado
+     ============================================================ -->
+<section class="clientes">
+
+  <!-- ── Resumen: las dos preguntas que el dueño se hace ── -->
+  <div class="resumen">
+    <div class="resumen__card resumen__card--debe">
+      <span class="resumen__label">Me deben</span>
+      <strong class="resumen__valor">{{ totalPorCobrar() | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+      <span class="resumen__pie">Pendiente de cobrar</span>
+    </div>
+    <div class="resumen__card resumen__card--favor">
+      <span class="resumen__label">Pagado por adelantado</span>
+      <strong class="resumen__valor">{{ totalAnticipado() | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+      <span class="resumen__pie">Comida que ya cobré</span>
+    </div>
+    <div class="resumen__card">
+      <span class="resumen__label">Tiqueteras</span>
+      <strong class="resumen__valor">{{ cuentasEnTiquetes() }}</strong>
+      <span class="resumen__pie">Clientes que llevan tiquetes</span>
+    </div>
+  </div>
+
+  <!-- ── Barra de acciones ── -->
+  <div class="barra">
+    <div class="barra__buscar">
+      <lucide-icon name="search" [size]="16" aria-hidden="true" />
+      <input type="text" placeholder="Buscar cliente…"
+             [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)" />
+    </div>
+
+    <div class="barra__filtros" role="group" aria-label="Filtrar cuentas">
+      <button type="button" [class.activo]="filtro() === 'todos'" (click)="filtro.set('todos')">Todos</button>
+      <button type="button" [class.activo]="filtro() === 'deben'" (click)="filtro.set('deben')">Deben</button>
+      <button type="button" [class.activo]="filtro() === 'a_favor'" (click)="filtro.set('a_favor')">A favor</button>
+    </div>
+
+    <button type="button" class="btn-primario" (click)="abrirNueva()">
+      <lucide-icon name="plus" [size]="16" aria-hidden="true" />
+      Nuevo cliente
+    </button>
+  </div>
+
+  <div class="contenido">
+    <!-- ── Lista ── -->
+    <div class="lista">
+      @if (cargando()) {
+        <p class="estado">Cargando…</p>
+      } @else if (cuentas().length === 0) {
+        <div class="vacio">
+          <lucide-icon name="users" [size]="34" aria-hidden="true" />
+          <p><strong>Todavía no hay cuentas.</strong></p>
+          <p class="vacio__texto">
+            Aquí van los clientes de confianza: los que pagan el mes por adelantado
+            y los que comen y pagan al final.
+          </p>
+        </div>
+      } @else {
+        @for (c of cuentas(); track c.id_cuenta) {
+          <button type="button" class="fila"
+                  [class.fila--activa]="seleccionada()?.id_cuenta === c.id_cuenta"
+                  (click)="seleccionar(c)">
+            <div class="fila__datos">
+              <strong class="fila__nombre">{{ c.cliente }}</strong>
+              @if (c.telefono) { <span class="fila__tel">{{ c.telefono }}</span> }
+            </div>
+            <div class="fila__saldo" [class]="'fila__saldo--' + claseSaldo(c)">
+              <span class="fila__etiqueta">{{ etiquetaSaldo(c) }}</span>
+              @if (c.modo === 'DINERO') {
+                <strong>{{ (c.saldo < 0 ? -c.saldo : c.saldo) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+              }
+            </div>
+          </button>
+        }
+      }
+    </div>
+
+    <!-- ── Detalle ── -->
+    @if (seleccionada(); as cuenta) {
+      <aside class="detalle">
+        <header class="detalle__head">
+          <div>
+            <h2>{{ cuenta.cliente }}</h2>
+            <span class="detalle__modo">
+              {{ cuenta.modo === 'TIQUETES' ? 'Lleva tiquetes contados' : 'Lleva saldo en dinero' }}
+            </span>
+          </div>
+          <button type="button" class="icono" (click)="cerrarDetalle()" aria-label="Cerrar">
+            <lucide-icon name="x" [size]="18" />
+          </button>
+        </header>
+
+        <!-- Saldo -->
+        <div class="detalle__saldo" [class]="'detalle__saldo--' + claseSaldo(cuenta)">
+          @if (cuenta.modo === 'DINERO') {
+            <span class="detalle__saldo-label">
+              {{ cuenta.saldo < 0 ? 'Este cliente debe' : (cuenta.saldo > 0 ? 'Tiene a favor' : 'Está al día') }}
+            </span>
+            <strong>{{ (cuenta.saldo < 0 ? -cuenta.saldo : cuenta.saldo) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+            @if (cuenta.cupo > 0) {
+              <span class="detalle__cupo">
+                Se le fía hasta {{ cuenta.cupo | currency:'COP':'symbol-narrow':'1.0-0' }}
+              </span>
+            }
+          } @else {
+            <span class="detalle__saldo-label">Le quedan</span>
+            @if (cuenta.tiquetes?.length) {
+              @for (t of cuenta.tiquetes; track t.id_producto) {
+                <strong class="detalle__tiquete">{{ t.disponibles }} × {{ t.producto }}</strong>
+              }
+            } @else {
+              <strong>Sin tiquetes</strong>
+            }
+          }
+        </div>
+
+        <!-- Acciones -->
+        <div class="detalle__acciones">
+          @if (puedeAbonar()) {
+            <button type="button" class="btn-primario" (click)="abrirAbono()">
+              <lucide-icon name="banknote" [size]="16" />
+              {{ cuenta.modo === 'TIQUETES' ? 'Vender tiquetera' : 'Recibir dinero' }}
+            </button>
+          }
+          <button type="button" class="btn-secundario" (click)="abrirEditar()">
+            <lucide-icon name="settings" [size]="16" />
+            Ajustes de la cuenta
+          </button>
+          @if (puedeAjustar()) {
+            <button type="button" class="btn-texto" (click)="abrirAjuste()">
+              Corregir saldo
+            </button>
+          }
+        </div>
+
+        <!-- Movimientos -->
+        <h3 class="detalle__titulo">Movimientos</h3>
+        @if (cargandoMovimientos()) {
+          <p class="estado">Cargando…</p>
+        } @else if (movimientos().length === 0) {
+          <p class="estado">Todavía no hay movimientos en esta cuenta.</p>
+        } @else {
+          <ul class="movimientos">
+            @for (m of movimientos(); track m.id_movimiento) {
+              <li class="movimiento" [class.movimiento--anulado]="m.anulado">
+                <div class="movimiento__info">
+                  <span class="movimiento__concepto">{{ m.concepto || (m.tipo === 'ABONO' ? 'Abono' : 'Consumo') }}</span>
+                  <span class="movimiento__meta">
+                    {{ m.fecha | date:'dd/MM/yyyy HH:mm' }}
+                    @if (m.numero_orden) { · Pedido {{ m.numero_orden }} }
+                    @if (m.primer_nombre) { · {{ m.primer_nombre }} }
+                  </span>
+                </div>
+                <div class="movimiento__valor" [class.movimiento__valor--abono]="m.tipo === 'ABONO'">
+                  @if (m.tiquetes > 0) {
+                    {{ m.tipo === 'ABONO' ? '+' : '−' }}{{ m.tiquetes }} tiq.
+                  } @else {
+                    {{ m.tipo === 'ABONO' ? '+' : '−' }}{{ m.monto | currency:'COP':'symbol-narrow':'1.0-0' }}
+                  }
+                </div>
+              </li>
+            }
+          </ul>
+        }
+      </aside>
+    }
+  </div>
+</section>
+
+<!-- ════════════════ MODALES ════════════════ -->
+@if (modal(); as activo) {
+  <div class="overlay" (click)="cerrarModal()"></div>
+  <div class="modal" role="dialog" aria-modal="true">
+
+    <!-- Nuevo cliente -->
+    @if (activo === 'nueva') {
+      <h3>Nuevo cliente</h3>
+      <label>
+        Nombre
+        <input type="text" [ngModel]="formNombre()" (ngModelChange)="formNombre.set($event)"
+               placeholder="Ej. Don Pedro" />
+      </label>
+      <label>
+        Teléfono <span class="opcional">(opcional)</span>
+        <input type="tel" [ngModel]="formTelefono()" (ngModelChange)="formTelefono.set($event)"
+               placeholder="Para enlazarlo con WhatsApp" />
+      </label>
+      <label>
+        ¿Cómo lleva la cuenta?
+        <select [ngModel]="formModo()" (ngModelChange)="formModo.set($event)">
+          <option value="DINERO">En dinero (abona plata y se le descuenta)</option>
+          <option value="TIQUETES">En tiquetes (compra 20 almuerzos y se le descuenta de a uno)</option>
+        </select>
+      </label>
+      @if (formModo() === 'DINERO') {
+        <label>
+          ¿Hasta cuánto se le fía? <span class="opcional">(0 = no se le fía)</span>
+          <input type="number" min="0" [ngModel]="formCupo()" (ngModelChange)="formCupo.set($event)" />
+        </label>
+      }
+      <label>
+        Nota <span class="opcional">(opcional)</span>
+        <input type="text" [ngModel]="formNota()" (ngModelChange)="formNota.set($event)" />
+      </label>
+      <div class="modal__acciones">
+        <button type="button" class="btn-secundario" (click)="cerrarModal()">Cancelar</button>
+        <button type="button" class="btn-primario" [disabled]="guardando()" (click)="guardarNueva()">
+          {{ guardando() ? 'Guardando…' : 'Crear cuenta' }}
+        </button>
+      </div>
+    }
+
+    <!-- Editar cuenta -->
+    @if (activo === 'editar') {
+      <h3>Ajustes de la cuenta</h3>
+      <label>
+        ¿Cómo lleva la cuenta?
+        <select [ngModel]="formModo()" (ngModelChange)="formModo.set($event)">
+          <option value="DINERO">En dinero</option>
+          <option value="TIQUETES">En tiquetes</option>
+        </select>
+      </label>
+      <p class="aviso">
+        El tipo de cuenta solo se puede cambiar cuando el saldo y los tiquetes están en cero:
+        si no, quedaría plata o comida pagada que el cliente no podría gastar.
+      </p>
+      @if (formModo() === 'DINERO') {
+        <label>
+          ¿Hasta cuánto se le fía?
+          <input type="number" min="0" [ngModel]="formCupo()" (ngModelChange)="formCupo.set($event)" />
+        </label>
+      }
+      <label>
+        Nota
+        <input type="text" [ngModel]="formNota()" (ngModelChange)="formNota.set($event)" />
+      </label>
+      <div class="modal__acciones">
+        <button type="button" class="btn-secundario" (click)="cerrarModal()">Cancelar</button>
+        <button type="button" class="btn-primario" [disabled]="guardando()" (click)="guardarEdicion()">
+          {{ guardando() ? 'Guardando…' : 'Guardar' }}
+        </button>
+      </div>
+    }
+
+    <!-- Abono -->
+    @if (activo === 'abono') {
+      <h3>{{ esTiquetes() ? 'Vender tiquetera' : 'Recibir dinero' }}</h3>
+      <p class="aviso aviso--ok">
+        Este dinero entra a la caja del turno. <strong>No cuenta como venta de comida</strong>:
+        la venta se registra el día que el cliente coma.
+      </p>
+
+      @if (esTiquetes()) {
+        <label>
+          ¿De qué producto?
+          <select [ngModel]="abonoProducto()" (ngModelChange)="abonoProducto.set($event)">
+            @for (p of productos(); track p.id_producto) {
+              <option [value]="p.id_producto">{{ p.nombre }}</option>
+            }
+          </select>
+        </label>
+        <label>
+          ¿Cuántos tiquetes?
+          <input type="number" min="1" [ngModel]="abonoTiquetes()" (ngModelChange)="abonoTiquetes.set($event)" />
+        </label>
+      }
+
+      <label>
+        ¿Cuánto está pagando?
+        <input type="number" min="1" [ngModel]="abonoMonto()" (ngModelChange)="abonoMonto.set($event)" />
+      </label>
+      <label>
+        ¿Con qué paga?
+        <select [ngModel]="abonoMetodo()" (ngModelChange)="abonoMetodo.set($event)">
+          @for (m of metodosCobrables(); track m.id_metodo_pago) {
+            <option [value]="m.id_metodo_pago">{{ m.nombre }}</option>
+          }
+        </select>
+      </label>
+      <label>
+        Nota <span class="opcional">(opcional)</span>
+        <input type="text" [ngModel]="abonoConcepto()" (ngModelChange)="abonoConcepto.set($event)" />
+      </label>
+
+      <div class="modal__acciones">
+        <button type="button" class="btn-secundario" (click)="cerrarModal()">Cancelar</button>
+        <button type="button" class="btn-primario" [disabled]="guardando()" (click)="guardarAbono()">
+          {{ guardando() ? 'Guardando…' : 'Registrar' }}
+        </button>
+      </div>
+    }
+
+    <!-- Ajuste -->
+    @if (activo === 'ajuste') {
+      <h3>Corregir saldo</h3>
+      <p class="aviso aviso--warn">
+        Esto cambia el saldo <strong>sin que entre ni salga dinero de la caja</strong>.
+        Se usa para perdonar una deuda, regalar un almuerzo o arreglar una equivocación.
+      </p>
+
+      <label>
+        ¿Qué se hace?
+        <select [ngModel]="ajusteTipo()" (ngModelChange)="ajusteTipo.set($event)">
+          <option value="ABONO">Sumarle (perdonar deuda, regalar)</option>
+          <option value="CARGO">Restarle (corregir de más)</option>
+        </select>
+      </label>
+
+      @if (esTiquetes()) {
+        <label>
+          ¿De qué producto?
+          <select [ngModel]="ajusteProducto()" (ngModelChange)="ajusteProducto.set($event)">
+            @for (p of productos(); track p.id_producto) {
+              <option [value]="p.id_producto">{{ p.nombre }}</option>
+            }
+          </select>
+        </label>
+        <label>
+          ¿Cuántos tiquetes?
+          <input type="number" min="1" [ngModel]="ajusteTiquetes()" (ngModelChange)="ajusteTiquetes.set($event)" />
+        </label>
+      } @else {
+        <label>
+          ¿Cuánto?
+          <input type="number" min="1" [ngModel]="ajusteMonto()" (ngModelChange)="ajusteMonto.set($event)" />
+        </label>
+      }
+
+      <label>
+        Motivo <span class="requerido">(obligatorio)</span>
+        <input type="text" [ngModel]="ajusteMotivo()" (ngModelChange)="ajusteMotivo.set($event)"
+               placeholder="Ej. Se le perdona el saldo de septiembre" />
+      </label>
+
+      <div class="modal__acciones">
+        <button type="button" class="btn-secundario" (click)="cerrarModal()">Cancelar</button>
+        <button type="button" class="btn-primario" [disabled]="guardando()" (click)="guardarAjuste()">
+          {{ guardando() ? 'Guardando…' : 'Ajustar' }}
+        </button>
+      </div>
+    }
+  </div>
+}

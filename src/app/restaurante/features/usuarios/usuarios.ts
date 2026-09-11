@@ -464,6 +464,8 @@ export class UsuariosComponent {
         }
         this.closeFormModal();
         this.loadUsuarios();
+        // Puede haberse cambiado a sí mismo de rol: su propia sesión se relee.
+        void this.auth.refrescarSesion();
       },
       error: (error) => {
         this.handleError(error, 'No fue posible guardar el usuario.');
@@ -619,6 +621,9 @@ export class UsuariosComponent {
         this.permisosSnapshot.set(this.serializePermisos(payload));
         this.uiFeedback.updated('Los permisos del rol fueron actualizados correctamente.');
         this.loadPermisosRol(idRol);
+        // Si el rol tocado es uno de los del propio usuario, su menú y sus vistas cambian
+        // ahora mismo. Los demás lo verán al recargar o al volver a su pestaña.
+        void this.auth.refrescarSesion();
       },
       error: (error) => {
         this.handleError(error, 'No fue posible guardar permisos del rol.');

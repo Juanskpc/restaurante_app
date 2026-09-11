@@ -452,6 +452,8 @@
                   [permiteMultipago]="permiteMultipago()"
                   [idMetodoPagoInicial]="p.id_metodo_pago ?? null"
                   [pagosIniciales]="filasPagoActivo()"
+                  [cuentas]="cuentasCliente()"
+                  [idCuentaInicial]="p.id_cuenta ?? null"
                   (seleccionChange)="onPagoSeleccion($event)"
                 />
               </span>

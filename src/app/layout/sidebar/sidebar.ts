@@ -34,6 +34,7 @@ export class SidebarComponent {
     { icon: 'flame',             label: 'Cocina',          route: '/cocina',          section: 'main' },
     { icon: 'utensils-crossed',  label: 'Menú',            route: '/menu',            section: 'main' },
     { icon: 'armchair',          label: 'Mesas',           route: '/mesas',           section: 'secondary' },
+    { icon: 'users',             label: 'Clientes',        route: '/clientes',        section: 'secondary' },
     { icon: 'wallet',            label: 'Caja',            route: '/caja',            section: 'secondary' },
     { icon: 'package',           label: 'Inventario',      route: '/inventario',      section: 'secondary' },
     { icon: 'users',             label: 'Personal',        route: '/usuarios',        section: 'secondary' },
@@ -52,6 +53,8 @@ export class SidebarComponent {
   readonly navItemsPermitidos = computed(() =>
     this.navItems.filter((item) => {
       if (!this.auth.canAccessRoute(item.route)) return false;
+      // Tiqueteras y fiado son opt-in del negocio: sin encenderlas, el menú no aparece.
+      if (item.route === '/clientes' && !this.auth.permiteCuentasCliente()) return false;
       const subnivel = this.subnivelPorRuta[item.route];
       return !subnivel || this.auth.canAccessSubnivel(subnivel);
     })

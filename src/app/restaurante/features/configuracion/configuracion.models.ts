@@ -18,6 +18,8 @@ export interface ConfiguracionNegocio {
   permite_pago_domicilio: boolean;
   permite_descuento: boolean;
   pregunta_cobro_envio: boolean;
+  /** Tiqueteras y fiado. Opt-in: apagado, el módulo de Clientes no existe para el negocio. */
+  permite_cuentas_cliente: boolean;
   can_edit: boolean;
 }
 
@@ -35,6 +37,7 @@ export interface ConfiguracionNegocioPayload {
   permite_pago_domicilio?: boolean;
   permite_descuento?: boolean;
   pregunta_cobro_envio?: boolean;
+  permite_cuentas_cliente?: boolean;
   id_paleta?: number | null;
 }
 

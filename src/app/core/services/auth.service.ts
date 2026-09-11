@@ -1,6 +1,6 @@
 import { Injectable, signal, computed, inject, PLATFORM_ID } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
@@ -37,6 +37,23 @@ export interface PermisoSubnivelRestaurante {
   puede_ver: boolean;
 }
 
+/**
+ * Estado del plan del negocio, tal como lo calcula `planHelper` en el backend.
+ *
+ * Un plan vencido no corta el acceso de inmediato: hay 5 días de gracia
+ * (`estado: 'GRACIA'`, `activo: true`) durante los cuales el negocio sigue
+ * trabajando mientras la app le avisa cuántos días le quedan para pagar.
+ */
+export interface EstadoPlan {
+  estado: 'ACTIVO' | 'GRACIA' | 'VENCIDO' | 'SIN_PLAN';
+  /** ¿Puede operar? Incluye los días de gracia. Es lo que mira el guardia. */
+  activo: boolean;
+  en_gracia: boolean;
+  dias_gracia_restantes: number | null;
+  fecha_fin: string | null;
+  fecha_limite_gracia: string | null;
+}
+
 export interface NegocioRestaurante {
   id_negocio: number;
   nombre: string;
@@ -46,6 +63,7 @@ export interface NegocioRestaurante {
   permite_pago_domicilio?: boolean;
   permite_descuento?: boolean;
   pregunta_cobro_envio?: boolean;
+  permite_cuentas_cliente?: boolean;
   roles: { id_rol: number; descripcion: string }[];
   permisos_vista: PermisoVistaRestaurante[];
   permisos_subnivel: PermisoSubnivelRestaurante[];
@@ -61,6 +79,8 @@ export interface SesionRestaurante {
   permisos_vista?: PermisoVistaRestaurante[];
   permisos_subnivel?: PermisoSubnivelRestaurante[];
   plan_activo?: boolean;
+  /** Detalle del plan del negocio activo (vencimiento y días de gracia). */
+  plan?: EstadoPlan | null;
 }
 
 const TOKEN_KEY    = 'app_token';
@@ -75,6 +95,7 @@ const APP_ROUTE_PRIORITY = [
   '/menu',
   '/mesas',
   '/caja',
+  '/clientes',
   '/inventario',
   '/usuarios',
   '/reportes',
@@ -89,6 +110,7 @@ const ROUTE_PERMISSION_ALIASES: Record<string, string[]> = {
   '/menu': ['/menu', '/inventario/productos', '/inventario'],
   '/mesas': ['/mesas', '/pos', '/pos/pedidos'],
   '/caja': ['/caja'],
+  '/clientes': ['/clientes'],
   '/inventario': ['/inventario'],
   '/usuarios': ['/usuarios'],
   '/reportes': ['/reportes'],
@@ -136,8 +158,32 @@ export class AuthService {
   /** ¿Está autenticado? */
   readonly isAuthenticated = computed(() => this.session() !== null);
 
-  /** ¿El negocio activo tiene plan activo? */
+  /**
+   * ¿La sesión que hay en memoria la confirmó el servidor en ESTA carga de página?
+   *
+   * `restoreSession()` la saca de `localStorage`, y ahí pueden quedar permisos y
+   * ajustes de hace horas: si a alguien le dieron o le quitaron un permiso, o el
+   * negocio encendió una función, esa copia no se ha enterado. Mientras valga
+   * `false`, los guardias tienen que preguntarle al backend antes de decidir —
+   * que es lo que hace que **recargar la página** baste y no haya que cerrar sesión.
+   */
+  private readonly sesionConfirmada = signal(false);
+  readonly sesionValidada = this.sesionConfirmada.asReadonly();
+
+  /** ¿El negocio activo puede operar? (plan vigente o dentro de la gracia). */
   readonly planActivo = computed(() => this.session()?.plan_activo ?? false);
+
+  /** Detalle del plan: vencimiento y días de gracia restantes. */
+  readonly plan = computed<EstadoPlan | null>(() => this.session()?.plan ?? null);
+
+  /**
+   * El plan venció pero el negocio sigue operando dentro de los días de gracia.
+   * Es la condición del aviso «tienes N días para pagar».
+   */
+  readonly planEnGracia = computed(() => this.plan()?.en_gracia === true);
+
+  /** Días que quedan de gracia (0 si no aplica). */
+  readonly diasGraciaPlan = computed(() => this.plan()?.dias_gracia_restantes ?? 0);
 
   /** Usuario actual. */
   readonly usuario = computed(() => this.session()?.usuario ?? null);
@@ -173,6 +219,14 @@ export class AuthService {
    * Opt-in: apagado (el default) el pedido sale sin cobrar y sin interrumpir.
    */
   readonly preguntaCobroEnvio = computed(() => !!this.negocio()?.pregunta_cobro_envio);
+
+  /**
+   * ¿El negocio maneja tiqueteras y fiado?
+   *
+   * Opt-in: nace apagado. Mientras lo esté, el módulo de Clientes no existe para él —ni menú,
+   * ni ruta, ni forma de pago en el cobro— para no meterle una función que no pidió.
+   */
+  readonly permiteCuentasCliente = computed(() => !!this.negocio()?.permite_cuentas_cliente);
 
   /** Rol principal (para mostrar en sidebar). */
   readonly rolPrincipal = computed(() => {
@@ -228,10 +282,15 @@ export class AuthService {
   }
 
   /**
-   * Valida un token contra el backend y establece la sesión.
-    * Se usa para revalidar el token persistido en localStorage.
+   * Revalida un token contra el backend y, si vale, reemplaza la sesión con lo que
+   * diga el servidor (permisos y ajustes incluidos).
+   *
+   * Distingue **token inválido** de **servidor inalcanzable**, y esa diferencia importa:
+   * lo primero obliga a cerrar sesión, lo segundo no. Tratar un corte de red como un
+   * token caducado echaría de la app a un cajero por recargar la página con mala
+   * conexión, y su sesión sigue siendo perfectamente válida.
    */
-  async validateAndSetToken(token: string): Promise<boolean> {
+  async revalidarToken(token: string): Promise<'ok' | 'invalida' | 'sin-conexion'> {
     try {
       const res = await firstValueFrom(
         this.http.post<{ success: boolean; data: SesionRestaurante }>(
@@ -242,12 +301,35 @@ export class AuthService {
 
       if (res?.success && res.data) {
         this.setSession(token, res.data);
-        return true;
+        return 'ok';
       }
-      return false;
-    } catch {
-      return false;
+      return 'invalida';
+    } catch (err) {
+      const status = (err as HttpErrorResponse)?.status ?? 0;
+      // 401/403 los manda el backend cuando el token ya no sirve. Un 0 (sin red) o un
+      // 5xx no dicen nada del token: dicen que ahora mismo no se puede preguntar.
+      return status === 401 || status === 403 ? 'invalida' : 'sin-conexion';
     }
+  }
+
+  /**
+   * Valida un token contra el backend y establece la sesión.
+    * Se usa para revalidar el token persistido en localStorage.
+   */
+  async validateAndSetToken(token: string): Promise<boolean> {
+    return (await this.revalidarToken(token)) === 'ok';
+  }
+
+  /**
+   * Relee permisos y ajustes AHORA, sin esperar el límite de los 60 s.
+   *
+   * Para después de una acción que los cambia (guardar los permisos de un rol,
+   * encender una función del negocio): quien la hizo debe ver el efecto en el acto,
+   * no en la siguiente navegación.
+   */
+  async refrescarSesion(): Promise<void> {
+    this.lastPerfilRefresh = 0;
+    await this.refreshPerfilIfStale(0);
   }
 
   /**
@@ -264,20 +346,33 @@ export class AuthService {
     if (now - this.lastPerfilRefresh < maxAgeMs) return;
     this.lastPerfilRefresh = now;
 
+    // `/perfil` devuelve como negocio principal el primero de la lista. Si el usuario
+    // tiene varios y estaba en el segundo, hay que devolverle el suyo después de guardar
+    // la sesión; si no, cada refresco lo cambiaba de negocio por debajo.
+    const idNegocioActivo = this.negocio()?.id_negocio ?? null;
+
     try {
+      // Se manda el negocio activo para que el estado del plan que vuelve sea el suyo
+      // y no el del primero de la lista.
+      const url = idNegocioActivo !== null
+        ? `${environment.apiUrl}/perfil?id_negocio=${idNegocioActivo}`
+        : `${environment.apiUrl}/perfil`;
+
       const res = await firstValueFrom(
-        this.http.get<{ success: boolean; data: SesionRestaurante }>(
-          `${environment.apiUrl}/perfil`
-        )
+        this.http.get<{ success: boolean; data: SesionRestaurante }>(url)
       );
 
       if (res?.success && res.data) {
+        // El perfil trae el estado del plan recalculado; si por lo que sea no viniera,
+        // se conserva el de la sesión en curso en vez de dar el negocio por bloqueado.
         const next = {
           ...res.data,
-          plan_activo: current.plan_activo,
+          plan_activo: res.data.plan_activo ?? current.plan_activo,
+          plan: res.data.plan ?? current.plan ?? null,
           permisos_cargados: true,
         } as SesionRestaurante;
         this.setSession(token, next);
+        if (idNegocioActivo !== null) this.setNegocioActivo(idNegocioActivo);
       }
     } catch {
       // No-op: si falla, se mantiene la sesion actual.
@@ -455,6 +550,8 @@ export class AuthService {
     localStorage.setItem(TOKEN_KEY, token);
     localStorage.setItem(SESSION_KEY, JSON.stringify(data));
     this.session.set(data);
+    // Esta sí viene del servidor: los guardias ya pueden fiarse de ella.
+    this.sesionConfirmada.set(true);
 
     const elegido = data.negocio?.id_negocio ?? null;
     const idx = elegido !== null
@@ -472,6 +569,7 @@ export class AuthService {
     localStorage.removeItem(SESSION_KEY);
     localStorage.removeItem(NEGOCIO_KEY);
     this.session.set(null);
+    this.sesionConfirmada.set(false);
     this._negocioIdx.set(0);
   }
 

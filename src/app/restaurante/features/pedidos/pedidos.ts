@@ -11,6 +11,8 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { AuthService } from '../../../core/services/auth.service';
 import { CajaService } from '../../../core/services/caja.service';
+import { RealtimeService } from '../../../core/services/realtime.service';
+import { ClientesService, CuentaCliente } from '../../../core/services/clientes.service';
 import { CatalogoCacheService } from '../../../core/services/catalogo-cache.service';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 import { environment } from '../../../../environments/environment';
@@ -171,6 +173,9 @@ export class PedidosComponent implements OnInit, OnDestroy {
   private readonly http = inject(HttpClient);
   private readonly auth = inject(AuthService);
   private readonly cajaSvc = inject(CajaService);
+  private readonly realtime = inject(RealtimeService);
+  private readonly clientesApi = inject(ClientesService);
+  private suscripcionesRealtime: Array<() => void> = [];
   private readonly catalogo = inject(CatalogoCacheService);
   private readonly uiFeedback = inject(UiFeedbackService);
   private readonly route = inject(ActivatedRoute);
@@ -191,7 +196,14 @@ export class PedidosComponent implements OnInit, OnDestroy {
   readonly mesas = signal<Mesa[]>([]);
   readonly cargandoMesas = signal(true);
   readonly mesaId = signal<number | null>(null);
-  readonly metodosPago = signal<Array<{ id_metodo_pago: number; nombre: string }>>([]);
+  readonly metodosPago = signal<Array<{ id_metodo_pago: number; nombre: string; es_cuenta?: boolean }>>([]);
+
+  // ── Cobro contra la cuenta del cliente (tiquetera o fiado) ──
+  /** Cuentas del negocio. Se cargan al entrar: son pocas y se usan al cobrar. */
+  readonly cuentasCliente = signal<CuentaCliente[]>([]);
+  // De quién es la cuenta lo pregunta el propio selector de forma de pago (lo comparten POS,
+  // Mesas y Despacho), y llega de vuelta en `pagoSeleccion().idCuenta`. Tenerlo aquí obligaba
+  // a repetirlo en cada pantalla — y la que se quedara sin él fallaba con un 422 mudo.
   readonly metodoPagoId = signal<number | null>(null);
   readonly metodoPagoRequeridoError = signal(false);
   readonly pagoSeleccion = signal<PagoSeleccion | null>(null);
@@ -208,7 +220,10 @@ export class PedidosComponent implements OnInit, OnDestroy {
   /** ¿La forma de pago actual es válida (simple con método, o multipago cuadrado)? */
   readonly pagoValido = computed(() => {
     const s = this.pagoSeleccion();
-    if (s?.modo === 'multi') return s.valido;
+    // Se respeta el veredicto del selector también en pago simple: es él quien sabe si falta
+    // algo, y desde que existen las cuentas de cliente «hay forma de pago» ya no basta —
+    // cobrar con una tiquetera sin decir de quién es lo rechaza el servidor con un 422.
+    if (s) return s.valido;
     return this.metodoPagoId() != null;
   });
 
@@ -335,7 +350,17 @@ export class PedidosComponent implements OnInit, OnDestroy {
   readonly negocioId = computed(() => this.auth.negocio()?.id_negocio ?? null);
   readonly requiereMesa = computed(() => this.tipoPedido() === 'MESA');
   readonly cajaAbierta = this.cajaSvc.cajaAbierta;
-  readonly cajaCerrada = computed(() => this.cajaSvc.cajaAbierta() === null);
+  /**
+   * Solo se da por cerrada cuando el servidor ya contestó. Mientras la consulta
+   * está en vuelo el POS no se bloquea: dar `null` por «cerrada» antes de tener
+   * respuesta es lo que hacía aparecer «No hay una caja abierta» con la caja
+   * abierta de verdad.
+   */
+  readonly cajaCerrada = computed(
+    () => this.cajaSvc.cajaResuelta() && this.cajaSvc.cajaAbierta() === null,
+  );
+  /** La consulta de caja falló o no ha vuelto: el POS trabaja sin saberlo aún. */
+  readonly verificandoCaja = this.cajaSvc.cargando;
   readonly canUsarParaLlevar = computed(() => this.auth.canAccessSubnivel('pedidos_para_llevar'));
   readonly canUsarEnMesa = computed(() => this.auth.canAccessSubnivel('pedidos_en_mesa'));
   readonly canUsarDomicilio = computed(() => this.auth.canAccessSubnivel('pedidos_domicilio'));
@@ -402,6 +427,19 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.loadDomiciliarios();
     const idNeg = this.negocioId();
     if (idNeg) this.cajaSvc.refrescar(idNeg).subscribe();
+
+    // Tres temas porque el POS mira tres cosas a la vez: qué mesas están libres, qué pedidos
+    // hay para despachar y si el turno de caja sigue abierto. Lo de `caja` es lo que resuelve
+    // el caso más molesto: alguien abre la caja en otro equipo y este deja de estar bloqueado
+    // solo, sin recargar.
+    this.loadCuentasCliente();
+
+    this.suscripcionesRealtime = [
+      this.realtime.alCambiar(['clientes'], () => this.loadCuentasCliente()),
+      this.realtime.alCambiar(['mesas'], () => this.loadMesas()),
+      this.realtime.alCambiar(['pedidos'], () => this.recargarPedidosDespacho()),
+      this.realtime.alCambiar(['caja'], () => this.revisarCaja()),
+    ];
 
     this.aplicarEdicionDesdeQueryParams();
   }
@@ -627,6 +665,8 @@ export class PedidosComponent implements OnInit, OnDestroy {
     if (this.isBrowser) {
       window.removeEventListener('resize', this.onResize);
     }
+    for (const darDeBaja of this.suscripcionesRealtime) darDeBaja();
+    this.suscripcionesRealtime = [];
   }
 
   private updateViewportState(): void {
@@ -844,6 +884,17 @@ export class PedidosComponent implements OnInit, OnDestroy {
     }
   }
 
+  /**
+   * Relee la lista de despacho SOLO si el POS está en un tipo que la usa.
+   *
+   * Recargarla estando en «En mesa» sería pedir datos que nadie tiene delante. Y no toca el
+   * pedido que se esté escribiendo: solo cambia el desplegable de pedidos pendientes.
+   */
+  private recargarPedidosDespacho(): void {
+    const tipo = this.tipoPedido();
+    if (tipo === 'LLEVAR' || tipo === 'DOMICILIO') this.loadPedidosDespacho(tipo);
+  }
+
   private loadPedidosDespacho(tipo: 'LLEVAR' | 'DOMICILIO'): void {
     const id = this.negocioId();
     if (!id) return;
@@ -968,12 +1019,26 @@ export class PedidosComponent implements OnInit, OnDestroy {
    */
   private construirBodyPago(): Record<string, unknown> | null {
     const s = this.pagoSeleccion();
+    // `id_cuenta` sale del selector, que es quien preguntó de quién es la tiquetera.
+    const cuenta = s?.idCuenta ? { id_cuenta: s.idCuenta } : {};
+
     if (s?.modo === 'multi') {
-      return s.valido ? { pagos: s.pagos } : null;
+      return s.valido ? { pagos: s.pagos, ...cuenta } : null;
     }
     const id = this.metodoPagoId();
-    return id ? { id_metodo_pago: id } : null;
+    return id ? { id_metodo_pago: id, ...cuenta } : null;
   }
+
+  private loadCuentasCliente(): void {
+    const id = this.negocioId();
+    if (!id) return;
+    this.clientesApi.listar(id).subscribe({
+      next: (res) => this.cuentasCliente.set(res?.data ?? []),
+      error: () => this.cuentasCliente.set([]),
+    });
+  }
+
+
 
   /** Desglose guardado de una orden, en filas para el selector. */
   private mapPagosOrden(orden: OrdenApi): FilaPago[] {
@@ -1267,16 +1332,47 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.enviarPedido('COBRAR');
   }
 
+  /**
+   * Vuelve a preguntar por la caja y, si resulta que sí está abierta, reanuda el
+   * envío. Solo si el servidor confirma que no hay turno se avisa al usuario.
+   *
+   * Existe porque antes bastaba un error de red —o abrir la caja en otro equipo—
+   * para dejar el POS diciendo «no hay caja abierta» hasta recargar la página.
+   */
+  private async reintentarTrasVerificarCaja(
+    destino: DestinoEnvio,
+    permitirStockNegativo: boolean,
+    esReintentoStock: boolean,
+  ): Promise<void> {
+    const idNeg = this.negocioId();
+    const caja = idNeg ? await this.cajaSvc.verificar(idNeg) : null;
+
+    if (caja) {
+      this.enviarPedido(destino, permitirStockNegativo, esReintentoStock);
+      return;
+    }
+
+    await this.uiFeedback.alert({
+      title: 'Caja cerrada',
+      message: 'La caja del turno está cerrada. Abre la caja desde el módulo "Caja" para tomar y cobrar pedidos.',
+      tone: 'warning',
+    });
+    this.resetEstadoEnvio();
+  }
+
+  /** Relee el estado de la caja sin recargar la página (botón del aviso). */
+  revisarCaja(): void {
+    const idNeg = this.negocioId();
+    if (idNeg) void this.cajaSvc.verificar(idNeg);
+  }
+
   private enviarPedido(destino: DestinoEnvio, permitirStockNegativo = false, esReintentoStock = false): void {
     if (this.items().length === 0 || (this.enviando() && !esReintentoStock)) return;
 
     if (this.cajaCerrada()) {
-      void this.uiFeedback.alert({
-        title: 'Caja cerrada',
-        message: 'La caja del turno está cerrada. Abre la caja desde el módulo "Caja" para tomar y cobrar pedidos.',
-        tone: 'warning',
-      });
-      this.resetEstadoEnvio();
+      // El estado local puede venir de hace rato, de otra pestaña o de un turno
+      // que abrió otro cajero: antes de bloquear se le pregunta al servidor.
+      void this.reintentarTrasVerificarCaja(destino, permitirStockNegativo, esReintentoStock);
       return;
     }
 
@@ -1380,6 +1476,9 @@ export class PedidosComponent implements OnInit, OnDestroy {
           id_caja: this.getIdCaja(),
           id_negocio: this.negocioId(),
           id_metodo_pago: this.metodoPagoId(),
+          // La cuenta elegida se guarda con el pedido, igual que la forma de pago: así al
+          // cobrar la mesa desde otra pantalla no hay que volver a decir de quién es.
+          id_cuenta: this.pagoSeleccion()?.idCuenta ?? null,
           nota: this.notaOrden() || null,
           porcentaje_impuesto: 0,
           permitir_stock_negativo: permitirStockNegativo,
@@ -1411,6 +1510,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
       id_caja: this.getIdCaja(),
       id_negocio: this.negocioId(),
       id_metodo_pago: this.metodoPagoId(),
+      id_cuenta: this.pagoSeleccion()?.idCuenta ?? null,
       id_mesa: tipo === 'MESA' ? (this.mesaId() || null) : null,
       nota: this.notaOrden() || null,
       porcentaje_impuesto: 0,
@@ -1599,7 +1699,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
       error: (err: HttpErrorResponse) => {
         const codigo = err?.error?.errors?.code || err?.error?.code;
         if (codigo === 'CAJA_CERRADA') {
-          this.cajaSvc.cajaAbierta.set(null);
+          this.revisarCaja();
           void this.uiFeedback.alert({
             title: 'Caja cerrada',
             message: this.getHttpErrorMessage(err) || 'La caja se cerró antes de completar el cobro.',
@@ -1846,7 +1946,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
   private async manejarErrorEnvio(err: HttpErrorResponse, destino: DestinoEnvio, permitirStockNegativo: boolean): Promise<void> {
     const codigo = err?.error?.errors?.code || err?.error?.code;
     if (codigo === 'CAJA_CERRADA') {
-      this.cajaSvc.cajaAbierta.set(null);
+      this.revisarCaja();
       await this.uiFeedback.alert({
         title: 'Caja cerrada',
         message: this.getHttpErrorMessage(err) || 'La caja se cerró mientras enviabas el pedido.',

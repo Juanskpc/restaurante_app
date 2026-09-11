@@ -36,11 +36,19 @@ export const authGuard: CanActivateFn = async () => {
     return true;
   }
 
-  // --- 1. Sesión existente en memoria → acceso inmediato ---
+  // --- 1. Sesión existente en memoria ---
+  //
+  // Que exista no basta: al recargar la página sale de `localStorage`, y ahí pueden
+  // quedar permisos y ajustes viejos. Se revalida contra el backend UNA vez por carga
+  // (`sesionValidada`), antes de dejar entrar. Es lo que hace que un cambio de permisos
+  // o una función encendida en Configuración se vean recargando, sin cerrar sesión.
+  // Las navegaciones siguientes no pagan esta petición.
   if (authService.isAuthenticated()) {
-    if (authService.session()?.permisos_cargados !== true) {
-      const valid = await refreshSessionFromStoredToken(authService, paletteService);
-      if (!valid) {
+    if (authService.session()?.permisos_cargados !== true || !authService.sesionValidada()) {
+      const estado = await refreshSessionFromStoredToken(authService, paletteService);
+      // Solo un token que el backend rechaza cierra la sesión. Si el servidor no contestó,
+      // se sigue con la sesión guardada: cada petición posterior la volverá a comprobar.
+      if (estado === 'invalida') {
         authService.logout();
         return false;
       }
@@ -71,8 +79,8 @@ export const authGuard: CanActivateFn = async () => {
   // --- 3. Token en localStorage propio (refresh de página) ---
   const storedToken = authService.getAccessToken();
   if (storedToken) {
-    const valid = await refreshSessionFromStoredToken(authService, paletteService);
-    if (valid) {
+    const estado = await refreshSessionFromStoredToken(authService, paletteService);
+    if (estado === 'ok') {
       applyPaletteIfAvailable(authService, paletteService);
       return true;
     }
@@ -96,19 +104,27 @@ export const permissionGuard: CanActivateChildFn = (childRoute, state) => {
     return true;
   }
 
-  // Sesión válida con permisos ya cargados en memoria → evaluar sin red.
-  // authGuard (canActivate del layout) ya validó el token al entrar y
+  // Sesión válida, confirmada por el servidor en esta carga y con permisos cargados
+  // → evaluar sin red. authGuard (canActivate del layout) ya la revalidó al entrar y
   // LayoutComponent refresca el perfil de forma throttled (refreshPerfilIfStale,
   // 60s). Revalidar con POST /auth/verificar-token en CADA cambio de vista
   // bloqueaba la navegación (sensación de "congelado") y sumaba 1 request por
   // navegación sin aportar frescura extra.
-  if (authService.isAuthenticated() && authService.session()?.permisos_cargados === true) {
+  //
+  // `sesionValidada()` es la diferencia entre eso y fiarse de `localStorage`: sin esa
+  // comprobación, la primera navegación tras recargar decidía con los permisos de la
+  // sesión anterior y había que cerrar sesión para ver un permiso nuevo.
+  if (
+    authService.isAuthenticated() &&
+    authService.sesionValidada() &&
+    authService.session()?.permisos_cargados === true
+  ) {
     return evaluateRoutePermission(authService, router, childRoute.routeConfig?.path, state.url);
   }
 
   if (authService.getAccessToken()) {
-    return refreshSessionFromStoredToken(authService, paletteService).then((valid) => {
-      if (!valid) {
+    return refreshSessionFromStoredToken(authService, paletteService).then((estado) => {
+      if (estado === 'invalida') {
         authService.logout();
         return false;
       }
@@ -129,6 +145,12 @@ function evaluateRoutePermission(
   const requestedPath = resolveRequestedPath(routePath, stateUrl);
   if (!requestedPath) {
     return true;
+  }
+
+  // Tiqueteras y fiado son opt-in del negocio. Esconder el menú no basta: quien escriba la
+  // URL a mano entraría igual, y se encontraría una pantalla que su API rechaza.
+  if (requestedPath === '/clientes' && !authService.permiteCuentasCliente()) {
+    return router.parseUrl(authService.getFirstAccessibleRoute() ?? '/dashboard');
   }
 
   // Ruta de diagnostico siempre disponible para evitar pantalla en blanco.
@@ -167,17 +189,21 @@ function applyPaletteIfAvailable(
   }
 }
 
+/**
+ * Relee la sesión del backend con el token guardado. Devuelve qué pasó, no un sí/no:
+ * «invalida» obliga a cerrar sesión, «sin-conexion» no (ver `revalidarToken`).
+ */
 async function refreshSessionFromStoredToken(
   auth: AuthService,
   palette: PaletteService,
-): Promise<boolean> {
+): Promise<'ok' | 'invalida' | 'sin-conexion'> {
   const storedToken = auth.getAccessToken();
-  if (!storedToken) return false;
+  if (!storedToken) return 'invalida';
 
   const activeNegocioId = auth.negocio()?.id_negocio ?? null;
-  const valid = await auth.validateAndSetToken(storedToken);
-  if (!valid) {
-    return false;
+  const estado = await auth.revalidarToken(storedToken);
+  if (estado !== 'ok') {
+    return estado;
   }
 
   if (activeNegocioId) {
@@ -185,7 +211,7 @@ async function refreshSessionFromStoredToken(
   }
 
   applyPaletteIfAvailable(auth, palette);
-  return true;
+  return 'ok';
 }
 
 function redirectToAdmin(platformId: object): void {

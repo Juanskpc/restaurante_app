@@ -186,3 +186,24 @@
     margin-left: 0;
   }
 }
+
+// ── Selector de la cuenta del cliente (tiquetera / fiado) ──
+// Aparece solo cuando la forma de pago elegida es la de las cuentas.
+.mp-cuenta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 6px;
+
+  &__saldo {
+    font-size: .72rem;
+    color: var(--color-text-secondary);
+  }
+
+  &__aviso {
+    margin: 6px 0 0;
+    font-size: .74rem;
+    line-height: 1.35;
+    color: var(--color-warning, #b45309);
+  }
+}

@@ -14,6 +14,7 @@ import {
   MovimientoCaja,
 } from '../../../core/services/caja.service';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
+import { RealtimeService } from '../../../core/services/realtime.service';
 
 type ModalActivo = null | 'apertura' | 'cierre' | 'movimiento' | 'domiciliarios' | 'historial';
 
@@ -28,6 +29,8 @@ type ModalActivo = null | 'apertura' | 'cierre' | 'movimiento' | 'domiciliarios'
 export class CajaComponent implements OnInit, OnDestroy {
   private readonly auth = inject(AuthService);
   private readonly cajaSvc = inject(CajaService);
+  private readonly realtime = inject(RealtimeService);
+  private dejarDeEscuchar: (() => void) | null = null;
   private readonly ui = inject(UiFeedbackService);
   private readonly platformId = inject(PLATFORM_ID);
   private readonly isBrowser = isPlatformBrowser(this.platformId);
@@ -120,6 +123,14 @@ export class CajaComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.refrescarCaja();
+
+    // El turno lo mueven varias personas a la vez: un mesero cobra en el POS y ese ingreso
+    // tiene que aparecer aquí sin que el cajero recargue. También `pedidos`, porque el
+    // listado del turno se arma con los pedidos cobrados.
+    this.dejarDeEscuchar = this.realtime.alCambiar(
+      ['caja', 'pedidos'],
+      () => this.refrescarCaja(),
+    );
   }
 
   refrescarCaja(): void {
@@ -185,6 +196,7 @@ export class CajaComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.toggleBodyScroll(false);
+    this.dejarDeEscuchar?.();
   }
 
   private toggleBodyScroll(lock: boolean): void {

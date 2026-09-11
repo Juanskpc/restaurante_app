@@ -110,7 +110,9 @@ export class ConfiguracionComponent {
   readonly guardandoDescuento = signal(false);
 
   readonly preguntaCobroEnvio = computed(() => this.configuracion()?.pregunta_cobro_envio === true);
+  readonly permiteCuentasCliente = computed(() => this.configuracion()?.permite_cuentas_cliente === true);
   readonly guardandoCobroEnvio = signal(false);
+  readonly guardandoCuentasCliente = signal(false);
 
   // ── Métodos de pago ──
   readonly metodosPago = signal<MetodoPago[]>([]);
@@ -158,6 +160,7 @@ export class ConfiguracionComponent {
     permite_pago_domicilio: this.fb.control(false, { nonNullable: true }),
     permite_descuento: this.fb.control(false, { nonNullable: true }),
     pregunta_cobro_envio: this.fb.control(false, { nonNullable: true }),
+    permite_cuentas_cliente: this.fb.control(false, { nonNullable: true }),
     id_paleta: this.fb.control<number | null>(null),
   });
 
@@ -282,7 +285,8 @@ export class ConfiguracionComponent {
    * siguiente ingreso.
    */
   private actualizarFlag(
-    campo: 'permite_multipago' | 'permite_pago_domicilio' | 'permite_descuento' | 'pregunta_cobro_envio',
+    campo: 'permite_multipago' | 'permite_pago_domicilio' | 'permite_descuento' | 'pregunta_cobro_envio'
+      | 'permite_cuentas_cliente',
     activar: boolean,
     textos: { guardando: WritableSignal<boolean>; titulo: string; on: string; off: string; error: string },
   ): void {
@@ -355,6 +359,23 @@ export class ConfiguracionComponent {
     });
   }
 
+  /**
+   * Tiqueteras y fiado.
+   *
+   * Encenderlo hace aparecer el menú Clientes y la forma de pago «Cuenta / Tiquetera» en el
+   * cobro; apagarlo los esconde. Los saldos **no se borran**: si se vuelve a encender, cada
+   * cliente sigue con lo suyo.
+   */
+  toggleCuentasCliente(activar: boolean): void {
+    this.actualizarFlag('permite_cuentas_cliente', activar, {
+      guardando: this.guardandoCuentasCliente,
+      titulo: 'Tiqueteras y fiado',
+      on: 'Tiqueteras y fiado activados. Ya aparece el menú Clientes.',
+      off: 'Tiqueteras y fiado desactivados. Los saldos se conservan.',
+      error: 'No se pudo actualizar la función de tiqueteras.',
+    });
+  }
+
   cargarConfiguracion(idNegocio: number): void {
     this.loading.set(true);
     this.errorMessage.set(null);
@@ -379,6 +400,7 @@ export class ConfiguracionComponent {
             permite_pago_domicilio: config.permite_pago_domicilio === true,
             permite_descuento: config.permite_descuento === true,
             pregunta_cobro_envio: config.pregunta_cobro_envio === true,
+            permite_cuentas_cliente: config.permite_cuentas_cliente === true,
             id_paleta: config.id_paleta ?? null,
           });
 
@@ -463,6 +485,7 @@ export class ConfiguracionComponent {
         permite_pago_domicilio: value.permite_pago_domicilio,
         permite_descuento: value.permite_descuento,
         pregunta_cobro_envio: value.pregunta_cobro_envio,
+        permite_cuentas_cliente: value.permite_cuentas_cliente,
         id_paleta: value.id_paleta,
       })
       .pipe(finalize(() => this.saving.set(false)))

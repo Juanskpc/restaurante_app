@@ -269,6 +269,19 @@
             </span>
           </label>
 
+          <label class="switch-row" [class.is-disabled]="!canEdit() || guardandoCuentasCliente()">
+            <input type="checkbox"
+                   [checked]="permiteCuentasCliente()"
+                   [disabled]="!canEdit() || guardandoCuentasCliente()"
+                   (change)="toggleCuentasCliente($any($event.target).checked)" />
+            <span class="switch-row__text">
+              <strong>Tiqueteras y fiado</strong>
+              <small>Para los clientes de confianza que pagan el mes por adelantado o comen y
+                pagan al final. Aparece el menú <em>Clientes</em> y una forma de pago para
+                descontarles el consumo. Al apagarlo los saldos se conservan.</small>
+            </span>
+          </label>
+
           <label class="switch-row" [class.is-disabled]="!canEdit() || guardandoPagoDomicilio()">
             <input type="checkbox"
                    [checked]="permitePagoDomicilio()"

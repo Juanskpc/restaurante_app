@@ -1,4 +1,4 @@
-import { Component, ChangeDetectionStrategy, computed, effect, inject, signal, PLATFORM_ID } from '@angular/core';
+import { Component, ChangeDetectionStrategy, DestroyRef, computed, effect, inject, signal, PLATFORM_ID } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -10,6 +10,8 @@ import { AuthService } from '../../../core/services/auth.service';
 import { MesasService, MesaDashboard, MesaCardStatus } from '../../../core/services/mesas.service';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 import { VistaTarjetasService } from '../../../core/services/vista-tarjetas.service';
+import { RealtimeService } from '../../../core/services/realtime.service';
+import { ClientesService, CuentaCliente } from '../../../core/services/clientes.service';
 import {
   FilaPago,
   MultipagoSelectorComponent,
@@ -40,6 +42,9 @@ export class MesasComponent {
   private readonly mesasApi = inject(MesasService);
   private readonly uiFeedback = inject(UiFeedbackService);
   private readonly vista = inject(VistaTarjetasService);
+  private readonly realtime = inject(RealtimeService);
+  private readonly clientesApi = inject(ClientesService);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly platformId = inject(PLATFORM_ID);
   private readonly isBrowser = isPlatformBrowser(this.platformId);
   private readonly paidItemsStorageKey = 'pedidos_items_pagados_mesa_v1';
@@ -56,7 +61,9 @@ export class MesasComponent {
   readonly efectivoRecibidoInput = signal('');
   readonly cobroError = signal('');
   readonly itemsPagadosPorMesa = signal<Record<number, ItemPagadoMesa[]>>({});
-  readonly metodosPago = signal<Array<{ id_metodo_pago: number; nombre: string }>>([]);
+  readonly metodosPago = signal<Array<{ id_metodo_pago: number; nombre: string; es_cuenta?: boolean }>>([]);
+  /** Cuentas de cliente, para poder cobrar una mesa contra una tiquetera. */
+  readonly cuentasCliente = signal<CuentaCliente[]>([]);
   readonly metodoPagoId = signal<number | null>(null);
   readonly metodoPagoError = signal(false);
   readonly pagoSeleccion = signal<PagoSeleccion | null>(null);
@@ -73,7 +80,10 @@ export class MesasComponent {
   private readonly descuentoEditado$ = new Subject<{ idMesa: number; idOrden: number; valor: number }>();
   readonly pagoValido = computed(() => {
     const s = this.pagoSeleccion();
-    if (s?.modo === 'multi') return s.valido;
+    // Se respeta el veredicto del selector también en pago simple: es él quien sabe si falta
+    // algo, y desde que existen las cuentas de cliente «hay forma de pago» ya no basta —
+    // cobrar con una tiquetera sin decir de quién es lo rechaza el servidor con un 422.
+    if (s) return s.valido;
     return this.metodoPagoId() != null;
   });
   /** Filas con las que abre el selector: el desglose guardado de la cuenta. */
@@ -150,11 +160,21 @@ export class MesasComponent {
     this.itemsPagadosMesaActiva().reduce((acc, item) => acc + (item.price * item.cantidad), 0)
   );
 
+  /**
+   * El tablero de mesas es la pantalla donde más se pisan los compañeros: uno cobra en el
+   * computador y otro sigue viendo la mesa ocupada en su tablet. Escucha también `pedidos`
+   * porque cada tarjeta muestra la cuenta de la mesa, no solo su color.
+   */
+  private readonly escuchaCambios = this.destroyRef.onDestroy(
+    this.realtime.alCambiar(['mesas', 'pedidos'], () => this.loadMesas()),
+  );
+
   private readonly negocioEffect = effect(() => {
     const id = this.negocioId();
     if (id) {
       this.loadMesas();
       this.loadMetodosPago(id);
+      this.loadCuentasCliente(id);
     }
   });
 
@@ -165,6 +185,13 @@ export class MesasComponent {
       takeUntilDestroyed(),
     )
     .subscribe();
+
+  private loadCuentasCliente(idNegocio: number): void {
+    this.clientesApi.listar(idNegocio).subscribe({
+      next: (res) => this.cuentasCliente.set(res?.data ?? []),
+      error: () => this.cuentasCliente.set([]),
+    });
+  }
 
   private loadMetodosPago(idNegocio: number): void {
     this.mesasApi.listarMetodosPago(idNegocio).subscribe({
@@ -460,6 +487,7 @@ export class MesasComponent {
       idOrden,
       this.metodoPagoId(),
       esMulti ? seleccion?.pagos ?? null : null,
+      seleccion?.idCuenta ?? null,
     ).subscribe({
       next: () => {
         this.persistirItemsPagadosMesaCache(mesa.id_mesa, mesa.order.items);

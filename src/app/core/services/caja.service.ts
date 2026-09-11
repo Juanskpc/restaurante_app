@@ -1,6 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { HttpClient, HttpParams, HttpResponse } from '@angular/common/http';
-import { Observable, tap } from 'rxjs';
+import { Observable, catchError, firstValueFrom, map, of, tap } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 
@@ -119,6 +119,16 @@ export interface ApiResponse<T> {
  *
  * Mantiene un `cajaAbierta` signal que el resto de la app (pedidos, sidebar)
  * puede observar para bloquear acciones cuando no hay caja abierta.
+ *
+ * Dos reglas que parecen detalles y no lo son:
+ *
+ *  1. **Un error de red NO significa «caja cerrada».** El endpoint responde 200
+ *     con `data: null` cuando no hay turno abierto, así que cualquier error es
+ *     del transporte. Vaciar el estado ahí dejaba el POS bloqueado con «No hay
+ *     una caja abierta» hasta recargar la página, con la caja abierta de verdad.
+ *  2. **`cajaAbierta() === null` no basta para bloquear**: al arrancar también
+ *     vale `null` porque aún no se ha preguntado. Por eso existe `resuelta`, y
+ *     quien bloquee debe comprobar `cajaResuelta() && !hayCajaAbierta()`.
  */
 @Injectable({ providedIn: 'root' })
 export class CajaService {
@@ -128,6 +138,13 @@ export class CajaService {
   readonly cajaAbierta = signal<Caja | null>(null);
   readonly cargando = signal(false);
   readonly hayCajaAbierta = computed(() => this.cajaAbierta() !== null);
+
+  /** ¿El servidor ya contestó alguna vez? Distingue «cerrada» de «todavía no sé». */
+  private readonly resuelta = signal(false);
+  readonly cajaResuelta = this.resuelta.asReadonly();
+
+  /** Negocio al que corresponde el estado guardado: al cambiar de inquilino ya no sirve. */
+  private negocioResuelto: number | null = null;
 
   /** Carga la caja abierta del negocio y actualiza el signal. */
   refrescar(idNegocio: number): Observable<ApiResponse<Caja | null>> {
@@ -139,33 +156,70 @@ export class CajaService {
       tap({
         next: (res) => {
           this.cajaAbierta.set(res?.data ?? null);
+          this.negocioResuelto = idNegocio;
+          this.resuelta.set(true);
           this.cargando.set(false);
         },
         error: () => {
-          this.cajaAbierta.set(null);
+          // Se conserva el último estado conocido: un 500 o un corte de red no
+          // cierra la caja, y darla por cerrada bloquea el POS sin motivo.
           this.cargando.set(false);
         },
       }),
     );
   }
 
+  /**
+   * Pregunta al servidor y devuelve la verdad del momento.
+   *
+   * Es lo que hay que usar ANTES de bloquear una acción por «caja cerrada»: el
+   * estado local puede venir de hace horas, de otra pestaña o de un turno que
+   * abrió otro cajero. Si la consulta falla, devuelve el estado que ya se tenía
+   * (no inventa un cierre) y deja que el backend decida al recibir la operación.
+   */
+  verificar(idNegocio: number): Promise<Caja | null> {
+    return firstValueFrom(
+      this.refrescar(idNegocio).pipe(
+        map((res) => res?.data ?? null),
+        catchError(() => of(this.cajaAbierta())),
+      ),
+    );
+  }
+
+  /** Carga el estado si nadie lo ha pedido todavía (vistas que no son Caja ni POS). */
+  asegurarCargada(idNegocio: number): void {
+    const yaEsDeEsteNegocio = this.resuelta() && this.negocioResuelto === idNegocio;
+    if (yaEsDeEsteNegocio || this.cargando()) return;
+    this.refrescar(idNegocio).subscribe({ error: () => {} });
+  }
+
   /** Limpia el estado al cambiar de negocio o al hacer logout. */
   reset(): void {
     this.cajaAbierta.set(null);
+    this.resuelta.set(false);
+    this.negocioResuelto = null;
     this.cargando.set(false);
   }
 
   abrirCaja(payload: { id_negocio: number; monto_apertura: number; observaciones?: string | null; }): Observable<ApiResponse<Caja>> {
     return this.http.post<ApiResponse<Caja>>(`${this.base}/abrir`, payload).pipe(
       tap((res) => {
-        if (res?.data) this.cajaAbierta.set(res.data);
+        if (res?.data) {
+          this.cajaAbierta.set(res.data);
+          this.negocioResuelto = payload.id_negocio;
+          this.resuelta.set(true);
+        }
       }),
     );
   }
 
   cerrarCaja(idCaja: number, payload: { id_negocio: number; monto_reportado?: number | null; observaciones?: string | null; }): Observable<ApiResponse<Caja>> {
     return this.http.put<ApiResponse<Caja>>(`${this.base}/${idCaja}/cerrar`, payload).pipe(
-      tap(() => this.cajaAbierta.set(null)),
+      tap(() => {
+        this.cajaAbierta.set(null);
+        this.negocioResuelto = payload.id_negocio;
+        this.resuelta.set(true);
+      }),
     );
   }
 

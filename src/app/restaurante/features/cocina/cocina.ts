@@ -6,6 +6,7 @@ import { HttpClient } from '@angular/common/http';
 import { NgTemplateOutlet } from '@angular/common';
 import { LucideAngularModule } from 'lucide-angular';
 
+import { RealtimeService } from '../../../core/services/realtime.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { environment } from '../../../../environments/environment';
 
@@ -58,6 +59,7 @@ interface OrdenCocina {
 export class CocinaComponent implements OnInit, OnDestroy {
   private readonly http = inject(HttpClient);
   private readonly auth = inject(AuthService);
+  private readonly realtime = inject(RealtimeService);
 
   readonly ordenes    = signal<OrdenCocina[]>([]);
   readonly cargando   = signal(false);
@@ -85,8 +87,8 @@ export class CocinaComponent implements OnInit, OnDestroy {
       .sort((a, b) => +new Date(a.fecha_creacion) - +new Date(b.fecha_creacion))
   );
 
-  private refreshInterval: ReturnType<typeof setInterval> | null = null;
   private tickInterval: ReturnType<typeof setInterval> | null = null;
+  private dejarDeEscuchar: (() => void) | null = null;
 
   private get negocioId(): number | null {
     return this.auth.negocio()?.id_negocio ?? null;
@@ -94,13 +96,20 @@ export class CocinaComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.loadOrdenes();
-    this.refreshInterval = setInterval(() => this.loadOrdenes(), 30_000);
-    this.tickInterval    = setInterval(() => this.now.set(Date.now()), 30_000);
+
+    // Antes esto recargaba cada 30 segundos. Ahora el servidor avisa en cuanto entra una
+    // comanda o alguien la mueve, así que la espera es de un segundo en vez de medio minuto —
+    // y mientras no pasa nada, no se consulta. Si el canal se cae, el propio servicio vuelve
+    // solo al refresco por reloj: esta pantalla no se entera.
+    this.dejarDeEscuchar = this.realtime.alCambiar(['cocina'], () => this.loadOrdenes());
+
+    // El reloj de «hace X minutos» sigue siendo suyo: no depende de que cambie nada.
+    this.tickInterval = setInterval(() => this.now.set(Date.now()), 30_000);
   }
 
   ngOnDestroy(): void {
-    if (this.refreshInterval) clearInterval(this.refreshInterval);
-    if (this.tickInterval)    clearInterval(this.tickInterval);
+    if (this.tickInterval) clearInterval(this.tickInterval);
+    this.dejarDeEscuchar?.();
   }
 
   // ── Carga de datos ──────────────────────────────────────────────────────────
