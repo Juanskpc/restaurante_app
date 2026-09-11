@@ -24,6 +24,17 @@
     <div class="state-card error">{{ error() }}</div>
   }
 
+  @if (!controlaInventario()) {
+    <div class="state-card aviso">
+      <lucide-icon name="alert-triangle" [size]="16" />
+      <span>
+        El control de inventario está <strong>apagado</strong>: los pedidos no descuentan
+        insumos ni avisan cuando falta stock. Lo que ves aquí solo cambia si lo ajustas a
+        mano. Se vuelve a encender en <strong>Configuración → Opciones de operación</strong>.
+      </span>
+    </div>
+  }
+
   <div class="inventory-main">
     <div class="left-col">
       <div class="kpi-grid">

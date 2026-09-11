@@ -233,15 +233,16 @@
     }
 
     <!-- ───────── Operación ─────────
-         Los tres interruptores viven juntos en una lista compacta: cada uno es
-         solo un sí/no, y darle un panel entero a cada uno hacía scrollear la
-         pantalla para leer tres frases. -->
+         Los interruptores viven juntos en una lista compacta: cada uno es solo un
+         sí/no, y darle un panel entero a cada uno hacía scrollear la pantalla para
+         leer cuatro frases. -->
     @if (tab() === 'operacion') {
       <article class="panel panel--wide" id="operacion">
         <h2>Opciones de operación</h2>
         <p class="hint">
-          Funciones opcionales de la toma de pedidos. Todas nacen apagadas: mientras no
-          actives una, nada cambia en el día a día.
+          Funciones opcionales de la toma de pedidos. Las que añaden algo nacen apagadas;
+          el control de inventario es el único que viene encendido, porque apagarlo
+          <em>quita</em> una comprobación que ya estaba.
         </p>
 
         <div class="switch-list">
@@ -279,6 +280,20 @@
               <small>Para los clientes de confianza que pagan el mes por adelantado o comen y
                 pagan al final. Aparece el menú <em>Clientes</em> y una forma de pago para
                 descontarles el consumo. Al apagarlo los saldos se conservan.</small>
+            </span>
+          </label>
+
+          <label class="switch-row" [class.is-disabled]="!canEdit() || guardandoInventario()">
+            <input type="checkbox"
+                   [checked]="controlaInventario()"
+                   [disabled]="!canEdit() || guardandoInventario()"
+                   (change)="toggleControlInventario($any($event.target).checked)" />
+            <span class="switch-row__text">
+              <strong>Controlar inventario al facturar</strong>
+              <small>Encendido, cada pedido descuenta los insumos de su receta y avisa cuando
+                no alcanzan. <strong>Apágalo si no llevas inventario</strong>: los pedidos pasan
+                sin preguntar nada y el stock deja de moverse solo. Los insumos cargados se
+                conservan tal como estén.</small>
             </span>
           </label>
 

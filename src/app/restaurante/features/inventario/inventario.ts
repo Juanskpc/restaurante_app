@@ -63,6 +63,13 @@ export class InventarioComponent {
   private readonly auth = inject(AuthService);
   private readonly uiFeedback = inject(UiFeedbackService);
 
+  /**
+   * Con el control apagado el stock no se mueve solo, y sin decirlo la pantalla miente:
+   * los números se quedan quietos venta tras venta y parece un fallo. El aviso explica
+   * por qué y dónde se vuelve a encender.
+   */
+  readonly controlaInventario = this.auth.controlaInventario;
+
   readonly cargando = signal(false);
   readonly guardando = signal<number | null>(null);
   readonly error = signal('');

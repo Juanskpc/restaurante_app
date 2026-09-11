@@ -20,6 +20,11 @@ export interface ConfiguracionNegocio {
   pregunta_cobro_envio: boolean;
   /** Tiqueteras y fiado. Opt-in: apagado, el módulo de Clientes no existe para el negocio. */
   permite_cuentas_cliente: boolean;
+  /**
+   * ¿El POS mira el stock de insumos al facturar? Opt-OUT: viene encendido, y apagarlo
+   * hace que el pedido pase siempre, sin avisar de insumos faltantes ni mover el stock.
+   */
+  controla_inventario: boolean;
   can_edit: boolean;
 }
 
@@ -38,6 +43,7 @@ export interface ConfiguracionNegocioPayload {
   permite_descuento?: boolean;
   pregunta_cobro_envio?: boolean;
   permite_cuentas_cliente?: boolean;
+  controla_inventario?: boolean;
   id_paleta?: number | null;
 }
 

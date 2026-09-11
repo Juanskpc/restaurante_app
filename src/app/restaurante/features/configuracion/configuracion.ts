@@ -114,6 +114,11 @@ export class ConfiguracionComponent {
   readonly guardandoCobroEnvio = signal(false);
   readonly guardandoCuentasCliente = signal(false);
 
+  // Opt-OUT: viene encendido, así que `undefined` (una configuración recién cargada o un
+  // backend sin la columna todavía) tiene que leerse como encendido y no como apagado.
+  readonly controlaInventario = computed(() => this.configuracion()?.controla_inventario !== false);
+  readonly guardandoInventario = signal(false);
+
   // ── Métodos de pago ──
   readonly metodosPago = signal<MetodoPago[]>([]);
   readonly cargandoMetodos = signal(false);
@@ -161,6 +166,7 @@ export class ConfiguracionComponent {
     permite_descuento: this.fb.control(false, { nonNullable: true }),
     pregunta_cobro_envio: this.fb.control(false, { nonNullable: true }),
     permite_cuentas_cliente: this.fb.control(false, { nonNullable: true }),
+    controla_inventario: this.fb.control(true, { nonNullable: true }),
     id_paleta: this.fb.control<number | null>(null),
   });
 
@@ -286,7 +292,7 @@ export class ConfiguracionComponent {
    */
   private actualizarFlag(
     campo: 'permite_multipago' | 'permite_pago_domicilio' | 'permite_descuento' | 'pregunta_cobro_envio'
-      | 'permite_cuentas_cliente',
+      | 'permite_cuentas_cliente' | 'controla_inventario',
     activar: boolean,
     textos: { guardando: WritableSignal<boolean>; titulo: string; on: string; off: string; error: string },
   ): void {
@@ -376,6 +382,24 @@ export class ConfiguracionComponent {
     });
   }
 
+  /**
+   * Control de inventario.
+   *
+   * Apagado, el POS deja de revisar y de mover el stock de insumos: el pedido pasa siempre y
+   * no vuelve a salir el aviso de «stock insuficiente». Es para el negocio que no tiene la
+   * receta cargada, al que ese aviso solo le estorbaba. Los insumos y sus cantidades se
+   * conservan; simplemente dejan de moverse solos.
+   */
+  toggleControlInventario(activar: boolean): void {
+    this.actualizarFlag('controla_inventario', activar, {
+      guardando: this.guardandoInventario,
+      titulo: 'Control de inventario',
+      on: 'Control de inventario activado. Los pedidos vuelven a descontar insumos.',
+      off: 'Control de inventario desactivado. Los pedidos ya no revisan ni descuentan insumos.',
+      error: 'No se pudo actualizar el control de inventario.',
+    });
+  }
+
   cargarConfiguracion(idNegocio: number): void {
     this.loading.set(true);
     this.errorMessage.set(null);
@@ -401,6 +425,7 @@ export class ConfiguracionComponent {
             permite_descuento: config.permite_descuento === true,
             pregunta_cobro_envio: config.pregunta_cobro_envio === true,
             permite_cuentas_cliente: config.permite_cuentas_cliente === true,
+            controla_inventario: config.controla_inventario !== false,
             id_paleta: config.id_paleta ?? null,
           });
 
@@ -486,6 +511,7 @@ export class ConfiguracionComponent {
         permite_descuento: value.permite_descuento,
         pregunta_cobro_envio: value.pregunta_cobro_envio,
         permite_cuentas_cliente: value.permite_cuentas_cliente,
+        controla_inventario: value.controla_inventario,
         id_paleta: value.id_paleta,
       })
       .pipe(finalize(() => this.saving.set(false)))

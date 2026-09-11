@@ -64,6 +64,7 @@ export interface NegocioRestaurante {
   permite_descuento?: boolean;
   pregunta_cobro_envio?: boolean;
   permite_cuentas_cliente?: boolean;
+  controla_inventario?: boolean;
   roles: { id_rol: number; descripcion: string }[];
   permisos_vista: PermisoVistaRestaurante[];
   permisos_subnivel: PermisoSubnivelRestaurante[];
@@ -227,6 +228,15 @@ export class AuthService {
    * ni ruta, ni forma de pago en el cobro— para no meterle una función que no pidió.
    */
   readonly permiteCuentasCliente = computed(() => !!this.negocio()?.permite_cuentas_cliente);
+
+  /**
+   * ¿El POS revisa y descuenta el stock de insumos al facturar?
+   *
+   * Opt-OUT: viene encendido, así que `undefined` —una sesión vieja, o un backend sin la
+   * columna— se lee como encendido. Quien lo apaga es un negocio que no lleva receta
+   * cargada y al que el aviso de stock solo le estorbaba.
+   */
+  readonly controlaInventario = computed(() => this.negocio()?.controla_inventario !== false);
 
   /** Rol principal (para mostrar en sidebar). */
   readonly rolPrincipal = computed(() => {
