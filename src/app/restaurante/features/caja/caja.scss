@@ -149,12 +149,18 @@
   padding-top: .85rem;
 
   &__titulo {
-    display: flex; align-items: center; gap: .4rem;
+    display: flex; align-items: center; gap: .4rem; flex-wrap: wrap;
     margin: 0 0 .6rem;
     font-size: .8rem; font-weight: 600;
     text-transform: uppercase;
     color: var(--color-text-secondary);
     lucide-icon { opacity: .7; }
+
+    small {
+      font-weight: 400; font-size: .72rem;
+      text-transform: none;
+      opacity: .85;
+    }
   }
 
   &__lista {
@@ -170,6 +176,9 @@
 
     span   { color: var(--color-text-secondary); }
     strong { color: var(--color-text-primary); font-weight: 600; }
+
+    // Neto en rojo: de esa forma de pago salió más plata de la que entró.
+    strong.negativo { color: var(--color-error); }
   }
 }
 
@@ -199,6 +208,14 @@
     th { font-weight: 600; color: var(--color-text-secondary); font-size: .75rem; text-transform: uppercase; }
     td.num, th.num { text-align: right; }
     .ref { color: var(--color-text-secondary); }
+
+    // Un pedido con multipago lleva dos nombres unidos por «+»: sin esto la
+    // columna estira la tabla y el resto de celdas se aprieta.
+    td.col-metodo {
+      max-width: 12rem;
+      color: var(--color-text-secondary);
+      font-size: .82rem;
+    }
   }
 
   .badge {
@@ -432,6 +449,73 @@
   @include tabla-movimientos;
 }
 
+/**
+ * Barra de filtros por forma de pago.
+ *
+ * Son interruptores, no pestañas: se pueden tener varias marcadas a la vez y el
+ * estado marcado tiene que leerse de un vistazo, porque un filtro activo que pase
+ * desapercibido hace pensar que a la caja le faltan pedidos.
+ */
+.filtros-metodo {
+  display: flex; align-items: center; flex-wrap: wrap;
+  gap: .4rem;
+  margin: 0 0 .85rem;
+
+  &__label {
+    display: inline-flex; align-items: center; gap: .3rem;
+    font-size: .72rem; font-weight: 600;
+    text-transform: uppercase;
+    color: var(--color-text-secondary);
+    margin-right: .15rem;
+    lucide-icon { opacity: .7; }
+  }
+
+  &__limpiar {
+    border: none; background: none; padding: .2rem .35rem;
+    color: var(--color-primary);
+    font-size: .78rem; font-weight: 600;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+}
+
+.chip-metodo {
+  display: inline-flex; align-items: center; gap: .3rem;
+  padding: .25rem .6rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: .8rem; font-weight: 500;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+
+  &:hover { border-color: var(--color-primary); }
+
+  &--activo {
+    background: color-mix(in srgb, var(--color-primary) 12%, var(--color-surface));
+    border-color: color-mix(in srgb, var(--color-primary) 45%, transparent);
+    color: var(--color-primary);
+    font-weight: 600;
+  }
+
+  &__conteo {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 1.1rem; padding: 0 .25rem;
+    border-radius: var(--radius-full);
+    background: var(--color-bg-secondary);
+    font-size: .7rem; font-variant-numeric: tabular-nums;
+  }
+}
+
+.link-inline {
+  border: none; background: none; padding: 0;
+  color: var(--color-primary);
+  font: inherit; font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
 // ── Modal ──
 .modal {
   position: fixed; inset: 0; background: rgba(0, 0, 0, .55);
@@ -455,6 +539,9 @@
 
     h2 { margin: 0; font-size: 1.1rem; }
     .hint { margin: 0; color: var(--color-text-secondary); font-size: .85rem; }
+
+    // Va pegada al select de la forma de pago, no suelta entre campos.
+    .hint--metodo { margin-top: -.5rem; font-size: .78rem; }
   }
 
   &__panel--wide {
@@ -649,7 +736,7 @@
     display: flex; flex-direction: column; gap: .3rem;
     font-size: .8rem; color: var(--color-text-secondary);
 
-    input, textarea {
+    input, textarea, select {
       font-size: .95rem; color: var(--color-text-primary);
       background: var(--color-surface);
       padding: .55rem .65rem;

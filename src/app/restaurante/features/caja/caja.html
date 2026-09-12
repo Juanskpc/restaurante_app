@@ -107,13 +107,16 @@
         <div class="desglose-metodos">
           <h3 class="desglose-metodos__titulo">
             <lucide-icon name="credit-card" size="14" />
-            Ingresos por forma de pago
+            Dinero por forma de pago
+            <small>Los egresos restan de la forma de pago con la que salió la plata.</small>
           </h3>
           <div class="desglose-metodos__lista">
             @for (item of (caja()!.ingresos_por_metodo || []); track (item.id_metodo_pago ?? 'manual')) {
               <div class="desglose-metodos__item">
                 <span>{{ item.nombre }}</span>
-                <strong>{{ item.total | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+                <strong [class.negativo]="item.total < 0">
+                  {{ item.total | currency:'COP':'symbol-narrow':'1.0-0' }}
+                </strong>
               </div>
             }
           </div>
@@ -127,10 +130,43 @@
 
     <section class="movimientos">
       <h2>Movimientos del turno</h2>
+
+      <!-- Filtros por forma de pago: salen de los movimientos del turno, así que un
+           negocio con Efectivo y Transferencia ve exactamente esos dos. -->
+      @if (filtrosMetodo().length > 1) {
+        <div class="filtros-metodo">
+          <span class="filtros-metodo__label">
+            <lucide-icon name="filter" size="14" />
+            Forma de pago
+          </span>
+          @for (f of filtrosMetodo(); track f.clave) {
+            <button type="button"
+                    class="chip-metodo"
+                    [class.chip-metodo--activo]="f.activo"
+                    [attr.aria-pressed]="f.activo"
+                    (click)="alternarMetodo(f.clave)">
+              <lucide-icon [name]="f.activo ? 'check' : 'plus'" size="13" />
+              {{ f.nombre }}
+              <span class="chip-metodo__conteo">{{ f.movimientos }}</span>
+            </button>
+          }
+          @if (hayFiltroMetodo()) {
+            <button type="button" class="filtros-metodo__limpiar" (click)="limpiarFiltroMetodo()">
+              Ver todas
+            </button>
+          }
+        </div>
+      }
+
       @if (cargandoMovimientos()) {
         <p class="estado">Cargando…</p>
       } @else if (movimientos().length === 0) {
         <p class="estado">Sin movimientos registrados aún.</p>
+      } @else if (movimientosFiltrados().length === 0) {
+        <p class="estado">
+          Ninguna forma de pago está marcada.
+          <button type="button" class="link-inline" (click)="limpiarFiltroMetodo()">Ver todas</button>
+        </p>
       } @else {
         <div class="movimientos__table">
           <table>
@@ -141,6 +177,7 @@
                 <th>Tipo</th>
                 <th>Tipo pedido</th>
                 <th>Concepto</th>
+                <th>Forma de pago</th>
                 <th>Usuario</th>
                 @if (puedeVerIngresos()) {
                   <th class="num">Monto</th>
@@ -151,7 +188,7 @@
               </tr>
             </thead>
             <tbody>
-              @for (m of movimientos(); track m.id_movimiento) {
+              @for (m of movimientosFiltrados(); track m.id_movimiento) {
                 <tr [class.fila--anulada]="m.anulado"
                     [class.fila--anulacion]="m.es_anulacion"
                     [class.fila--abierta]="estaAbierta(m)">
@@ -178,6 +215,7 @@
                   </td>
                   <td>{{ tipoPedidoMovimiento(m) }}</td>
                   <td>{{ conceptoCorto(m) }}</td>
+                  <td class="col-metodo">{{ formasPagoTexto(m) }}</td>
                   <td>{{ m.usuario?.primer_nombre }} {{ m.usuario?.primer_apellido }}</td>
                   @if (puedeVerIngresos()) {
                     <td class="num">{{ m.monto | currency:'COP':'symbol-narrow':'1.0-0' }}</td>
@@ -266,11 +304,11 @@
 
         @if (puedeVerIngresos() && (caja()!.ingresos_por_metodo || []).length > 0) {
           <div class="resumen-metodos">
-            <p class="resumen-metodos__titulo">Desglose por forma de pago</p>
+            <p class="resumen-metodos__titulo">Dinero por forma de pago (neto)</p>
             @for (item of (caja()!.ingresos_por_metodo || []); track (item.id_metodo_pago ?? 'manual')) {
               <div class="resumen-metodos__item">
                 <span>{{ item.nombre }}</span>
-                <strong>{{ item.total | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+                <strong [class.negativo]="item.total < 0">{{ item.total | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
               </div>
             }
           </div>
@@ -324,6 +362,26 @@
                  [ngModel]="movMonto()"
                  (ngModelChange)="movMonto.set($event)" />
         </label>
+        @if (metodosPago().length > 0) {
+          <label>
+            Forma de pago
+            <!-- `[selected]` por opción y no `[value]` en el select: con @for el valor se
+                 aplica antes de que existan las opciones y no selecciona ninguna. -->
+            <select (change)="movMetodoPago.set(+$any($event.target).value || null)">
+              @for (mp of metodosPago(); track mp.id_metodo_pago) {
+                <option [value]="mp.id_metodo_pago"
+                        [selected]="mp.id_metodo_pago === movMetodoPago()">
+                  {{ mp.nombre }}
+                </option>
+              }
+            </select>
+          </label>
+          <p class="hint hint--metodo">
+            {{ movTipo() === 'INGRESO'
+                ? 'El monto suma a esta forma de pago en el desglose del turno.'
+                : 'El monto resta de esta forma de pago en el desglose del turno.' }}
+          </p>
+        }
         <label>
           Concepto
           <input type="text" maxlength="255" placeholder="Ej: propina, ajuste, retiro"
@@ -406,11 +464,11 @@
 
             @if ((sel.ingresos_por_metodo || []).length > 0) {
               <div class="resumen-metodos">
-                <p class="resumen-metodos__titulo">Desglose por forma de pago</p>
+                <p class="resumen-metodos__titulo">Dinero por forma de pago (neto)</p>
                 @for (item of (sel.ingresos_por_metodo || []); track (item.id_metodo_pago ?? 'manual')) {
                   <div class="resumen-metodos__item">
                     <span>{{ item.nombre }}</span>
-                    <strong>{{ item.total | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+                    <strong [class.negativo]="item.total < 0">{{ item.total | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
                   </div>
                 }
               </div>

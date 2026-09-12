@@ -47,7 +47,9 @@ export class CatalogoCacheService {
 
   // ---- API pública por catálogo ----
 
-  metodosPago(idNegocio: number): Observable<Array<{ id_metodo_pago: number; nombre: string }>> {
+  metodosPago(
+    idNegocio: number,
+  ): Observable<Array<{ id_metodo_pago: number; nombre: string; es_cuenta?: boolean }>> {
     return this.get(`metodos-pago:${idNegocio}`, `${environment.apiUrl}/metodos-pago?id_negocio=${idNegocio}`, idNegocio);
   }
 

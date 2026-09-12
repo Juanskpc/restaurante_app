@@ -15,10 +15,23 @@ import {
   ApiResponse, Caja, CajaHistorial, CajaService, DomiciliarioResumen, DomiciliariosResumen,
   MovimientoCaja, OrdenItems,
 } from '../../../core/services/caja.service';
+import { CatalogoCacheService } from '../../../core/services/catalogo-cache.service';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 import { RealtimeService } from '../../../core/services/realtime.service';
 
 type ModalActivo = null | 'apertura' | 'cierre' | 'movimiento' | 'domiciliarios' | 'historial';
+
+/** Un filtro de la barra de formas de pago, con lo que trae el turno por esa vía. */
+interface FiltroMetodo {
+  /** Id del método, o `sin` para las filas que no tienen forma de pago. */
+  clave: string;
+  nombre: string;
+  movimientos: number;
+  activo: boolean;
+}
+
+/** Clave del filtro para las filas sin forma de pago atribuida. */
+const SIN_METODO = 'sin';
 
 @Component({
   selector: 'app-caja',
@@ -35,6 +48,7 @@ export class CajaComponent implements OnInit, OnDestroy {
   private readonly cajaSvc = inject(CajaService);
   private readonly realtime = inject(RealtimeService);
   private dejarDeEscuchar: (() => void) | null = null;
+  private readonly catalogo = inject(CatalogoCacheService);
   private readonly ui = inject(UiFeedbackService);
   private readonly platformId = inject(PLATFORM_ID);
   private readonly isBrowser = isPlatformBrowser(this.platformId);
@@ -61,6 +75,96 @@ export class CajaComponent implements OnInit, OnDestroy {
   readonly ordenesCargando = signal<ReadonlySet<number>>(new Set());
   readonly erroresPorOrden = signal<ReadonlyMap<number, string>>(new Map());
 
+  // ── Filtro por forma de pago ──
+  // Se guardan las DESMARCADAS, no las marcadas: así todo arranca visible y una
+  // forma de pago que aparece a mitad del turno (el primer cobro por transferencia
+  // del día) entra ya marcada, en vez de quedarse escondida sin que nadie entienda
+  // por qué le falta un pedido al listado.
+  private readonly metodosOcultos = signal<ReadonlySet<string>>(new Set<string>());
+
+  /**
+   * Los filtros que se pintan, sacados de los movimientos del turno y no de las
+   * formas de pago configuradas: una que el negocio tiene pero no usó hoy sería un
+   * botón que no hace nada, y una que ya desactivó pero cobró esta mañana tiene que
+   * poder filtrarse igual.
+   */
+  readonly filtrosMetodo = computed<FiltroMetodo[]>(() => {
+    const ocultos = this.metodosOcultos();
+    const mapa = new Map<string, FiltroMetodo>();
+
+    for (const m of this.movimientos()) {
+      for (const clave of this.clavesMetodo(m)) {
+        const existente = mapa.get(clave);
+        if (existente) {
+          existente.movimientos += 1;
+          continue;
+        }
+        mapa.set(clave, {
+          clave,
+          nombre: this.nombreClave(clave, m),
+          movimientos: 1,
+          activo: !ocultos.has(clave),
+        });
+      }
+    }
+
+    // «Sin forma de pago» al final: es el cajón de sastre, no una forma de pago más.
+    return [...mapa.values()].sort((a, b) => {
+      if (a.clave === SIN_METODO) return 1;
+      if (b.clave === SIN_METODO) return -1;
+      return a.nombre.localeCompare(b.nombre, 'es');
+    });
+  });
+
+  /**
+   * Los movimientos que se listan.
+   *
+   * Un pedido cobrado con dos formas de pago pertenece a las dos, así que basta que
+   * UNA siga marcada para que siga a la vista: esconderlo por desmarcar la otra haría
+   * desaparecer parte del cobro sin avisar.
+   */
+  readonly movimientosFiltrados = computed(() => {
+    const ocultos = this.metodosOcultos();
+    if (ocultos.size === 0) return this.movimientos();
+    return this.movimientos().filter(
+      (m) => this.clavesMetodo(m).some((clave) => !ocultos.has(clave)),
+    );
+  });
+
+  readonly hayFiltroMetodo = computed(() => this.metodosOcultos().size > 0);
+
+  /** Las formas de pago de un movimiento, como claves de filtro. */
+  private clavesMetodo(m: MovimientoCaja): string[] {
+    const formas = m.formas_pago || [];
+    if (formas.length === 0) return [SIN_METODO];
+    return formas.map((f) => String(f.id_metodo_pago));
+  }
+
+  private nombreClave(clave: string, m: MovimientoCaja): string {
+    if (clave === SIN_METODO) return 'Sin forma de pago';
+    return (m.formas_pago || []).find((f) => String(f.id_metodo_pago) === clave)?.nombre
+      ?? 'Forma de pago';
+  }
+
+  /** Marca o desmarca una forma de pago del filtro. */
+  alternarMetodo(clave: string): void {
+    const siguiente = new Set(this.metodosOcultos());
+    if (siguiente.has(clave)) siguiente.delete(clave);
+    else siguiente.add(clave);
+    this.metodosOcultos.set(siguiente);
+  }
+
+  limpiarFiltroMetodo(): void {
+    this.metodosOcultos.set(new Set<string>());
+  }
+
+  /** Etiqueta de la columna: «Efectivo», «Efectivo + Transferencia» o un guion. */
+  formasPagoTexto(m: MovimientoCaja): string {
+    const formas = m.formas_pago || [];
+    if (formas.length === 0) return '—';
+    return formas.map((f) => f.nombre).join(' + ');
+  }
+
   // ── Historial de turnos cerrados ──
   // El modal tiene dos vistas: la lista de turnos y, al elegir uno, su detalle.
   // `cajaHistSel` es lo que decide cuál se ve.
@@ -81,12 +185,16 @@ export class CajaComponent implements OnInit, OnDestroy {
 
   /**
    * Ancho de la fila desplegada, que tiene que cubrir la tabla entera: la columna
-   * del chevron más las cinco fijas, y las dos que dependen de permisos.
+   * del chevron más las seis fijas (fecha, tipo, tipo de pedido, concepto, forma
+   * de pago y usuario), y las dos que dependen de permisos.
    */
   readonly colspanMovimientos = computed(
-    () => 6 + (this.puedeVerIngresos() ? 1 : 0) + (this.puedeEliminarPedido() ? 1 : 0),
+    () => 7 + (this.puedeVerIngresos() ? 1 : 0) + (this.puedeEliminarPedido() ? 1 : 0),
   );
-  /** La del historial es la misma tabla sin la columna de eliminar. */
+  /**
+   * La del historial es la misma tabla sin la columna de eliminar y sin la de forma
+   * de pago: los filtros viven en el turno en curso, que es donde el cajero cuadra.
+   */
   readonly colspanMovimientosHist = computed(() => 6 + (this.puedeVerIngresos() ? 1 : 0));
 
   // ── Apertura ──
@@ -103,6 +211,21 @@ export class CajaComponent implements OnInit, OnDestroy {
   readonly movTipo = signal<'INGRESO' | 'EGRESO'>('INGRESO');
   readonly movMonto = signal<number | null>(null);
   readonly movConcepto = signal('');
+  /**
+   * Con qué entra o sale la plata. Sin esto, un retiro en efectivo y una
+   * transferencia salían iguales del arqueo y el desglose por forma de pago no
+   * cuadraba con lo que había en el cajón.
+   */
+  readonly movMetodoPago = signal<number | null>(null);
+
+  /**
+   * Formas de pago del negocio, para el movimiento manual.
+   *
+   * «Cuenta / Tiquetera» queda fuera: ese dinero no está en el cajón, y un
+   * movimiento manual ahí descuadraría la cuenta del cliente sin tocar su saldo.
+   * El backend también la rechaza; esto solo evita ofrecerla.
+   */
+  readonly metodosPago = signal<Array<{ id_metodo_pago: number; nombre: string }>>([]);
 
   readonly negocio = computed(() => this.auth.negocio());
   readonly idNegocio = computed(() => this.negocio()?.id_negocio ?? null);
@@ -146,6 +269,7 @@ export class CajaComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.refrescarCaja();
+    this.cargarMetodosPago();
 
     // El turno lo mueven varias personas a la vez: un mesero cobra en el POS y ese ingreso
     // tiene que aparecer aquí sin que el cajero recargue. También `pedidos`, porque el
@@ -154,6 +278,21 @@ export class CajaComponent implements OnInit, OnDestroy {
       ['caja', 'pedidos'],
       () => this.refrescarCaja(),
     );
+  }
+
+  private cargarMetodosPago(): void {
+    const id = this.idNegocio();
+    if (!id) return;
+    this.catalogo.metodosPago(id).subscribe({
+      next: (data) => {
+        this.metodosPago.set((data ?? []).filter((m) => !m.es_cuenta));
+        // Si la lista llegó con el modal ya abierto, se preselecciona ahora.
+        if (this.modal() === 'movimiento' && this.movMetodoPago() == null) {
+          this.movMetodoPago.set(this.metodosPago()[0]?.id_metodo_pago ?? null);
+        }
+      },
+      error: () => this.metodosPago.set([]),
+    });
   }
 
   refrescarCaja(): void {
@@ -292,6 +431,10 @@ export class CajaComponent implements OnInit, OnDestroy {
       this.movTipo.set('INGRESO');
       this.movMonto.set(null);
       this.movConcepto.set('');
+      // Preseleccionada la primera (Efectivo, en la práctica): es el caso de casi
+      // todos los movimientos manuales y ahorra un clic en el que más se repite.
+      this.movMetodoPago.set(this.metodosPago()[0]?.id_metodo_pago ?? null);
+      if (this.metodosPago().length === 0) this.cargarMetodosPago();
     }
     if (modal === 'domiciliarios') {
       this.errorDomiciliarios.set('');
@@ -589,12 +732,19 @@ export class CajaComponent implements OnInit, OnDestroy {
       this.ui.error('El monto debe ser mayor a cero.');
       return;
     }
+    // Solo se exige cuando el negocio tiene formas de pago que ofrecer: un negocio
+    // sin ninguna configurada debe poder seguir registrando movimientos.
+    if (this.metodosPago().length > 0 && !this.movMetodoPago()) {
+      this.ui.error('Elige la forma de pago del movimiento.');
+      return;
+    }
     this.enviando.set(true);
     this.cajaSvc.registrarMovimiento({
       id_caja: caja.id_caja,
       tipo: this.movTipo(),
       monto,
       concepto: this.movConcepto().trim() || null,
+      id_metodo_pago: this.movMetodoPago(),
     }).subscribe({
       next: () => {
         this.enviando.set(false);

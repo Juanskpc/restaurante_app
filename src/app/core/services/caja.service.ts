@@ -27,6 +27,11 @@ export interface Caja {
   ingresos?: number | null;
   egresos?: number | null;
   monto_esperado?: number | null;
+  /**
+   * Dinero NETO por forma de pago: los ingresos suman y los egresos restan de la
+   * forma de pago con la que se movió la plata, así que la suma de la lista cuadra
+   * con `ingresos - egresos`.
+   */
   ingresos_por_metodo?: Array<{ id_metodo_pago: number | null; nombre: string; total: number }>;
   /**
    * El backend vació las cifras porque el rol no tiene el subnivel
@@ -34,6 +39,14 @@ export interface Caja {
    * lo único que falta es el dinero.
    */
   importes_ocultos?: boolean;
+}
+
+/** Una forma de pago atribuida a un movimiento de caja. */
+export interface FormaPagoMovimiento {
+  id_metodo_pago: number;
+  nombre: string;
+  /** Lo que va por esta forma de pago. `null` si el rol no puede ver importes. */
+  valor: number | null;
 }
 
 export interface MovimientoCaja {
@@ -55,6 +68,12 @@ export interface MovimientoCaja {
   /** Egreso del pago al domiciliario: se etiqueta como Domicilio en el listado. */
   es_pago_domicilio?: boolean;
   id_movimiento_anula?: number | null;
+  /**
+   * Con qué se movió la plata, ya resuelto por el backend: el desglose del multipago,
+   * la forma de pago de la orden o la del propio movimiento manual. Vacío cuando no
+   * hay ninguna. Es lo que alimenta los filtros por forma de pago.
+   */
+  formas_pago?: FormaPagoMovimiento[];
 }
 
 /** Una línea del pedido, tal como se despliega bajo su fila en Caja. */
@@ -348,11 +367,16 @@ export class CajaService {
     );
   }
 
+  /**
+   * Ingreso o egreso manual del turno. `id_metodo_pago` dice de qué forma de pago
+   * entra o sale la plata: el ingreso le suma y el egreso le resta en el desglose.
+   */
   registrarMovimiento(payload: {
     id_caja: number;
     tipo: 'INGRESO' | 'EGRESO';
     monto: number;
     concepto?: string | null;
+    id_metodo_pago?: number | null;
   }): Observable<ApiResponse<MovimientoCaja>> {
     return this.http.post<ApiResponse<MovimientoCaja>>(`${this.base}/movimientos`, payload);
   }

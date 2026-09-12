@@ -26,7 +26,7 @@ import {
   Copy, ArrowLeft, Lock, Truck, MessageCircle, Facebook, Instagram, CheckSquare, ExternalLink,
   Utensils, Coffee, FolderX, Globe, Mail, ArrowRight, ImagePlus, Crop,
   LayoutGrid, Grid3x3, List, SquarePen,
-  PanelLeft, PanelTop, Percent, Tag
+  PanelLeft, PanelTop, Percent, Tag, Filter, Check
 } from 'lucide-angular';
 
 const icons = {
@@ -43,7 +43,7 @@ const icons = {
   Copy, ArrowLeft, Lock, Truck, MessageCircle, Facebook, Instagram, CheckSquare, ExternalLink,
   Utensils, Coffee, FolderX, Globe, Mail, ArrowRight, ImagePlus, Crop,
   LayoutGrid, Grid3x3, List, SquarePen,
-  PanelLeft, PanelTop, Percent, Tag
+  PanelLeft, PanelTop, Percent, Tag, Filter, Check
 };
 
 export const appConfig: ApplicationConfig = {
