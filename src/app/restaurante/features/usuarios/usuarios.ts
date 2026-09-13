@@ -16,6 +16,10 @@ import { UsuariosService } from './usuarios.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 import {
+  componerInvitacion, copiarAlPortapapeles, enviarInvitacion, urlDeAcceso,
+} from '../../../core/utils/invitacion';
+import { environment } from '../../../../environments/environment';
+import {
   EstadoRegistro,
   PermisoModulo,
   RolAdminOption,
@@ -65,6 +69,17 @@ export class UsuariosComponent {
   protected readonly showPassword = signal(false);
   protected readonly showConfirmPassword = signal(false);
   protected readonly errorMessage = signal<string | null>(null);
+
+  /**
+   * Invitación lista para enviar al usuario recién creado.
+   *
+   * Solo existe entre que se crea el usuario y que el administrador cierra el aviso:
+   * lleva la contraseña en claro, así que no se guarda en ningún sitio ni sobrevive a
+   * un refresco. Si se pierde, se genera otra cambiándole la contraseña al usuario.
+   */
+  protected readonly invitacion = signal<string | null>(null);
+  protected readonly invitacionNombre = signal('');
+  protected readonly enviandoInvitacion = signal(false);
 
   protected readonly usuarios = signal<UsuarioAdmin[]>([]);
   protected readonly roles = signal<RolAdminOption[]>([]);
@@ -459,6 +474,9 @@ export class UsuariosComponent {
       next: () => {
         if (isCreate) {
           this.uiFeedback.created('Usuario creado correctamente.');
+          // La contraseña solo se tiene aquí, en el formulario que se está cerrando:
+          // se prepara la invitación antes de perderla.
+          this.prepararInvitacion(payload.primer_nombre, payload.email, formValue.password || '');
         } else {
           this.uiFeedback.updated('Los datos del usuario fueron actualizados.');
         }
@@ -471,6 +489,57 @@ export class UsuariosComponent {
         this.handleError(error, 'No fue posible guardar el usuario.');
       },
     });
+  }
+
+  /** Deja el mensaje listo y abre el aviso para enviarlo. */
+  private prepararInvitacion(nombre: string, usuario: string, password: string): void {
+    if (!password) return;
+    this.invitacionNombre.set(nombre);
+    this.invitacion.set(componerInvitacion({
+      nombre,
+      negocio: this.auth.negocio()?.nombre ?? 'tu negocio',
+      usuario,
+      etiquetaUsuario: 'Usuario (correo)',
+      password,
+      url: urlDeAcceso(environment.adminUrl),
+    }));
+  }
+
+  protected cerrarInvitacion(): void {
+    this.invitacion.set(null);
+    this.invitacionNombre.set('');
+  }
+
+  /** Abre el menú de compartir del teléfono; en escritorio copia el mensaje. */
+  protected async compartirInvitacion(): Promise<void> {
+    const texto = this.invitacion();
+    if (!texto || this.enviandoInvitacion()) return;
+
+    this.enviandoInvitacion.set(true);
+    const resultado = await enviarInvitacion(texto, 'Datos de acceso');
+    this.enviandoInvitacion.set(false);
+
+    if (resultado === 'compartido') {
+      this.uiFeedback.success('Invitación enviada.');
+      this.cerrarInvitacion();
+    } else if (resultado === 'copiado') {
+      this.uiFeedback.success('Invitación copiada. Pégala donde quieras enviarla.');
+    } else if (resultado === 'fallo') {
+      this.uiFeedback.error('No se pudo compartir. Copia el mensaje a mano.');
+    }
+    // 'cancelado' es el administrador cerrando la hoja de compartir: no se avisa nada
+    // y el mensaje se queda en pantalla por si quiere intentarlo otra vez.
+  }
+
+  protected async copiarInvitacion(): Promise<void> {
+    const texto = this.invitacion();
+    if (!texto) return;
+
+    if (await copiarAlPortapapeles(texto)) {
+      this.uiFeedback.success('Invitación copiada.');
+    } else {
+      this.uiFeedback.error('No se pudo copiar. Selecciona el mensaje y cópialo a mano.');
+    }
   }
 
   protected async toggleEstado(usuario: UsuarioAdmin): Promise<void> {

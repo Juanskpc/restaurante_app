@@ -1,0 +1,444 @@
+<section class="cd" aria-labelledby="cd-titulo">
+  <header class="cd-head">
+    <div class="cd-head__txt">
+      <h2 id="cd-titulo">Carta virtual</h2>
+      <p class="cd-hint">
+        Elige cómo ven tu menú los clientes que abren el enlace o escanean el QR. Mientras no
+        publiques, siguen viendo la versión anterior.
+      </p>
+    </div>
+
+    <div class="cd-head__acciones">
+      @if (datos()) {
+        <span class="cd-estado" [attr.data-tono]="estado().tono">
+          <span class="cd-estado__punto" aria-hidden="true"></span>
+          {{ estado().texto }}
+        </span>
+      }
+      <a class="cd-btn cd-btn--ghost" [href]="urlCartaPublicada()" target="_blank" rel="noopener">
+        <lucide-icon name="external-link" [size]="15" />
+        Ver carta publicada
+      </a>
+      <button
+        type="button"
+        class="cd-btn cd-btn--ghost"
+        [disabled]="!hayCambios() || publicando()"
+        (click)="descartar()"
+      >
+        <lucide-icon name="rotate-ccw" [size]="15" />
+        Descartar
+      </button>
+      <button
+        type="button"
+        class="cd-btn cd-btn--primary"
+        [disabled]="!canEdit() || !hayCambios() || publicando()"
+        (click)="publicar()"
+      >
+        @if (publicando()) {
+          <lucide-icon name="loader" [size]="15" class="cd-spin" />
+          Publicando…
+        } @else {
+          <lucide-icon name="send" [size]="15" />
+          Publicar carta
+        }
+      </button>
+    </div>
+  </header>
+
+  @if (cargando()) {
+    <div class="cd-carga">Cargando el diseño de tu carta…</div>
+  } @else if (error(); as mensaje) {
+    <div class="cd-error" role="alert">
+      <span>{{ mensaje }}</span>
+      <button type="button" class="cd-btn cd-btn--ghost" (click)="recargar()">Reintentar</button>
+    </div>
+  } @else if (datos()) {
+    @if (!canEdit()) {
+      <p class="cd-nota">
+        Solo un administrador del negocio puede cambiar y publicar la carta. Puedes explorar la
+        vista previa.
+      </p>
+    }
+
+    <div class="cd-grid">
+      <div class="cd-controles">
+        <!-- ── Plantilla ── -->
+        <fieldset class="cd-bloque" [disabled]="!canEdit()">
+          <legend class="cd-bloque__titulo">Plantilla</legend>
+          <div class="cd-plantillas">
+            @for (p of plantillas; track p.id) {
+              <button
+                type="button"
+                class="cd-plantilla"
+                [class.is-on]="borrador().plantilla === p.id"
+                [class.is-bloqueada]="!plantillaPermitida(p.id)"
+                [attr.aria-pressed]="borrador().plantilla === p.id"
+                [attr.title]="plantillaPermitida(p.id) ? p.descripcion : 'Incluida en otro plan'"
+                (click)="elegirPlantilla(p.id)"
+              >
+                <span class="cd-muestra" [style.background]="p.paleta.bg" aria-hidden="true">
+                  <span
+                    class="cd-muestra__tarjeta"
+                    [style.background]="p.paleta.surface"
+                    [style.border-color]="p.paleta.border"
+                  >
+                    <span class="cd-muestra__foto" [style.background]="p.paleta.surface2"></span>
+                    <span class="cd-muestra__linea" [style.background]="p.paleta.ink"></span>
+                    <span
+                      class="cd-muestra__linea cd-muestra__linea--corta"
+                      [style.background]="p.paleta.muted"
+                    ></span>
+                  </span>
+                  <span
+                    class="cd-muestra__aa"
+                    [style.color]="p.paleta.ink"
+                    [style.font-family]="fuenteStack(p.fuenteTitulos)"
+                    >Aa</span
+                  >
+                  <span class="cd-muestra__acento" [style.background]="muestraAcento(p)"></span>
+                </span>
+                <span class="cd-plantilla__txt">
+                  <strong>{{ p.nombre }}</strong>
+                  <small>{{ p.estilo }}</small>
+                </span>
+                @if (!plantillaPermitida(p.id)) {
+                  <lucide-icon name="lock" [size]="13" class="cd-plantilla__candado" />
+                }
+              </button>
+            }
+          </div>
+          <p class="cd-ayuda">
+            <strong>{{ plantillaActual().nombre }}.</strong>
+            {{ plantillaActual().descripcion }} Ideal para {{ plantillaActual().ideal }}.
+          </p>
+        </fieldset>
+
+        <!-- ── Formato ── -->
+        <fieldset class="cd-bloque" [disabled]="!canEdit()">
+          <legend class="cd-bloque__titulo">Cómo se listan los productos</legend>
+          <div class="cd-formatos">
+            @for (f of formatos; track f.id) {
+              <button
+                type="button"
+                class="cd-formato"
+                [class.is-on]="borrador().formato === f.id"
+                [attr.aria-pressed]="borrador().formato === f.id"
+                (click)="elegirFormato(f.id)"
+              >
+                <span class="cd-formato__diagrama" [attr.data-formato]="f.id" aria-hidden="true">
+                  <i></i><i></i><i></i><i></i>
+                </span>
+                <span class="cd-formato__txt">
+                  <strong>
+                    {{ f.nombre }}
+                    @if (f.id === plantillaActual().formatoSugerido) {
+                      <em class="cd-sugerido">Sugerido</em>
+                    }
+                  </strong>
+                  <small>{{ f.descripcion }}</small>
+                </span>
+              </button>
+            }
+          </div>
+        </fieldset>
+
+        <!-- ── Avisos ──
+             Justo debajo de plantilla y formato, que es lo que los cambia: el administrador
+             ve la consecuencia de su elección sin buscarla. -->
+        <section
+          class="cd-avisos"
+          [class.cd-avisos--ok]="avisos().length === 0"
+          aria-labelledby="cd-avisos-titulo"
+          aria-live="polite"
+        >
+          <h3 id="cd-avisos-titulo" class="cd-avisos__titulo">
+            @if (avisos().length === 0) {
+              <lucide-icon name="check-circle" [size]="16" />
+              Tu carta tiene lo que esta combinación necesita
+            } @else {
+              Antes de publicar
+              @if (avisosAtencion() > 0) {
+                <span class="cd-contador" [attr.aria-label]="avisosAtencion() + ' avisos importantes'">
+                  {{ avisosAtencion() }}
+                </span>
+              }
+            }
+          </h3>
+          @for (a of avisos(); track a.id) {
+            <article class="cd-aviso" [attr.data-nivel]="a.nivel">
+              <lucide-icon
+                [name]="a.nivel === 'atencion' ? 'alert-triangle' : 'info'"
+                [size]="16"
+                class="cd-aviso__icono"
+              />
+              <div class="cd-aviso__txt">
+                <strong>{{ a.titulo }}</strong>
+                <p>{{ a.detalle }}</p>
+                @if (a.accion) {
+                  <button type="button" class="cd-btn cd-btn--texto" (click)="ejecutarAccion(a)">
+                    {{ a.accion.texto }}
+                  </button>
+                }
+              </div>
+            </article>
+          }
+        </section>
+
+        <!-- ── Marca ── -->
+        <fieldset class="cd-bloque">
+          <legend class="cd-bloque__titulo">Tu marca</legend>
+
+          <div class="cd-campo">
+            <span class="cd-campo__etiqueta">Logo</span>
+            <div class="cd-logo">
+              <div
+                class="cd-logo__vista"
+                [class.is-vacio]="!logoUrl()"
+                [style.background]="logoUrl() ? null : acento()"
+              >
+                @if (logoUrl(); as logo) {
+                  <img [src]="resolverImagen(logo)" alt="Logo actual del negocio" />
+                } @else {
+                  <span [style.color]="colorSobreAcento()">{{ iniciales() }}</span>
+                }
+              </div>
+              <div class="cd-logo__acciones">
+                <input
+                  id="cd-logo-archivo"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  class="cd-oculto"
+                  [disabled]="!canEdit() || subiendoLogo()"
+                  (change)="elegirArchivoLogo($event)"
+                />
+                <label
+                  class="cd-btn cd-btn--ghost"
+                  for="cd-logo-archivo"
+                  [class.is-deshabilitado]="!canEdit() || subiendoLogo()"
+                >
+                  <lucide-icon [name]="subiendoLogo() ? 'loader' : 'image-plus'" [size]="15" />
+                  {{ logoUrl() ? 'Cambiar logo' : 'Subir logo' }}
+                </label>
+                @if (logoUrl()) {
+                  <button
+                    type="button"
+                    class="cd-btn cd-btn--texto"
+                    [disabled]="!canEdit() || subiendoLogo()"
+                    (click)="quitarLogo()"
+                  >
+                    Quitar
+                  </button>
+                }
+                <small class="cd-ayuda">
+                  Cuadrado se ve mejor. Se guarda al subirlo y se usa en toda la plataforma.
+                </small>
+              </div>
+            </div>
+          </div>
+
+          <div class="cd-campo">
+            <label class="cd-campo__etiqueta" for="cd-color-hex">Color principal</label>
+            <div class="cd-color">
+              <input
+                id="cd-color-selector"
+                class="cd-color__selector"
+                type="color"
+                aria-label="Elegir el color principal con el selector"
+                [value]="acento()"
+                [disabled]="!canEdit() || !colorLibre()"
+                (input)="cambiarColor($any($event.target).value)"
+              />
+              <input
+                id="cd-color-hex"
+                class="cd-input cd-color__hex"
+                type="text"
+                maxlength="7"
+                spellcheck="false"
+                autocomplete="off"
+                [value]="acento()"
+                [disabled]="!canEdit() || !colorLibre()"
+                (change)="cambiarColor($any($event.target).value)"
+                (keydown.enter)="cambiarColor($any($event.target).value)"
+              />
+              <span
+                class="cd-contraste"
+                [class.is-bajo]="contrasteAcento() < 3"
+                title="Contraste del color sobre las tarjetas de esta plantilla. 3:1 o más se ve bien."
+              >
+                <lucide-icon
+                  [name]="contrasteAcento() < 3 ? 'alert-triangle' : 'check-circle'"
+                  [size]="13"
+                />
+                Contraste {{ contrasteAcento() | number: '1.1-1' }}:1
+              </span>
+            </div>
+            @if (errorHex(); as mensaje) {
+              <small class="cd-error-campo">{{ mensaje }}</small>
+            }
+            <div class="cd-atajos">
+              @if (borrador().marca.color) {
+                <button
+                  type="button"
+                  class="cd-btn cd-btn--texto"
+                  [disabled]="!canEdit()"
+                  (click)="quitarColor()"
+                >
+                  {{
+                    plantillaActual().usaColorNegocio && colorNegocio()
+                      ? 'Usar el color de mi negocio'
+                      : 'Usar el color de la plantilla'
+                  }}
+                </button>
+              } @else if (!plantillaActual().usaColorNegocio && colorNegocio()) {
+                <button
+                  type="button"
+                  class="cd-btn cd-btn--texto"
+                  [disabled]="!canEdit() || !colorLibre()"
+                  (click)="usarColorNegocio()"
+                >
+                  Usar el color de mi negocio
+                </button>
+              }
+            </div>
+            @if (!colorLibre()) {
+              <small class="cd-ayuda">Tu plan usa el color de la plantilla o el de tu negocio.</small>
+            }
+          </div>
+
+          <div class="cd-campo">
+            <label class="cd-campo__etiqueta" for="cd-fuente">Tipografía de los títulos</label>
+            <select
+              id="cd-fuente"
+              class="cd-input"
+              [disabled]="!canEdit()"
+              (change)="cambiarFuente($any($event.target).value)"
+            >
+              <option value="plantilla" [selected]="!borrador().marca.fuente_titulos">
+                La de la plantilla ({{ fuentePlantilla().nombre }})
+              </option>
+              @for (f of fuentes; track f.id) {
+                <option [value]="f.id" [selected]="borrador().marca.fuente_titulos === f.id">
+                  {{ f.nombre }}
+                </option>
+              }
+            </select>
+            <small class="cd-ayuda">
+              Las descripciones y los precios usan siempre una letra pensada para leerse en el móvil.
+            </small>
+          </div>
+
+          <div class="cd-campo">
+            <span class="cd-campo__etiqueta" id="cd-bordes-etiqueta">Bordes</span>
+            <div class="cd-segmentado" role="group" aria-labelledby="cd-bordes-etiqueta">
+              <button
+                type="button"
+                [class.is-on]="!borrador().marca.borde"
+                [attr.aria-pressed]="!borrador().marca.borde"
+                [disabled]="!canEdit()"
+                (click)="cambiarBorde('plantilla')"
+              >
+                De la plantilla
+              </button>
+              @for (b of bordes; track b.id) {
+                <button
+                  type="button"
+                  [class.is-on]="borrador().marca.borde === b.id"
+                  [attr.aria-pressed]="borrador().marca.borde === b.id"
+                  [disabled]="!canEdit()"
+                  (click)="cambiarBorde(b.id)"
+                >
+                  <span class="cd-borde-muestra" [style.border-radius]="b.radios.md" aria-hidden="true"></span>
+                  {{ b.nombre }}
+                </button>
+              }
+            </div>
+          </div>
+        </fieldset>
+
+        <!-- ── Opciones ── -->
+        <fieldset class="cd-bloque" [disabled]="!canEdit()">
+          <legend class="cd-bloque__titulo">Opciones</legend>
+          <label class="cd-switch" for="cd-agotados">
+            <input
+              id="cd-agotados"
+              type="checkbox"
+              [checked]="borrador().opciones.mostrar_agotados"
+              (change)="cambiarAgotados($any($event.target).checked)"
+            />
+            <span>
+              <strong>Mostrar productos agotados</strong>
+              <small>
+                Aparecen al final de su categoría, marcados como agotados y sin botón para pedir.
+                Apagado, desaparecen de la carta hasta que vuelvan a estar disponibles.
+              </small>
+            </span>
+          </label>
+        </fieldset>
+      </div>
+
+      <!-- ── Vista previa ── -->
+      <aside class="cd-lateral" aria-label="Vista previa de la carta">
+        <div class="cd-previa__barra">
+          <div class="cd-segmentado" role="group" aria-label="Tamaño de la vista previa">
+            <button
+              type="button"
+              [class.is-on]="vista() === 'movil'"
+              [attr.aria-pressed]="vista() === 'movil'"
+              (click)="vista.set('movil')"
+            >
+              <lucide-icon name="smartphone" [size]="14" />
+              Móvil
+            </button>
+            <button
+              type="button"
+              [class.is-on]="vista() === 'escritorio'"
+              [attr.aria-pressed]="vista() === 'escritorio'"
+              (click)="vista.set('escritorio')"
+            >
+              <lucide-icon name="monitor" [size]="14" />
+              Escritorio
+            </button>
+          </div>
+          <small>Tu carta real, con los cambios sin publicar</small>
+        </div>
+
+        <div
+          #marco
+          class="cd-previa__marco"
+          [class.is-movil]="vista() === 'movil'"
+          [style.height.px]="lienzo().altoVisible"
+        >
+          <div
+            class="cd-previa__lienzo"
+            [style.width.px]="lienzo().ancho * lienzo().escala"
+            [style.height.px]="lienzo().altoVisible"
+          >
+            @if (urlPrevia(); as url) {
+              <iframe
+                #previa
+                class="cd-previa__iframe"
+                [src]="url"
+                title="Vista previa de la carta virtual"
+                [style.width.px]="lienzo().ancho"
+                [style.height.px]="lienzo().alto"
+                [style.transform]="'scale(' + lienzo().escala + ')'"
+                (load)="alCargarPrevia()"
+              ></iframe>
+            }
+          </div>
+        </div>
+      </aside>
+    </div>
+  }
+
+  @if (archivoLogo(); as archivo) {
+    <app-image-cropper
+      [file]="archivo"
+      [aspect]="1"
+      [outputWidth]="512"
+      titulo="Ajustar logo"
+      (recortada)="logoRecortado($event)"
+      (cancelada)="archivoLogo.set(null)"
+    />
+  }
+</section>

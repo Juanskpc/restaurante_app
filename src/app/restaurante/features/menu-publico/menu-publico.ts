@@ -6,18 +6,30 @@ import {
   OnDestroy,
   OnInit,
   computed,
+  effect,
   inject,
   signal,
   viewChild,
+  viewChildren,
   PLATFORM_ID,
 } from '@angular/core';
-import { DOCUMENT, isPlatformBrowser } from '@angular/common';
+import { DOCUMENT, NgTemplateOutlet, isPlatformBrowser } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
 
 import { CarritoService } from './carrito.service';
 import { environment } from '../../../../environments/environment';
+import {
+  CartaPublicaConfig,
+  DISENO_POR_DEFECTO,
+  DisenoCarta,
+  fuentesARequerir,
+  inicialesNegocio,
+  plantillaPorId,
+  resolverTokens,
+  urlGoogleFonts,
+} from '../../shared/carta-diseno/carta-diseno';
 
 interface CategoriaPublica {
   id_categoria: number;
@@ -25,7 +37,7 @@ interface CategoriaPublica {
   descripcion: string | null;
   icono: string;
   imagen_url: string | null;
-  total_productos: number;
+  orden?: number;
 }
 
 interface ProductoPublico {
@@ -36,6 +48,22 @@ interface ProductoPublico {
   imagen_url: string | null;
   icono: string;
   es_popular: boolean;
+  /** `false` = agotado. Llegan siempre; la carta decide si mostrarlos según su diseño. */
+  disponible?: boolean;
+}
+
+/** Una categoría con sus productos, tal como la devuelve `/public/carta/completa`. */
+interface SeccionPublica extends CategoriaPublica {
+  productos: ProductoPublico[];
+}
+
+/** Una sección lista para pintar: productos ya filtrados y repartidos según el formato. */
+interface SeccionVisible extends CategoriaPublica {
+  productos: ProductoPublico[];
+  /** En Mixto, los populares que se pueden pedir, arriba en tarjetas. Vacío en los otros formatos. */
+  destacados: ProductoPublico[];
+  /** Lo que va en filas. En Tarjetas no se usa. */
+  enLista: ProductoPublico[];
 }
 
 interface NegocioPublico {
@@ -46,15 +74,38 @@ interface NegocioPublico {
   url_whatsapp: string | null;
   url_facebook: string | null;
   url_instagram: string | null;
+  logo_url?: string | null;
   plan_activo: boolean;
+  /** Diseño publicado, ya recortado por el plan. Puede faltar con un backend anterior. */
+  carta?: CartaPublicaConfig | null;
 }
+
+/** Lo que manda Configuración → Apariencia cuando esta carta se muestra como vista previa. */
+interface MensajeVistaPrevia {
+  tipo: 'carta-diseno';
+  diseno?: DisenoCarta;
+  logo_url?: string | null;
+  color_negocio?: string | null;
+}
+
+/** Aire entre el borde inferior de la barra fija y el título de la sección a la que se salta. */
+const RESPIRO_SECCION = 12;
 
 @Component({
   selector: 'app-menu-publico',
-  imports: [LucideAngularModule],
+  imports: [LucideAngularModule, NgTemplateOutlet],
   templateUrl: './menu-publico.html',
   styleUrl: './menu-publico.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // La plantilla se aplica sobre el propio elemento y no sobre <html>: así la marca del negocio
+  // no se filtra al panel cuando esta carta se muestra en la vista previa, y tampoco pisa los
+  // tokens del tema si alguien navega de la carta a otra pantalla de la app.
+  host: {
+    '[attr.data-plantilla]': 'plantilla().id',
+    '[attr.data-formato]': 'formato()',
+    '[attr.data-oscura]': 'plantilla().oscura',
+    '[style]': 'estiloCarta()',
+  },
 })
 export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
   /**
@@ -66,8 +117,18 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
    */
   readonly carrito = inject(CarritoService);
 
-  /** ¿Se muestra el botón de pedido? Solo si el negocio publicó un WhatsApp al que escribir. */
-  readonly puedePedir = computed(() => Boolean(this.negocio()?.url_whatsapp));
+  /**
+   * ¿Se muestra el botón de pedido?
+   *
+   * Hacen falta dos cosas: un WhatsApp publicado al que escribir y un plan que incluya los
+   * pedidos desde la carta. Lo segundo lo decide el servidor (`carta.puede_pedir`); si la
+   * respuesta no lo trae, se conserva el comportamiento de antes de existir los planes.
+   */
+  readonly puedePedir = computed(() => {
+    const negocio = this.negocio();
+    if (!negocio?.url_whatsapp) return false;
+    return negocio.carta?.puede_pedir ?? true;
+  });
 
   /** El panel de pre-pedido, para revisar antes de mandar. */
   readonly prePedidoAbierto = signal(false);
@@ -78,36 +139,118 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
 
   readonly negocioId = signal<number | null>(null);
   readonly negocio = signal<NegocioPublico | null>(null);
-  readonly categorias = signal<CategoriaPublica[]>([]);
-  readonly productos = signal<ProductoPublico[]>([]);
+  readonly secciones = signal<SeccionPublica[]>([]);
   readonly negocioInvalido = signal(false);
   readonly planInactivo = signal(false);
 
   readonly cargandoNegocio = signal(false);
-  readonly cargandoCategorias = signal(false);
-  readonly cargandoProductos = signal(false);
-  readonly cargandoPaleta = signal(false);
+  readonly cargandoCarta = signal(false);
 
+  /** La categoría que se está leyendo. `null` = todavía ninguna: manda la primera. */
   readonly categoriaActiva = signal<number | null>(null);
-  readonly categoriaActivaIdx = signal(0);
 
-  readonly currentYear = new Date().getFullYear();
-
-  readonly appLogoPath = `${environment.assetPath}/images/icono-escalapp.png`;
-  readonly appSiteUrl = 'https://escalapp.cloud/admin/';
-  readonly appContactEmail = 'escalappsystem@gmail.com';
+  // ── Diseño de la carta ──
 
   /**
-   * Las políticas viven en la app de administración, que se sirve bajo `/admin/` — de ahí que la
-   * URL no sea `escalapp.cloud/privacidad`. Son absolutas a propósito: este menú es otra
-   * aplicación y no comparte router con aquella.
+   * ¿Se está mostrando dentro de la vista previa de Configuración? En ese modo la carta pinta
+   * el diseño que le manda el panel en vez del publicado, y nadie más lo ve.
+   */
+  readonly esVistaPrevia = signal(false);
+  private readonly disenoPrevia = signal<DisenoCarta | null>(null);
+  /** `undefined` = el panel no ha dicho nada y manda lo que vino del servidor. */
+  private readonly logoPrevia = signal<string | null | undefined>(undefined);
+  private readonly colorNegocioPrevia = signal<string | null | undefined>(undefined);
+
+  readonly diseno = computed<DisenoCarta>(
+    () => this.disenoPrevia() ?? this.negocio()?.carta ?? DISENO_POR_DEFECTO,
+  );
+  readonly plantilla = computed(() => plantillaPorId(this.diseno().plantilla));
+  readonly formato = computed(() => this.diseno().formato);
+
+  private readonly colorNegocio = computed(() => {
+    const previa = this.colorNegocioPrevia();
+    return previa !== undefined ? previa : (this.negocio()?.carta?.color_negocio ?? null);
+  });
+
+  readonly estiloCarta = computed(() => resolverTokens(this.diseno(), this.colorNegocio()));
+
+  readonly logoUrl = computed(() => {
+    const previa = this.logoPrevia();
+    return previa !== undefined ? previa : (this.negocio()?.logo_url ?? null);
+  });
+  readonly iniciales = computed(() => inicialesNegocio(this.negocio()?.nombre));
+
+  readonly miniaturaEnLista = computed(() => this.plantilla().miniaturaEnLista);
+  readonly precioConPuntos = computed(() => this.plantilla().precioConPuntos);
+
+  /**
+   * Las secciones que se pintan, una por categoría y todas seguidas.
+   *
+   * Una categoría sin nada que enseñar no aparece, ni en la carta ni en la barra: un botón que
+   * lleva a una sección vacía es peor que no tenerlo. Los agotados cuentan como contenido solo
+   * si el diseño pide mostrarlos.
+   */
+  readonly seccionesVisibles = computed<SeccionVisible[]>(() => {
+    const mostrarAgotados = this.diseno().opciones?.mostrar_agotados === true;
+    const mixto = this.formato() === 'mixto';
+
+    return this.secciones()
+      .map((seccion) => {
+        const productos = mostrarAgotados
+          ? seccion.productos
+          : seccion.productos.filter((p) => p.disponible !== false);
+        const destacados = mixto
+          ? productos.filter((p) => p.es_popular && p.disponible !== false)
+          : [];
+        const arriba = new Set(destacados.map((p) => p.id_producto));
+        return {
+          ...seccion,
+          productos,
+          destacados,
+          enLista: productos.filter((p) => !arriba.has(p.id_producto)),
+        };
+      })
+      .filter((seccion) => seccion.productos.length > 0);
+  });
+
+  /** La activa, o la primera si la activa dejó de estar visible (p. ej. al ocultar agotados). */
+  readonly categoriaActivaVisible = computed(() => {
+    const visibles = this.seccionesVisibles();
+    const activa = this.categoriaActiva();
+    return visibles.some((s) => s.id_categoria === activa)
+      ? activa
+      : (visibles[0]?.id_categoria ?? null);
+  });
+
+  /**
+   * Descarga las tipografías del diseño solo cuando hacen falta.
+   *
+   * La carta por defecto no descarga nada. Las demás piden una sola hoja de Google Fonts con
+   * `display=swap`: mientras llega, el texto se lee con la fuente de respaldo de la pila.
+   */
+  private readonly cargaFuentes = effect(() => {
+    const url = urlGoogleFonts(fuentesARequerir(this.diseno()));
+    if (!url || !isPlatformBrowser(this.platformId)) return;
+    if (this.document.head.querySelector(`link[data-carta-fuentes="${url}"]`)) return;
+    const enlace = this.document.createElement('link');
+    enlace.rel = 'stylesheet';
+    enlace.href = url;
+    enlace.setAttribute('data-carta-fuentes', url);
+    this.document.head.appendChild(enlace);
+  });
+
+  readonly anio = new Date().getFullYear();
+  readonly appSiteUrl = 'https://escalapp.cloud/admin/';
+
+  /**
+   * La política vive en la app de administración, que se sirve bajo `/admin/`. Es absoluta a
+   * propósito: este menú es otra aplicación y no comparte router con aquella.
    *
    * Este menú es **el punto más expuesto de toda la plataforma**: lo abre alguien que no es
    * cliente nuestro ni tiene cuenta, y al pulsar «Continuar por WhatsApp» su número pasa a
-   * nuestros servidores —que están en Estados Unidos—. Por eso el aviso no está solo en el pie
-   * sino junto al botón que inicia ese envío.
+   * nuestros servidores —que están en Estados Unidos—. Por eso el aviso va junto al botón que
+   * inicia ese envío, que es donde se consiente.
    */
-  readonly urlTerminos = 'https://escalapp.cloud/admin/terminos';
   readonly urlPrivacidad = 'https://escalapp.cloud/admin/privacidad';
 
   readonly socialLinks = computed(() => {
@@ -121,10 +264,10 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
   });
 
   readonly tieneSocial = computed(() => this.socialLinks().length > 0);
-  readonly tieneTelefono = computed(() => Boolean(this.negocio()?.telefono));
-  readonly tieneDireccion = computed(() => Boolean(this.negocio()?.direccion));
 
   readonly categoriasScroll = viewChild<ElementRef<HTMLElement>>('catScroll');
+  private readonly barraSuperior = viewChild<ElementRef<HTMLElement>>('barraSuperior');
+  private readonly seccionesRef = viewChildren<ElementRef<HTMLElement>>('seccion');
   readonly puedeScrollIzq = signal(false);
   readonly puedeScrollDer = signal(false);
 
@@ -144,6 +287,15 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly umbralPlegar = 56;
   private readonly umbralDesplegar = 24;
 
+  /**
+   * Mientras el scroll lo mueve un clic en una categoría, el resaltado no se recalcula: si no,
+   * al pasar por las secciones intermedias la barra iría marcando cada una y el cliente vería
+   * saltar el resaltado por categorías que no eligió.
+   */
+  private navegandoPorClic = false;
+  private finDeScroll: ReturnType<typeof setTimeout> | null = null;
+  private resaltadoPendiente = false;
+
   private readonly priceFormatter = new Intl.NumberFormat('es-CO', {
     style: 'currency',
     currency: 'COP',
@@ -152,14 +304,16 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
   });
 
   ngOnInit(): void {
+    this.esVistaPrevia.set(this.route.snapshot.queryParamMap.get('vista') === 'previa');
+
     this.route.paramMap.subscribe((params) => {
       const id = Number(params.get('id'));
       if (!id) return;
       this.negocioInvalido.set(false);
       this.planInactivo.set(false);
       this.negocio.set(null);
-      this.categorias.set([]);
-      this.productos.set([]);
+      this.secciones.set([]);
+      this.categoriaActiva.set(null);
       this.negocioId.set(id);
       // El carrito se ata al negocio ANTES de cargar nada: la clave de guardado lleva su id,
       // para que quien mire dos cartas distintas no se encuentre los platos de una en la otra.
@@ -175,12 +329,21 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
     window.addEventListener('resize', this._onResize);
     window.addEventListener('scroll', this._onScroll, { passive: true });
     this._onScroll();
+
+    if (this.esVistaPrevia()) {
+      window.addEventListener('message', this._onMensaje);
+      // Avisa al panel de que ya puede mandar el diseño: si lo mandó antes de que la carta
+      // estuviera escuchando, se habría perdido.
+      window.parent?.postMessage({ tipo: 'carta-lista' }, window.location.origin);
+    }
   }
 
   ngOnDestroy(): void {
     if (!isPlatformBrowser(this.platformId)) return;
     window.removeEventListener('resize', this._onResize);
     window.removeEventListener('scroll', this._onScroll);
+    window.removeEventListener('message', this._onMensaje);
+    if (this.finDeScroll) clearTimeout(this.finDeScroll);
   }
 
   private _onResize = (): void => this.actualizarFlechas();
@@ -192,6 +355,38 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
     } else if (this.headerCompacto() && y < this.umbralDesplegar) {
       this.headerCompacto.set(false);
     }
+
+    // Fin del scroll: 120 ms sin eventos. Si lo movió un clic, se suelta el bloqueo y se deja
+    // marcada la categoría elegida aunque la página no pudiera llegar hasta ella (la última
+    // sección de una carta corta nunca sube hasta arriba).
+    if (this.finDeScroll) clearTimeout(this.finDeScroll);
+    this.finDeScroll = setTimeout(() => {
+      this.finDeScroll = null;
+      if (this.navegandoPorClic) {
+        this.navegandoPorClic = false;
+      } else {
+        this.actualizarCategoriaActiva();
+      }
+    }, 120);
+
+    // Durante el scroll del cliente, como mucho un recálculo por fotograma.
+    if (!this.navegandoPorClic && !this.resaltadoPendiente) {
+      this.resaltadoPendiente = true;
+      requestAnimationFrame(() => {
+        this.resaltadoPendiente = false;
+        if (!this.navegandoPorClic) this.actualizarCategoriaActiva();
+      });
+    }
+  };
+
+  private _onMensaje = (evento: MessageEvent<MensajeVistaPrevia>): void => {
+    // Solo el panel de esta misma aplicación puede cambiar lo que se ve.
+    if (evento.origin !== window.location.origin) return;
+    const datos = evento.data;
+    if (!datos || datos.tipo !== 'carta-diseno') return;
+    if (datos.diseno) this.disenoPrevia.set(datos.diseno);
+    if ('logo_url' in datos) this.logoPrevia.set(datos.logo_url ?? null);
+    if ('color_negocio' in datos) this.colorNegocioPrevia.set(datos.color_negocio ?? null);
   };
 
   actualizarFlechas(): void {
@@ -217,20 +412,86 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
     this.actualizarFlechas();
   }
 
-  selectCategoria(idCategoria: number, idx: number): void {
-    this.categoriaActiva.set(idCategoria);
-    this.categoriaActivaIdx.set(idx);
-    this.cargarProductos(idCategoria);
+  /**
+   * Lleva la página a la sección de una categoría.
+   *
+   * El destino se resta con la altura ACTUAL de la barra fija, y sirve también cuando la
+   * cabecera se va a plegar por el camino: al plegarse sube a la vez la sección y se acorta la
+   * barra, en la misma cantidad, así que la sección queda justo debajo de la barra en los dos
+   * casos. Se calcula a mano y no con `scrollIntoView` porque ese método mueve también los
+   * contenedores de la página que contiene a la carta: dentro de la vista previa de
+   * Configuración desplazaba el panel entero.
+   */
+  irACategoria(idCategoria: number): void {
+    if (!isPlatformBrowser(this.platformId)) return;
+    const seccion = this.seccionesRef()
+      .map((ref) => ref.nativeElement)
+      .find((el) => Number(el.dataset['categoria']) === idCategoria);
+    if (!seccion) return;
 
-    const el = this.categoriasScroll()?.nativeElement;
-    if (!el) return;
-    const chip = el.children[idx] as HTMLElement | undefined;
-    if (chip) {
-      chip.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    this.categoriaActiva.set(idCategoria);
+    this.centrarChip(idCategoria);
+
+    const alturaBarra = this.barraSuperior()?.nativeElement.getBoundingClientRect().height ?? 0;
+    const inicio = seccion.getBoundingClientRect().top + window.scrollY;
+    const maximo = this.document.documentElement.scrollHeight - window.innerHeight;
+    const destino = Math.max(0, Math.min(inicio - alturaBarra - RESPIRO_SECCION, maximo));
+    if (Math.abs(destino - window.scrollY) < 2) return;
+
+    this.navegandoPorClic = true;
+    const suave = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.scrollTo({ top: destino, behavior: suave ? 'smooth' : 'auto' });
+  }
+
+  /**
+   * Marca en la barra la categoría que se está leyendo: la última cuya sección ya entró en el
+   * tercio superior de lo que queda visible bajo la barra fija. Esperar a que el título tocara
+   * la barra hacía que, con la sección ya a la vista y leyéndose, siguiera marcada la anterior.
+   * Al tocar fondo se marca la última, que en una carta corta nunca llega tan arriba.
+   */
+  private actualizarCategoriaActiva(): void {
+    const secciones = this.seccionesRef().map((ref) => ref.nativeElement);
+    if (secciones.length === 0) return;
+
+    const fondoBarra = this.barraSuperior()?.nativeElement.getBoundingClientRect().bottom ?? 0;
+    const limite = fondoBarra + Math.max(RESPIRO_SECCION * 2, (window.innerHeight - fondoBarra) * 0.3);
+    const alFondo =
+      window.scrollY > 0 &&
+      window.innerHeight + window.scrollY >= this.document.documentElement.scrollHeight - 4;
+
+    let activa = Number(secciones[0].dataset['categoria']);
+    if (alFondo) {
+      activa = Number(secciones[secciones.length - 1].dataset['categoria']);
+    } else {
+      for (const seccion of secciones) {
+        if (seccion.getBoundingClientRect().top > limite) break;
+        activa = Number(seccion.dataset['categoria']);
+      }
+    }
+
+    if (activa !== this.categoriaActivaVisible()) {
+      this.categoriaActiva.set(activa);
+      this.centrarChip(activa);
     }
   }
 
+  /** Deja a la vista, en la barra, el botón de la categoría activa. Solo mueve la barra. */
+  private centrarChip(idCategoria: number): void {
+    const contenedor = this.categoriasScroll()?.nativeElement;
+    if (!contenedor) return;
+    const indice = this.seccionesVisibles().findIndex((s) => s.id_categoria === idCategoria);
+    const chip = contenedor.children[indice] as HTMLElement | undefined;
+    if (!chip) return;
+
+    const caja = contenedor.getBoundingClientRect();
+    const boton = chip.getBoundingClientRect();
+    const izquierda = contenedor.scrollLeft + (boton.left - caja.left) - (caja.width - boton.width) / 2;
+    contenedor.scrollTo({ left: Math.max(0, izquierda), behavior: 'smooth' });
+  }
+
   agregarAlCarrito(prod: ProductoPublico): void {
+    // Un agotado se muestra para que el cliente sepa que existe, no para pedirlo.
+    if (prod.disponible === false) return;
     this.carrito.agregar({
       id_producto: prod.id_producto,
       nombre: prod.nombre,
@@ -282,6 +543,12 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
     return `${this.apiOrigin}${url.startsWith('/') ? '' : '/'}${url}`;
   }
 
+  /**
+   * Carga el negocio, y con él su diseño.
+   *
+   * El diseño viene en la misma respuesta que el nombre, así que la carta aparece ya con su
+   * marca en vez de pintarse primero con los colores de EscalApp y cambiar después.
+   */
   private cargarNegocio(idNegocio: number): void {
     this.cargandoNegocio.set(true);
     this.http
@@ -304,8 +571,7 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
             return;
           }
 
-          this.cargarCategorias(idNegocio);
-          this.cargarPaleta(idNegocio);
+          this.cargarCarta(idNegocio);
         },
         error: () => {
           this.negocioInvalido.set(true);
@@ -314,76 +580,36 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
       });
   }
 
-  private cargarPaleta(idNegocio: number): void {
-    this.cargandoPaleta.set(true);
-    this.http
-      .get<{ success: boolean; data: { id_paleta: number; nombre: string; colores: Record<string, string> } }>(
-        `${environment.apiUrl}/public/negocios/${idNegocio}/paleta`,
-      )
-      .subscribe({
-        next: (res) => {
-          if (res?.data?.colores) {
-            this.aplicarPaleta(res.data.colores);
-          }
-          this.cargandoPaleta.set(false);
-        },
-        error: () => {
-          this.cargandoPaleta.set(false);
-        },
-      });
-  }
-
-  private aplicarPaleta(colores: Record<string, string>): void {
-    if (!isPlatformBrowser(this.platformId)) return;
-    const root = this.document.documentElement;
-    Object.entries(colores).forEach(([key, value]) => {
-      root.style.setProperty(`--${key}`, value);
-    });
-  }
-
-  private cargarCategorias(idNegocio: number): void {
+  /**
+   * La carta entera en una sola petición.
+   *
+   * Las categorías ya no se cargan al tocarlas: se pintan todas seguidas y la barra solo lleva
+   * a cada una. Los agotados se piden siempre y se filtran aquí según el diseño, así la vista
+   * previa puede encender «Mostrar agotados» y verlos sin publicar ni recargar.
+   */
+  private cargarCarta(idNegocio: number): void {
     if (this.negocioInvalido() || this.planInactivo()) return;
-    this.cargandoCategorias.set(true);
+    this.cargandoCarta.set(true);
     this.http
-      .get<{ success: boolean; data: CategoriaPublica[] }>(
-        `${environment.apiUrl}/public/carta/categorias?id_negocio=${idNegocio}`,
+      .get<{ success: boolean; data: SeccionPublica[] }>(
+        `${environment.apiUrl}/public/carta/completa?id_negocio=${idNegocio}&incluir_agotados=1`,
       )
       .subscribe({
         next: (res) => {
-          const cats = res?.data ?? [];
-          this.categorias.set(cats);
-          this.cargandoCategorias.set(false);
-          if (cats.length > 0) {
-            this.selectCategoria(cats[0].id_categoria, 0);
-          } else {
-            this.productos.set([]);
-          }
+          this.secciones.set(
+            (res?.data ?? []).map((seccion) => ({ ...seccion, productos: seccion.productos ?? [] })),
+          );
+          this.categoriaActiva.set(null);
+          this.cargandoCarta.set(false);
           setTimeout(() => this.actualizarFlechas(), 50);
         },
         error: (err) => {
-          this.cargandoCategorias.set(false);
+          this.cargandoCarta.set(false);
           if (err?.status === 402) {
             this.planInactivo.set(true);
-            this.categorias.set([]);
+            this.secciones.set([]);
           }
         },
-      });
-  }
-
-  private cargarProductos(idCategoria: number): void {
-    const idNegocio = this.negocioId();
-    if (!idNegocio) return;
-    this.cargandoProductos.set(true);
-    this.http
-      .get<{ success: boolean; data: ProductoPublico[] }>(
-        `${environment.apiUrl}/public/carta/productos?id_negocio=${idNegocio}&id_categoria=${idCategoria}`,
-      )
-      .subscribe({
-        next: (res) => {
-          this.productos.set(res?.data ?? []);
-          this.cargandoProductos.set(false);
-        },
-        error: () => this.cargandoProductos.set(false),
       });
   }
 }

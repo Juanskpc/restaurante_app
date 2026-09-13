@@ -1,5 +1,5 @@
 import {
-  ChangeDetectionStrategy, Component, WritableSignal, computed, effect, inject, signal,
+  ChangeDetectionStrategy, Component, WritableSignal, computed, effect, inject, signal, viewChild,
 } from '@angular/core';
 import {
   AbstractControl,
@@ -18,6 +18,7 @@ import { PaletaColor } from '../../../core/theme/palette.model';
 import { ConfiguracionService, MetodoPago } from './configuracion.service';
 import { ConfiguracionNegocio } from './configuracion.models';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
+import { CartaDisenoPanelComponent } from './carta-diseno/carta-diseno-panel';
 
 /**
  * Mezcla un hex con blanco. `cantidad` = proporción de blanco (0 = el color tal
@@ -60,7 +61,7 @@ function optionalUrlValidator(control: AbstractControl): ValidationErrors | null
 
 @Component({
   selector: 'app-configuracion',
-  imports: [ReactiveFormsModule, LucideAngularModule],
+  imports: [ReactiveFormsModule, LucideAngularModule, CartaDisenoPanelComponent],
   templateUrl: './configuracion.html',
   styleUrl: './configuracion.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -82,11 +83,35 @@ export class ConfiguracionComponent {
    */
   readonly tabs = [
     { id: 'general'    as const, label: 'General',    icono: 'settings' },
-    { id: 'apariencia' as const, label: 'Apariencia', icono: 'star' },
+    { id: 'apariencia' as const, label: 'Apariencia', icono: 'palette' },
     { id: 'cobros'     as const, label: 'Cobros',     icono: 'wallet' },
     { id: 'operacion'  as const, label: 'Operación',  icono: 'toggle-right' },
   ];
   readonly tab = signal<'general' | 'apariencia' | 'cobros' | 'operacion'>('general');
+
+  /** El editor de la carta: se le pregunta si hay cambios sin publicar antes de salir. */
+  private readonly panelCarta = viewChild(CartaDisenoPanelComponent);
+
+  /**
+   * Cambia de pestaña sin perder en silencio un diseño de carta a medio hacer.
+   *
+   * El borrador de la carta vive en pantalla y no se guarda hasta publicar: salir de
+   * Apariencia desmonta el editor y lo descarta. Se pregunta solo si de verdad hay algo.
+   */
+  async cambiarTab(id: 'general' | 'apariencia' | 'cobros' | 'operacion'): Promise<void> {
+    if (id === this.tab()) return;
+    if (this.tab() === 'apariencia' && this.panelCarta()?.hayCambios()) {
+      const salir = await this.uiFeedback.confirm({
+        title: 'Cambios sin publicar',
+        message: 'Hiciste cambios en la carta virtual que tus clientes todavía no ven. Si cambias de pestaña se descartan.',
+        confirmText: 'Descartar y salir',
+        cancelText: 'Seguir editando',
+        tone: 'warning',
+      });
+      if (!salir) return;
+    }
+    this.tab.set(id);
+  }
 
   /** Solo General y Apariencia editan el formulario; el resto se guarda al tocarlo. */
   readonly tabUsaFormulario = computed(() => this.tab() === 'general' || this.tab() === 'apariencia');
@@ -265,7 +290,8 @@ export class ConfiguracionComponent {
     if (!idNegocio) return;
     const confirmar = await this.uiFeedback.confirm({
       title: 'Eliminar método de pago',
-      message: `¿Estás seguro de eliminar "${m.nombre}"? No afectará pedidos ya cobrados.`,
+      message: `¿Estás seguro de eliminar "${m.nombre}"? Los turnos ya cerrados la siguen `
+        + 'mostrando en su desglose; solo deja de poder elegirse de aquí en adelante.',
       confirmText: 'Eliminar',
       cancelText: 'Cancelar',
       tone: 'warning',
@@ -279,6 +305,17 @@ export class ConfiguracionComponent {
       },
       error: (e) => {
         const msg = e?.error?.message || 'No se pudo eliminar el método.';
+        // El servidor rechaza esto cuando el turno abierto todavía usa la forma de
+        // pago, y su respuesta explica qué estorba y qué hacer. Va en diálogo y no en
+        // un aviso pasajero: es un texto que hay que leer entero para saber por qué.
+        if (e?.error?.errors?.code === 'METODO_PAGO_EN_USO') {
+          void this.uiFeedback.alert({
+            title: 'La caja todavía la usa',
+            message: msg,
+            tone: 'warning',
+          });
+          return;
+        }
         this.uiFeedback.error(msg);
       },
     });
@@ -519,6 +556,8 @@ export class ConfiguracionComponent {
         next: async (config) => {
           this.configuracion.set(config);
           this.successMessage.set('Configuracion guardada correctamente.');
+          // La carta usa el color de la paleta cuando no tiene uno propio.
+          this.panelCarta()?.recargar();
 
           if (config.paleta) {
             this.paletteService.applyPalette(config.paleta);

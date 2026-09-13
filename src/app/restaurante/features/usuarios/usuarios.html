@@ -369,6 +369,43 @@
     </section>
   }
 
+  <!-- ── Invitación al usuario recién creado ──
+       Sale sola al terminar de crear, porque la contraseña en claro solo existe en
+       ese momento: si el administrador cierra sin enviarla, hay que cambiarla para
+       volver a tenerla. -->
+  @if (invitacion(); as mensaje) {
+    <div class="modal-backdrop"></div>
+    <section class="modal modal--invitacion" role="dialog" aria-modal="true"
+             aria-label="Invitación para el nuevo usuario">
+      <header class="modal__header">
+        <h2>Enviar acceso a {{ invitacionNombre() | titlecase }}</h2>
+        <button type="button" class="modal__close" (click)="cerrarInvitacion()" aria-label="Cerrar">x</button>
+      </header>
+
+      <div class="modal__body">
+        <p class="hint">
+          Este mensaje lleva la contraseña. Envíalo por donde el usuario lo vaya a leer y
+          pídele que la cambie al entrar.
+        </p>
+
+        <pre class="invitacion__mensaje">{{ mensaje }}</pre>
+
+        <footer class="modal__footer">
+          <button type="button" class="btn btn--outline" (click)="copiarInvitacion()">
+            <lucide-icon name="copy" [size]="16" />
+            Copiar
+          </button>
+          <button type="button" class="btn btn--primary"
+                  [disabled]="enviandoInvitacion()"
+                  (click)="compartirInvitacion()">
+            <lucide-icon name="send" [size]="16" />
+            {{ enviandoInvitacion() ? 'Abriendo...' : 'Compartir' }}
+          </button>
+        </footer>
+      </div>
+    </section>
+  }
+
   @if (showPermisosUsuarioModal()) {
     <div class="modal-backdrop"></div>
     <section class="modal modal--wide" role="dialog" aria-modal="true" aria-label="Permisos por usuario">

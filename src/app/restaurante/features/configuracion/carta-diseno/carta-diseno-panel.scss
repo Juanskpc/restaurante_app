@@ -1,0 +1,865 @@
+:host {
+  display: block;
+}
+
+// Ámbar oscuro para lo que pide atención: el `--color-warning` del tema (#ef6c00) no llega a
+// 4.5:1 sobre blanco en texto pequeño.
+$atencion: #9a4a00;
+$atencion-fuerte: #b45309;
+
+.cd {
+  display: grid;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+}
+
+/**
+ * Ninguna rejilla del panel puede crecer por su contenido.
+ *
+ * Una rejilla sin columnas declaradas tiene una columna `auto`, que se ensancha hasta lo que
+ * mida su hijo más ancho. La vista previa se escala según el ancho de su marco, pero antes de
+ * medirlo pinta la carta a tamaño real (390 px en móvil, 1280 en escritorio): el marco crecía con
+ * ella, se medía ancho, la escala quedaba en 1 y el panel desbordaba la pantalla. En un teléfono
+ * el navegador reducía la página entera para que cupiera ese ancho, y lo que se veía era una vista
+ * previa diminuta con un hueco vacío enorme debajo.
+ */
+.cd,
+.cd-controles,
+.cd-lateral {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.cd-previa__marco {
+  min-width: 0;
+}
+
+.cd-previa__lienzo {
+  max-width: 100%;
+}
+
+// ── Cabecera ──
+.cd-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+.cd-head__txt {
+  display: grid;
+  gap: 4px;
+  max-width: 62ch;
+
+  h2 {
+    margin: 0;
+    font-size: var(--font-size-base);
+  }
+}
+
+.cd-hint {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+}
+
+.cd-head__acciones {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cd-estado {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  white-space: nowrap;
+
+  &[data-tono='ok'] {
+    background: var(--color-success-bg);
+    color: var(--color-success);
+  }
+
+  &[data-tono='pendiente'] {
+    background: var(--color-warning-bg);
+    color: $atencion;
+  }
+}
+
+.cd-estado__punto {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+// ── Botones ──
+.cd-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 7px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast);
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+
+  &:disabled,
+  &.is-deshabilitado {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  &.is-deshabilitado {
+    pointer-events: none;
+  }
+
+  &--primary {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: var(--color-on-primary);
+
+    &:hover:not(:disabled) {
+      background: var(--color-primary-hover);
+      border-color: var(--color-primary-hover);
+    }
+  }
+
+  &--ghost {
+    background: var(--color-surface);
+    border-color: var(--color-border);
+    color: var(--color-text-primary);
+
+    &:hover:not(:disabled) {
+      border-color: var(--color-primary);
+      color: var(--color-primary);
+    }
+  }
+
+  &--texto {
+    min-height: auto;
+    padding: 2px 0;
+    border: 0;
+    background: none;
+    color: var(--color-primary);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+}
+
+.cd-spin {
+  animation: cd-girar 1s linear infinite;
+}
+
+@keyframes cd-girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+// ── Estados de la pantalla ──
+.cd-carga,
+.cd-error,
+.cd-nota {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+}
+
+.cd-carga {
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+}
+
+.cd-error {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  background: var(--color-error-bg);
+  color: var(--color-error);
+}
+
+.cd-nota {
+  background: var(--color-warning-bg);
+  color: $atencion;
+}
+
+// ── Rejilla: controles a la izquierda, vista previa a la derecha ──
+.cd-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 430px);
+  gap: var(--spacing-lg);
+  align-items: start;
+
+  @media (max-width: 1100px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.cd-controles {
+  display: grid;
+  gap: var(--spacing-lg);
+  min-width: 0;
+}
+
+// La vista previa acompaña al scroll mientras se ajustan los controles.
+.cd-lateral {
+  position: sticky;
+  top: var(--spacing-md);
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+
+  @media (max-width: 1100px) {
+    position: static;
+  }
+}
+
+.cd-bloque {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.cd-bloque__titulo {
+  margin: 0 0 2px;
+  padding: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.cd-ayuda {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  line-height: 1.5;
+
+  strong {
+    color: var(--color-text-primary);
+  }
+}
+
+// ── Plantillas ──
+.cd-plantillas {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 10px;
+}
+
+.cd-plantilla,
+.cd-formato {
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+
+  &:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--color-primary) 55%, var(--color-border));
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+
+  &.is-on {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 18%, transparent);
+  }
+
+  &:disabled {
+    cursor: default;
+  }
+}
+
+.cd-plantilla {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+
+  &.is-bloqueada {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+.cd-plantilla__txt {
+  display: grid;
+  gap: 1px;
+
+  strong {
+    font-size: var(--font-size-sm);
+  }
+
+  small {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+  }
+}
+
+.cd-plantilla__candado {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 3px;
+  border-radius: 50%;
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+}
+
+// Miniatura: una tarjeta abstracta con los colores, la letra y el acento de la plantilla.
+.cd-muestra {
+  position: relative;
+  display: block;
+  height: 78px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
+  border-radius: 6px;
+}
+
+.cd-muestra__tarjeta {
+  position: absolute;
+  inset: 10px 32px 10px 8px;
+  display: grid;
+  grid-template-rows: 1fr auto auto;
+  gap: 4px;
+  padding: 5px;
+  border: 1px solid;
+  border-radius: 4px;
+}
+
+.cd-muestra__foto {
+  border-radius: 2px;
+}
+
+.cd-muestra__linea {
+  width: 80%;
+  height: 4px;
+  border-radius: 2px;
+  opacity: 0.85;
+
+  &--corta {
+    width: 50%;
+    opacity: 0.6;
+  }
+}
+
+.cd-muestra__aa {
+  position: absolute;
+  top: 8px;
+  right: 7px;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.cd-muestra__acento {
+  position: absolute;
+  right: 9px;
+  bottom: 10px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
+// ── Formatos ──
+.cd-formatos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.cd-formato {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px;
+}
+
+.cd-formato__txt {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+
+  strong {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--font-size-sm);
+  }
+
+  small {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    line-height: 1.4;
+  }
+}
+
+.cd-sugerido {
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  color: var(--color-primary);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+// Diagrama del formato: cuatro bloques que se reparten distinto en cada uno.
+.cd-formato__diagrama {
+  display: grid;
+  flex: 0 0 38px;
+  height: 46px;
+  gap: 3px;
+
+  i {
+    display: block;
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--color-text-secondary) 30%, transparent);
+  }
+
+  &[data-formato='cards'] {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+  }
+
+  &[data-formato='lista'] {
+    grid-template-rows: 14px repeat(3, 1fr);
+
+    i:first-child {
+      background: color-mix(in srgb, var(--color-primary) 45%, transparent);
+    }
+  }
+
+  &[data-formato='mixto'] {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 18px 1fr 1fr;
+
+    i:nth-child(1),
+    i:nth-child(2) {
+      background: color-mix(in srgb, var(--color-primary) 45%, transparent);
+    }
+
+    i:nth-child(3),
+    i:nth-child(4) {
+      grid-column: 1 / -1;
+    }
+  }
+}
+
+// ── Avisos ──
+.cd-avisos {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-secondary);
+
+  &--ok .cd-avisos__titulo {
+    color: var(--color-success);
+  }
+}
+
+.cd-avisos__titulo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: var(--font-size-sm);
+}
+
+.cd-contador {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-full);
+  background: $atencion-fuerte;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.cd-aviso {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-left-width: 3px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+
+  &[data-nivel='atencion'] {
+    border-left-color: $atencion-fuerte;
+
+    .cd-aviso__icono {
+      color: $atencion-fuerte;
+    }
+  }
+
+  &[data-nivel='info'] {
+    border-left-color: var(--color-primary);
+
+    .cd-aviso__icono {
+      color: var(--color-primary);
+    }
+  }
+}
+
+.cd-aviso__icono {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.cd-aviso__txt {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+
+  strong {
+    font-size: var(--font-size-sm);
+  }
+
+  p {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    line-height: 1.5;
+  }
+
+  .cd-btn--texto {
+    justify-self: start;
+    font-size: var(--font-size-xs);
+  }
+}
+
+// ── Marca ──
+.cd-campo {
+  display: grid;
+  gap: 6px;
+}
+
+.cd-campo__etiqueta {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+}
+
+.cd-input {
+  width: 100%;
+  min-height: 40px;
+  padding: 9px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--font-size-sm);
+
+  &:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: var(--focus-ring);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+  }
+}
+
+.cd-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cd-logo__vista {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 64px;
+  height: 64px;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  span {
+    font-size: 1.3rem;
+    font-weight: 800;
+  }
+}
+
+.cd-logo__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  min-width: 0;
+
+  .cd-ayuda {
+    flex-basis: 100%;
+  }
+}
+
+// El campo de archivo sigue siendo enfocable con teclado; su etiqueta muestra el foco.
+.cd-oculto {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+
+  &:focus-visible + label {
+    box-shadow: var(--focus-ring);
+  }
+}
+
+.cd-color {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.cd-color__selector {
+  width: 44px;
+  height: 40px;
+  padding: 2px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+.cd-color__hex {
+  width: 112px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  text-transform: uppercase;
+}
+
+.cd-contraste {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: var(--radius-full);
+  background: var(--color-success-bg);
+  color: var(--color-success);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+
+  &.is-bajo {
+    background: var(--color-warning-bg);
+    color: $atencion;
+  }
+}
+
+.cd-atajos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+
+  &:empty {
+    display: none;
+  }
+}
+
+.cd-error-campo {
+  color: var(--color-error);
+  font-size: var(--font-size-xs);
+}
+
+.cd-segmentado {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 3px;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-secondary);
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 34px;
+    padding: 6px 10px;
+    border: 0;
+    border-radius: calc(var(--radius-md) - 2px);
+    background: transparent;
+    color: var(--color-text-secondary);
+    font: inherit;
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    cursor: pointer;
+
+    &.is-on {
+      background: var(--color-surface);
+      color: var(--color-text-primary);
+      box-shadow: var(--shadow-sm);
+    }
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: var(--focus-ring);
+    }
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
+}
+
+.cd-borde-muestra {
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+}
+
+.cd-switch {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+
+  input {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    margin-top: 2px;
+    accent-color: var(--color-primary);
+  }
+
+  span {
+    display: grid;
+    gap: 2px;
+  }
+
+  strong {
+    font-size: var(--font-size-sm);
+  }
+
+  small {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    line-height: 1.45;
+  }
+}
+
+// ── Vista previa ──
+.cd-previa__barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+
+  small {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+  }
+}
+
+.cd-previa__marco {
+  position: relative;
+  overflow: clip;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-secondary);
+
+  &.is-movil {
+    border-color: transparent;
+    background: transparent;
+  }
+}
+
+.cd-previa__lienzo {
+  position: relative;
+  margin: 0 auto;
+  // `clip` y no `hidden`: un contenedor `hidden` sigue siendo desplazable por código, y la
+  // carta de dentro lo movía al elegir una categoría. `contain: strict` impide además que el
+  // iframe, que mide 1280×820 aunque se vea a escala, cuente para el alto de la página: en el
+  // móvil dejaba un hueco vacío enorme debajo de la vista previa.
+  overflow: clip;
+  contain: strict;
+
+  .is-movil & {
+    border-radius: 22px;
+    box-shadow:
+      0 0 0 1px var(--color-border),
+      0 12px 32px rgba(15, 10, 42, 0.14);
+  }
+}
+
+// Se escala desde la esquina: el iframe mide lo que mediría el dispositivo y se reduce para
+// caber, en vez de pintarse estrecho y cambiar de diseño.
+.cd-previa__iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border: 0;
+  background: #ffffff;
+  transform-origin: 0 0;
+}

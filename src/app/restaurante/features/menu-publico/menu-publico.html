@@ -1,6 +1,6 @@
 <div class="public-menu">
   <!-- ═══════════ BARRA SUPERIOR FIJA (cabecera + categorías) ═══════════ -->
-  <div class="menu-topbar" [class.is-compact]="headerCompacto()">
+  <div class="menu-topbar" #barraSuperior [class.is-compact]="headerCompacto()">
     <!-- ═══════════ HERO HEADER ═══════════ -->
     <header class="hero">
       <div class="hero-inner">
@@ -16,8 +16,19 @@
           </div>
         } @else {
           <div class="hero-brand">
-            <div class="hero-logo">
-              <lucide-icon name="utensils-crossed" [size]="22" />
+            <!-- Sin logo se muestran las iniciales del negocio y no un ícono genérico: el
+                 cliente tiene que reconocer de quién es la carta. -->
+            <div class="hero-logo" [class.hero-logo--img]="!!logoUrl()">
+              @if (logoUrl(); as logo) {
+                <img
+                  [src]="resolveImg(logo)"
+                  [alt]="'Logo de ' + (negocio()?.nombre ?? 'el negocio')"
+                  width="42"
+                  height="42"
+                />
+              } @else {
+                <span class="hero-monograma" aria-hidden="true">{{ iniciales() }}</span>
+              }
             </div>
             <div class="hero-text">
               <span class="hero-pill">Menú Digital</span>
@@ -40,16 +51,17 @@
     </header>
 
     <!-- Las categorías viajan con la cabecera: pinchadas juntas, así no hay una altura
-         que adivinar entre una y otra. -->
+         que adivinar entre una y otra. Cada botón lleva a su sección, y al bajar a mano se
+         va marcando la que se está leyendo. -->
     @if (!negocioInvalido() && !planInactivo() && negocio()) {
       <nav class="categories-bar" aria-label="Categorías del menú">
-        @if (cargandoCategorias()) {
+        @if (cargandoCarta()) {
           <div class="categories-skeleton">
             @for (i of [1,2,3,4,5]; track i) {
               <div class="skeleton-chip"></div>
             }
           </div>
-        } @else if (categorias().length === 0) {
+        } @else if (seccionesVisibles().length === 0) {
           <div class="categories-empty">
             <lucide-icon name="folder-x" [size]="14" />
             <span>Sin categorías</span>
@@ -71,20 +83,21 @@
               #catScroll
               (scroll)="onCatScroll()"
             >
-              @for (cat of categorias(); track cat.id_categoria; let i = $index) {
+              @for (s of seccionesVisibles(); track s.id_categoria) {
                 <button
                   type="button"
                   class="cat-chip"
-                  [class.cat-chip--active]="categoriaActiva() === cat.id_categoria"
-                  (click)="selectCategoria(cat.id_categoria, i)"
+                  [class.cat-chip--active]="categoriaActivaVisible() === s.id_categoria"
+                  [attr.aria-current]="categoriaActivaVisible() === s.id_categoria ? 'true' : null"
+                  (click)="irACategoria(s.id_categoria)"
                 >
-                  @if (cat.imagen_url) {
-                    <img class="cat-img" [src]="resolveImg(cat.imagen_url)" [alt]="cat.nombre" loading="lazy" />
+                  @if (s.imagen_url) {
+                    <img class="cat-img" [src]="resolveImg(s.imagen_url)" [alt]="s.nombre" loading="lazy" />
                   } @else {
-                    <span class="cat-emoji">{{ cat.icono }}</span>
+                    <span class="cat-emoji">{{ s.icono }}</span>
                   }
-                  <span class="cat-name">{{ cat.nombre }}</span>
-                  <span class="cat-badge">{{ cat.total_productos }}</span>
+                  <span class="cat-name">{{ s.nombre }}</span>
+                  <span class="cat-badge">{{ s.productos.length }}</span>
                 </button>
               }
             </div>
@@ -137,10 +150,8 @@
   <!-- ═══════════ MENU CONTENT ═══════════ -->
   @if (!negocioInvalido() && !planInactivo() && negocio()) {
     <main class="main-content">
-
-      <!-- Products -->
-      <section class="products-section">
-        @if (cargandoProductos()) {
+      @if (cargandoCarta()) {
+        <div class="carta-secciones">
           <div class="products-skeleton">
             @for (i of [1,2,3,4]; track i) {
               <div class="skeleton-card">
@@ -152,90 +163,136 @@
               </div>
             }
           </div>
-        } @else if (productos().length === 0) {
-          <div class="state-card state-card--empty">
-            <div class="state-icon state-icon--empty">
-              <lucide-icon name="coffee" [size]="32" />
-            </div>
-            <p>No hay productos en esta categoría</p>
+        </div>
+      } @else if (seccionesVisibles().length === 0) {
+        <div class="state-card state-card--empty">
+          <div class="state-icon state-icon--empty">
+            <lucide-icon name="coffee" [size]="32" />
           </div>
-        } @else {
-          <div class="products-grid">
-            @for (prod of productos(); track prod.id_producto) {
-              <article class="product-card" [class.product-card--popular]="prod.es_popular">
-                @if (prod.es_popular) {
-                  <span class="popular-badge">
-                    <lucide-icon name="star" [size]="10" />
-                    <span>Popular</span>
-                  </span>
+          <p>Esta carta todavía no tiene productos</p>
+        </div>
+      } @else {
+        <!-- Todas las categorías seguidas, una sección cada una. -->
+        <div class="carta-secciones">
+          @for (s of seccionesVisibles(); track s.id_categoria) {
+            <section
+              #seccion
+              class="seccion"
+              [attr.data-categoria]="s.id_categoria"
+              [attr.aria-labelledby]="'seccion-titulo-' + s.id_categoria"
+            >
+              <!-- En Lista y Mixto la categoría abre con su foto; en Tarjetas cada producto ya
+                   trae la suya y basta el nombre. -->
+              <header
+                class="categoria-cabecera"
+                [class.categoria-cabecera--foto]="formato() !== 'cards' && !!s.imagen_url"
+              >
+                @if (formato() !== 'cards' && s.imagen_url) {
+                  <img class="categoria-cabecera__img" [src]="resolveImg(s.imagen_url)" alt="" loading="lazy" />
+                }
+                <div class="categoria-cabecera__txt">
+                  <h2 class="categoria-cabecera__titulo" [id]="'seccion-titulo-' + s.id_categoria">
+                    @if (formato() === 'cards' || !s.imagen_url) {
+                      <span class="categoria-cabecera__icono" aria-hidden="true">{{ s.icono }}</span>
+                    }
+                    {{ s.nombre }}
+                  </h2>
+                  @if (s.descripcion) {
+                    <p class="categoria-cabecera__desc">{{ s.descripcion }}</p>
+                  }
+                </div>
+              </header>
+
+              @if (formato() === 'cards') {
+                <div class="products-grid">
+                  @for (prod of s.productos; track prod.id_producto) {
+                    <ng-container *ngTemplateOutlet="tarjeta; context: { $implicit: prod }" />
+                  }
+                </div>
+              } @else {
+                @if (s.destacados.length > 0) {
+                  <div class="products-grid products-grid--destacados">
+                    @for (prod of s.destacados; track prod.id_producto) {
+                      <ng-container *ngTemplateOutlet="tarjeta; context: { $implicit: prod }" />
+                    }
+                  </div>
                 }
 
-                <div class="product-img">
-                  @if (prod.imagen_url) {
-                    <img [src]="resolveImg(prod.imagen_url)" [alt]="prod.nombre" loading="lazy" />
-                  } @else {
-                    <div class="product-placeholder">
-                      <span>{{ prod.icono }}</span>
-                    </div>
-                  }
-                </div>
+                @if (s.enLista.length > 0) {
+                  <ul class="products-list">
+                    @for (prod of s.enLista; track prod.id_producto) {
+                      <li class="fila" [class.is-agotado]="prod.disponible === false">
+                        @if (miniaturaEnLista()) {
+                          <div class="fila-thumb">
+                            @if (prod.imagen_url) {
+                              <img [src]="resolveImg(prod.imagen_url)" [alt]="prod.nombre" loading="lazy" />
+                            } @else {
+                              <span aria-hidden="true">{{ prod.icono }}</span>
+                            }
+                          </div>
+                        }
 
-                <div class="product-info">
-                  <div class="product-header">
-                    <h3 class="product-name">{{ prod.nombre }}</h3>
-                    <span class="product-price">{{ formatPrice(prod.precio) }}</span>
-                  </div>
+                        <div class="fila-info">
+                          <div class="fila-cabeza">
+                            <h3 class="product-name fila-nombre">{{ prod.nombre }}</h3>
+                            @if (precioConPuntos()) {
+                              <span class="fila-puntos" aria-hidden="true"></span>
+                            }
+                            <span class="product-price fila-precio">{{ formatPrice(prod.precio) }}</span>
+                          </div>
+                          @if (prod.descripcion) {
+                            <p class="product-desc fila-desc">{{ prod.descripcion }}</p>
+                          }
+                          @if (prod.disponible === false) {
+                            <span class="agotado-badge">Agotado</span>
+                          }
+                        </div>
 
-                  @if (prod.descripcion) {
-                    <p class="product-desc">{{ prod.descripcion }}</p>
-                  }
-
-                  @if (puedePedir()) {
-                    <!--
-                      Dos estados, no uno. Con el producto ya en el carrito se muestran los
-                      controles de cantidad en vez de un botón que repite «Agregar»: quien quiere
-                      dos hamburguesas necesita ver cuántas lleva, no adivinar si pulsó bien.
-                    -->
-                    @if (carrito.cantidadDe(prod.id_producto) > 0) {
-                      <div class="product-qty">
-                        <button
-                          type="button"
-                          class="qty-btn"
-                          (click)="quitarDelCarrito(prod.id_producto)"
-                          [attr.aria-label]="'Quitar uno de ' + prod.nombre"
-                        >
-                          <lucide-icon name="minus" [size]="16" />
-                        </button>
-                        <span class="qty-value" aria-live="polite">
-                          {{ carrito.cantidadDe(prod.id_producto) }}
-                        </span>
-                        <button
-                          type="button"
-                          class="qty-btn"
-                          (click)="agregarAlCarrito(prod)"
-                          [attr.aria-label]="'Agregar otro ' + prod.nombre"
-                        >
-                          <lucide-icon name="plus" [size]="16" />
-                        </button>
-                      </div>
-                    } @else {
-                      <button
-                        type="button"
-                        class="product-add"
-                        (click)="agregarAlCarrito(prod)"
-                        [attr.aria-label]="'Agregar ' + prod.nombre + ' al pedido'"
-                      >
-                        <lucide-icon name="plus" [size]="16" />
-                        <span>Agregar</span>
-                      </button>
+                        @if (puedePedir() && prod.disponible !== false) {
+                          <div class="fila-accion">
+                            @if (carrito.cantidadDe(prod.id_producto) > 0) {
+                              <div class="product-qty">
+                                <button
+                                  type="button"
+                                  class="qty-btn"
+                                  (click)="quitarDelCarrito(prod.id_producto)"
+                                  [attr.aria-label]="'Quitar uno de ' + prod.nombre"
+                                >
+                                  <lucide-icon name="minus" [size]="16" />
+                                </button>
+                                <span class="qty-value" aria-live="polite">
+                                  {{ carrito.cantidadDe(prod.id_producto) }}
+                                </span>
+                                <button
+                                  type="button"
+                                  class="qty-btn"
+                                  (click)="agregarAlCarrito(prod)"
+                                  [attr.aria-label]="'Agregar otro ' + prod.nombre"
+                                >
+                                  <lucide-icon name="plus" [size]="16" />
+                                </button>
+                              </div>
+                            } @else {
+                              <button
+                                type="button"
+                                class="fila-add"
+                                (click)="agregarAlCarrito(prod)"
+                                [attr.aria-label]="'Agregar ' + prod.nombre + ' al pedido'"
+                              >
+                                <lucide-icon name="plus" [size]="18" />
+                              </button>
+                            }
+                          </div>
+                        }
+                      </li>
                     }
-                  }
-                </div>
-              </article>
-            }
-          </div>
-        }
-      </section>
+                  </ul>
+                }
+              }
+            </section>
+          }
+        </div>
+      }
 
       <!-- ═══════ REDES SOCIALES DEL RESTAURANTE ═══════ -->
       @if (tieneSocial()) {
@@ -262,79 +319,110 @@
     </main>
   }
 
-  <!-- ═══════════ ESCALAPP BRANDING FOOTER ═══════════ -->
-  <footer class="escalapp-footer">
-    <div class="footer-inner">
-      <div class="footer-divider"></div>
-
-      <div class="footer-branding">
-        <span class="footer-marca">
-          <img
-            class="footer-icono"
-            [src]="appLogoPath"
-            alt=""
-            aria-hidden="true"
-            width="40"
-            height="40"
-          />
-          <span class="footer-nombre">EscalApp</span>
-        </span>
-
-        <p class="footer-powered">
-          Menú digital <strong>powered by Escalapp</strong>
-        </p>
-
-        <p class="footer-tagline">
-          La plataforma integral que impulsa negocios. Gestiona tu restaurante, parqueadero, gimnasio,
-          tienda o reservas desde un solo lugar.
-        </p>
-      </div>
-
-      <a
-        class="footer-cta"
-        [href]="appSiteUrl"
-        target="_blank"
-        rel="noopener"
-      >
-        <span>¿Quieres tu propio menú digital?</span>
-        <div class="footer-cta-icon">
-          <lucide-icon name="arrow-right" [size]="16" />
-        </div>
+  <!-- ═══════════ Pie de EscalApp ═══════════
+       Una sola línea, como en el portal de reservas: la invitación a crear un menú propio y la
+       nota legal. El pie de la carta de otro negocio es su cierre, no nuestro escaparate. -->
+  <footer class="pie" [class.pie--con-boton]="puedePedir() && !carrito.vacio()">
+    <div class="pie__interior">
+      <a class="pie__cta" [href]="appSiteUrl" target="_blank" rel="noopener">
+        <span>Crea tu propio menú digital</span>
+        <span class="pie__cta-icono"><lucide-icon name="arrow-right" [size]="16" /></span>
       </a>
 
-      <div class="footer-links">
-        <a [href]="appSiteUrl" target="_blank" rel="noopener" class="footer-link">
-          <lucide-icon name="globe" [size]="13" />
-          <span>escalapp.cloud</span>
-        </a>
-        <a [href]="'mailto:' + appContactEmail" class="footer-link">
-          <lucide-icon name="mail" [size]="13" />
-          <span>{{ appContactEmail }}</span>
-        </a>
-      </div>
+      <span class="pie__sep" aria-hidden="true"></span>
 
-      <div class="footer-legal">
-        <a [href]="urlTerminos" target="_blank" rel="noopener" class="footer-link">
-          Términos y condiciones
-        </a>
-        <span aria-hidden="true">·</span>
-        <a [href]="urlPrivacidad" target="_blank" rel="noopener" class="footer-link">
-          Política de tratamiento de datos
-        </a>
-      </div>
-
-      <div class="footer-copy">
-        <span>&copy; {{ currentYear }} Escalapp. Todos los derechos reservados.</span>
-      </div>
+      <span class="pie__copy">© {{ anio }} Escalapp. Todos los derechos reservados.</span>
     </div>
   </footer>
 </div>
 
+<!-- ═══════ TARJETA DE PRODUCTO ═══════
+     Una sola plantilla para Tarjetas y para los destacados de Mixto: si se cambia cómo se ve
+     un producto, se cambia en un sitio. -->
+<ng-template #tarjeta let-prod>
+  <article
+    class="product-card"
+    [class.product-card--popular]="prod.es_popular"
+    [class.product-card--agotado]="prod.disponible === false"
+  >
+    @if (prod.disponible === false) {
+      <span class="popular-badge agotado-marca">Agotado</span>
+    } @else if (prod.es_popular) {
+      <span class="popular-badge">
+        <lucide-icon name="star" [size]="10" />
+        <span>Popular</span>
+      </span>
+    }
+
+    <div class="product-img">
+      @if (prod.imagen_url) {
+        <img [src]="resolveImg(prod.imagen_url)" [alt]="prod.nombre" loading="lazy" />
+      } @else {
+        <div class="product-placeholder">
+          <span>{{ prod.icono }}</span>
+        </div>
+      }
+    </div>
+
+    <div class="product-info">
+      <div class="product-header">
+        <h3 class="product-name">{{ prod.nombre }}</h3>
+        <span class="product-price">{{ formatPrice(prod.precio) }}</span>
+      </div>
+
+      @if (prod.descripcion) {
+        <p class="product-desc">{{ prod.descripcion }}</p>
+      }
+
+      @if (puedePedir() && prod.disponible !== false) {
+        <!--
+          Dos estados, no uno. Con el producto ya en el carrito se muestran los
+          controles de cantidad en vez de un botón que repite «Agregar»: quien quiere
+          dos hamburguesas necesita ver cuántas lleva, no adivinar si pulsó bien.
+        -->
+        @if (carrito.cantidadDe(prod.id_producto) > 0) {
+          <div class="product-qty">
+            <button
+              type="button"
+              class="qty-btn"
+              (click)="quitarDelCarrito(prod.id_producto)"
+              [attr.aria-label]="'Quitar uno de ' + prod.nombre"
+            >
+              <lucide-icon name="minus" [size]="16" />
+            </button>
+            <span class="qty-value" aria-live="polite">
+              {{ carrito.cantidadDe(prod.id_producto) }}
+            </span>
+            <button
+              type="button"
+              class="qty-btn"
+              (click)="agregarAlCarrito(prod)"
+              [attr.aria-label]="'Agregar otro ' + prod.nombre"
+            >
+              <lucide-icon name="plus" [size]="16" />
+            </button>
+          </div>
+        } @else {
+          <button
+            type="button"
+            class="product-add"
+            (click)="agregarAlCarrito(prod)"
+            [attr.aria-label]="'Agregar ' + prod.nombre + ' al pedido'"
+          >
+            <lucide-icon name="plus" [size]="16" />
+            <span>Agregar</span>
+          </button>
+        }
+      }
+    </div>
+  </article>
+</ng-template>
+
 <!-- ═══════ PEDIDO: BOTÓN FLOTANTE Y PRE-PEDIDO ═══════
 
-     Solo aparece si el negocio publicó un WhatsApp al que escribir. Sin número, el menú sigue
-     siendo un menú perfectamente útil: se mira, y no se ofrece un botón que no lleva a ningún
-     sitio.
+     Solo aparece si el negocio publicó un WhatsApp al que escribir y su plan incluye los
+     pedidos desde la carta. Sin eso, el menú sigue siendo un menú perfectamente útil: se mira,
+     y no se ofrece un botón que no lleva a ningún sitio.
 -->
 @if (puedePedir() && !carrito.vacio()) {
   <button

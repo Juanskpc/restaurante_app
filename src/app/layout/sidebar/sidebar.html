@@ -51,7 +51,7 @@
      BOTTOM NAV MÓVIL
      ============================================================ -->
 <nav class="bottom-nav">
-  @for (item of mainItems(); track item.route) {
+  @for (item of bottomItems(); track item.route) {
     <a class="bottom-nav-item"
        [routerLink]="item.route"
        routerLinkActive="active"
@@ -64,11 +64,25 @@
     </a>
   }
 
-  <!-- Botón "Más" -->
-  <button class="bottom-nav-item" [class.active]="moreMenuOpen()" (click)="toggleMoreMenu()">
-    <lucide-icon name="menu" [size]="22" />
-    <span>Más</span>
-  </button>
+  <!-- Botón "Más": solo cuando queda algo fuera de la barra. -->
+  @if (mostrarBotonMas()) {
+    <button class="bottom-nav-item" [class.active]="moreMenuOpen()" (click)="toggleMoreMenu()">
+      <lucide-icon name="menu" [size]="22" />
+      <span>Más</span>
+    </button>
+  }
+
+  <!-- Cerrar sesión: ocupa el hueco que deja «Más» cuando no hace falta. Estrecho y
+       a la derecha, para que no compita con los accesos de trabajo. -->
+  @if (mostrarLogoutEnBarra()) {
+    <button type="button"
+            class="bottom-nav-item bottom-nav-item--logout"
+            (click)="onLogoutBarra()"
+            aria-label="Cerrar sesión">
+      <lucide-icon name="log-out" [size]="20" />
+      <span>Salir</span>
+    </button>
+  }
 </nav>
 
 <!-- Panel expandible "Más" (móvil) -->

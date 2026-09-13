@@ -3,6 +3,17 @@ import { RouterLink, RouterLinkActive, IsActiveMatchOptions } from '@angular/rou
 import { LucideAngularModule } from 'lucide-angular';
 
 import { AuthService } from '../../core/services/auth.service';
+import { UiFeedbackService } from '../../core/ui-feedback/ui-feedback.service';
+
+/**
+ * Cuántos accesos caben en la barra inferior del móvil sin apretujarse.
+ *
+ * Cuando el rol no llega a esa cifra no hay nada que esconder, así que la barra los
+ * muestra todos y el botón «Más» desaparece. Antes, un cajero con dos permisos veía
+ * uno en la barra y el otro escondido detrás de «Más», que es un toque de más para
+ * llegar a la mitad de lo que puede hacer.
+ */
+const ATAJOS_MOVIL = 4;
 
 export interface NavItem {
   icon: string;
@@ -21,6 +32,7 @@ export interface NavItem {
 })
 export class SidebarComponent {
   readonly auth = inject(AuthService);
+  private readonly ui = inject(UiFeedbackService);
 
   /**
    * Items de navegación.
@@ -66,6 +78,38 @@ export class SidebarComponent {
   /** Items secundarios (gestión). */
   readonly secondaryItems = computed(() => this.navItemsPermitidos().filter(i => i.section === 'secondary'));
 
+  /**
+   * ¿Cabe todo lo que el rol puede ver en la barra inferior?
+   *
+   * Es la pregunta que decide la forma de la barra en móvil. Con pocos permisos no
+   * hay motivo para un desplegable, y el hueco que deja «Más» se aprovecha para el
+   * cierre de sesión, que en esa situación estaba enterrado dentro del panel.
+   */
+  readonly cabenTodosEnBarra = computed(
+    () => this.navItemsPermitidos().length <= ATAJOS_MOVIL,
+  );
+
+  /**
+   * Lo que se pinta en la barra inferior.
+   *
+   * Con muchos permisos se respeta el reparto de siempre —los de `section: 'main'`—
+   * para no moverle los iconos de sitio a quien ya tiene la app aprendida. Solo cuando
+   * caben todos se ignora esa división, que es cuando estorbaba.
+   */
+  readonly bottomItems = computed(
+    () => (this.cabenTodosEnBarra() ? this.navItemsPermitidos() : this.mainItems()),
+  );
+
+  /** El botón «Más» sobra si en la barra ya está todo. */
+  readonly mostrarBotonMas = computed(() => !this.cabenTodosEnBarra());
+
+  /**
+   * El cierre de sesión solo sale en la barra cuando no hay panel «Más» donde vivir.
+   * Si estuviera en los dos sitios, habría dos formas de salir a un toque de distancia
+   * de los accesos que más se usan.
+   */
+  readonly mostrarLogoutEnBarra = computed(() => this.cabenTodosEnBarra());
+
   /** Match options: compara solo el path, ignora queryParams y fragment. */
   readonly exactMatchOptions: IsActiveMatchOptions = {
     paths: 'exact', queryParams: 'ignored', fragment: 'ignored', matrixParams: 'ignored',
@@ -87,6 +131,25 @@ export class SidebarComponent {
 
   onLogout(): void {
     this.auth.logout();
+  }
+
+  /**
+   * Cierre de sesión desde la barra inferior del móvil.
+   *
+   * Este sí pregunta antes, y el del sidebar y el del panel «Más» no: aquí el botón
+   * queda pegado a los accesos que más se tocan, al alcance del pulgar, y un roce
+   * echaría al cajero en mitad de un turno. En el escritorio hay que ir al pie de la
+   * barra lateral a propósito, y en el panel «Más» hay que abrirlo primero.
+   */
+  async onLogoutBarra(): Promise<void> {
+    const confirmado = await this.ui.confirm({
+      title: 'Cerrar sesión',
+      message: '¿Deseas salir de tu cuenta?',
+      confirmText: 'Cerrar sesión',
+      cancelText: 'Cancelar',
+      tone: 'warning',
+    });
+    if (confirmado) this.auth.logout();
   }
 
   /** Cerrar menú "Más" al presionar Escape. */

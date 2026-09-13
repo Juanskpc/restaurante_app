@@ -19,7 +19,7 @@
           Guardando...
         } @else {
           <lucide-icon name="save" [size]="16" />
-          Guardar cambios
+          {{ tab() === 'apariencia' ? 'Guardar paleta' : 'Guardar cambios' }}
         }
       </button>
     }
@@ -33,7 +33,7 @@
         class="tab"
         [class.tab--on]="tab() === t.id"
         [attr.aria-selected]="tab() === t.id"
-        (click)="tab.set(t.id)"
+        (click)="cambiarTab(t.id)"
       >
         <lucide-icon [name]="t.icono" [size]="15" />
         {{ t.label }}
@@ -138,8 +138,11 @@
       <!-- ───────── Apariencia ───────── -->
       @if (tab() === 'apariencia') {
         <article class="panel panel--wide">
-          <h2>Paleta de color</h2>
-          <p class="hint">Selecciona una paleta para aplicar la identidad visual del negocio.</p>
+          <h2>Colores de la aplicación</h2>
+          <p class="hint">
+            Tiñe el panel de tu negocio. La carta virtual también usa este color, salvo que
+            elijas otro más abajo.
+          </p>
 
           <div class="palette-grid">
             @for (paleta of paletas(); track paleta.id_paleta) {
@@ -165,6 +168,16 @@
         </article>
       }
     </form>
+
+    <!-- ───────── Apariencia: carta virtual ─────────
+         Va fuera del <form>: tiene su propio botón de publicar, y dentro del formulario
+         cualquier botón o un Enter dispararían «Guardar paleta». -->
+    @if (tab() === 'apariencia') {
+      <app-carta-diseno-panel
+        [idNegocio]="config.id_negocio"
+        (irAGeneral)="tab.set('general')"
+      />
+    }
 
     <!-- ───────── Cobros ───────── -->
     @if (tab() === 'cobros') {

@@ -1,7 +1,56 @@
+/**
+ * La plantilla de la carta llega como tokens `--carta-*` sobre este mismo elemento (ver el
+ * `host` del componente) y aquí se traducen a los nombres que ya usan todas las reglas de
+ * abajo. Así las 1.200 líneas de estilos siguen igual y cada valor sale de la plantilla.
+ *
+ * Van en :host y no en :root por dos motivos. Uno: la carta también se pinta dentro de la
+ * vista previa de Configuración, y la marca del negocio no debe teñir el panel. Dos: los tokens
+ * derivados del tema (`--focus-ring`, `--color-menu-icon-bg`) se calculan donde se declaran; si
+ * no se vuelven a declarar aquí, seguirían usando el índigo de EscalApp aunque el primario cambie.
+ *
+ * Los valores de respaldo son los de la carta de siempre: si los tokens no llegan, se ve igual
+ * que antes de existir las plantillas.
+ */
 :host {
   display: block;
   min-height: 100dvh;
+
+  --color-primary: var(--carta-accent, #312e81);
+  --color-primary-hover: var(--carta-accent-hover, #4f46e5);
+  --color-on-primary: var(--carta-on-accent, #ffffff);
+  --color-bg: var(--carta-bg, #f5f5f5);
+  --color-bg-secondary: var(--carta-surface-2, #f7f7f7);
+  --color-surface: var(--carta-surface, #ffffff);
+  --color-text-primary: var(--carta-ink, #0f0a2a);
+  --color-text-secondary: var(--carta-muted, #616161);
+  --color-border: var(--carta-border, #e0e0e0);
+  --color-menu-price: var(--carta-price, #1f5c3d);
+  --color-menu-icon-bg: color-mix(in srgb, var(--color-primary) 14%, var(--color-bg-secondary));
+  --focus-ring: 0 0 0 3px color-mix(in srgb, var(--color-primary) 40%, transparent);
+  --font-family: var(
+    --carta-font-cuerpo,
+    'Inter',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    sans-serif
+  );
+  --radius-sm: var(--carta-radio-sm, 6px);
+  --radius-md: var(--carta-radio-md, 10px);
+  --radius-lg: var(--carta-radio-lg, 16px);
+  --radius-full: var(--carta-radio-chip, 9999px);
+  --shadow-sm: var(--carta-sombra-sm, 0 1px 3px rgba(0, 0, 0, 0.08));
+  --shadow-lg: var(--carta-sombra, 0 8px 24px rgba(0, 0, 0, 0.12));
+
   background: var(--color-bg);
+  color-scheme: light;
+}
+
+// Las plantillas oscuras avisan al navegador: barras de desplazamiento y controles nativos
+// oscuros, en vez de una barra blanca a un lado de la carta negra.
+:host([data-oscura='true']) {
+  color-scheme: dark;
 }
 
 /* ═══════════════════════════════════════════
@@ -697,127 +746,67 @@
 }
 
 /* ═══════════════════════════════════════════
-   ESCALAPP BRANDING FOOTER
+   PIE DE ESCALAPP
    ═══════════════════════════════════════════ */
-.escalapp-footer {
+
+/**
+ * Una sola línea: la invitación a crear un menú propio y la nota legal, igual que el portal de
+ * reservas. Lo de antes —logo, «powered by», lema, correo— repetía la marca de EscalApp tres
+ * veces en la carta de OTRO negocio: el pie de su carta es su cierre, no nuestro escaparate.
+ */
+.pie {
   margin-top: auto;
-  padding: var(--spacing-xl) clamp(12px, 4vw, 24px) var(--spacing-lg);
+  padding: 1.25rem clamp(12px, 4vw, 24px) calc(1.25rem + env(safe-area-inset-bottom, 0px));
   background: var(--color-surface);
   border-top: 1px solid var(--color-border);
 }
 
-.footer-inner {
-  max-width: 520px;
+// En el teléfono el botón flotante del pedido caería encima del copyright: el pie le hace sitio.
+@media (max-width: 640px) {
+  .pie--con-boton {
+    padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+// Una fila centrada. En móvil se parte y el separador desaparece: dos elementos en columna
+// con una raya vertical en medio se leen como una tabla rota.
+.pie__interior {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem 1rem;
+  max-width: 720px;
   margin: 0 auto;
   text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--spacing-md);
 }
 
-.footer-divider {
-  width: 48px;
-  height: 3px;
-  border-radius: var(--radius-full);
-  background: linear-gradient(90deg, var(--color-primary) 0%, color-mix(in srgb, var(--color-primary) 50%, transparent) 100%);
-  margin-bottom: var(--spacing-xs);
+.pie__sep {
+  width: 1px;
+  height: 20px;
+  background: var(--color-border);
 }
 
-.footer-branding {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--spacing-xs);
-}
-
-.footer-marca {
+.pie__cta {
   display: inline-flex;
   align-items: center;
-  gap: .55rem;
-  margin-bottom: 4px;
-}
-
-/* El icono tiene el interior del hexagono transparente, asi que en tema oscuro
-   la E —azul marino— se pierde contra el fondo. La pastilla solo hace falta ahi. */
-.footer-icono {
-  display: block;
-  height: 40px;
-  width: auto;
-  flex-shrink: 0;
-
-  :root[data-theme='dark'] & {
-    box-sizing: content-box;
-    padding: 5px;
-    background: #ffffff;
-    border-radius: 12px;
-  }
-}
-
-.footer-nombre {
-  font-size: 1.15rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--color-text-primary);
-  white-space: nowrap;
-}
-
-.footer-powered {
-  margin: 0;
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
-  font-weight: 400;
-
-  strong {
-    font-weight: 800;
-    color: var(--color-primary);
-  }
-}
-
-.footer-tagline {
-  margin: 0;
-  font-size: var(--font-size-xs);
-  color: var(--color-text-secondary);
-  line-height: 1.5;
-  max-width: 380px;
-}
-
-.footer-cta {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 22px;
+  gap: 0.65rem;
+  padding: 0.5rem 0.55rem 0.5rem 1.1rem;
+  border: 1.5px solid var(--color-primary);
   border-radius: var(--radius-full);
-  border: 2px solid var(--color-primary);
-  background: transparent;
   color: var(--color-primary);
-  text-decoration: none;
+  font-size: 0.88rem;
   font-weight: 700;
-  font-size: var(--font-size-sm);
-  transition: all var(--transition-fast);
-
-  span { flex: 1; }
-
-  .footer-cta-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    border-radius: var(--radius-full);
-    background: var(--color-primary);
-    color: var(--color-on-primary);
-    transition: transform var(--transition-fast);
-  }
+  text-decoration: none;
+  transition: background var(--transition-fast), color var(--transition-fast);
 
   &:hover {
     background: var(--color-primary);
     color: var(--color-on-primary);
 
-    .footer-cta-icon {
+    .pie__cta-icono {
       background: var(--color-on-primary);
       color: var(--color-primary);
-      transform: translateX(3px);
     }
   }
 
@@ -827,56 +816,34 @@
   }
 }
 
-.footer-links {
+.pie__cta-icono {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--spacing-md);
-}
-
-.footer-link {
-  display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
-  gap: 5px;
-  color: var(--color-text-secondary);
-  text-decoration: none;
-  font-size: var(--font-size-xs);
-  transition: color var(--transition-fast);
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-full);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  transition: background var(--transition-fast), color var(--transition-fast);
 
-  &:hover { color: var(--color-primary); }
-
-  &:focus-visible {
-    outline: none;
-    box-shadow: var(--focus-ring);
-    border-radius: var(--radius-sm);
+  // `lucide-icon` es inline y hereda el `line-height` del botón, que lo empujaba hacia arriba
+  // dentro del círculo. Volviéndolo caja se centra de verdad.
+  lucide-icon {
+    display: flex;
+    line-height: 0;
   }
 }
 
-.footer-legal {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  font-size: var(--font-size-xs);
+.pie__copy {
   color: var(--color-text-secondary);
-
-  a {
-    color: var(--color-text-secondary);
-    text-decoration: underline;
-
-    &:hover { color: var(--color-primary); }
-  }
+  font-size: 0.75rem;
 }
 
-.footer-copy {
-  padding-top: var(--spacing-sm);
-  border-top: 1px solid var(--color-border);
-  width: 100%;
-
-  span {
-    font-size: var(--font-size-xs);
-    color: var(--color-text-secondary);
+@media (max-width: 480px) {
+  .pie__sep {
+    display: none;
   }
 }
 
@@ -897,10 +864,6 @@
     grid-template-columns: 1fr;
   }
 
-  .footer-tagline {
-    font-size: var(--font-size-xs);
-    padding: 0 8px;
-  }
 }
 
 @media (min-width: 481px) and (max-width: 768px) {
@@ -1206,4 +1169,508 @@
   cursor: pointer;
 
   &:hover { color: var(--color-error); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PLANTILLAS Y FORMATOS
+
+   Todo lo de aquí abajo es lo que cambia entre plantillas y formatos. Va al final a propósito:
+   con la misma especificidad, gana a las reglas de siempre sin tener que tocarlas.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Tipografía de títulos ─────────────────────────────────────────────── */
+
+.hero-name,
+.product-name,
+.section-title,
+.categoria-cabecera__titulo,
+.bloque-titulo {
+  font-family: var(--carta-font-titulos, inherit);
+}
+
+.hero-name,
+.product-name,
+.categoria-cabecera__titulo {
+  font-weight: var(--carta-peso-titulos, 700);
+}
+
+.hero-name,
+.section-title,
+.categoria-cabecera__titulo {
+  text-transform: var(--carta-caso-titulos, none);
+  letter-spacing: var(--carta-track-titulos, normal);
+}
+
+.product-name {
+  text-transform: var(--carta-caso-productos, none);
+}
+
+/* ── Tarjeta ───────────────────────────────────────────────────────────── */
+
+.product-card {
+  border-width: var(--carta-borde-ancho, 1px);
+}
+
+.product-img {
+  aspect-ratio: var(--carta-foto-producto, 4 / 3);
+}
+
+.product-card--agotado {
+  opacity: 0.62;
+
+  .product-img img {
+    filter: grayscale(1);
+  }
+
+  &:hover {
+    transform: none;
+  }
+}
+
+.agotado-marca {
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+  box-shadow: none;
+}
+
+/* ── Logo o iniciales ──────────────────────────────────────────────────── */
+
+.hero-logo {
+  overflow: hidden;
+
+  &:not(.hero-logo--img) {
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+  }
+
+  img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+}
+
+.hero-logo--img {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+.hero-monograma {
+  font-family: var(--carta-font-titulos, inherit);
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+/* ── Cabecera de categoría (Lista y Mixto) ─────────────────────────────── */
+
+.categoria-cabecera {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  margin: 0 0 var(--spacing-md);
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  color: var(--color-text-primary);
+}
+
+.categoria-cabecera--foto {
+  justify-content: flex-end;
+  min-height: 150px;
+  color: #ffffff;
+
+  // Degradado de abajo arriba: el título blanco se lee sobre cualquier foto.
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.74) 0%, rgba(0, 0, 0, 0.18) 62%, transparent 100%);
+  }
+}
+
+.categoria-cabecera__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.categoria-cabecera__txt {
+  position: relative;
+  z-index: 1;
+  padding: var(--spacing-md);
+
+  .categoria-cabecera:not(.categoria-cabecera--foto) & {
+    padding: var(--spacing-sm) 0 var(--spacing-sm);
+    border-bottom: 1px solid var(--color-border);
+  }
+}
+
+.categoria-cabecera__titulo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  color: inherit;
+  font-size: clamp(1.3rem, 4.5vw, 1.7rem);
+  line-height: 1.15;
+}
+
+.categoria-cabecera__icono {
+  font-size: 1.35em;
+  line-height: 1;
+}
+
+.categoria-cabecera__desc {
+  margin: 4px 0 0;
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+
+  .categoria-cabecera--foto & {
+    color: rgba(255, 255, 255, 0.92);
+  }
+}
+
+.bloque-titulo {
+  margin: var(--spacing-lg) 0 var(--spacing-sm);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+
+  &:first-child {
+    margin-top: 0;
+  }
+}
+
+.products-grid--destacados {
+  margin-bottom: var(--spacing-sm);
+}
+
+/* ── Lista ─────────────────────────────────────────────────────────────── */
+
+.products-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  list-style: none;
+  background: var(--color-surface);
+  border: var(--carta-borde-ancho, 1px) solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.fila {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: 14px var(--spacing-md);
+
+  & + & {
+    border-top: 1px solid var(--color-border);
+  }
+
+  &.is-agotado {
+    opacity: 0.62;
+  }
+}
+
+.fila-thumb {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--color-menu-icon-bg);
+  font-size: 1.6rem;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+.fila-info {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.fila-cabeza {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+// En la fila el nombre se lee entero: nada de recortarlo a dos líneas como en la tarjeta.
+.fila-nombre {
+  display: block;
+  flex: 0 1 auto;
+  overflow: visible;
+  -webkit-line-clamp: unset;
+}
+
+.fila-puntos {
+  flex: 1 1 auto;
+  min-width: 16px;
+  border-bottom: 2px dotted color-mix(in srgb, var(--color-text-secondary) 55%, transparent);
+  transform: translateY(-4px);
+}
+
+.fila-precio {
+  margin-left: auto;
+  font-size: var(--font-size-base);
+
+  .fila-puntos + & {
+    margin-left: 0;
+  }
+}
+
+.agotado-badge {
+  align-self: flex-start;
+  display: inline-flex;
+  margin-top: 2px;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.fila-accion {
+  flex-shrink: 0;
+
+  .product-qty {
+    margin-top: 0;
+    padding: 2px;
+    gap: 4px;
+  }
+
+  .qty-value {
+    min-width: 1.5rem;
+  }
+}
+
+// 44 px: el objetivo táctil mínimo. Es el botón que más se toca en una carta en lista.
+.fila-add {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-primary);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+
+  &:hover {
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+}
+
+/* ── Vitrina: la foto manda ────────────────────────────────────────────── */
+
+:host([data-plantilla='vitrina']) {
+  .products-grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  }
+
+  .product-desc {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+}
+
+@media (max-width: 480px) {
+  :host([data-plantilla='vitrina']) {
+    .products-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .product-info {
+      padding: 10px;
+    }
+
+    .product-header {
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .product-name {
+      font-size: var(--font-size-sm);
+    }
+
+    .product-price {
+      font-size: var(--font-size-base);
+    }
+
+    .popular-badge span {
+      display: none;
+    }
+  }
+}
+
+/* ── Mostrador: cabecera de color, filas densas ────────────────────────── */
+
+:host([data-plantilla='mostrador']) {
+  .hero {
+    background: var(--color-primary);
+    border-bottom-color: transparent;
+  }
+
+  .hero-name,
+  .hero-addr {
+    color: var(--color-on-primary);
+  }
+
+  .hero-pill {
+    background: color-mix(in srgb, var(--color-on-primary) 18%, transparent);
+    color: var(--color-on-primary);
+  }
+
+  .hero-call {
+    background: var(--color-on-primary);
+    color: var(--color-primary);
+  }
+
+  .hero-logo:not(.hero-logo--img) {
+    background: var(--color-on-primary);
+    color: var(--color-primary);
+  }
+
+  .fila {
+    padding-block: 10px;
+  }
+}
+
+/* ── Gaceta y Papel: carta impresa ─────────────────────────────────────── */
+
+:host([data-plantilla='gaceta']),
+:host([data-plantilla='papel']) {
+  .products-list {
+    border-inline: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .fila {
+    padding-inline: 0;
+  }
+
+  .hero {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .categoria-cabecera:not(.categoria-cabecera--foto) .categoria-cabecera__txt {
+    border-bottom: 2px solid var(--color-text-primary);
+  }
+}
+
+:host([data-plantilla='papel']) .menu-topbar {
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* ── Neón ──────────────────────────────────────────────────────────────── */
+
+:host([data-plantilla='neon']) {
+  .cat-chip--active {
+    box-shadow: none;
+  }
+
+  .product-price {
+    letter-spacing: 0.02em;
+  }
+}
+
+/* ── Plantillas oscuras ────────────────────────────────────────────────── */
+
+:host([data-oscura='true']) {
+  .hero {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .popular-badge {
+    box-shadow: none;
+  }
+}
+
+/* ── Secciones: todas las categorías en la misma vista ─────────────────── */
+
+.carta-secciones {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(28px, 6vw, 48px);
+  padding: var(--spacing-md) 0 var(--spacing-xl);
+}
+
+.seccion {
+  min-width: 0;
+}
+
+/**
+ * Cabecera de categoría en pantalla ancha: foto al lado del título, no de fondo.
+ *
+ * La foto de categoría se recorta cuadrada a 256 px en Menú. Como banner de 900 px en un PC
+ * se estiraba más de tres veces y se veía borrosa y cortada. A 120 px la misma imagen se ve
+ * nítida también en pantallas de alta densidad, y el negocio no tiene que subir nada nuevo.
+ * En móvil y tablet sigue como banner, que es donde la imagen ocupa un ancho razonable.
+ */
+@media (min-width: 769px) {
+  .categoria-cabecera--foto {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: var(--spacing-md);
+    min-height: 0;
+    padding-bottom: var(--spacing-sm);
+    border-bottom: 1px solid var(--color-border);
+    border-radius: 0;
+    color: var(--color-text-primary);
+
+    &::after {
+      display: none;
+    }
+
+    .categoria-cabecera__img {
+      position: static;
+      flex-shrink: 0;
+      width: 120px;
+      height: 120px;
+      border-radius: var(--radius-lg);
+    }
+
+    .categoria-cabecera__txt {
+      padding: 0;
+    }
+
+    .categoria-cabecera__desc {
+      color: var(--color-text-secondary);
+    }
+  }
 }

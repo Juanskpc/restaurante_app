@@ -422,11 +422,19 @@ th {
   background: color-mix(in srgb, var(--color-primary) 8%, transparent);
 }
 
+/**
+ * El modal va por ENCIMA de la barra de navegación inferior del móvil.
+ *
+ * Estaba en 120/130 y la barra en 200, así que en el teléfono la barra se dibujaba
+ * sobre el pie del modal: los botones de Guardar y Cancelar quedaban tapados y no
+ * había forma de crear el usuario. 1400 es el mismo escalón que usan los demás
+ * modales de la app (Caja, por ejemplo), así que ahora todos se comportan igual.
+ */
 .modal-backdrop {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.45);
-  z-index: 120;
+  z-index: 1400;
 }
 
 .modal {
@@ -436,7 +444,7 @@ th {
   width: min(760px, calc(100% - 2rem));
   max-height: 90vh;
   overflow: auto;
-  z-index: 130;
+  z-index: 1410;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
@@ -445,6 +453,32 @@ th {
 
 .modal--wide {
   width: min(1180px, calc(100% - 2rem));
+}
+
+.modal--invitacion {
+  width: min(520px, calc(100% - 2rem));
+}
+
+/**
+ * El mensaje tal cual se va a enviar.
+ *
+ * En `pre` y no en `p` porque los saltos de línea son parte del mensaje: así el
+ * administrador ve exactamente lo que le va a llegar al empleado. `user-select` y el
+ * ajuste de línea son para que se pueda seleccionar a mano si el copiado falla.
+ */
+.invitacion__mensaje {
+  margin: var(--spacing-md) 0 0;
+  padding: var(--spacing-md);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--color-text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
 }
 
 .modal__header {
@@ -471,11 +505,50 @@ th {
   padding: var(--spacing-lg);
 }
 
+/**
+ * El pie se queda pegado al fondo del modal mientras se hace scroll.
+ *
+ * El formulario de usuario son once campos: en un teléfono no cabe entero, y con los
+ * botones al final del todo había que recorrerlo hasta abajo para poder guardar. Ahora
+ * están siempre a la vista. El fondo opaco es obligatorio, o el formulario se lee por
+ * debajo de los botones.
+ */
 .modal__footer {
-  margin-top: var(--spacing-lg);
+  position: sticky;
+  bottom: 0;
+  margin: var(--spacing-lg) calc(-1 * var(--spacing-lg)) calc(-1 * var(--spacing-lg));
+  padding: var(--spacing-md) var(--spacing-lg);
   display: flex;
   justify-content: end;
   gap: var(--spacing-sm);
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+}
+
+@media (max-width: 767px) {
+  .modal {
+    // `dvh` y no `vh`: en el móvil la barra del navegador entra y sale, y con `vh` el
+    // modal se dimensiona contra la pantalla completa y se sale por abajo.
+    inset: auto auto 0 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-height: 92dvh;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    border-bottom: 0;
+  }
+
+  .modal__footer {
+    // El respiro del iPhone va en el pie, que es lo último que se toca, y no en el
+    // modal: puesto en el contenedor con scroll quedaba por debajo del pie pegajoso.
+    padding-bottom: calc(var(--spacing-md) + env(safe-area-inset-bottom, 0px));
+    // Apilados y a lo ancho: dos botones pequeños en una esquina son difíciles de
+    // acertar con el pulgar.
+    flex-direction: column-reverse;
+
+    button {
+      width: 100%;
+    }
+  }
 }
 
 .grid-2 {

@@ -253,6 +253,23 @@ $bottom-nav-height: 64px;
     }
   }
 
+  // Cerrar sesión no es un destino más: no reparte espacio a partes iguales con los
+  // accesos de trabajo, se queda estrecho al borde derecho y en color apagado.
+  .bottom-nav-item--logout {
+    flex: 0 0 auto;
+    min-width: 52px;
+    padding: 6px 10px;
+    margin-left: auto;
+    border-left: 1px solid var(--color-border);
+    color: var(--color-text-secondary);
+    font-size: 9px;
+
+    &:hover,
+    &:active {
+      color: var(--color-error);
+    }
+  }
+
   .bottom-badge {
     position: absolute;
     top: 2px;
