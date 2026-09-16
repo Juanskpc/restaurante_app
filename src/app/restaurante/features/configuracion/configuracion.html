@@ -321,6 +321,19 @@
                 del cliente y, al cobrarse, deja un egreso en caja por el pago al domiciliario.</small>
             </span>
           </label>
+
+          <label class="switch-row" [class.is-disabled]="!canEdit() || guardandoDomicilioPersonal()">
+            <input type="checkbox"
+                   [checked]="permiteDomicilioPersonal()"
+                   [disabled]="!canEdit() || guardandoDomicilioPersonal()"
+                   (change)="toggleDomicilioPersonal($any($event.target).checked)" />
+            <span class="switch-row__text">
+              <strong>Domiciliario = personal del negocio</strong>
+              <small>Para el negocio sin un domiciliario dedicado. Encendido, al asignar quién lleva
+                un domicilio se puede elegir a cualquier persona del personal activo (mesero, cajero,
+                administrador), no solo a quien tenga el rol Domiciliario.</small>
+            </span>
+          </label>
         </div>
       </article>
     }
