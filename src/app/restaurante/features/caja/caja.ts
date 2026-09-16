@@ -788,6 +788,7 @@ export class CajaComponent implements OnInit, OnDestroy {
    * Domicilio aunque el pedido sea Para llevar, para saber de qué es ese egreso.
    */
   tipoPedidoMovimiento(m: MovimientoCaja): string {
+    if (m.es_tiquetera) return 'Tiquetera';
     if (m.es_pago_domicilio) return 'Domicilio';
     return this.formatTipoPedido(m.orden?.tipo_pedido);
   }

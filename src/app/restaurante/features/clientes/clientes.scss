@@ -8,42 +8,6 @@
   gap: var(--spacing-lg);
 }
 
-// ── Resumen ──
-.resumen {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: var(--spacing-md);
-}
-
-.resumen__card {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: var(--spacing-md);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-
-  &--debe { border-left: 3px solid var(--color-danger, #dc2626); }
-  &--favor { border-left: 3px solid var(--color-success, #16a34a); }
-}
-
-.resumen__label {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
-}
-
-.resumen__valor {
-  font-size: 1.35rem;
-  font-weight: 700;
-  color: var(--color-text-primary);
-}
-
-.resumen__pie {
-  font-size: .75rem;
-  color: var(--color-text-muted, var(--color-text-secondary));
-}
-
 // ── Barra ──
 .barra {
   display: flex;
@@ -96,76 +60,103 @@
   }
 }
 
-// ── Contenido: lista + detalle ──
-.contenido {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 380px);
-  gap: var(--spacing-lg);
-  align-items: start;
-}
+.lista { min-width: 0; }
 
-@media (max-width: 900px) {
-  .contenido { grid-template-columns: minmax(0, 1fr); }
-}
-
-.lista {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.fila {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-md);
-  width: 100%;
-  padding: var(--spacing-md);
+// ── Tabla ──
+.tabla {
+  overflow-x: auto;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  cursor: pointer;
-  text-align: left;
-  transition: border-color var(--transition-fast);
 
-  &:hover { border-color: var(--color-primary); }
-  &--activa {
-    border-color: var(--color-primary);
-    background: color-mix(in srgb, var(--color-primary) 6%, var(--color-surface));
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--font-size-sm);
+  }
+
+  th {
+    padding: 10px 14px;
+    text-align: left;
+    font-size: .72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    white-space: nowrap;
+    color: var(--color-text-secondary);
+    background: var(--color-bg);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  td {
+    padding: 10px 14px;
+    color: var(--color-text-primary);
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: middle;
+  }
+
+  tbody tr {
+    cursor: pointer;
+    transition: background var(--transition-fast);
+
+    &:last-child td { border-bottom: 0; }
+    &:hover td { background: color-mix(in srgb, var(--color-primary) 4%, var(--color-surface)); }
+    &.activa td { background: color-mix(in srgb, var(--color-primary) 9%, var(--color-surface)); }
+    &:focus-visible {
+      outline: 2px solid var(--color-primary);
+      outline-offset: -2px;
+    }
+  }
+
+  .num {
+    text-align: right;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
   }
 }
 
-.fila__datos { display: flex; flex-direction: column; min-width: 0; }
-.fila__nombre { color: var(--color-text-primary); }
-.fila__tel { font-size: .78rem; color: var(--color-text-secondary); }
-
-.fila__saldo {
+.celda-cliente {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  flex-shrink: 0;
+  min-width: 0;
 
-  strong { font-size: 1rem; }
-  &--debe strong, &--debe .fila__etiqueta { color: var(--color-danger, #dc2626); }
-  &--ok strong, &--ok .fila__etiqueta { color: var(--color-success, #16a34a); }
-  &--neutro strong, &--neutro .fila__etiqueta { color: var(--color-text-secondary); }
+  span { font-size: .75rem; color: var(--color-text-secondary); }
 }
 
-.fila__etiqueta { font-size: .72rem; font-weight: 600; text-transform: uppercase; }
+.tipo {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: .75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
 
-// ── Detalle ──
-.detalle {
-  position: sticky;
-  top: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-md);
-  padding: var(--spacing-lg);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  &--dinero {
+    color: var(--color-text-secondary);
+    background: var(--color-bg);
+  }
 }
 
+.saldo {
+  font-weight: 700;
+
+  small {
+    margin-right: 6px;
+    font-size: .68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  &--debe { color: var(--color-danger, #dc2626); }
+  &--ok { color: var(--color-success, #16a34a); }
+  &--neutro { color: var(--color-text-secondary); }
+}
+
+.sin-dato { color: var(--color-text-muted, var(--color-text-secondary)); }
+
+// ── Detalle (va dentro de `.modal--detalle`) ──
 .detalle__head {
   display: flex;
   align-items: flex-start;
@@ -309,6 +300,69 @@
   &:hover:not(:disabled) { color: var(--color-text-primary); }
 }
 
+.btn-peligro {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+  background: transparent;
+  color: var(--color-danger, #dc2626);
+  border: 1px solid color-mix(in srgb, var(--color-danger, #dc2626) 45%, transparent);
+
+  &:hover:not(:disabled) { background: color-mix(in srgb, var(--color-danger, #dc2626) 8%, transparent); }
+  &:disabled { opacity: .6; cursor: default; }
+}
+
+// ── Cobro de la tiquetera (calculado) ──
+.valor-producto {
+  display: flex;
+  justify-content: space-between;
+  margin: -2px 0 0;
+  font-size: .8rem;
+  color: var(--color-text-secondary);
+
+  strong { color: var(--color-text-primary); }
+}
+
+.cobro {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+}
+
+.cobro__fila {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+
+  &--descuento { color: var(--color-success, #16a34a); }
+
+  &--total {
+    margin-top: 2px;
+    padding-top: 6px;
+    border-top: 1px solid var(--color-border);
+    color: var(--color-text-primary);
+
+    strong { font-size: 1.05rem; }
+  }
+}
+
+.cobro__ayuda {
+  font-size: .72rem;
+  color: var(--color-text-muted, var(--color-text-secondary));
+}
+
 .icono {
   display: inline-flex;
   padding: 4px;
@@ -366,6 +420,18 @@
     font-weight: 400;
   }
 }
+
+// El detalle del cliente: más ancho que un formulario, porque lleva el historial de movimientos.
+.modal--detalle {
+  width: min(560px, calc(100vw - 2rem));
+  gap: var(--spacing-md);
+
+  .movimientos { max-height: 40dvh; }
+}
+
+// Vender, ajustar o editar se abren encima del detalle, que queda detrás.
+.overlay--encima { z-index: 1002; }
+.modal--encima { z-index: 1003; }
 
 .modal__acciones {
   display: flex;

@@ -32,7 +32,14 @@ export interface CuentaCliente {
   tiquetes?: TiqueteDisponible[];
   /** Lo que puede gastar hoy: saldo + cupo de fiado. `null` en modo TIQUETES. */
   disponible?: number | null;
+  /** Los que le quedan. Se conserva por compatibilidad: es lo mismo que `tiquetes_restantes`. */
   total_tiquetes?: number;
+  /** Solo en la lista y en modo TIQUETES: todos los que entraron (ventas y ajustes a favor). */
+  tiquetes_comprados?: number;
+  /** Solo en la lista y en modo TIQUETES: los que le quedan por comer. */
+  tiquetes_restantes?: number;
+  /** Solo en la lista: de qué productos lleva tiquetes, separados por coma. */
+  productos?: string | null;
   ultimo_movimiento?: string | null;
 }
 
@@ -49,6 +56,8 @@ export interface MovimientoCuenta {
   primer_nombre: string | null;
   primer_apellido: string | null;
   metodo_pago: string | null;
+  /** Lo que se pagó en caja por este apunte (en una tiquetera de tiquetes, el valor del paquete). */
+  valor_pagado: number | null;
   anulado: boolean;
   id_movimiento_anula: number | null;
 }
@@ -128,16 +137,42 @@ export class ClientesService {
     return this.http.put<ApiResponse<CuentaCliente>>(`${this.base}/${idCuenta}`, payload);
   }
 
-  /** Vender una tiquetera o recibir el pago de una cuenta. Entra plata a la caja. */
+  /**
+   * Vender una tiquetera o recibir el pago de una cuenta. Entra plata a la caja.
+   *
+   * En una tiquetera por producto el `monto` es solo informativo: el servidor lo recalcula como
+   * precio de la carta × cantidad − `descuento`, y es ese el que entra a la caja.
+   */
   abonar(idCuenta: number, payload: {
     id_negocio: number;
     id_metodo_pago: number;
-    monto: number;
+    monto?: number | null;
     tiquetes?: number;
     id_producto?: number | null;
+    descuento?: number | null;
     concepto?: string | null;
   }): Observable<ApiResponse<CuentaCliente>> {
     return this.http.post<ApiResponse<CuentaCliente>>(`${this.base}/${idCuenta}/abonos`, payload);
+  }
+
+  /**
+   * Quita la cuenta de la lista y del cobro. No borra su historial ni devuelve plata.
+   * Exige el permiso `clientes_eliminar`, que se concede en Usuarios → Roles y permisos.
+   */
+  eliminar(idCuenta: number, idNegocio: number): Observable<ApiResponse<{
+    id_cuenta: number;
+    cliente: string;
+    modo: ModoCuenta;
+    saldo: number;
+    tiquetes_restantes: number;
+  }>> {
+    return this.http.delete<ApiResponse<{
+      id_cuenta: number;
+      cliente: string;
+      modo: ModoCuenta;
+      saldo: number;
+      tiquetes_restantes: number;
+    }>>(`${this.base}/${idCuenta}?id_negocio=${idNegocio}`);
   }
 
   /** Mueve el saldo SIN que entre plata: perdonar una deuda, regalar un almuerzo. */

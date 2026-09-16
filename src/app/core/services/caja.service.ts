@@ -67,6 +67,11 @@ export interface MovimientoCaja {
   anulado?: boolean;
   /** Egreso del pago al domiciliario: se etiqueta como Domicilio en el listado. */
   es_pago_domicilio?: boolean;
+  /**
+   * Viene de vender una tiquetera o recibir un abono a la cuenta de un cliente (o de su
+   * anulación). No lleva pedido, así que sin esta marca saldría como «No aplica».
+   */
+  es_tiquetera?: boolean;
   id_movimiento_anula?: number | null;
   /**
    * Con qué se movió la plata, ya resuelto por el backend: el desglose del multipago,

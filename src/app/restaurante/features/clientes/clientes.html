@@ -3,25 +3,6 @@
      ============================================================ -->
 <section class="clientes">
 
-  <!-- ── Resumen: las dos preguntas que el dueño se hace ── -->
-  <div class="resumen">
-    <div class="resumen__card resumen__card--debe">
-      <span class="resumen__label">Me deben</span>
-      <strong class="resumen__valor">{{ totalPorCobrar() | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
-      <span class="resumen__pie">Pendiente de cobrar</span>
-    </div>
-    <div class="resumen__card resumen__card--favor">
-      <span class="resumen__label">Pagado por adelantado</span>
-      <strong class="resumen__valor">{{ totalAnticipado() | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
-      <span class="resumen__pie">Comida que ya cobré</span>
-    </div>
-    <div class="resumen__card">
-      <span class="resumen__label">Tiqueteras</span>
-      <strong class="resumen__valor">{{ cuentasEnTiquetes() }}</strong>
-      <span class="resumen__pie">Clientes que llevan tiquetes</span>
-    </div>
-  </div>
-
   <!-- ── Barra de acciones ── -->
   <div class="barra">
     <div class="barra__buscar">
@@ -42,9 +23,8 @@
     </button>
   </div>
 
-  <div class="contenido">
-    <!-- ── Lista ── -->
-    <div class="lista">
+  <!-- ── Tabla ── -->
+  <div class="lista">
       @if (cargando()) {
         <p class="estado">Cargando…</p>
       } @else if (cuentas().length === 0) {
@@ -57,33 +37,76 @@
           </p>
         </div>
       } @else {
-        @for (c of cuentas(); track c.id_cuenta) {
-          <button type="button" class="fila"
-                  [class.fila--activa]="seleccionada()?.id_cuenta === c.id_cuenta"
-                  (click)="seleccionar(c)">
-            <div class="fila__datos">
-              <strong class="fila__nombre">{{ c.cliente }}</strong>
-              @if (c.telefono) { <span class="fila__tel">{{ c.telefono }}</span> }
-            </div>
-            <div class="fila__saldo" [class]="'fila__saldo--' + claseSaldo(c)">
-              <span class="fila__etiqueta">{{ etiquetaSaldo(c) }}</span>
-              @if (c.modo === 'DINERO') {
-                <strong>{{ (c.saldo < 0 ? -c.saldo : c.saldo) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+        <div class="tabla">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Cliente</th>
+                <th scope="col">Tipo de tiquetera</th>
+                <th scope="col" class="num">Saldo en dinero</th>
+                <th scope="col" class="num">Tiquetes comprados</th>
+                <th scope="col" class="num">Tiquetes restantes</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (c of cuentas(); track c.id_cuenta) {
+                <tr tabindex="0"
+                    [class.activa]="seleccionada()?.id_cuenta === c.id_cuenta"
+                    [attr.aria-selected]="seleccionada()?.id_cuenta === c.id_cuenta"
+                    (click)="seleccionar(c)"
+                    (keydown.enter)="seleccionar(c)">
+                  <td>
+                    <div class="celda-cliente">
+                      <strong>{{ c.cliente }}</strong>
+                      @if (c.telefono) { <span>{{ c.telefono }}</span> }
+                    </div>
+                  </td>
+                  <td>
+                    <span class="tipo" [class.tipo--dinero]="c.modo === 'DINERO'">{{ tipoCuenta(c) }}</span>
+                  </td>
+                  <td class="num">
+                    @if (c.modo === 'DINERO') {
+                      <span class="saldo" [class]="'saldo saldo--' + claseSaldo(c)">
+                        <small>{{ etiquetaSaldo(c) }}</small>
+                        {{ (c.saldo < 0 ? -c.saldo : c.saldo) | currency:'COP':'symbol-narrow':'1.0-0' }}
+                      </span>
+                    } @else {
+                      <span class="sin-dato" aria-label="No aplica">—</span>
+                    }
+                  </td>
+                  <td class="num">
+                    @if (c.modo === 'TIQUETES') {
+                      {{ c.tiquetes_comprados ?? 0 }}
+                    } @else {
+                      <span class="sin-dato" aria-label="No aplica">—</span>
+                    }
+                  </td>
+                  <td class="num">
+                    @if (c.modo === 'TIQUETES') {
+                      <strong class="saldo" [class]="'saldo saldo--' + claseSaldo(c)">{{ c.tiquetes_restantes ?? 0 }}</strong>
+                    } @else {
+                      <span class="sin-dato" aria-label="No aplica">—</span>
+                    }
+                  </td>
+                </tr>
               }
-            </div>
-          </button>
-        }
+            </tbody>
+          </table>
+        </div>
       }
-    </div>
+  </div>
+</section>
 
-    <!-- ── Detalle ── -->
-    @if (seleccionada(); as cuenta) {
-      <aside class="detalle">
+<!-- ════════════════ DETALLE DEL CLIENTE (modal) ════════════════ -->
+@if (seleccionada(); as cuenta) {
+  <div class="overlay" (click)="cerrarDetalle()"></div>
+  <div class="modal modal--detalle" role="dialog" aria-modal="true"
+       [attr.aria-label]="'Detalle de ' + cuenta.cliente">
         <header class="detalle__head">
           <div>
             <h2>{{ cuenta.cliente }}</h2>
             <span class="detalle__modo">
-              {{ cuenta.modo === 'TIQUETES' ? 'Lleva tiquetes contados' : 'Lleva saldo en dinero' }}
+              {{ cuenta.modo === 'TIQUETES' ? 'Tiquetera por producto' : 'Tiquetera en dinero' }}
             </span>
           </div>
           <button type="button" class="icono" (click)="cerrarDetalle()" aria-label="Cerrar">
@@ -92,7 +115,7 @@
         </header>
 
         <!-- Saldo -->
-        <div class="detalle__saldo" [class]="'detalle__saldo--' + claseSaldo(cuenta)">
+        <div class="detalle__saldo" [class]="'detalle__saldo detalle__saldo--' + claseSaldo(cuenta)">
           @if (cuenta.modo === 'DINERO') {
             <span class="detalle__saldo-label">
               {{ cuenta.saldo < 0 ? 'Este cliente debe' : (cuenta.saldo > 0 ? 'Tiene a favor' : 'Está al día') }}
@@ -132,6 +155,12 @@
               Corregir saldo
             </button>
           }
+          @if (puedeEliminar()) {
+            <button type="button" class="btn-peligro" [disabled]="guardando()" (click)="eliminarCuenta()">
+              <lucide-icon name="trash-2" [size]="16" />
+              Eliminar
+            </button>
+          }
         </div>
 
         <!-- Movimientos -->
@@ -149,6 +178,7 @@
                   <span class="movimiento__meta">
                     {{ m.fecha | date:'dd/MM/yyyy HH:mm' }}
                     @if (m.numero_orden) { · Pedido {{ m.numero_orden }} }
+                    @if (m.tiquetes > 0 && m.valor_pagado) { · Pagó {{ m.valor_pagado | currency:'COP':'symbol-narrow':'1.0-0' }} }
                     @if (m.primer_nombre) { · {{ m.primer_nombre }} }
                   </span>
                 </div>
@@ -163,15 +193,15 @@
             }
           </ul>
         }
-      </aside>
-    }
   </div>
-</section>
+}
 
-<!-- ════════════════ MODALES ════════════════ -->
+<!-- ════════════════ MODALES DE ACCIÓN ════════════════
+     Se abren ENCIMA del detalle (vender, ajustar, editar): al cerrarlos el detalle sigue ahí,
+     ya refrescado, que es donde el cajero quiere comprobar que el movimiento quedó. -->
 @if (modal(); as activo) {
-  <div class="overlay" (click)="cerrarModal()"></div>
-  <div class="modal" role="dialog" aria-modal="true">
+  <div class="overlay overlay--encima" (click)="cerrarModal()"></div>
+  <div class="modal modal--encima" role="dialog" aria-modal="true">
 
     <!-- Nuevo cliente -->
     @if (activo === 'nueva') {
@@ -190,7 +220,7 @@
         ¿Cómo lleva la cuenta?
         <select [ngModel]="formModo()" (ngModelChange)="formModo.set($event)">
           <option value="DINERO">En dinero (abona plata y se le descuenta)</option>
-          <option value="TIQUETES">En tiquetes (compra 20 almuerzos y se le descuenta de a uno)</option>
+          <option value="TIQUETES">Por producto (compra 20 almuerzos y se le descuenta de a uno)</option>
         </select>
       </label>
       @if (formModo() === 'DINERO') {
@@ -218,7 +248,7 @@
         ¿Cómo lleva la cuenta?
         <select [ngModel]="formModo()" (ngModelChange)="formModo.set($event)">
           <option value="DINERO">En dinero</option>
-          <option value="TIQUETES">En tiquetes</option>
+          <option value="TIQUETES">Por producto</option>
         </select>
       </label>
       <p class="aviso">
@@ -256,20 +286,52 @@
           ¿De qué producto?
           <select [ngModel]="abonoProducto()" (ngModelChange)="abonoProducto.set($event)">
             @for (p of productos(); track p.id_producto) {
-              <option [value]="p.id_producto">{{ p.nombre }}</option>
+              <option [value]="p.id_producto">
+                {{ p.nombre }} — {{ p.precio | currency:'COP':'symbol-narrow':'1.0-0' }}
+              </option>
             }
           </select>
         </label>
+        @if (productoAbono(); as prod) {
+          <p class="valor-producto">
+            Valor del producto
+            <strong>{{ prod.precio | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+          </p>
+        }
         <label>
           ¿Cuántos tiquetes?
-          <input type="number" min="1" [ngModel]="abonoTiquetes()" (ngModelChange)="abonoTiquetes.set($event)" />
+          <input type="number" min="1" step="1" [ngModel]="abonoTiquetes()" (ngModelChange)="abonoTiquetes.set($event)" />
+        </label>
+        <label>
+          Descuento por tiquetera <span class="opcional">(opcional, en pesos)</span>
+          <input type="number" min="0" [ngModel]="abonoDescuento()" (ngModelChange)="abonoDescuento.set($event)" />
+        </label>
+
+        <!-- Lo que paga: calculado, nunca escrito a mano -->
+        <div class="cobro" aria-live="polite">
+          <div class="cobro__fila">
+            <span>{{ abonoTiquetes() || 0 }} × {{ (productoAbono()?.precio ?? 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+            <span>{{ subtotalTiquetera() | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+          </div>
+          @if (descuentoTiquetera() > 0) {
+            <div class="cobro__fila cobro__fila--descuento">
+              <span>Descuento</span>
+              <span>− {{ descuentoTiquetera() | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+            </div>
+          }
+          <div class="cobro__fila cobro__fila--total">
+            <span>Está pagando</span>
+            <strong>{{ totalTiquetera() | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+          </div>
+          <span class="cobro__ayuda">Se calcula con el precio de la carta y no se puede cambiar a mano.</span>
+        </div>
+      } @else {
+        <label>
+          ¿Cuánto está pagando?
+          <input type="number" min="1" [ngModel]="abonoMonto()" (ngModelChange)="abonoMonto.set($event)" />
         </label>
       }
 
-      <label>
-        ¿Cuánto está pagando?
-        <input type="number" min="1" [ngModel]="abonoMonto()" (ngModelChange)="abonoMonto.set($event)" />
-      </label>
       <label>
         ¿Con qué paga?
         <select [ngModel]="abonoMetodo()" (ngModelChange)="abonoMetodo.set($event)">

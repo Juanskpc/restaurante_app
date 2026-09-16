@@ -70,8 +70,28 @@ export class ClientesComponent implements OnInit {
   readonly abonoMonto = signal<number | null>(null);
   readonly abonoTiquetes = signal<number | null>(null);
   readonly abonoProducto = signal<number | null>(null);
+  readonly abonoDescuento = signal<number | null>(null);
   readonly abonoMetodo = signal<number | null>(null);
   readonly abonoConcepto = signal('');
+
+  /** El producto elegido para la tiquetera, con su precio de carta. */
+  readonly productoAbono = computed(() => {
+    const id = Number(this.abonoProducto());
+    return this.productos().find((p) => Number(p.id_producto) === id) ?? null;
+  });
+
+  /**
+   * Una tiquetera se paga por adelantado: vale precio × cantidad, menos el descuento. Se muestra
+   * calculado y sin campo editable, y el servidor lo vuelve a calcular con el precio de la carta:
+   * lo que se pinta aquí es para que el cajero sepa cuánto cobrar, no lo que se guarda.
+   */
+  readonly subtotalTiquetera = computed(
+    () => Number(this.productoAbono()?.precio ?? 0) * (Number(this.abonoTiquetes()) || 0),
+  );
+  readonly descuentoTiquetera = computed(() => Math.max(0, Number(this.abonoDescuento()) || 0));
+  readonly totalTiquetera = computed(() =>
+    Math.max(0, this.subtotalTiquetera() - this.descuentoTiquetera()),
+  );
 
   readonly ajusteTipo = signal<'ABONO' | 'CARGO'>('ABONO');
   readonly ajusteMonto = signal<number | null>(null);
@@ -85,15 +105,8 @@ export class ClientesComponent implements OnInit {
   readonly puedeAbonar = computed(() => this.auth.canAccessSubnivel('clientes_abonar'));
   /** Perdonar deudas NO mueve plata y por eso es más delicado: no deja rastro en caja. */
   readonly puedeAjustar = computed(() => this.auth.canAccessSubnivel('clientes_ajustar'));
-
-  /** Lo que el negocio tiene cobrado por adelantado y lo que le deben, de un vistazo. */
-  readonly totalPorCobrar = computed(() =>
-    this.cuentas().filter((c) => c.saldo < 0).reduce((s, c) => s + Math.abs(c.saldo), 0),
-  );
-  readonly totalAnticipado = computed(() =>
-    this.cuentas().filter((c) => c.saldo > 0).reduce((s, c) => s + c.saldo, 0),
-  );
-  readonly cuentasEnTiquetes = computed(() => this.cuentas().filter((c) => c.modo === 'TIQUETES').length);
+  /** Eliminar una tiquetera: nace denegado para todos y se concede en Roles y permisos. */
+  readonly puedeEliminar = computed(() => this.auth.canAccessSubnivel('clientes_eliminar'));
 
   readonly esTiquetes = computed(() => this.seleccionada()?.modo === 'TIQUETES');
 
@@ -214,6 +227,7 @@ export class ClientesComponent implements OnInit {
   abrirAbono(): void {
     this.abonoMonto.set(null);
     this.abonoTiquetes.set(null);
+    this.abonoDescuento.set(null);
     this.abonoProducto.set(this.productos()[0]?.id_producto ?? null);
     this.abonoMetodo.set(this.metodosCobrables()[0]?.id_metodo_pago ?? null);
     this.abonoConcepto.set('');
@@ -298,8 +312,23 @@ export class ClientesComponent implements OnInit {
     const cuenta = this.seleccionada();
     if (!id || !cuenta || this.guardando()) return;
 
-    const monto = Number(this.abonoMonto());
-    if (!(monto > 0)) {
+    const esTiquetes = cuenta.modo === 'TIQUETES';
+
+    if (esTiquetes) {
+      if (!this.productoAbono()) {
+        this.ui.error('Elige de qué producto es la tiquetera.');
+        return;
+      }
+      const cantidad = Number(this.abonoTiquetes());
+      if (!Number.isInteger(cantidad) || cantidad <= 0) {
+        this.ui.error('Escribe cuántos tiquetes se compran.');
+        return;
+      }
+      if (this.descuentoTiquetera() >= this.subtotalTiquetera()) {
+        this.ui.error('El descuento debe ser menor que el valor de la tiquetera.');
+        return;
+      }
+    } else if (!(Number(this.abonoMonto()) > 0)) {
       this.ui.error('Escribe cuánto dinero está entrando.');
       return;
     }
@@ -307,18 +336,16 @@ export class ClientesComponent implements OnInit {
       this.ui.error('Elige con qué está pagando.');
       return;
     }
-    if (cuenta.modo === 'TIQUETES' && !(Number(this.abonoTiquetes()) > 0)) {
-      this.ui.error('Escribe cuántos tiquetes se compran.');
-      return;
-    }
 
     this.guardando.set(true);
     this.api.abonar(cuenta.id_cuenta, {
       id_negocio: id,
       id_metodo_pago: Number(this.abonoMetodo()),
-      monto,
-      tiquetes: cuenta.modo === 'TIQUETES' ? Number(this.abonoTiquetes()) : 0,
-      id_producto: cuenta.modo === 'TIQUETES' ? this.abonoProducto() : null,
+      // En tiquetes va solo como referencia: el servidor lo recalcula con el precio de la carta.
+      monto: esTiquetes ? this.totalTiquetera() : Number(this.abonoMonto()),
+      tiquetes: esTiquetes ? Number(this.abonoTiquetes()) : 0,
+      id_producto: esTiquetes ? Number(this.abonoProducto()) : null,
+      descuento: esTiquetes ? this.descuentoTiquetera() : 0,
       concepto: this.abonoConcepto().trim() || null,
     }).subscribe({
       next: () => {
@@ -374,23 +401,78 @@ export class ClientesComponent implements OnInit {
     });
   }
 
+  /**
+   * Elimina la tiquetera. Se confirma diciendo lo que le queda al cliente, porque eliminarla no
+   * le devuelve nada: la plata ya entró a la caja el día que se vendió.
+   */
+  async eliminarCuenta(): Promise<void> {
+    const id = this.negocioId();
+    const cuenta = this.seleccionada();
+    if (!id || !cuenta || this.guardando()) return;
+
+    const queda = this.loQueLeQueda(cuenta);
+    const seguir = await this.ui.confirm({
+      title: 'Eliminar tiquetera',
+      message: queda
+        ? `${cuenta.cliente} todavía tiene ${queda}. Eliminarla no le devuelve ese valor ni saca dinero de la caja: `
+          + 'la cuenta deja de aparecer aquí y en el cobro, y su historial se conserva. ¿Eliminar?'
+        : `La cuenta de ${cuenta.cliente} deja de aparecer aquí y en el cobro. Su historial se conserva. ¿Eliminar?`,
+      confirmText: 'Eliminar',
+      cancelText: 'Cancelar',
+      tone: 'warning',
+    });
+    if (!seguir) return;
+
+    this.guardando.set(true);
+    this.api.eliminar(cuenta.id_cuenta, id).subscribe({
+      next: () => {
+        this.guardando.set(false);
+        this.ui.success('La tiquetera se eliminó.', 'Tiquetera eliminada');
+        this.cerrarDetalle();
+        this.cargar();
+      },
+      error: (err) => this.fallo(err, 'No se pudo eliminar la tiquetera.'),
+    });
+  }
+
   // ============================================================
   // Presentación
   // ============================================================
 
-  /** Cómo se lee el saldo en la lista, sin que el usuario tenga que pensar en signos. */
+  /** El texto de la columna «Tipo de tiquetera». */
+  tipoCuenta(cuenta: CuentaCliente): string {
+    if (cuenta.modo === 'DINERO') return 'En dinero';
+    return cuenta.productos ? `Por producto · ${cuenta.productos}` : 'Por producto';
+  }
+
+  /** Cómo se lee el saldo en dinero, sin que el usuario tenga que pensar en signos. */
   etiquetaSaldo(cuenta: CuentaCliente): string {
-    if (cuenta.modo === 'TIQUETES') {
-      const total = cuenta.total_tiquetes ?? 0;
-      return total === 1 ? '1 tiquete' : `${total} tiquetes`;
-    }
     if (cuenta.saldo < 0) return 'Debe';
     if (cuenta.saldo > 0) return 'A favor';
     return 'Al día';
   }
 
+  /** Lo que le queda al cliente, en palabras, o `null` si no le queda nada. */
+  private loQueLeQueda(cuenta: CuentaCliente): string | null {
+    if (cuenta.modo === 'TIQUETES') {
+      const quedan = (cuenta.tiquetes ?? []).reduce((suma, t) => suma + t.disponibles, 0)
+        || cuenta.tiquetes_restantes
+        || 0;
+      if (quedan <= 0) return null;
+      return quedan === 1 ? '1 tiquete sin usar' : `${quedan} tiquetes sin usar`;
+    }
+    if (cuenta.saldo > 0) return `$${cuenta.saldo.toLocaleString('es-CO')} a favor`;
+    if (cuenta.saldo < 0) return `una deuda de $${Math.abs(cuenta.saldo).toLocaleString('es-CO')}`;
+    return null;
+  }
+
   claseSaldo(cuenta: CuentaCliente): string {
-    if (cuenta.modo === 'TIQUETES') return (cuenta.total_tiquetes ?? 0) > 0 ? 'ok' : 'neutro';
+    if (cuenta.modo === 'TIQUETES') {
+      const quedan = cuenta.tiquetes?.length
+        ? cuenta.tiquetes.reduce((suma, t) => suma + t.disponibles, 0)
+        : (cuenta.tiquetes_restantes ?? cuenta.total_tiquetes ?? 0);
+      return quedan > 0 ? 'ok' : 'neutro';
+    }
     if (cuenta.saldo < 0) return 'debe';
     if (cuenta.saldo > 0) return 'ok';
     return 'neutro';
