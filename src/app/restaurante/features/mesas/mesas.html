@@ -271,6 +271,11 @@
               <lucide-icon [name]="mesa.estado === 'A' ? 'x-circle' : 'check-circle'" [size]="16" />
               {{ mesa.estado === 'A' ? 'Deshabilitar' : 'Habilitar' }} mesa
             </button>
+            @if (mesa.estado === 'I') {
+              <button class="btn-danger" (click)="eliminarMesa()" [disabled]="guardando()">
+                <lucide-icon name="trash-2" [size]="16" /> Eliminar mesa
+              </button>
+            }
           </div>
         </section>
         }

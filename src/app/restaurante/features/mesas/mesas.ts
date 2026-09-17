@@ -594,6 +594,43 @@ export class MesasComponent {
     });
   }
 
+  /**
+   * Elimina la mesa de forma permanente. Solo aplica a una mesa ya deshabilitada
+   * (el backend lo exige): por eso el botón vive junto a "Habilitar mesa" y no en
+   * el bloque de una mesa activa.
+   */
+  async eliminarMesa(): Promise<void> {
+    if (!this.canAdministracionMesa()) return;
+
+    const mesa = this.mesaActiva();
+    if (!mesa) return;
+
+    const confirmar = await this.uiFeedback.confirm({
+      title: 'Eliminar mesa',
+      message: `¿Eliminar "${mesa.nombre}" definitivamente? Los pedidos que ya se hicieron en ella se conservan, `
+        + 'pero la mesa desaparece de la lista y esto no se puede deshacer.',
+      confirmText: 'Eliminar',
+      cancelText: 'Cancelar',
+      tone: 'warning',
+    });
+    if (!confirmar) return;
+
+    this.guardando.set(true);
+    this.mesasApi.eliminarMesa(mesa.id_mesa).subscribe({
+      next: () => {
+        this.guardando.set(false);
+        this.closeMesa();
+        this.uiFeedback.success(`"${mesa.nombre}" fue eliminada.`, 'Mesa eliminada');
+        this.loadMesas();
+      },
+      error: (e) => {
+        this.guardando.set(false);
+        const msg = e?.error?.message || 'No se pudo eliminar la mesa.';
+        this.uiFeedback.error(msg);
+      },
+    });
+  }
+
   statusLabel(status: MesaCardStatus): string {
     if (status === 'available') return 'Disponible';
     if (status === 'occupied') return 'Ocupada';

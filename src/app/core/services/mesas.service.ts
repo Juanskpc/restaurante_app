@@ -79,6 +79,10 @@ export class MesasService {
     return this.http.patch<{ success: boolean; data: MesaBase }>(`${environment.apiUrl}/mesas/${idMesa}/liberar`, {});
   }
 
+  eliminarMesa(idMesa: number): Observable<{ success: boolean; data: { id_mesa: number } }> {
+    return this.http.delete<{ success: boolean; data: { id_mesa: number } }>(`${environment.apiUrl}/mesas/${idMesa}`);
+  }
+
   cerrarOrden(
     idOrden: number,
     idMetodoPago?: number | null,
