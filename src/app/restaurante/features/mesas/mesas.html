@@ -256,7 +256,7 @@
         </section>
         }
 
-        @if (canAdministracionMesa() && mesa.status === 'available') {
+        @if (canAdministracionMesa() && (mesa.status === 'available' || mesa.status === 'disabled')) {
         <section class="modal-block modal-block-admin">
           <div class="modal-block-head">
             <h4>Administracion de mesa</h4>

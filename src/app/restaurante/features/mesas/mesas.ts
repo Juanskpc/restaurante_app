@@ -675,7 +675,8 @@ export class MesasComponent {
   }
 
   puedeVerBloquesAccionMesa(mesa: MesaDashboard): boolean {
-    return this.modalActions(mesa.status).length > 0 || (this.canAdministracionMesa() && mesa.status === 'available');
+    return this.modalActions(mesa.status).length > 0
+      || (this.canAdministracionMesa() && (mesa.status === 'available' || mesa.status === 'disabled'));
   }
 
   imprimirResumenMesa(): void {
