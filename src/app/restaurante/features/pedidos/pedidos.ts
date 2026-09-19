@@ -4,6 +4,7 @@ import {
 } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, concat } from 'rxjs';
+import { last } from 'rxjs/operators';
 import { LucideAngularModule } from 'lucide-angular';
 import { FormsModule } from '@angular/forms';
 import { CurrencyPipe, isPlatformBrowser } from '@angular/common';
@@ -1428,16 +1429,28 @@ export class PedidosComponent implements OnInit, OnDestroy {
     const idOrdenActiva = (this.requiereMesa() || this.pedidoDespachoSeleccionado() !== null) ? this.ordenActivaId() : null;
     if (idOrdenActiva) {
       const itemsNuevos = this.obtenerItemsNuevosOrdenActiva();
+      const itemsQuitados = this.obtenerItemsQuitadosOrdenActiva();
       const domicilioCambio =
         this.permitePagoDomicilio() && this.valorDomicilio() !== this.valorDomicilioBase();
       const descuentoCambio =
         this.permiteDescuento() && this.descuento() !== this.descuentoBase();
 
+      // Lo quitado va SIEMPRE primero: si además hay productos nuevos, `agregar-items`
+      // lee el total actual de la orden para recalcular, y ese total tiene que reflejar
+      // ya lo que se acaba de retirar.
+      const quitar$ = itemsQuitados.length > 0
+        ? this.http.patch(
+            `${environment.apiUrl}/pedidos/${idOrdenActiva}/quitar-items`,
+            { id_negocio: this.negocioId(), items: this.mapItemsPayload(itemsQuitados) }
+          )
+        : null;
+
       if (itemsNuevos.length === 0) {
         // Sin productos nuevos, `agregar-items` no aplica (exige al menos uno).
-        // Si solo se corrigieron domicilio o descuento, van por sus endpoints
-        // dedicados, en secuencia: ambos recalculan el total de la misma orden.
+        // Lo quitado y las correcciones de domicilio/descuento van por sus endpoints
+        // dedicados, en secuencia: los tres recalculan el total de la misma orden.
         const ajustes: Observable<unknown>[] = [];
+        if (quitar$) ajustes.push(quitar$);
         if (domicilioCambio) {
           ajustes.push(this.http.patch(
             `${environment.apiUrl}/pedidos/${idOrdenActiva}/valor-domicilio`,
@@ -1460,6 +1473,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
               this.resetEstadoEnvio();
             },
             complete: () => {
+              this.itemsBaseOrdenActiva.set(this.cloneItems(this.items()));
               this.valorDomicilioBase.set(this.valorDomicilio());
               this.descuentoBase.set(this.descuento());
               this.procesarDestinoEnvio(destino, idOrdenActiva);
@@ -1472,7 +1486,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
         return;
       }
 
-      this.http.patch<{ success: boolean }>(
+      const agregar$ = this.http.patch<{ success: boolean }>(
         `${environment.apiUrl}/pedidos/${idOrdenActiva}/agregar-items`,
         {
           id_caja: this.getIdCaja(),
@@ -1489,9 +1503,15 @@ export class PedidosComponent implements OnInit, OnDestroy {
           ...bodyDescuento,
           ...this.construirPagosPedido(),
         }
-      ).subscribe({
+      );
+
+      // `last()`: con productos quitados la secuencia manda dos peticiones, y lo que
+      // valida el resultado final es la respuesta de `agregar-items` (la que corre
+      // después y ya ve el total sin lo retirado).
+      (quitar$ ? concat(quitar$, agregar$) : agregar$).pipe(last()).subscribe({
         next: res => {
-          if (!res?.success) {
+          const respuesta = res as { success?: boolean } | undefined;
+          if (!respuesta?.success) {
             this.resetEstadoEnvio();
             return;
           }
@@ -1834,6 +1854,35 @@ export class PedidosComponent implements OnInit, OnDestroy {
     }
 
     return nuevos;
+  }
+
+  /**
+   * Lo que se quitó o redujo respecto a la orden base (el reverso de
+   * `obtenerItemsNuevosOrdenActiva`). Sin esto, quitar un producto en pantalla nunca se
+   * le avisaba al backend — `agregar-items` solo sabe crear líneas nuevas — y al volver
+   * a cargar la orden el producto seguía ahí.
+   */
+  private obtenerItemsQuitadosOrdenActiva(): ItemOrden[] {
+    const actuales = this.agruparItems(this.items());
+    const base = this.agruparItems(this.itemsBaseOrdenActiva());
+    const quitados: ItemOrden[] = [];
+
+    for (const [key, itemBase] of base.entries()) {
+      const cantidadActual = actuales.get(key)?.cantidad ?? 0;
+      const cantidadQuitada = itemBase.cantidad - cantidadActual;
+
+      if (cantidadQuitada <= 0) continue;
+
+      quitados.push({
+        ...itemBase,
+        cantidad: cantidadQuitada,
+        ingredientes: [...itemBase.ingredientes],
+        exclusiones: new Set(itemBase.exclusiones),
+        exclusionesNombres: itemBase.exclusionesNombres ? [...itemBase.exclusionesNombres] : undefined,
+      });
+    }
+
+    return quitados;
   }
 
   private marcarMesaPorCobrarSiAplica(): void {
