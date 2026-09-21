@@ -73,7 +73,37 @@
         WhatsApp ({{ countWhatsapp() }})
       </button>
     }
+    <!--
+      Igual que el chip de WhatsApp: solo aparece si hay alguno. No filtra la lista de arriba
+      —los cancelados no son un pedido activo más, son una alerta aparte—, solo abre o cierra
+      el panel de abajo.
+    -->
+    @if (canceladosRecientes().length > 0) {
+      <button class="chip chip-cancelado" [class.active]="mostrarCancelados()"
+              (click)="alternarCancelados()"
+              [title]="mostrarCancelados() ? 'Ocultar cancelados de hoy' : 'Ver cancelados de hoy'">
+        <lucide-icon name="ban" [size]="13" />
+        Cancelados hoy ({{ canceladosRecientes().length }})
+      </button>
+    }
   </div>
+
+  @if (mostrarCancelados() && canceladosRecientes().length > 0) {
+    <div class="cancelados-panel">
+      @for (c of canceladosRecientes(); track c.id_orden) {
+        <div class="cancelado-item">
+          <span class="numero">#{{ ordenCorto(c.numero_orden) }}</span>
+          <span class="cliente">{{ c.contacto_nombre || 'Sin nombre' }}</span>
+          <span class="tipo">{{ tipoLabel(c.tipo_pedido) }}</span>
+          <span class="total">{{ c.total | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+          <span class="quien" [class.por-cliente]="c.cancelado_por === 'cliente'">
+            {{ canceladoPorLabel(c) }}
+          </span>
+          <span class="hora">{{ c.fecha_cierre | date:'HH:mm' }}</span>
+        </div>
+      }
+    </div>
+  }
 
   @if (cargando()) {
     <div class="state">Cargando pedidos...</div>

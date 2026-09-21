@@ -114,6 +114,24 @@ export interface PedidoDespacho {
   pagos?: { id_metodo_pago: number; valor: number | string }[];
 }
 
+/**
+ * Un pedido cancelado HOY, tal como lo devuelve `GET /despacho/cancelados`.
+ *
+ * Deliberadamente más flaco que `PedidoDespacho`: esto es una alerta de lo que acaba de pasar
+ * en el turno, no una tarjeta para operar — no se cobra, no se edita, no se imprime. Lo único
+ * que importa es que se sepa que pasó y quién lo hizo.
+ */
+export interface PedidoCancelado {
+  id_orden: number;
+  numero_orden: string;
+  tipo_pedido: TipoPedido;
+  total: number;
+  contacto_nombre: string | null;
+  /** Quién lo canceló: el propio negocio desde el panel, o el cliente por WhatsApp. */
+  cancelado_por: 'cliente' | 'negocio' | null;
+  fecha_cierre: string;
+}
+
 @Component({
   selector: 'app-despacho',
   imports: [LucideAngularModule, CurrencyPipe, DatePipe, MultipagoSelectorComponent],
@@ -137,6 +155,13 @@ export class DespachoComponent implements OnInit {
 
   readonly pedidos = signal<PedidoDespacho[]>([]);
   readonly cargando = signal(false);
+  /**
+   * Los cancelados de HOY, aparte de `pedidos`: son una alerta de lo que acaba de pasar en el
+   * turno, no pedidos activos, y mezclarlos en la misma tarjeta que se cobra o se edita
+   * confundiría las dos cosas.
+   */
+  readonly canceladosRecientes = signal<PedidoCancelado[]>([]);
+  readonly mostrarCancelados = signal(false);
   readonly filtro = signal<FiltroTipo>('TODOS');
   readonly pedidoActivo = signal<PedidoDespacho | null>(null);
   readonly cobrandoId = signal<number | null>(null);
@@ -240,10 +265,16 @@ export class DespachoComponent implements OnInit {
       this.loadCuentasCliente(idNegocioCaja);
     }
 
+    this.cargarCancelados();
+
     // Despacho es la pantalla que espera a cocina: en cuanto marcan un plato listo, aquí
-    // tiene que verse. Y los pedidos que entran por WhatsApp aparecen por este mismo camino.
+    // tiene que verse. Y los pedidos que entran por WhatsApp aparecen por este mismo camino —
+    // igual que una cancelación del cliente, que es la que nadie del negocio disparó.
     this.destroyRef.onDestroy(
-      this.realtime.alCambiar(['pedidos'], () => this.cargar()),
+      this.realtime.alCambiar(['pedidos'], () => {
+        this.cargar();
+        this.cargarCancelados();
+      }),
     );
 
     this.domicilioEditado$
@@ -301,8 +332,30 @@ export class DespachoComponent implements OnInit {
     });
   }
 
+  private cargarCancelados(): void {
+    const id = this.negocioId();
+    if (!id) return;
+
+    const url = `${environment.apiUrl}/despacho/cancelados?id_negocio=${id}`;
+    this.http.get<{ success: boolean; data: PedidoCancelado[] }>(url).subscribe({
+      next: (res) => this.canceladosRecientes.set(res?.data ?? []),
+      // Silencioso a propósito: es información extra, no la pantalla principal. Si falla,
+      // Despacho sigue funcionando igual que antes de que esto existiera.
+      error: () => this.canceladosRecientes.set([]),
+    });
+  }
+
   seleccionarFiltro(f: FiltroTipo): void {
     this.filtro.set(f);
+  }
+
+  alternarCancelados(): void {
+    this.mostrarCancelados.update((v) => !v);
+  }
+
+  /** Quién lo canceló, en una palabra que el negocio entienda. */
+  canceladoPorLabel(p: PedidoCancelado): string {
+    return p.cancelado_por === 'cliente' ? 'Lo canceló el cliente' : 'Cancelado en el negocio';
   }
 
   rotarDensidad(): void {
