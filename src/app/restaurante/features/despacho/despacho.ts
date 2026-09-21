@@ -964,7 +964,11 @@ export class DespachoComponent implements OnInit {
 
   private buildTicketHtml(p: PedidoDespacho, fecha: Date): string {
     const negocio = this.escapeHtml(this.auth.negocio()?.nombre ?? 'Negocio');
-    const usuario = this.escapeHtml(this.auth.usuario()?.nombre_completo ?? 'Usuario');
+    // "Atiende" es quien tomó el pedido, no quien está cobrando/imprimiendo ahora mismo.
+    const creador = p.usuario;
+    const usuario = this.escapeHtml(
+      creador ? `${creador.primer_nombre} ${creador.primer_apellido}`.trim() : (this.auth.usuario()?.nombre_completo ?? 'Usuario')
+    );
     const fechaTexto = this.escapeHtml(this.formatDateTime(fecha));
     const tipoTexto = p.tipo_pedido === 'DOMICILIO' ? 'Domicilio' : 'Para llevar';
     const contacto = this.escapeHtml(p.contacto_nombre ?? '');

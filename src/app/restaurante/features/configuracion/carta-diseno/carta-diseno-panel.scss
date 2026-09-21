@@ -2,11 +2,6 @@
   display: block;
 }
 
-// Ámbar oscuro para lo que pide atención: el `--color-warning` del tema (#ef6c00) no llega a
-// 4.5:1 sobre blanco en texto pequeño.
-$atencion: #9a4a00;
-$atencion-fuerte: #b45309;
-
 .cd {
   display: grid;
   gap: var(--spacing-md);
@@ -94,7 +89,7 @@ $atencion-fuerte: #b45309;
 
   &[data-tono='pendiente'] {
     background: var(--color-warning-bg);
-    color: $atencion;
+    color: var(--color-warning);
   }
 }
 
@@ -210,7 +205,7 @@ $atencion-fuerte: #b45309;
 
 .cd-nota {
   background: var(--color-warning-bg);
-  color: $atencion;
+  color: var(--color-warning);
 }
 
 // ── Rejilla: controles a la izquierda, vista previa a la derecha ──
@@ -519,7 +514,7 @@ $atencion-fuerte: #b45309;
   height: 20px;
   padding: 0 6px;
   border-radius: var(--radius-full);
-  background: $atencion-fuerte;
+  background: var(--color-warning);
   color: #ffffff;
   font-size: 11px;
   font-weight: 700;
@@ -535,10 +530,10 @@ $atencion-fuerte: #b45309;
   background: var(--color-surface);
 
   &[data-nivel='atencion'] {
-    border-left-color: $atencion-fuerte;
+    border-left-color: var(--color-warning);
 
     .cd-aviso__icono {
-      color: $atencion-fuerte;
+      color: var(--color-warning);
     }
   }
 
@@ -709,7 +704,7 @@ $atencion-fuerte: #b45309;
 
   &.is-bajo {
     background: var(--color-warning-bg);
-    color: $atencion;
+    color: var(--color-warning);
   }
 }
 

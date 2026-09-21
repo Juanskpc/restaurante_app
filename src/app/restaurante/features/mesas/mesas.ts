@@ -777,7 +777,13 @@ export class MesasComponent {
     fecha: Date,
   ): string {
     const negocioNombre = this.escapeHtml(this.auth.negocio()?.nombre ?? 'Negocio');
-    const usuarioNombre = this.escapeHtml(this.auth.usuario()?.nombre_completo ?? 'Usuario');
+    // "Atiende" es quien tomó el pedido, no quien está cobrando/imprimiendo ahora — pueden ser
+    // personas distintas. Sin usuario en la orden (no debería pasar con una mesa ocupada), se usa
+    // quien está en pantalla como último recurso.
+    const creador = mesa.order.usuario;
+    const usuarioNombre = this.escapeHtml(
+      creador ? `${creador.primer_nombre} ${creador.primer_apellido}`.trim() : (this.auth.usuario()?.nombre_completo ?? 'Usuario')
+    );
     const fechaTexto = this.escapeHtml(this.formatDateTime(fecha));
     const tipoPedido = 'En mesa';
     const mesaTexto = this.escapeHtml(mesa.nombre);

@@ -98,6 +98,8 @@ interface OrdenApi {
   id_mesa: number | null;
   id_metodo_pago?: number | null;
   nota?: string | null;
+  /** Quien tomó el pedido — no confundir con quien cobra o imprime la factura después. */
+  usuario?: { id_usuario: number; primer_nombre: string; primer_apellido: string } | null;
   tipo_pedido?: TipoPedido;
   valor_domicilio?: number | string | null;
   descuento?: number | string | null;
@@ -243,6 +245,8 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.domDomiciliarioId() !== null
   );
   readonly ordenActivaId = signal<number | null>(null);
+  /** Quien tomó el pedido cargado en pantalla. Null = pedido nuevo, todavía sin guardar. */
+  readonly ordenCreadorNombre = signal<string | null>(null);
   readonly itemsBaseOrdenActiva = signal<ItemOrden[]>([]);
   readonly notaBaseOrdenActiva = signal('');
   readonly itemsPagadosPorMesa = signal<Record<number, ItemOrden[]>>({});
@@ -538,6 +542,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
   ): void {
     const mappedItems = this.mapOrdenApiToItems(orden);
     this.ordenActivaId.set(orden.id_orden);
+    this.ordenCreadorNombre.set(this.nombreCreadorOrden(orden));
     this.pedidoDespachoSeleccionado.set(pedido);
 
     if (itemsPrevios.length > 0) {
@@ -830,6 +835,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.itemsBaseOrdenActiva.set([]);
     this.notaBaseOrdenActiva.set('');
     this.ordenActivaId.set(null);
+    this.ordenCreadorNombre.set(null);
     this.mesaId.set(null);
     this.notaOrden.set('');
     this.mesaRequeridaError.set(false);
@@ -995,6 +1001,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.itemsBaseOrdenActiva.set([]);
     this.notaBaseOrdenActiva.set('');
     this.ordenActivaId.set(null);
+    this.ordenCreadorNombre.set(null);
 
     if (veniaConOrdenActiva) {
       this.items.set([]);
@@ -1042,6 +1049,13 @@ export class PedidosComponent implements OnInit, OnDestroy {
   }
 
 
+
+  /** Nombre de quien tomó la orden (dueño de `id_usuario` en el backend), o null si no vino. */
+  private nombreCreadorOrden(orden: OrdenApi): string | null {
+    const u = orden.usuario;
+    if (!u) return null;
+    return `${u.primer_nombre} ${u.primer_apellido}`.trim() || null;
+  }
 
   /** Desglose guardado de una orden, en filas para el selector. */
   private mapPagosOrden(orden: OrdenApi): FilaPago[] {
@@ -1099,6 +1113,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
           this.itemsBaseOrdenActiva.set([]);
           this.notaBaseOrdenActiva.set('');
           this.ordenActivaId.set(null);
+          this.ordenCreadorNombre.set(null);
 
           if (this.mesaSeleccionadaEstaDisponible(idMesa)) {
             this.limpiarItemsPagadosMesa(idMesa);
@@ -1141,6 +1156,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
 
             const mappedItems = this.mapOrdenApiToItems(orden);
             this.ordenActivaId.set(orden.id_orden);
+            this.ordenCreadorNombre.set(this.nombreCreadorOrden(orden));
 
             // Si había productos nuevos ya agregados, fusionarlos al pedido cargado
             if (itemsPrevios.length > 0) {
@@ -2210,7 +2226,13 @@ export class PedidosComponent implements OnInit, OnDestroy {
 
   private buildTicketHtml(fecha: Date): string {
     const negocioNombre = this.escapeHtml(this.auth.negocio()?.nombre ?? 'Negocio');
-    const usuarioNombre = this.escapeHtml(this.auth.usuario()?.nombre_completo ?? 'Usuario');
+    // "Atiende" es quien TOMÓ el pedido, no quien está cobrando/imprimiendo la factura ahora
+    // mismo — pueden ser personas distintas (el mesero atendió la mesa, el cajero cobra después).
+    // Si el pedido es nuevo (todavía no tiene id_usuario propio guardado), la persona que lo está
+    // registrando en este momento SÍ es quien lo atiende.
+    const usuarioNombre = this.escapeHtml(
+      this.ordenCreadorNombre() ?? this.auth.usuario()?.nombre_completo ?? 'Usuario'
+    );
     const fechaTexto = this.escapeHtml(this.formatDateTime(fecha));
     const tipoPedido = this.tipoPedido() === 'MESA'
       ? 'En mesa'

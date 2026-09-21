@@ -93,7 +93,7 @@
   gap: 6px;
   padding: 7px 14px;
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--color-bg-secondary);
   color: var(--color-text-primary);
   font-size: 0.78rem;
@@ -136,7 +136,7 @@
 
 .kanban-col {
   background: var(--color-surface);
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   display: flex;
   flex-direction: column;
   border: 1px solid var(--color-border);
@@ -166,7 +166,7 @@
 .col-count {
   background: rgba(0, 0, 0, 0.15);
   padding: 3px 11px;
-  border-radius: 20px;
+  border-radius: var(--radius-full);
   font-size: 0.95rem;
 }
 
@@ -203,7 +203,7 @@
 // ─── Order Card ─────────────────────────────────────────────
 .order-card {
   background: var(--color-surface);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   border: 2px solid var(--color-border);
   overflow: hidden;
   box-shadow: var(--shadow-md);
@@ -324,7 +324,7 @@
 
 .product-item {
   background: var(--color-bg-secondary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 11px 13px;
   border-left: 4px solid var(--color-primary);
 }
@@ -360,7 +360,7 @@
   color: var(--color-primary);
   background: color-mix(in srgb, var(--color-primary) 12%, transparent);
   padding: 3px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -378,7 +378,7 @@
   gap: 8px;
   font-size: 0.82rem;
   padding: 5px 10px;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
 }
 
 .mod-remove {
@@ -397,7 +397,7 @@
   padding: 7px 11px;
   background: color-mix(in srgb, var(--color-primary) 8%, transparent);
   border-left: 3px solid var(--color-primary);
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   font-size: 0.78rem;
   color: var(--color-text-secondary);
   font-style: italic;
@@ -414,7 +414,7 @@
   flex: 1;
   padding: 13px 10px;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-size: 0.8rem;
   font-weight: 700;
   text-transform: uppercase;

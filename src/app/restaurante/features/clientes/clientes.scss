@@ -149,7 +149,7 @@
     text-transform: uppercase;
   }
 
-  &--debe { color: var(--color-danger, #dc2626); }
+  &--debe { color: var(--color-error); }
   &--ok { color: var(--color-success, #16a34a); }
   &--neutro { color: var(--color-text-secondary); }
 }
@@ -177,7 +177,7 @@
   background: var(--color-bg);
 
   strong { font-size: 1.5rem; }
-  &--debe strong { color: var(--color-danger, #dc2626); }
+  &--debe strong { color: var(--color-error); }
   &--ok strong { color: var(--color-success, #16a34a); }
 }
 
@@ -234,7 +234,7 @@
   flex-shrink: 0;
   font-weight: 700;
   font-size: var(--font-size-sm);
-  color: var(--color-danger, #dc2626);
+  color: var(--color-error);
 
   &--abono { color: var(--color-success, #16a34a); }
 }
@@ -310,10 +310,10 @@
   font-weight: 600;
   cursor: pointer;
   background: transparent;
-  color: var(--color-danger, #dc2626);
-  border: 1px solid color-mix(in srgb, var(--color-danger, #dc2626) 45%, transparent);
+  color: var(--color-error);
+  border: 1px solid color-mix(in srgb, var(--color-error) 45%, transparent);
 
-  &:hover:not(:disabled) { background: color-mix(in srgb, var(--color-danger, #dc2626) 8%, transparent); }
+  &:hover:not(:disabled) { background: color-mix(in srgb, var(--color-error) 8%, transparent); }
   &:disabled { opacity: .6; cursor: default; }
 }
 
@@ -444,7 +444,7 @@
   font-weight: 400;
   font-size: .75rem;
 }
-.requerido { color: var(--color-danger, #dc2626); }
+.requerido { color: var(--color-error); }
 
 .aviso {
   margin: 0;
