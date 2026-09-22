@@ -257,7 +257,7 @@
                     (click)="avisarListo(p, $event)">
               <lucide-icon [name]="avisandoId() === p.id_orden ? 'loader' : 'send'" [size]="14"
                            [class.spin]="avisandoId() === p.id_orden" />
-              {{ avisoFallido(p) ? 'No salió — reintentar' : 'Avisar que está listo' }}
+              {{ avisoFallido(p) ? 'No salió — reintentar' : etiquetaAvisar(p) }}
             </button>
           } @else if (avisoHecho(p)) {
             <div class="aviso-hecho"
@@ -355,7 +355,7 @@
                     (click)="avisarListo(p)">
               <lucide-icon [name]="avisandoId() === p.id_orden ? 'loader' : 'send'" [size]="15"
                            [class.spin]="avisandoId() === p.id_orden" />
-              {{ avisoFallido(p) ? 'El aviso no salió — reintentar' : 'Avisar que está listo' }}
+              {{ avisoFallido(p) ? 'El aviso no salió — reintentar' : etiquetaAvisar(p) }}
             </button>
           } @else if (avisoHecho(p)) {
             <div class="info-row">
@@ -376,13 +376,27 @@
             <span class="info-val">{{ tomadoPorNombre(p) }}</span>
           </div>
 
-          @if (puedeVerTodos()) {
+          @if (puedeVerTodos() && p.tipo_pedido === 'DOMICILIO') {
             <div class="info-row">
               <span class="info-label">
                 <lucide-icon name="bike" [size]="14" />
                 Domiciliario
               </span>
-              <span class="info-val">{{ domiciliarioNombre(p) }}</span>
+              @if (puedeUsarDomicilio() && domiciliariosDisponibles().length > 0) {
+                <select
+                  class="info-val dom-select"
+                  aria-label="Cambiar domiciliario"
+                  [disabled]="asignandoDomiciliarioId() === p.id_orden"
+                  [value]="p.id_domiciliario ?? ''"
+                  (change)="cambiarDomiciliario(p, $any($event.target).value)">
+                  <option value="" disabled>Sin asignar</option>
+                  @for (d of domiciliariosDisponibles(); track d.id_usuario) {
+                    <option [value]="d.id_usuario">{{ d.nombre }}</option>
+                  }
+                </select>
+              } @else {
+                <span class="info-val">{{ domiciliarioNombre(p) }}</span>
+              }
             </div>
           }
 

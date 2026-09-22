@@ -593,6 +593,25 @@
   &.muted { color: var(--color-text-secondary); }
 }
 
+// El selector para cambiar el domiciliario, mismo estilo que el input del domicilio.
+.dom-select {
+  padding: 5px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-family);
+
+  &:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 18%, transparent);
+  }
+
+  &:disabled { opacity: .6; cursor: progress; }
+}
+
 .tel-link {
   color: var(--color-primary);
   font-weight: 600;

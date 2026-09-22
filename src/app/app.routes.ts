@@ -81,6 +81,13 @@ export const routes: Routes = [
           import('./restaurante/features/inventario/inventario').then(m => m.InventarioComponent),
       },
       {
+        path: 'horarios',
+        title: 'Horarios',
+        canActivate: [planGuard],
+        loadComponent: () =>
+          import('./restaurante/features/horarios/horarios').then(m => m.HorariosComponent),
+      },
+      {
         path: 'usuarios',
         title: 'Usuarios',
         canActivate: [planGuard],

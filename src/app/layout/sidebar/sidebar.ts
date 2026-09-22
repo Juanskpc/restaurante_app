@@ -49,6 +49,7 @@ export class SidebarComponent {
     { icon: 'users',             label: 'Clientes',        route: '/clientes',        section: 'secondary' },
     { icon: 'wallet',            label: 'Caja',            route: '/caja',            section: 'secondary' },
     { icon: 'package',           label: 'Inventario',      route: '/inventario',      section: 'secondary' },
+    { icon: 'clock',             label: 'Horarios',        route: '/horarios',        section: 'secondary' },
     { icon: 'users',             label: 'Personal',        route: '/usuarios',        section: 'secondary' },
     { icon: 'chart-bar',          label: 'Reportes',        route: '/reportes',        section: 'secondary' },
     { icon: 'settings',          label: 'Configuración',   route: '/configuracion',   section: 'secondary' },
