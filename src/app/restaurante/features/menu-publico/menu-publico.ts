@@ -66,6 +66,9 @@ interface SeccionVisible extends CategoriaPublica {
   enLista: ProductoPublico[];
 }
 
+/** Los cuatro estados de `horarioService.estadoDeAtencion` — mismo que lee el saludo del bot. */
+type EstadoAtencion = 'abierto' | 'fuera_de_horario' | 'aun_no_abre' | 'cerrado_sin_horario';
+
 interface NegocioPublico {
   id_negocio: number;
   nombre: string;
@@ -78,6 +81,8 @@ interface NegocioPublico {
   plan_activo: boolean;
   /** Diseño publicado, ya recortado por el plan. Puede faltar con un backend anterior. */
   carta?: CartaPublicaConfig | null;
+  /** Puede faltar con un backend anterior; en ese caso se trata como "abierto" (ver `puedePedir`). */
+  atencion?: { estado: EstadoAtencion } | null;
 }
 
 /** Lo que manda Configuración → Apariencia cuando esta carta se muestra como vista previa. */
@@ -120,14 +125,41 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
   /**
    * ¿Se muestra el botón de pedido?
    *
-   * Hacen falta dos cosas: un WhatsApp publicado al que escribir y un plan que incluya los
-   * pedidos desde la carta. Lo segundo lo decide el servidor (`carta.puede_pedir`); si la
-   * respuesta no lo trae, se conserva el comportamiento de antes de existir los planes.
+   * Hacen falta tres cosas: un WhatsApp publicado al que escribir, un plan que incluya los
+   * pedidos desde la carta (`carta.puede_pedir`; si la respuesta no lo trae, se conserva el
+   * comportamiento de antes de existir los planes) y que el negocio esté atendiendo AHORA
+   * (`atendiendoAhora`, 2026-09-22). Sin esto último, el cliente armaba el carrito, abría
+   * WhatsApp, y era el bot quien le decía que no podía tomarlo — la carta se puede seguir
+   * mirando, pedir no.
    */
   readonly puedePedir = computed(() => {
     const negocio = this.negocio();
     if (!negocio?.url_whatsapp) return false;
-    return negocio.carta?.puede_pedir ?? true;
+    if (!(negocio.carta?.puede_pedir ?? true)) return false;
+    return this.atendiendoAhora();
+  });
+
+  /**
+   * ¿Está el negocio atendiendo AHORA MISMO? Mismo estado que usa el saludo del bot
+   * (`horarioService.estadoDeAtencion`): horario y caja cruzados en un solo sitio.
+   *
+   * `undefined` en la respuesta (backend anterior a este campo) se trata como "abierto": es el
+   * comportamiento de siempre, no una carta rota por un dato que todavía no existía.
+   */
+  readonly atendiendoAhora = computed(() => (this.negocio()?.atencion?.estado ?? 'abierto') === 'abierto');
+
+  /** El texto del aviso cuando NO se puede pedir por horario — `null` cuando sí se puede. */
+  readonly avisoAtencion = computed<string | null>(() => {
+    switch (this.negocio()?.atencion?.estado) {
+      case 'fuera_de_horario':
+        return 'Ahora mismo estamos fuera de nuestro horario de atención. Puedes ver la carta, pero no hacer pedidos por ahora.';
+      case 'aun_no_abre':
+        return 'Ya estamos en nuestro horario de atención, pero todavía no hemos abierto. Puedes ver la carta mientras tanto.';
+      case 'cerrado_sin_horario':
+        return 'Estamos cerrados en este momento. Puedes ver la carta, pero no hacer pedidos por ahora.';
+      default:
+        return null;
+    }
   });
 
   /** El panel de pre-pedido, para revisar antes de mandar. */

@@ -264,6 +264,22 @@
   font-size: var(--font-size-sm);
 }
 
+/* Fuera de horario: la carta se sigue viendo, solo se avisa que no se puede pedir. */
+.aviso-atencion {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 auto;
+  padding: 10px clamp(16px, 4vw, 24px);
+  max-width: 960px;
+  background: color-mix(in srgb, var(--color-warning) 12%, var(--color-surface));
+  color: var(--color-warning);
+  font-size: var(--font-size-sm);
+  line-height: 1.4;
+
+  lucide-icon { flex-shrink: 0; }
+}
+
 /* ═══════════════════════════════════════════
    STATE CARDS (error, empty, plan inactive)
    ═══════════════════════════════════════════ */
