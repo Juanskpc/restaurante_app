@@ -3,6 +3,7 @@ import { RouterLink, RouterLinkActive, IsActiveMatchOptions } from '@angular/rou
 import { LucideAngularModule } from 'lucide-angular';
 
 import { AuthService } from '../../core/services/auth.service';
+import { SidebarService } from '../../core/services/sidebar.service';
 import { UiFeedbackService } from '../../core/ui-feedback/ui-feedback.service';
 
 /**
@@ -33,6 +34,20 @@ export interface NavItem {
 export class SidebarComponent {
   readonly auth = inject(AuthService);
   private readonly ui = inject(UiFeedbackService);
+  private readonly sidebar = inject(SidebarService);
+
+  /**
+   * Menú plegado a riel de iconos.
+   *
+   * Solo manda en escritorio: en tablet el menú ya es un riel por ancho, y en móvil no hay
+   * menú lateral sino barra inferior. En esos dos, plegarlo no significa nada y el CSS lo
+   * ignora.
+   */
+  readonly colapsado = this.sidebar.colapsado;
+
+  alternarColapso(): void {
+    this.sidebar.alternar();
+  }
 
   /**
    * Items de navegación.

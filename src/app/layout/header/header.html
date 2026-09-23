@@ -1,15 +1,5 @@
 <header class="app-header">
   <div class="header-left">
-    <!-- <button
-      type="button"
-      class="home-btn"
-      title="Ir al inicio de la plataforma"
-      aria-label="Ir al inicio de la plataforma"
-      (click)="irAlInicio()"
-    >
-      <lucide-icon name="home" [size]="18" />
-      <span class="home-btn__label">Inicio</span>
-    </button> -->
     <h1 class="header-title">{{ pageTitle() }}</h1>
     <span class="header-date">
       <lucide-icon name="calendar" [size]="14" />
@@ -47,6 +37,18 @@
     @if (negocios().length > 1) {
       <span class="header-divider"></span>
     }
+
+    <!-- Vuelta al panel central. No cierra sesión: pide un código de un solo uso y entra
+         autenticado al admin_app, que vive en otro origen y no ve este localStorage. -->
+    <button
+      type="button"
+      class="header-btn"
+      title="Ir al panel principal"
+      aria-label="Ir al panel principal"
+      (click)="irAlInicio()"
+    >
+      <lucide-icon name="home" [size]="20" />
+    </button>
 
     <!-- Notificaciones -->
     <button

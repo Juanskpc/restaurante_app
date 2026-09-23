@@ -31,6 +31,14 @@
   overflow-y: auto;
 }
 
+// --- Escritorio: el menú plegado deja su ancho al contenido ---
+// Solo desde 1024px, que es donde el menú se puede plegar a mano (ver sidebar.scss).
+@media (min-width: 1024px) {
+  .main-area.is-colapsado {
+    margin-left: 64px;
+  }
+}
+
 // --- Tablet: sidebar colapsado ---
 @media (max-width: 1023px) and (min-width: 768px) {
   .main-area {

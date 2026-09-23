@@ -29,11 +29,45 @@ $bottom-nav-height: 64px;
 .sidebar-logo {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: var(--spacing-sm);
   height: 64px;
   padding: 0 var(--spacing-md);
   border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
+}
+
+.logo-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  min-width: 0;
+}
+
+// Botón de plegar/desplegar. Discreto: se usa una vez al día, no compite con el menú.
+.sidebar-colapsar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+
+  &:hover {
+    background-color: var(--color-surface-elevated);
+    color: var(--color-text-primary);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
 }
 
 .logo-icon {
@@ -161,8 +195,62 @@ $bottom-nav-height: 64px;
   display: none;
 }
 
+// ============================
+// PLEGADO EN ESCRITORIO (riel de iconos)
+// ============================
+// Solo a partir de 1024px: por debajo el menú ya es un riel por ancho (tablet) o no existe
+// (móvil), así que el botón no tendría nada que plegar.
+@media (min-width: 1024px) {
+  .sidebar-desktop.is-colapsado {
+    width: $sidebar-collapsed;
+
+    .sidebar-logo {
+      justify-content: center;
+      padding: 0 var(--spacing-xs);
+    }
+
+    .logo-brand {
+      display: none;
+    }
+
+    .nav-section-label {
+      display: none;
+    }
+
+    .nav-item {
+      justify-content: center;
+      padding: 12px;
+
+      .nav-label {
+        display: none;
+      }
+
+      // El contador no cabe al lado del icono: se convierte en una marca en la esquina.
+      .nav-badge {
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        margin-left: 0;
+        min-width: 16px;
+        height: 16px;
+        font-size: 9px;
+        padding: 0 4px;
+      }
+    }
+
+    .sidebar-foot {
+      padding: var(--spacing-xs);
+    }
+  }
+}
+
 // --- TABLET (sidebar colapsado) ---
 @media (max-width: 1023px) and (min-width: 768px) {
+  // El botón se esconde: aquí el riel no es una elección, es el ancho disponible.
+  .sidebar-colapsar {
+    display: none;
+  }
+
   .sidebar-desktop {
     width: $sidebar-collapsed;
   }

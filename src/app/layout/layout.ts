@@ -9,6 +9,7 @@ import { HeaderComponent } from './header/header';
 import { NavProgressComponent } from './nav-progress/nav-progress';
 import { PlanAvisoComponent } from './plan-aviso/plan-aviso';
 import { AuthService } from '../core/services/auth.service';
+import { SidebarService } from '../core/services/sidebar.service';
 
 /** Rutas de sistema: existen precisamente para quien no tiene permisos. */
 const RUTAS_SIEMPRE_PERMITIDAS = new Set(['/sin-acceso', '/sin-plan']);
@@ -46,6 +47,9 @@ export class LayoutComponent {
   private readonly auth = inject(AuthService);
   private readonly platformId = inject(PLATFORM_ID);
   private readonly destroyRef = inject(DestroyRef);
+
+  /** Lo decide el botón del sidebar; aquí solo se usa para correr el contenido. */
+  readonly sidebarColapsado = inject(SidebarService).colapsado;
 
   readonly pageTitle = toSignal(
     this.router.events.pipe(

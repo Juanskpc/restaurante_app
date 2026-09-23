@@ -1,22 +1,43 @@
 <!-- ============================================================
      SIDEBAR DESKTOP / TABLET
      ============================================================ -->
-<aside class="sidebar-desktop">
-  <!-- Logo -->
+<aside class="sidebar-desktop" [class.is-colapsado]="colapsado()">
+  <!-- Logo + botón de plegar.
+       Plegado queda solo el botón, centrado, que entonces sirve para volver a desplegar
+       (mismo gesto que en la consola de administración). -->
   <div class="sidebar-logo">
-    <div class="logo-icon">
-      <lucide-icon name="chef-hat" [size]="24" />
+    <div class="logo-brand">
+      <div class="logo-icon">
+        <lucide-icon name="chef-hat" [size]="24" />
+      </div>
+      <span class="logo-text">{{ auth.negocio()?.nombre ?? 'Restaurante' }}</span>
     </div>
-    <span class="logo-text">{{ auth.negocio()?.nombre ?? 'Restaurante' }}</span>
+
+    <button
+      type="button"
+      class="sidebar-colapsar"
+      (click)="alternarColapso()"
+      [attr.aria-label]="colapsado() ? 'Desplegar menú' : 'Plegar menú'"
+      [attr.aria-pressed]="colapsado()"
+      [title]="colapsado() ? 'Desplegar menú' : 'Plegar menú'"
+    >
+      @if (colapsado()) {
+        <lucide-icon name="panel-left" [size]="18" aria-hidden="true" />
+      } @else {
+        <lucide-icon name="panel-left-close" [size]="18" aria-hidden="true" />
+      }
+    </button>
   </div>
 
-  <!-- Navegación principal -->
+  <!-- Navegación principal.
+       El `title` va siempre: plegado es lo único que dice a dónde lleva cada icono. -->
   <nav class="sidebar-nav">
     <span class="nav-section-label">Principal</span>
     @for (item of mainItems(); track item.route) {
       <a class="nav-item"
          [routerLink]="item.route"
          routerLinkActive="active"
+         [title]="item.label"
          [routerLinkActiveOptions]="item.route === '/dashboard' ? exactMatchOptions : prefixMatchOptions">
         <lucide-icon [name]="item.icon" [size]="20" />
         <span class="nav-label">{{ item.label }}</span>
@@ -31,6 +52,7 @@
       <a class="nav-item"
          [routerLink]="item.route"
          routerLinkActive="active"
+         [title]="item.label"
          [routerLinkActiveOptions]="prefixMatchOptions">
         <lucide-icon [name]="item.icon" [size]="20" />
         <span class="nav-label">{{ item.label }}</span>

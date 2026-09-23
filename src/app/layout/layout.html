@@ -2,7 +2,9 @@
 
 <app-sidebar />
 
-<div class="main-area">
+<!-- El área de contenido se corre a la izquierda cuando el menú se pliega: de eso se trata,
+     de ganar ancho para la pantalla de trabajo. -->
+<div class="main-area" [class.is-colapsado]="sidebarColapsado()">
   <app-header [pageTitle]="pageTitle()" />
 
   <app-plan-aviso />
