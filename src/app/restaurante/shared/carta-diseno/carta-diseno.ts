@@ -19,18 +19,38 @@
  * que la usan sin tocar su configuración guardada.
  */
 
-export type PlantillaId =
-  | 'esencial'
-  | 'neon'
-  | 'gaceta'
-  | 'medianoche'
-  | 'papel'
-  | 'vitrina'
-  | 'mostrador';
+export type PlantillaId = 'esencial' | 'neon' | 'gaceta' | 'mural' | 'retro';
 
-export type FormatoId = 'cards' | 'lista' | 'mixto';
-export type FuenteId = 'sistema' | 'inter' | 'poppins' | 'lora' | 'archivo-narrow' | 'dm-serif-display';
+export type FormatoId = 'cards' | 'lista';
+
+export type FuenteId =
+  | 'sistema'
+  | 'inter'
+  | 'poppins'
+  | 'lora'
+  | 'archivo-narrow'
+  | 'dm-serif-display'
+  | 'urban-black';
+
 export type BordeId = 'recto' | 'suave' | 'redondo';
+
+/**
+ * Cómo se ARMA la carta, que es distinto de cómo se pinta.
+ *
+ * Los colores y las tipografías cambian el aspecto; esto cambia la estructura. Es lo que separa
+ * una carta de otra de verdad: dos plantillas con la misma composición y distinto color son la
+ * misma carta pintada de otro color.
+ *
+ *  - `estandar`: una columna, con el formato que elija el negocio (tarjetas o lista).
+ *  - `mural`:    dos columnas de texto sobre fondo oscuro, con el nombre de la categoría en un
+ *                bloque de color. La carta de hamburguesería pegada en la pared.
+ *  - `retro`:    dos columnas dentro de paneles redondeados, títulos centrados y grandes, precios
+ *                cortos a la derecha. La carta impresa de toda la vida.
+ *
+ * Las dos últimas mandan sobre el formato: en una carta a dos columnas, «tarjetas con foto» no
+ * significa nada. Por eso `formatoEfectivo` las fuerza a lista y el editor lo dice.
+ */
+export type ComposicionId = 'estandar' | 'mural' | 'retro';
 
 /** Solo lo que el negocio cambió; lo demás lo pone la plantilla. */
 export interface MarcaCarta {
@@ -80,6 +100,12 @@ export interface FuenteDef {
   google: string | null;
   /** Algunas fuentes de titular solo existen en un peso; forzar 700 las engorda artificialmente. */
   pesoTitulos: number;
+  /**
+   * Fuente servida por nosotros (`public/fonts/`), no por Google. Su `@font-face` está en
+   * `styles.scss`. Si el archivo no está, la pila de respaldo mantiene la carta legible: una
+   * tipografía que falta nunca puede dejar un menú sin leerse.
+   */
+  propia?: boolean;
 }
 
 /**
@@ -131,6 +157,17 @@ export const FUENTES: readonly FuenteDef[] = [
     google: 'DM+Serif+Display',
     pesoTitulos: 400,
   },
+  {
+    id: 'urban-black',
+    nombre: 'Urban Black',
+    // Pila pensada para que la carta no se desarme si el archivo no está: primero la fuente
+    // propia, después dos pesadas que sí están en casi cualquier equipo, y al final la condensada
+    // del sistema. Todas comparten el aire compacto y rotundo del titular.
+    stack: "'Urban Black', 'Archivo Black', 'Arial Black', 'Archivo Narrow', 'Arial Narrow', sans-serif",
+    google: null,
+    propia: true,
+    pesoTitulos: 400, // ya es negra de por sí: pedirle 700 encima la emborrona
+  },
 ];
 
 export interface BordeDef {
@@ -163,11 +200,6 @@ export const FORMATOS: readonly FormatoDef[] = [
     nombre: 'Lista',
     descripcion: 'Cada categoría abre con su foto y debajo van los productos en filas.',
   },
-  {
-    id: 'mixto',
-    nombre: 'Mixto',
-    descripcion: 'Los productos populares arriba en tarjetas y el resto en lista.',
-  },
 ];
 
 interface PaletaPlantilla {
@@ -197,6 +229,8 @@ export interface PlantillaDef {
   mayusculasProductos: boolean;
   espaciadoTitulos: string;
   fotoProducto: string;
+  /** Cómo se arma la carta. `estandar` respeta el formato elegido; las otras mandan sobre él. */
+  composicion: ComposicionId;
   formatoSugerido: FormatoId;
   /** Cuánto se resiente la plantilla sin fotos de producto. Alimenta los avisos. */
   fotosProducto: 'necesarias' | 'recomendadas' | 'opcionales';
@@ -233,6 +267,7 @@ export const PLANTILLAS: readonly PlantillaDef[] = [
     mayusculasProductos: false,
     espaciadoTitulos: 'normal',
     fotoProducto: '4 / 3',
+    composicion: 'estandar',
     formatoSugerido: 'cards',
     fotosProducto: 'recomendadas',
     miniaturaEnLista: false,
@@ -258,13 +293,16 @@ export const PLANTILLAS: readonly PlantillaDef[] = [
       border: '#2A2A31',
       accent: '#D8FF33',
     },
-    fuenteTitulos: 'archivo-narrow',
+    // Urban Black es la que le da el aire de rótulo pintado. Ver FUENTES: es propia, no de
+    // Google, y su pila de respaldo aguanta si el archivo no llega.
+    fuenteTitulos: 'urban-black',
     fuenteCuerpo: 'inter',
     borde: 'recto',
     mayusculasTitulos: true,
     mayusculasProductos: true,
     espaciadoTitulos: '0.04em',
     fotoProducto: '16 / 9',
+    composicion: 'estandar',
     formatoSugerido: 'cards',
     fotosProducto: 'recomendadas',
     miniaturaEnLista: false,
@@ -297,6 +335,7 @@ export const PLANTILLAS: readonly PlantillaDef[] = [
     mayusculasProductos: false,
     espaciadoTitulos: 'normal',
     fotoProducto: '4 / 3',
+    composicion: 'estandar',
     formatoSugerido: 'lista',
     fotosProducto: 'opcionales',
     miniaturaEnLista: false,
@@ -306,31 +345,34 @@ export const PLANTILLAS: readonly PlantillaDef[] = [
     bordeTarjeta: true,
   },
   {
-    id: 'medianoche',
-    nombre: 'Medianoche',
-    estilo: 'Oscura y elegante',
-    descripcion: 'Superficies violeta profundo, foto protagonista y precio en ámbar.',
-    ideal: 'bares, coctelería y pizzerías de noche',
+    id: 'mural',
+    nombre: 'Mural',
+    estilo: 'Cartel de pared',
+    descripcion:
+      'Dos columnas de texto sobre fondo oscuro y el nombre de la categoría en un bloque de color. ' +
+      'Sin fotos: manda la tipografía.',
+    ideal: 'hamburgueserías, alitas, food trucks y cartas que se leen de lejos',
     oscura: true,
-    usaColorNegocio: false,
+    usaColorNegocio: true,
     paleta: {
-      bg: '#13121A',
-      surface: '#1E1D27',
-      surface2: '#2A2836',
-      ink: '#F0EEF5',
-      muted: '#A9A5B8',
-      border: '#34313F',
-      accent: '#E0A458',
+      bg: '#17161A',
+      surface: '#1F1E23',
+      surface2: '#27262C',
+      ink: '#F7F4EE',
+      muted: '#A29C93',
+      border: '#332F37',
+      accent: '#E8521F',
     },
-    fuenteTitulos: 'lora',
+    fuenteTitulos: 'urban-black',
     fuenteCuerpo: 'inter',
-    borde: 'redondo',
-    mayusculasTitulos: false,
-    mayusculasProductos: false,
-    espaciadoTitulos: 'normal',
+    borde: 'recto',
+    mayusculasTitulos: true,
+    mayusculasProductos: true,
+    espaciadoTitulos: '0.02em',
     fotoProducto: '16 / 9',
-    formatoSugerido: 'cards',
-    fotosProducto: 'recomendadas',
+    composicion: 'mural',
+    formatoSugerido: 'lista',
+    fotosProducto: 'opcionales',
     miniaturaEnLista: false,
     precioConPuntos: false,
     precio: 'acento',
@@ -338,98 +380,37 @@ export const PLANTILLAS: readonly PlantillaDef[] = [
     bordeTarjeta: false,
   },
   {
-    id: 'papel',
-    nombre: 'Papel',
-    estilo: 'Minimal',
-    descripcion: 'Blanco, negro y mucho aire. Sin sombras ni cajas: solo la carta.',
-    ideal: 'cafés de especialidad, panaderías y cartas cortas',
-    oscura: false,
-    usaColorNegocio: false,
-    paleta: {
-      bg: '#FFFFFF',
-      surface: '#FFFFFF',
-      surface2: '#F4F4F4',
-      ink: '#1C1C1C',
-      muted: '#6B6B6B',
-      border: '#E6E6E6',
-      accent: '#1C1C1C',
-    },
-    fuenteTitulos: 'inter',
-    fuenteCuerpo: 'inter',
-    borde: 'recto',
-    mayusculasTitulos: true,
-    mayusculasProductos: false,
-    espaciadoTitulos: '0.12em',
-    fotoProducto: '1 / 1',
-    formatoSugerido: 'lista',
-    fotosProducto: 'opcionales',
-    miniaturaEnLista: false,
-    precioConPuntos: true,
-    precio: 'tinta',
-    sombra: false,
-    bordeTarjeta: false,
-  },
-  {
-    id: 'vitrina',
-    nombre: 'Vitrina',
-    estilo: 'Foto protagonista',
-    descripcion: 'Fotos cuadradas grandes, dos por fila en el móvil. La imagen vende.',
-    ideal: 'sushi, postres, heladerías y brunch con buenas fotos',
+    id: 'retro',
+    nombre: 'Retro',
+    estilo: 'Carta impresa',
+    descripcion:
+      'Paneles redondeados a dos columnas sobre papel crema, con los títulos centrados y grandes. ' +
+      'Entra mucha carta en poco espacio.',
+    ideal: 'pollo, comida rápida y cartas largas que se entregan en la mesa',
     oscura: false,
     usaColorNegocio: true,
     paleta: {
-      bg: '#F4F1EC',
-      surface: '#FFFFFF',
-      surface2: '#EBE6DE',
-      ink: '#211E1A',
-      muted: '#6B655C',
-      border: '#E3DDD3',
-      accent: '#C2410C',
+      bg: '#F6F0DC',
+      surface: '#FCF8EC',
+      surface2: '#EFE7CB',
+      ink: '#1C5D44',
+      muted: '#5F7D6C',
+      border: '#D8CFAE',
+      accent: '#1B7A52',
     },
     fuenteTitulos: 'poppins',
     fuenteCuerpo: 'inter',
     borde: 'redondo',
-    mayusculasTitulos: false,
-    mayusculasProductos: false,
-    espaciadoTitulos: 'normal',
+    mayusculasTitulos: true,
+    mayusculasProductos: true,
+    espaciadoTitulos: '0.01em',
     fotoProducto: '1 / 1',
-    formatoSugerido: 'cards',
-    fotosProducto: 'necesarias',
+    composicion: 'retro',
+    formatoSugerido: 'lista',
+    fotosProducto: 'opcionales',
     miniaturaEnLista: false,
     precioConPuntos: false,
     precio: 'acento',
-    sombra: true,
-    bordeTarjeta: false,
-  },
-  {
-    id: 'mostrador',
-    nombre: 'Mostrador',
-    estilo: 'Lista compacta',
-    descripcion: 'Cabecera de color y filas densas con miniatura. Se recorre rápido.',
-    ideal: 'cartas de muchos productos, comidas rápidas y tiendas',
-    oscura: false,
-    usaColorNegocio: true,
-    paleta: {
-      bg: '#F6F7FA',
-      surface: '#FFFFFF',
-      surface2: '#EEF1F6',
-      ink: '#14213D',
-      muted: '#5B6474',
-      border: '#E2E6EE',
-      accent: '#14213D',
-    },
-    fuenteTitulos: 'sistema',
-    fuenteCuerpo: 'sistema',
-    borde: 'recto',
-    mayusculasTitulos: false,
-    mayusculasProductos: false,
-    espaciadoTitulos: 'normal',
-    fotoProducto: '1 / 1',
-    formatoSugerido: 'lista',
-    fotosProducto: 'opcionales',
-    miniaturaEnLista: true,
-    precioConPuntos: false,
-    precio: 'tinta',
     sombra: false,
     bordeTarjeta: true,
   },
@@ -442,8 +423,42 @@ export const DISENO_POR_DEFECTO: Readonly<DisenoCarta> = Object.freeze({
   opciones: Object.freeze({ mostrar_agotados: false }),
 });
 
+/**
+ * A dónde va a parar una carta publicada con una plantilla que ya no existe.
+ *
+ * Retirar una plantilla no puede cambiarle la carta a un negocio de un día para otro sin
+ * avisar; sí puede llevarlo a la más parecida de las que quedan. Sin este mapa, todas caerían
+ * en «Esencial» y un bar oscuro amanecería con la carta blanca.
+ */
+const PLANTILLAS_RETIRADAS: Readonly<Record<string, PlantillaId>> = Object.freeze({
+  medianoche: 'neon',   // las dos son oscuras
+  papel: 'gaceta',      // las dos son de texto sobre claro
+  vitrina: 'esencial',  // las dos son tarjetas con foto
+  mostrador: 'retro',   // las dos son listas densas de carta larga
+});
+
 export function plantillaPorId(id: string | null | undefined): PlantillaDef {
-  return PLANTILLAS.find((p) => p.id === id) ?? PLANTILLAS[0];
+  const viva = PLANTILLAS.find((p) => p.id === id);
+  if (viva) return viva;
+
+  const heredera = PLANTILLAS_RETIRADAS[String(id ?? '')];
+  return PLANTILLAS.find((p) => p.id === heredera) ?? PLANTILLAS[0];
+}
+
+/**
+ * El formato que de verdad se pinta.
+ *
+ * Dos cosas lo pueden cambiar: una plantilla con composición propia (a dos columnas, «tarjetas
+ * con foto» no significa nada) y el formato «mixto», que existió hasta 2026-09-23 y se lee como
+ * tarjetas en las cartas ya publicadas con él.
+ */
+export function formatoEfectivo(
+  diseno: DisenoCarta | null | undefined,
+  plantilla?: PlantillaDef,
+): FormatoId {
+  const p = plantilla ?? plantillaPorId(diseno?.plantilla);
+  if (p.composicion !== 'estandar') return 'lista';
+  return diseno?.formato === 'lista' ? 'lista' : 'cards';
 }
 
 export function fuentePorId(id: string | null | undefined): FuenteDef {
@@ -543,9 +558,36 @@ export function contraste(a: string, b: string): number {
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
 }
 
-/** Blanco o casi negro, el que se lea mejor sobre `fondo`. */
+/**
+ * Brillo percibido de un color, de 0 (negro) a 255 (blanco).
+ *
+ * No es la luminancia de WCAG: esta fórmula (la clásica YIQ) pesa el verde mucho y el azul
+ * casi nada, que es como el ojo ve de verdad un color plano. Es la que usan casi todos los
+ * sistemas de diseño para decidir si una etiqueta lleva letra blanca o negra.
+ */
+function brilloPercibido(hex: string): number {
+  const [r, g, b] = aRgb(hex);
+  return (r * 299 + g * 587 + b * 114) / 1000;
+}
+
+/**
+ * Blanco o casi negro, el que corresponde encima de `fondo`.
+ *
+ * La regla es el brillo percibido y no el contraste máximo de WCAG, y la diferencia importa
+ * justo en los colores que más elige la gente: sobre un rojo puro, WCAG prefiere el negro por
+ * unas décimas (5.2:1 contra 4.0:1), pero un rojo con letra negra se ve sucio y nadie lo hace
+ * así. Con el brillo percibido, el rojo lleva letra blanca y los tonos cálidos y claros
+ * —amarillo, lima, ámbar, naranja— la llevan negra, que es lo que se espera al verlos.
+ *
+ * El contraste no se abandona: es el desempate. Si la letra que pide el brillo no llega a 3:1
+ * y la otra sí, gana la otra — primero se tiene que poder leer.
+ */
 export function textoSobre(fondo: string): '#FFFFFF' | '#111111' {
-  return contraste(fondo, '#FFFFFF') >= contraste(fondo, '#111111') ? '#FFFFFF' : '#111111';
+  const preferido = brilloPercibido(fondo) >= 150 ? '#111111' : '#FFFFFF';
+  const alternativo = preferido === '#FFFFFF' ? '#111111' : '#FFFFFF';
+
+  if (contraste(fondo, preferido) >= 3) return preferido;
+  return contraste(fondo, alternativo) > contraste(fondo, preferido) ? alternativo : preferido;
 }
 
 /**
@@ -609,6 +651,21 @@ export function resolverTokens(
   if (plantilla.precio === 'mezcla-exito') precio = mezclar(acento, '#2E7D32', 0.4);
   if (contraste(precio, p.surface) < 4.5) precio = p.ink;
 
+  /*
+   * El acento cuando hace de TEXTO y no de fondo.
+   *
+   * Son dos trabajos distintos y necesitan dos valores. De fondo, el acento se pinta tal cual
+   * —es el color del negocio, con su letra blanca o negra encima—; pero de texto sobre el
+   * fondo de la carta, ese mismo color puede no leerse: un rojo encendido sobre negro, o un
+   * amarillo sobre blanco, son tres palabras que nadie descifra.
+   *
+   * Se ajusta contra el fondo más difícil de los dos (la página y las tarjetas), y se mueve lo
+   * justo: se oscurece sobre claro y se aclara sobre oscuro hasta llegar a 4.5:1, así que sigue
+   * siendo reconociblemente el color que el negocio eligió.
+   */
+  const fondoMasDuro = contraste(acento, p.surface) <= contraste(acento, p.bg) ? p.surface : p.bg;
+  const acentoTexto = ajustarContraste(acento, fondoMasDuro, 4.5);
+
   const titulos = fuentePorId(diseno.marca?.fuente_titulos ?? plantilla.fuenteTitulos);
   const cuerpo = fuentePorId(plantilla.fuenteCuerpo);
   const borde = bordePorId(diseno.marca?.borde ?? plantilla.borde);
@@ -622,6 +679,7 @@ export function resolverTokens(
     '--carta-border': p.border,
     '--carta-accent': acento,
     '--carta-on-accent': textoSobre(acento),
+    '--carta-accent-text': acentoTexto,
     '--carta-accent-hover': mezclar(acento, plantilla.oscura ? '#FFFFFF' : '#000000', 0.85),
     '--carta-price': precio,
     '--carta-font-titulos': titulos.stack,
@@ -699,7 +757,9 @@ const IR_MENU_FOTOS: AccionAviso = { tipo: 'ir-menu', texto: 'Subir fotos en Men
 export function evaluarAvisos(ctx: ContextoAvisos): Aviso[] {
   const avisos: Aviso[] = [];
   const plantilla = plantillaPorId(ctx.diseno.plantilla);
-  const formato = ctx.diseno.formato;
+  // El que se va a PINTAR, no el que está guardado: en Mural y Retro la plantilla manda sobre el
+  // formato, y avisar de fotos de tarjeta en una carta que va a salir a dos columnas es mentir.
+  const formato = formatoEfectivo(ctx.diseno, plantilla);
   const e = ctx.estadisticas;
   const nombreFormato = FORMATOS.find((f) => f.id === formato)?.nombre ?? formato;
 
@@ -747,32 +807,9 @@ export function evaluarAvisos(ctx: ContextoAvisos): Aviso[] {
     }
   }
 
-  // ── Destacados: mandan en Mixto ──
-  if (formato === 'mixto' && e.productos > 0) {
-    if (e.productos_destacados === 0) {
-      avisos.push({
-        id: 'sin-destacados',
-        nivel: 'atencion',
-        titulo: 'No tienes productos marcados como populares',
-        detalle:
-          'En formato Mixto los productos populares van arriba en tarjetas grandes. Sin ninguno, ' +
-          'la carta se verá igual que en formato Lista.',
-        accion: { tipo: 'ir-menu', texto: 'Marcar populares en Menú' },
-      });
-    } else if (e.destacados_con_imagen < e.productos_destacados) {
-      const sinFoto = e.productos_destacados - e.destacados_con_imagen;
-      avisos.push({
-        id: 'destacados-sin-foto',
-        nivel: 'info',
-        titulo: `${sinFoto} de tus ${e.productos_destacados} productos populares no tienen foto`,
-        detalle: 'Los populares se muestran en tarjeta grande; sin foto se verán con su ícono.',
-        accion: IR_MENU_FOTOS,
-      });
-    }
-  }
-
-  // ── Fotos de categoría: mandan en Lista y Mixto ──
-  if ((formato === 'lista' || formato === 'mixto') && e.categorias > 0) {
+  // ── Fotos de categoría: mandan en Lista ──
+  // Las composiciones a dos columnas no las usan: ahí la categoría es un titular, no una foto.
+  if (formato === 'lista' && plantilla.composicion === 'estandar' && e.categorias > 0) {
     const sinFoto = e.categorias - e.categorias_con_imagen;
     if (e.categorias_con_imagen === 0) {
       avisos.push({
@@ -797,7 +834,7 @@ export function evaluarAvisos(ctx: ContextoAvisos): Aviso[] {
   }
 
   // ── Plantilla frente a formato y contenido ──
-  if ((plantilla.id === 'papel' || plantilla.id === 'gaceta') && formato === 'cards') {
+  if (plantilla.id === 'gaceta' && formato === 'cards') {
     avisos.push({
       id: 'plantilla-texto-en-tarjetas',
       nivel: 'info',
@@ -805,22 +842,26 @@ export function evaluarAvisos(ctx: ContextoAvisos): Aviso[] {
       detalle: 'Es una plantilla de texto: en tarjetas pierde el aire de carta impresa.',
     });
   }
-  if (plantilla.id === 'vitrina' && formato === 'lista') {
+  // Las de composición propia ignoran el formato. Más vale decirlo que dejar al negocio
+  // cambiando un selector que no hace nada.
+  if (plantilla.composicion !== 'estandar' && ctx.diseno.formato === 'cards') {
     avisos.push({
-      id: 'vitrina-en-lista',
+      id: 'composicion-manda',
       nivel: 'info',
-      titulo: 'Vitrina luce mejor en Tarjetas o Mixto',
-      detalle: 'Sus fotos cuadradas solo aparecen en tarjetas; en Lista se pierde lo que la distingue.',
+      titulo: `${plantilla.nombre} se arma siempre a dos columnas`,
+      detalle:
+        'Es una carta de texto, como las impresas: el formato de tarjetas no aplica aquí. Tus ' +
+        'fotos de producto no se pierden — vuelven en cuanto elijas otra plantilla.',
     });
   }
-  if (plantilla.id === 'mostrador' && e.productos > 0 && e.productos < 15) {
+  if (plantilla.composicion !== 'estandar' && e.productos > 0 && e.productos < 8) {
     avisos.push({
-      id: 'mostrador-pocos-productos',
+      id: 'composicion-pocos-productos',
       nivel: 'info',
-      titulo: 'Mostrador está pensada para cartas largas',
+      titulo: `${plantilla.nombre} está pensada para cartas largas`,
       detalle:
-        `Con ${e.productos} productos puede verse vacía. Esencial o Vitrina lucen mejor con ` +
-        'pocos productos.',
+        `Con ${e.productos} productos las dos columnas se ven vacías. Esencial luce mejor con ` +
+        'cartas cortas.',
     });
   }
   if (

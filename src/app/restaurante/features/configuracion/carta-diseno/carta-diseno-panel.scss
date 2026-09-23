@@ -5,16 +5,28 @@
 // Ámbar oscuro para lo que pide atención: el `--color-warning` del tema (#ef6c00) no llega a
 // 4.5:1 sobre blanco en texto pequeño.
 $atencion: #9a4a00;
-$atencion-fuerte: #b45309;
 
+// El componente ya no pinta una tarjeta: arma la rejilla de la pestaña Apariencia. Las
+// tarjetas son la de la carta, la de las paletas (proyectada) y la de la vista previa.
 .cd {
   display: grid;
   gap: var(--spacing-md);
+  color: var(--color-text-primary);
+}
+
+.cd-tarjeta,
+.cd-lateral {
   padding: var(--spacing-md);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
-  color: var(--color-text-primary);
+}
+
+.cd-tarjeta {
+  display: grid;
+  gap: var(--spacing-md);
+  align-content: start;
+  min-width: 0;
 }
 
 /**
@@ -28,6 +40,8 @@ $atencion-fuerte: #b45309;
  * previa diminuta con un hueco vacío enorme debajo.
  */
 .cd,
+.cd-columna,
+.cd-tarjeta,
 .cd-controles,
 .cd-lateral {
   grid-template-columns: minmax(0, 1fr);
@@ -213,16 +227,24 @@ $atencion-fuerte: #b45309;
   color: $atencion;
 }
 
-// ── Rejilla: controles a la izquierda, vista previa a la derecha ──
+// ── Rejilla de la pestaña: carta y paletas a la izquierda, vista previa a la derecha ──
 .cd-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(320px, 430px);
-  gap: var(--spacing-lg);
+  gap: var(--spacing-md);
   align-items: start;
 
   @media (max-width: 1100px) {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+// Las dos filas de la izquierda: primero la carta, debajo las paletas de la aplicación.
+.cd-columna {
+  display: grid;
+  gap: var(--spacing-md);
+  align-content: start;
+  min-width: 0;
 }
 
 .cd-controles {
@@ -475,6 +497,8 @@ $atencion-fuerte: #b45309;
     }
   }
 
+  /* Sobra desde que «Mixto» se retiró (2026-09-23); se deja inerte por si vuelve un diagrama
+     de dos columnas para las composiciones nuevas. */
   &[data-formato='mixto'] {
     grid-template-columns: 1fr 1fr;
     grid-template-rows: 18px 1fr 1fr;
@@ -491,94 +515,20 @@ $atencion-fuerte: #b45309;
   }
 }
 
-// ── Avisos ──
-.cd-avisos {
-  display: grid;
-  gap: 8px;
-  padding: 12px;
-  border-radius: var(--radius-md);
-  background: var(--color-bg-secondary);
-
-  &--ok .cd-avisos__titulo {
-    color: var(--color-success);
-  }
-}
-
-.cd-avisos__titulo {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-  font-size: var(--font-size-sm);
-}
-
-.cd-contador {
-  display: inline-grid;
-  place-items: center;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 6px;
-  border-radius: var(--radius-full);
-  background: $atencion-fuerte;
-  color: #ffffff;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.cd-aviso {
-  display: flex;
-  gap: 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--color-border);
-  border-left-width: 3px;
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-
-  &[data-nivel='atencion'] {
-    border-left-color: $atencion-fuerte;
-
-    .cd-aviso__icono {
-      color: $atencion-fuerte;
-    }
-  }
-
-  &[data-nivel='info'] {
-    border-left-color: var(--color-primary);
-
-    .cd-aviso__icono {
-      color: var(--color-primary);
-    }
-  }
-}
-
-.cd-aviso__icono {
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-
-.cd-aviso__txt {
-  display: grid;
-  gap: 3px;
-  min-width: 0;
-
-  strong {
-    font-size: var(--font-size-sm);
-  }
-
-  p {
-    margin: 0;
-    color: var(--color-text-secondary);
-    font-size: var(--font-size-xs);
-    line-height: 1.5;
-  }
-
-  .cd-btn--texto {
-    justify-self: start;
-    font-size: var(--font-size-xs);
-  }
-}
-
 // ── Marca ──
+
+// Campos cortos de a dos: la sección de marca se queda en la mitad de alto.
+.cd-fila {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-md);
+  align-items: start;
+
+  @media (max-width: 720px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .cd-campo {
   display: grid;
   gap: 6px;

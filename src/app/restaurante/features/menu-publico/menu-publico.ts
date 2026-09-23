@@ -24,6 +24,7 @@ import {
   CartaPublicaConfig,
   DISENO_POR_DEFECTO,
   DisenoCarta,
+  formatoEfectivo,
   fuentesARequerir,
   inicialesNegocio,
   plantillaPorId,
@@ -60,8 +61,6 @@ interface SeccionPublica extends CategoriaPublica {
 /** Una sección lista para pintar: productos ya filtrados y repartidos según el formato. */
 interface SeccionVisible extends CategoriaPublica {
   productos: ProductoPublico[];
-  /** En Mixto, los populares que se pueden pedir, arriba en tarjetas. Vacío en los otros formatos. */
-  destacados: ProductoPublico[];
   /** Lo que va en filas. En Tarjetas no se usa. */
   enLista: ProductoPublico[];
 }
@@ -103,6 +102,7 @@ const RESPIRO_SECCION = 12;
   host: {
     '[attr.data-plantilla]': 'plantilla().id',
     '[attr.data-formato]': 'formato()',
+    '[attr.data-composicion]': 'composicion()',
     '[attr.data-oscura]': 'plantilla().oscura',
     '[style]': 'estiloCarta()',
   },
@@ -165,7 +165,17 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
     () => this.disenoPrevia() ?? this.negocio()?.carta ?? DISENO_POR_DEFECTO,
   );
   readonly plantilla = computed(() => plantillaPorId(this.diseno().plantilla));
-  readonly formato = computed(() => this.diseno().formato);
+
+  /**
+   * El formato que se pinta, no el que está guardado.
+   *
+   * Mural y Retro se arman a dos columnas por definición, así que ignoran el formato elegido; y
+   * una carta publicada con el viejo «mixto» se lee como tarjetas. Ver `formatoEfectivo`.
+   */
+  readonly formato = computed(() => formatoEfectivo(this.diseno(), this.plantilla()));
+
+  /** Cómo se ARMA la carta. Es el atributo del que cuelgan los estilos de cada composición. */
+  readonly composicion = computed(() => this.plantilla().composicion);
 
   private readonly colorNegocio = computed(() => {
     const previa = this.colorNegocioPrevia();
@@ -192,23 +202,13 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
    */
   readonly seccionesVisibles = computed<SeccionVisible[]>(() => {
     const mostrarAgotados = this.diseno().opciones?.mostrar_agotados === true;
-    const mixto = this.formato() === 'mixto';
 
     return this.secciones()
       .map((seccion) => {
         const productos = mostrarAgotados
           ? seccion.productos
           : seccion.productos.filter((p) => p.disponible !== false);
-        const destacados = mixto
-          ? productos.filter((p) => p.es_popular && p.disponible !== false)
-          : [];
-        const arriba = new Set(destacados.map((p) => p.id_producto));
-        return {
-          ...seccion,
-          productos,
-          destacados,
-          enLista: productos.filter((p) => !arriba.has(p.id_producto)),
-        };
+        return { ...seccion, productos, enLista: productos };
       })
       .filter((seccion) => seccion.productos.length > 0);
   });
@@ -266,26 +266,14 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly tieneSocial = computed(() => this.socialLinks().length > 0);
 
   readonly categoriasScroll = viewChild<ElementRef<HTMLElement>>('catScroll');
+  /**
+   * La barra de categorías: lo único que se queda pinchado arriba. Su alto es el que hay que
+   * descontar para que el título de una sección no quede debajo de ella.
+   */
   private readonly barraSuperior = viewChild<ElementRef<HTMLElement>>('barraSuperior');
   private readonly seccionesRef = viewChildren<ElementRef<HTMLElement>>('seccion');
   readonly puedeScrollIzq = signal(false);
   readonly puedeScrollDer = signal(false);
-
-  /**
-   * ¿Se replegó la cabecera del negocio?
-   *
-   * Cabecera y categorías se pinchan arriba como un solo bloque, y en un móvil ese
-   * bloque se come unos 145 px: al bajar por la carta las categorías quedaban tapadas
-   * por el nombre y el teléfono del negocio. En cuanto se empieza a bajar, la cabecera
-   * se pliega y deja arriba solo las categorías, que es lo que hace falta para seguir
-   * navegando. Al volver al tope reaparece entera.
-   *
-   * El umbral tiene histéresis (56 px para plegar, 24 px para desplegar) para que un
-   * arrastre corto justo en el borde no la haga parpadear.
-   */
-  readonly headerCompacto = signal(false);
-  private readonly umbralPlegar = 56;
-  private readonly umbralDesplegar = 24;
 
   /**
    * Mientras el scroll lo mueve un clic en una categoría, el resaltado no se recalcula: si no,
@@ -349,13 +337,6 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
   private _onResize = (): void => this.actualizarFlechas();
 
   private _onScroll = (): void => {
-    const y = window.scrollY ?? 0;
-    if (!this.headerCompacto() && y > this.umbralPlegar) {
-      this.headerCompacto.set(true);
-    } else if (this.headerCompacto() && y < this.umbralDesplegar) {
-      this.headerCompacto.set(false);
-    }
-
     // Fin del scroll: 120 ms sin eventos. Si lo movió un clic, se suelta el bloqueo y se deja
     // marcada la categoría elegida aunque la página no pudiera llegar hasta ella (la última
     // sección de una carta corta nunca sube hasta arriba).
@@ -415,10 +396,9 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
   /**
    * Lleva la página a la sección de una categoría.
    *
-   * El destino se resta con la altura ACTUAL de la barra fija, y sirve también cuando la
-   * cabecera se va a plegar por el camino: al plegarse sube a la vez la sección y se acorta la
-   * barra, en la misma cantidad, así que la sección queda justo debajo de la barra en los dos
-   * casos. Se calcula a mano y no con `scrollIntoView` porque ese método mueve también los
+   * Al destino se le resta el alto de la barra de categorías, que es lo único que se queda
+   * pinchado arriba, para que el título de la sección no acabe debajo de ella. Se calcula a
+   * mano y no con `scrollIntoView` porque ese método mueve también los
    * contenedores de la página que contiene a la carta: dentro de la vista previa de
    * Configuración desplazaba el panel entero.
    */

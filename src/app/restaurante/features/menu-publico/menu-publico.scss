@@ -18,6 +18,15 @@
   --color-primary: var(--carta-accent, #312e81);
   --color-primary-hover: var(--carta-accent-hover, #4f46e5);
   --color-on-primary: var(--carta-on-accent, #ffffff);
+  /*
+   * El acento tiene dos trabajos y no se hacen con el mismo valor:
+   *   --color-primary       → cuando el acento es FONDO (botones, categoría activa). La letra
+   *                           encima la pone `--color-on-primary`, blanca o negra según el color.
+   *   --color-primary-text  → cuando el acento es LETRA o ícono sobre el fondo de la carta. Aquí
+   *                           el color viene ya corregido para que se lea (ver `resolverTokens`);
+   *                           sin esto, un rojo encendido sobre negro no se descifra.
+   */
+  --color-primary-text: var(--carta-accent-text, var(--carta-accent, #312e81));
   --color-bg: var(--carta-bg, #f5f5f5);
   --color-bg-secondary: var(--carta-surface-2, #f7f7f7);
   --color-surface: var(--carta-surface, #ffffff);
@@ -74,61 +83,28 @@
 }
 
 /* ═══════════════════════════════════════════
-   BARRA SUPERIOR FIJA
+   BARRA DE CATEGORÍAS PEGAJOSA
    ═══════════════════════════════════════════ */
 
 /**
- * Cabecera y categorías se quedan arriba COMO UN SOLO BLOQUE.
+ * Lo único que se queda arriba es la barra de categorías: la cabecera sube y se va con el
+ * resto de la carta.
  *
- * Antes cada una se pinchaba por su cuenta y la barra de categorías llevaba `top: 58px`, un
- * número escrito a mano que tenía que coincidir con la altura de la cabecera. Nunca coincidió:
- * la cabecera mide entre ~76 y ~85 px según el ancho de la pantalla (su relleno es un `clamp`)
- * y según si el negocio publicó dirección, que añade una línea. Con 58 px las pestañas se
- * pinchaban DEBAJO de la cabecera y desaparecían al bajar, en móvil y en escritorio.
- *
- * Envolviéndolas en un único elemento pegajoso el número desaparece del todo: la cabecera mide
- * lo que mida y las categorías van detrás. No hay nada que mantener sincronizado.
+ * Antes las dos viajaban dentro de un mismo bloque pegajoso y, al bajar, la cabecera se
+ * plegaba por JavaScript según el scroll. Eso se quitó: plegarla acortaba el documento, el
+ * navegador reajustaba el scroll para compensar, el scroll reajustado volvía a cruzar el
+ * umbral y la cabecera entraba en un sube y baja infinito justo en el punto intermedio.
+ * Dejándola scrollear no hay nada que decidir —arriba se ve entera, al bajar desaparece— y
+ * lo que se queda pinchado mide siempre lo mismo.
  */
-.menu-topbar {
+.categories-bar {
   position: sticky;
   top: 0;
   z-index: 100;
+  width: 100%;
+  padding: var(--spacing-sm) 0;
   background: var(--color-bg);
   box-shadow: var(--shadow-sm);
-}
-
-/**
- * En móvil, al bajar por la carta la cabecera se pliega y deja pinchadas solo las
- * categorías.
- *
- * El bloque pegajoso completo (cabecera + categorías) mide unos 145 px en un móvil:
- * más de un quinto de la pantalla ocupado por el nombre y el teléfono del negocio
- * mientras se busca un plato, y las categorías quedaban comidas por él. Plegando la
- * cabecera quedan arriba las categorías —lo único que hace falta para seguir
- * navegando— y al volver al tope reaparece entera.
- *
- * Se anima `grid-template-rows` en vez de `height`/`display` porque no exige saber
- * cuánto mide la cabecera, que varía con el ancho y con si el negocio publicó
- * dirección. De escritorio para arriba no aplica: allí sobra alto y la cabecera no
- * estorba.
- */
-@media (max-width: 768px) {
-  .menu-topbar > .hero {
-    display: grid;
-    grid-template-rows: 1fr;
-    transition: grid-template-rows 0.22s ease, opacity 0.18s ease;
-
-    > .hero-inner {
-      overflow: hidden;
-      min-height: 0;
-    }
-  }
-
-  .menu-topbar.is-compact > .hero {
-    grid-template-rows: 0fr;
-    opacity: 0;
-    border-bottom-color: transparent;
-  }
 }
 
 /* ═══════════════════════════════════════════
@@ -164,7 +140,7 @@
   height: 42px;
   border-radius: var(--radius-md);
   background: var(--color-menu-icon-bg);
-  color: var(--color-primary);
+  color: var(--color-primary-text);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -177,13 +153,21 @@
   min-width: 0;
 }
 
+/*
+ * «Menú digital»: etiqueta sólida, no teñida.
+ *
+ * Antes era el acento al 12% con el propio acento de letra: sobre una plantilla oscura eso
+ * dejaba un rojo encendido encima de un rojo apagado, ilegible. Como fondo sólido, la letra la
+ * decide el color elegido —blanca sobre rojo o azul, negra sobre amarillo o lima—, igual que en
+ * la categoría activa.
+ */
 .hero-pill {
   display: inline-flex;
   align-self: flex-start;
   padding: 2px 10px;
   border-radius: var(--radius-full);
-  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
-  color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
   font-size: 0.675rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -313,7 +297,7 @@
 
 .state-icon--empty {
   background: var(--color-menu-icon-bg);
-  color: var(--color-primary);
+  color: var(--color-primary-text);
   width: 56px;
   height: 56px;
 
@@ -333,7 +317,7 @@
   font-size: var(--font-size-xs) !important;
 
   a {
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     font-weight: 600;
     text-decoration: none;
 
@@ -344,15 +328,12 @@
 /* ═══════════════════════════════════════════
    CATEGORIES BAR
    ═══════════════════════════════════════════ */
-.categories-bar {
-  /* Ya no se pincha por su cuenta: lo hace `.menu-topbar` por las dos. Y como ahora cuelga del
-     envoltorio y no de `.main-content`, se centra ella misma en vez de salirse del relleno del
-     contenedor con márgenes negativos. */
+/* El fondo de la barra ocupa todo el ancho para tapar la carta que pasa por debajo; lo que se
+   centra a 960 px es su contenido. */
+.categories-wrapper,
+.categories-skeleton {
   max-width: 960px;
-  width: 100%;
-  margin: 0 auto;
-  padding: var(--spacing-sm) 0;
-  background: var(--color-bg);
+  margin-inline: auto;
 }
 
 .categories-scroll {
@@ -392,7 +373,7 @@
 
   &:hover {
     border-color: var(--color-primary);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
   }
 
   &:focus-visible {
@@ -424,7 +405,7 @@
 
   &:hover {
     border-color: var(--color-primary);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
   }
 
   &:focus-visible {
@@ -486,11 +467,12 @@
 }
 
 .categories-empty {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 16px;
-  margin-left: clamp(12px, 4vw, 24px);
+  max-width: 960px;
+  margin-inline: auto;
+  padding: 8px clamp(12px, 4vw, 24px);
   color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
 }
@@ -578,7 +560,7 @@
   align-items: center;
   justify-content: center;
   background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface));
-  color: var(--color-primary);
+  color: var(--color-primary-text);
   font-size: 3.5rem;
   opacity: 0.5;
 }
@@ -719,7 +701,7 @@
 
   &:hover {
     border-color: var(--color-primary);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     box-shadow: var(--shadow-sm);
   }
 
@@ -734,7 +716,7 @@
   height: 34px;
   border-radius: var(--radius-sm);
   background: var(--color-menu-icon-bg);
-  color: var(--color-primary);
+  color: var(--color-primary-text);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -792,9 +774,11 @@
   align-items: center;
   gap: 0.65rem;
   padding: 0.5rem 0.55rem 0.5rem 1.1rem;
-  border: 1.5px solid var(--color-primary);
+  // Botón de contorno: el color corregido va también en el borde, porque aquí el borde ES el
+  // botón. Con el acento puro, un rojo sobre negro dejaba un botón que apenas se adivinaba.
+  border: 1.5px solid var(--color-primary-text);
   border-radius: var(--radius-full);
-  color: var(--color-primary);
+  color: var(--color-primary-text);
   font-size: 0.88rem;
   font-weight: 700;
   text-decoration: none;
@@ -918,10 +902,10 @@
   width: 100%;
   margin-top: 0.75rem;
   padding: 0.5rem 0.75rem;
-  border: 1px solid var(--color-primary);
+  border: 1px solid var(--color-primary-text);
   border-radius: 0.5rem;
   background: transparent;
-  color: var(--color-primary);
+  color: var(--color-primary-text);
   font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
@@ -1012,8 +996,8 @@
 .pre-pedido-overlay {
   position: fixed;
   inset: 0;
-  /* Por encima de `.menu-topbar` (100): si no, el velo oscuro deja la cabecera flotando
-     iluminada sobre el pedido. Ya pasaba antes con `.hero`, que también valía 100. */
+  /* Por encima de `.categories-bar` (100): si no, el velo oscuro deja la barra flotando
+     iluminada sobre el pedido. */
   z-index: 110;
   display: flex;
   align-items: flex-end;
@@ -1152,7 +1136,7 @@
   color: var(--color-text-secondary);
 
   a {
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     text-decoration: underline;
   }
 }
@@ -1471,10 +1455,10 @@
   place-items: center;
   width: 44px;
   height: 44px;
-  border: 1px solid var(--color-primary);
+  border: 1px solid var(--color-primary-text);
   border-radius: var(--radius-full);
   background: transparent;
-  color: var(--color-primary);
+  color: var(--color-primary-text);
   cursor: pointer;
   transition: background var(--transition-fast), color var(--transition-fast);
 
@@ -1489,88 +1473,9 @@
   }
 }
 
-/* ── Vitrina: la foto manda ────────────────────────────────────────────── */
+/* ── Gaceta: carta impresa ─────────────────────────────────────── */
 
-:host([data-plantilla='vitrina']) {
-  .products-grid {
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
-  }
-
-  .product-desc {
-    display: -webkit-box;
-    overflow: hidden;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-  }
-}
-
-@media (max-width: 480px) {
-  :host([data-plantilla='vitrina']) {
-    .products-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
-    }
-
-    .product-info {
-      padding: 10px;
-    }
-
-    .product-header {
-      flex-direction: column;
-      gap: 2px;
-    }
-
-    .product-name {
-      font-size: var(--font-size-sm);
-    }
-
-    .product-price {
-      font-size: var(--font-size-base);
-    }
-
-    .popular-badge span {
-      display: none;
-    }
-  }
-}
-
-/* ── Mostrador: cabecera de color, filas densas ────────────────────────── */
-
-:host([data-plantilla='mostrador']) {
-  .hero {
-    background: var(--color-primary);
-    border-bottom-color: transparent;
-  }
-
-  .hero-name,
-  .hero-addr {
-    color: var(--color-on-primary);
-  }
-
-  .hero-pill {
-    background: color-mix(in srgb, var(--color-on-primary) 18%, transparent);
-    color: var(--color-on-primary);
-  }
-
-  .hero-call {
-    background: var(--color-on-primary);
-    color: var(--color-primary);
-  }
-
-  .hero-logo:not(.hero-logo--img) {
-    background: var(--color-on-primary);
-    color: var(--color-primary);
-  }
-
-  .fila {
-    padding-block: 10px;
-  }
-}
-
-/* ── Gaceta y Papel: carta impresa ─────────────────────────────────────── */
-
-:host([data-plantilla='gaceta']),
-:host([data-plantilla='papel']) {
+:host([data-plantilla='gaceta']) {
   .products-list {
     border-inline: 0;
     border-radius: 0;
@@ -1589,10 +1494,6 @@
   .categoria-cabecera:not(.categoria-cabecera--foto) .categoria-cabecera__txt {
     border-bottom: 2px solid var(--color-text-primary);
   }
-}
-
-:host([data-plantilla='papel']) .menu-topbar {
-  border-bottom: 1px solid var(--color-border);
 }
 
 /* ── Neón ──────────────────────────────────────────────────────────────── */
@@ -1672,5 +1573,286 @@
     .categoria-cabecera__desc {
       color: var(--color-text-secondary);
     }
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   COMPOSICIONES
+
+   Hasta aquí, todas las plantillas eran la misma carta con otros colores. Estas
+   dos cambian cómo se ARMA: dos columnas, sin fotos y con la categoría como
+   titular. Es lo que distingue una carta de hamburguesería pegada en la pared de
+   una carta impresa que se entrega en la mesa.
+
+   Las dos se montan sobre el marcado de «lista» (`formatoEfectivo` las fuerza a
+   ese formato), así que no hace falta ni una etiqueta nueva en el HTML.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Común a las dos ──────────────────────────────────────────────────────── */
+
+:host([data-composicion='mural']),
+:host([data-composicion='retro']) {
+  /* La foto de categoría no pinta nada aquí: la categoría es un titular. */
+  .categoria-cabecera__img,
+  .categoria-cabecera::after {
+    display: none;
+  }
+
+  .categoria-cabecera--foto {
+    min-height: 0;
+    color: inherit;
+  }
+
+  /*
+   * Dos columnas de verdad: `columns` y no un grid, porque el reparto tiene que ser
+   * por ALTURA —la columna izquierda se llena y sigue en la derecha, como una carta
+   * impresa— y no meter cada producto en una celda del mismo alto.
+   */
+  .products-list {
+    display: block;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    overflow: visible;
+
+    @media (min-width: 720px) {
+      columns: 2;
+      column-gap: clamp(24px, 4vw, 48px);
+    }
+  }
+
+  /* Un producto no se parte entre dos columnas: su precio se quedaría huérfano. */
+  .fila {
+    display: block;
+    break-inside: avoid;
+    page-break-inside: avoid;
+    padding: 0 0 clamp(14px, 2.2vw, 20px);
+
+    & + .fila {
+      border-top: 0;
+    }
+  }
+
+  .fila-thumb {
+    display: none;
+  }
+
+  .fila-info {
+    display: block;
+  }
+
+  .fila-cabeza {
+    display: block;
+  }
+
+  .fila-nombre {
+    margin: 0;
+    line-height: 1.15;
+  }
+
+  .fila-desc {
+    margin: 4px 0 0;
+    max-width: 46ch;
+  }
+
+  /* El precio va en su propia línea, alineado a la derecha: es como se leen estas cartas. */
+  .fila-precio {
+    display: block;
+    margin: 6px 0 0;
+    text-align: right;
+  }
+
+  .fila-accion {
+    margin-top: 8px;
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .products-grid {
+    display: none; /* no hay tarjetas en una composición de texto */
+  }
+}
+
+/* ── Mural: cartel de pared ───────────────────────────────────────────────── */
+
+:host([data-composicion='mural']) {
+  /*
+   * El grano del fondo. Dos degradados repetidos en diagonal bastan para que el
+   * negro no se vea plano, y no cuesta ni una imagen: esta carta la abren en la
+   * calle, con datos móviles.
+   */
+  .main-content {
+    background-image:
+      repeating-linear-gradient(
+        115deg,
+        transparent 0 7px,
+        color-mix(in srgb, var(--color-text-primary) 2%, transparent) 7px 8px
+      ),
+      radial-gradient(
+        circle at 12% 8%,
+        color-mix(in srgb, var(--color-primary) 10%, transparent),
+        transparent 45%
+      );
+  }
+
+  /* La categoría es el bloque de color, como el rótulo pintado sobre el muro. */
+  .categoria-cabecera {
+    margin-bottom: clamp(16px, 2.5vw, 26px);
+    background: var(--color-primary);
+    border-radius: 0;
+    /* Bordes rotos: el bloque no es un rectángulo perfecto, como pintado a brocha. */
+    clip-path: polygon(0 4%, 100% 0, 99.4% 96%, 0.6% 100%);
+  }
+
+  .categoria-cabecera__txt {
+    padding: clamp(10px, 2vw, 16px) clamp(14px, 3vw, 26px);
+    border-bottom: 0 !important;
+  }
+
+  .categoria-cabecera__titulo {
+    justify-content: center;
+    color: var(--color-on-primary);
+    font-size: clamp(1.9rem, 7vw, 3.2rem);
+    letter-spacing: 0.01em;
+    line-height: 0.95;
+    text-transform: uppercase;
+  }
+
+  .categoria-cabecera__desc {
+    color: color-mix(in srgb, var(--color-on-primary) 85%, transparent);
+    text-align: center;
+  }
+
+  .fila-nombre {
+    color: var(--color-primary-text);
+    font-family: var(--carta-font-titulos, inherit);
+    font-size: clamp(1rem, 2.4vw, 1.2rem);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+
+  .fila-desc {
+    color: var(--color-text-secondary);
+    font-size: 0.85rem;
+    line-height: 1.35;
+  }
+
+  .fila-precio {
+    color: var(--color-primary-text);
+    font-family: var(--carta-font-titulos, inherit);
+    font-size: clamp(1.05rem, 2.6vw, 1.35rem);
+    letter-spacing: 0.02em;
+  }
+
+  /* Una franja de color a media carta, como la del cartel: separa sin una línea. */
+  .seccion:nth-child(odd) .products-list {
+    padding-left: clamp(0px, 1vw, 10px);
+  }
+}
+
+/* ── Retro: carta impresa ─────────────────────────────────────────────────── */
+
+:host([data-composicion='retro']) {
+  /* Papel con ondas: el patrón va en el fondo de la página, no en cada panel. */
+  .main-content {
+    background-image: repeating-linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--color-primary) 7%, transparent) 0 2px,
+      transparent 2px 16px
+    );
+  }
+
+  /* Cada categoría es un panel de papel, con su borde redondeado. */
+  .seccion {
+    padding: clamp(16px, 3vw, 28px);
+    border: 2px solid var(--color-primary);
+    border-radius: clamp(18px, 3vw, 28px);
+    background: var(--color-surface);
+  }
+
+  .carta-secciones {
+    gap: clamp(16px, 3vw, 24px);
+  }
+
+  .categoria-cabecera {
+    margin-bottom: clamp(12px, 2vw, 18px);
+    background: transparent;
+  }
+
+  .categoria-cabecera__txt {
+    padding: 0 !important;
+    border-bottom: 0 !important;
+    text-align: center;
+  }
+
+  .categoria-cabecera__titulo {
+    justify-content: center;
+    color: var(--color-primary-text);
+    font-size: clamp(1.6rem, 5.5vw, 2.4rem);
+    line-height: 1;
+    text-transform: uppercase;
+  }
+
+  .categoria-cabecera__desc {
+    text-align: center;
+  }
+
+  .fila-nombre {
+    color: var(--color-primary-text);
+    font-size: 0.98rem;
+    letter-spacing: 0.01em;
+    text-transform: uppercase;
+  }
+
+  .fila-desc {
+    color: var(--color-text-secondary);
+    font-size: 0.82rem;
+    line-height: 1.35;
+  }
+
+  /*
+   * El precio se acuesta junto al nombre y no debajo: en esta carta las líneas son
+   * cortas y el precio corto a la derecha es parte del ritmo.
+   */
+  .fila-cabeza {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+
+  .fila-precio {
+    display: inline-block;
+    margin: 0 0 0 auto;
+    color: var(--color-primary-text);
+    font-size: 1rem;
+    font-style: italic;
+    font-weight: 800;
+    text-align: right;
+    white-space: nowrap;
+  }
+}
+
+/* La cabecera teñida con el color del negocio, heredada de la antigua «Mostrador». */
+:host([data-composicion='retro']) {
+  .hero {
+    background: var(--color-primary);
+    border-bottom-color: transparent;
+  }
+
+  .hero-name,
+  .hero-addr {
+    color: var(--color-on-primary);
+  }
+
+  .hero-pill {
+    background: color-mix(in srgb, var(--color-on-primary) 18%, transparent);
+    color: var(--color-on-primary);
+  }
+
+  .hero-call,
+  .hero-logo:not(.hero-logo--img) {
+    background: var(--color-on-primary);
+    color: var(--color-primary);
   }
 }

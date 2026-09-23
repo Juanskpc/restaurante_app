@@ -1,2 +1,33 @@
 /* Importar sistema de temas (design tokens + helpers globales) */
 @use './styles/theme';
+
+/*
+ * Urban Black — la tipografía de titular de las plantillas «Neón» y «Mural».
+ *
+ * Es propia, no de Google: el archivo va en `public/fonts/` y se sirve desde nuestro dominio.
+ * Va aquí y no en el componente de la carta porque un `@font-face` es del documento, no de un
+ * componente, y declararlo dos veces (carta pública + vista previa del panel) lo descargaría dos
+ * veces.
+ *
+ * `font-display: swap` y una pila de respaldo con fuentes pesadas de sistema: si el archivo
+ * todavía no está subido, la carta se lee igual con Archivo Black o Arial Black. Una tipografía
+ * que falta nunca puede dejar a un negocio sin menú.
+ */
+@font-face {
+  font-family: 'Urban Black';
+  /*
+   * Una sola ruta, y el archivo se llama exactamente así: `public/fonts/urban-black.otf`.
+   *
+   * Nada de listar varios candidatos «por si acaso». El servidor de esta app responde con el
+   * index.html —200 y HTML— a cualquier ruta que no exista, así que una ruta equivocada no da
+   * 404: da una página web que el navegador intenta leer como tipografía y descarta en
+   * silencio. Con un solo origen, si algún día falla, falla donde se puede ver.
+   *
+   * Sin espacios ni mayúsculas en el nombre a propósito: `Urban Black.otf` obliga a escribir
+   * `%20` en el CSS y es justo donde se cuelan los errores.
+   */
+  src: url('/fonts/urban-black.otf') format('opentype');
+  font-weight: 400 900;
+  font-style: normal;
+  font-display: swap;
+}

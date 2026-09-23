@@ -1,0 +1,15 @@
+﻿Urban Black
+===========
+
+Deja aqui el archivo de la fuente con este nombre exacto:
+
+    urban-black.woff2      (recomendado: pesa la mitad que un .otf)
+    urban-black.otf        (alternativa, si no puedes convertirla)
+
+Lo usan las plantillas "Neon" y "Mural" de la carta virtual. El @font-face esta
+declarado en src/styles.scss.
+
+Mientras el archivo no este, la carta NO se rompe: la pila de respaldo
+(Archivo Black / Arial Black) mantiene el mismo aire de titular pesado.
+
+Para convertir a woff2: https://cloudconvert.com/otf-to-woff2

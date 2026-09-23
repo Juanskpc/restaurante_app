@@ -8,7 +8,6 @@ import {
   effect,
   inject,
   input,
-  output,
   signal,
   untracked,
   viewChild,
@@ -16,7 +15,6 @@ import {
 import { DecimalPipe, DOCUMENT, isPlatformBrowser } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
-import { Router } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
 import { finalize } from 'rxjs/operators';
 
@@ -24,7 +22,6 @@ import { environment } from '../../../../../environments/environment';
 import { UiFeedbackService } from '../../../../core/ui-feedback/ui-feedback.service';
 import { ImageCropperComponent } from '../../menu/image-cropper/image-cropper';
 import {
-  Aviso,
   BORDES,
   BordeId,
   DisenoCarta,
@@ -39,7 +36,6 @@ import {
   claveDiseno,
   clonarDiseno,
   contraste,
-  evaluarAvisos,
   fuentePorId,
   inicialesNegocio,
   normalizarHex,
@@ -86,11 +82,9 @@ const LIENZO: Record<Vista, { ancho: number; alto: number }> = {
 export class CartaDisenoPanelComponent {
   readonly idNegocio = input.required<number>();
   /** Un aviso pide ir a la pestaña General (donde está el WhatsApp). */
-  readonly irAGeneral = output<void>();
 
   private readonly servicio = inject(CartaDisenoService);
   private readonly ui = inject(UiFeedbackService);
-  private readonly router = inject(Router);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly document = inject(DOCUMENT);
   private readonly destroyRef = inject(DestroyRef);
@@ -139,19 +133,10 @@ export class CartaDisenoPanelComponent {
   readonly colorSobreAcento = computed(() => textoSobre(this.acento()));
   readonly fuentePlantilla = computed(() => fuentePorId(this.plantillaActual().fuenteTitulos));
 
-  readonly avisos = computed<Aviso[]>(() => {
-    const datos = this.datos();
-    if (!datos) return [];
-    return evaluarAvisos({
-      diseno: this.borrador(),
-      colorNegocio: this.colorNegocio(),
-      estadisticas: datos.estadisticas,
-      tieneLogo: Boolean(datos.negocio.logo_url),
-      tieneWhatsapp: Boolean(datos.negocio.url_whatsapp),
-      planIncluyeWhatsapp: datos.caracteristicas.carta_whatsapp,
-    });
-  });
-  readonly avisosAtencion = computed(() => this.avisos().filter((a) => a.nivel === 'atencion').length);
+  /** Las plantillas con composición propia se arman a dos columnas: el formato no aplica. */
+  readonly plantillaMandaFormato = computed(
+    () => this.plantillaActual().composicion !== 'estandar',
+  );
 
   readonly estado = computed(() => {
     const datos = this.datos();
@@ -304,7 +289,7 @@ export class CartaDisenoPanelComponent {
   }
 
   elegirFormato(id: FormatoId): void {
-    if (!this.canEdit()) return;
+    if (!this.canEdit() || this.plantillaMandaFormato()) return;
     this.borrador.update((d) => ({ ...d, formato: id }));
   }
 
@@ -428,16 +413,6 @@ export class CartaDisenoPanelComponent {
 
   private actualizarLogo(logoUrl: string | null): void {
     this.datos.update((d) => (d ? { ...d, negocio: { ...d.negocio, logo_url: logoUrl } } : d));
-  }
-
-  // ── Avisos ──
-
-  ejecutarAccion(aviso: Aviso): void {
-    const accion = aviso.accion;
-    if (!accion) return;
-    if (accion.tipo === 'usar-color' && accion.valor) this.cambiarColor(accion.valor);
-    if (accion.tipo === 'ir-general') this.irAGeneral.emit();
-    if (accion.tipo === 'ir-menu') void this.router.navigate(['/menu']);
   }
 
   // ── Publicar ──

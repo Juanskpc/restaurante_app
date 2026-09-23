@@ -1,121 +1,118 @@
 <div class="public-menu">
-  <!-- ═══════════ BARRA SUPERIOR FIJA (cabecera + categorías) ═══════════ -->
-  <div class="menu-topbar" #barraSuperior [class.is-compact]="headerCompacto()">
-    <!-- ═══════════ HERO HEADER ═══════════ -->
-    <header class="hero">
-      <div class="hero-inner">
-        @if (cargandoNegocio()) {
-          <div class="hero-skeleton">
-            <div class="skeleton-bar skeleton-title"></div>
-            <div class="skeleton-bar skeleton-sub"></div>
+  <!-- ═══════════ HERO HEADER (se va con el scroll) ═══════════ -->
+  <header class="hero">
+    <div class="hero-inner">
+      @if (cargandoNegocio()) {
+        <div class="hero-skeleton">
+          <div class="skeleton-bar skeleton-title"></div>
+          <div class="skeleton-bar skeleton-sub"></div>
+        </div>
+      } @else if (negocioInvalido()) {
+        <div class="hero-error">
+          <lucide-icon name="alert-triangle" [size]="28" class="hero-error-icon" />
+          <span>Negocio no encontrado</span>
+        </div>
+      } @else {
+        <div class="hero-brand">
+          <!-- Sin logo se muestran las iniciales del negocio y no un ícono genérico: el
+               cliente tiene que reconocer de quién es la carta. -->
+          <div class="hero-logo" [class.hero-logo--img]="!!logoUrl()">
+            @if (logoUrl(); as logo) {
+              <img
+                [src]="resolveImg(logo)"
+                [alt]="'Logo de ' + (negocio()?.nombre ?? 'el negocio')"
+                width="42"
+                height="42"
+              />
+            } @else {
+              <span class="hero-monograma" aria-hidden="true">{{ iniciales() }}</span>
+            }
           </div>
-        } @else if (negocioInvalido()) {
-          <div class="hero-error">
-            <lucide-icon name="alert-triangle" [size]="28" class="hero-error-icon" />
-            <span>Negocio no encontrado</span>
+          <div class="hero-text">
+            <span class="hero-pill">Menú Digital</span>
+            <h1 class="hero-name">{{ negocio()?.nombre }}</h1>
+            @if (negocio()?.direccion) {
+              <div class="hero-addr">
+                <lucide-icon name="map-pin" [size]="12" />
+                <span>{{ negocio()?.direccion }}</span>
+              </div>
+            }
           </div>
-        } @else {
-          <div class="hero-brand">
-            <!-- Sin logo se muestran las iniciales del negocio y no un ícono genérico: el
-                 cliente tiene que reconocer de quién es la carta. -->
-            <div class="hero-logo" [class.hero-logo--img]="!!logoUrl()">
-              @if (logoUrl(); as logo) {
-                <img
-                  [src]="resolveImg(logo)"
-                  [alt]="'Logo de ' + (negocio()?.nombre ?? 'el negocio')"
-                  width="42"
-                  height="42"
-                />
-              } @else {
-                <span class="hero-monograma" aria-hidden="true">{{ iniciales() }}</span>
-              }
-            </div>
-            <div class="hero-text">
-              <span class="hero-pill">Menú Digital</span>
-              <h1 class="hero-name">{{ negocio()?.nombre }}</h1>
-              @if (negocio()?.direccion) {
-                <div class="hero-addr">
-                  <lucide-icon name="map-pin" [size]="12" />
-                  <span>{{ negocio()?.direccion }}</span>
-                </div>
-              }
-            </div>
-          </div>
-          @if (negocio()?.telefono) {
-            <a class="hero-call" [href]="'tel:' + negocio()?.telefono" aria-label="Llamar al restaurante">
-              <lucide-icon name="phone" [size]="16" />
-            </a>
-          }
+        </div>
+        @if (negocio()?.telefono) {
+          <a class="hero-call" [href]="'tel:' + negocio()?.telefono" aria-label="Llamar al restaurante">
+            <lucide-icon name="phone" [size]="16" />
+          </a>
         }
-      </div>
-    </header>
+      }
+    </div>
+  </header>
 
-    <!-- Las categorías viajan con la cabecera: pinchadas juntas, así no hay una altura
-         que adivinar entre una y otra. Cada botón lleva a su sección, y al bajar a mano se
-         va marcando la que se está leyendo. -->
-    @if (!negocioInvalido() && !planInactivo() && negocio()) {
-      <nav class="categories-bar" aria-label="Categorías del menú">
-        @if (cargandoCarta()) {
-          <div class="categories-skeleton">
-            @for (i of [1,2,3,4,5]; track i) {
-              <div class="skeleton-chip"></div>
-            }
-          </div>
-        } @else if (seccionesVisibles().length === 0) {
-          <div class="categories-empty">
-            <lucide-icon name="folder-x" [size]="14" />
-            <span>Sin categorías</span>
-          </div>
-        } @else {
-          <div class="categories-wrapper">
-            @if (puedeScrollIzq()) {
-              <button
-                type="button"
-                class="cat-arrow cat-arrow--left"
-                aria-label="Categorías anteriores"
-                (click)="scrollCategorias('left')"
-              >
-                <lucide-icon name="chevron-left" [size]="16" />
-              </button>
-            }
-            <div
-              class="categories-scroll"
-              #catScroll
-              (scroll)="onCatScroll()"
+  <!-- Lo único pegajoso de la carta: al bajar, la cabecera se va y las categorías quedan
+       arriba. Cada botón lleva a su sección, y al bajar a mano se va marcando la que se
+       está leyendo. -->
+  @if (!negocioInvalido() && !planInactivo() && negocio()) {
+    <nav class="categories-bar" #barraSuperior aria-label="Categorías del menú">
+      @if (cargandoCarta()) {
+        <div class="categories-skeleton">
+          @for (i of [1,2,3,4,5]; track i) {
+            <div class="skeleton-chip"></div>
+          }
+        </div>
+      } @else if (seccionesVisibles().length === 0) {
+        <div class="categories-empty">
+          <lucide-icon name="folder-x" [size]="14" />
+          <span>Sin categorías</span>
+        </div>
+      } @else {
+        <div class="categories-wrapper">
+          @if (puedeScrollIzq()) {
+            <button
+              type="button"
+              class="cat-arrow cat-arrow--left"
+              aria-label="Categorías anteriores"
+              (click)="scrollCategorias('left')"
             >
-              @for (s of seccionesVisibles(); track s.id_categoria) {
-                <button
-                  type="button"
-                  class="cat-chip"
-                  [class.cat-chip--active]="categoriaActivaVisible() === s.id_categoria"
-                  [attr.aria-current]="categoriaActivaVisible() === s.id_categoria ? 'true' : null"
-                  (click)="irACategoria(s.id_categoria)"
-                >
-                  @if (s.imagen_url) {
-                    <img class="cat-img" [src]="resolveImg(s.imagen_url)" [alt]="s.nombre" loading="lazy" />
-                  } @else {
-                    <span class="cat-emoji">{{ s.icono }}</span>
-                  }
-                  <span class="cat-name">{{ s.nombre }}</span>
-                  <span class="cat-badge">{{ s.productos.length }}</span>
-                </button>
-              }
-            </div>
-            @if (puedeScrollDer()) {
+              <lucide-icon name="chevron-left" [size]="16" />
+            </button>
+          }
+          <div
+            class="categories-scroll"
+            #catScroll
+            (scroll)="onCatScroll()"
+          >
+            @for (s of seccionesVisibles(); track s.id_categoria) {
               <button
                 type="button"
-                class="cat-arrow cat-arrow--right"
-                aria-label="Más categorías"
-                (click)="scrollCategorias('right')"
+                class="cat-chip"
+                [class.cat-chip--active]="categoriaActivaVisible() === s.id_categoria"
+                [attr.aria-current]="categoriaActivaVisible() === s.id_categoria ? 'true' : null"
+                (click)="irACategoria(s.id_categoria)"
               >
-                <lucide-icon name="chevron-right" [size]="16" />
+                @if (s.imagen_url) {
+                  <img class="cat-img" [src]="resolveImg(s.imagen_url)" [alt]="s.nombre" loading="lazy" />
+                } @else {
+                  <span class="cat-emoji">{{ s.icono }}</span>
+                }
+                <span class="cat-name">{{ s.nombre }}</span>
+                <span class="cat-badge">{{ s.productos.length }}</span>
               </button>
             }
           </div>
-        }
-      </nav>
-    }
-  </div>
+          @if (puedeScrollDer()) {
+            <button
+              type="button"
+              class="cat-arrow cat-arrow--right"
+              aria-label="Más categorías"
+              (click)="scrollCategorias('right')"
+            >
+              <lucide-icon name="chevron-right" [size]="16" />
+            </button>
+          }
+        </div>
+      }
+    </nav>
+  }
 
   <!-- ═══════════ ERROR: NEGOCIO INVÁLIDO ═══════════ -->
   @if (negocioInvalido() && !cargandoNegocio()) {
@@ -210,14 +207,6 @@
                   }
                 </div>
               } @else {
-                @if (s.destacados.length > 0) {
-                  <div class="products-grid products-grid--destacados">
-                    @for (prod of s.destacados; track prod.id_producto) {
-                      <ng-container *ngTemplateOutlet="tarjeta; context: { $implicit: prod }" />
-                    }
-                  </div>
-                }
-
                 @if (s.enLista.length > 0) {
                   <ul class="products-list">
                     @for (prod of s.enLista; track prod.id_producto) {
