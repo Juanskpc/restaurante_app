@@ -101,7 +101,7 @@ export interface FuenteDef {
   /** Algunas fuentes de titular solo existen en un peso; forzar 700 las engorda artificialmente. */
   pesoTitulos: number;
   /**
-   * Fuente servida por nosotros (`public/fonts/`), no por Google. Su `@font-face` está en
+   * Fuente servida por nosotros (`src/fonts/`), no por Google. Su `@font-face` está en
    * `styles.scss`. Si el archivo no está, la pila de respaldo mantiene la carta legible: una
    * tipografía que falta nunca puede dejar un menú sin leerse.
    */

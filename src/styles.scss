@@ -4,7 +4,7 @@
 /*
  * Urban Black — la tipografía de titular de las plantillas «Neón» y «Mural».
  *
- * Es propia, no de Google: el archivo va en `public/fonts/` y se sirve desde nuestro dominio.
+ * Es propia, no de Google: el archivo va en `src/fonts/` y se sirve desde nuestro dominio.
  * Va aquí y no en el componente de la carta porque un `@font-face` es del documento, no de un
  * componente, y declararlo dos veces (carta pública + vista previa del panel) lo descargaría dos
  * veces.
@@ -16,7 +16,7 @@
 @font-face {
   font-family: 'Urban Black';
   /*
-   * Una sola ruta, y el archivo se llama exactamente así: `public/fonts/urban-black.otf`.
+   * Una sola ruta, y el archivo se llama exactamente así: `src/fonts/urban-black.otf`.
    *
    * Nada de listar varios candidatos «por si acaso». El servidor de esta app responde con el
    * index.html —200 y HTML— a cualquier ruta que no exista, así que una ruta equivocada no da
@@ -25,8 +25,13 @@
    *
    * Sin espacios ni mayúsculas en el nombre a propósito: `Urban Black.otf` obliga a escribir
    * `%20` en el CSS y es justo donde se cuelan los errores.
+   *
+   * La ruta es relativa y el archivo vive en `src/`, no en `public/`, para que lo resuelva el
+   * build y salga con hash. Una ruta absoluta `/fonts/...` funcionaba en desarrollo y se perdía
+   * al desplegar: esta app se sirve bajo `/restaurante/`, así que apuntaba a la raíz del
+   * dominio, donde vive la landing, y el navegador se quedaba con la fuente de respaldo.
    */
-  src: url('/fonts/urban-black.otf') format('opentype');
+  src: url('fonts/urban-black.otf') format('opentype');
   font-weight: 400 900;
   font-style: normal;
   font-display: swap;
