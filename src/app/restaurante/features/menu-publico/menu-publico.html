@@ -144,6 +144,15 @@
     </main>
   }
 
+  <!-- ═══════════ AVISO: FUERA DE ATENCIÓN ═══════════ -->
+  <!-- La carta se sigue viendo: solo se avisa que "agregar"/"pedir" están desactivados. -->
+  @if (!negocioInvalido() && !planInactivo() && negocio() && avisoAtencion(); as aviso) {
+    <div class="aviso-atencion">
+      <lucide-icon name="clock" [size]="16" />
+      <span>{{ aviso }}</span>
+    </div>
+  }
+
   <!-- ═══════════ MENU CONTENT ═══════════ -->
   @if (!negocioInvalido() && !planInactivo() && negocio()) {
     <main class="main-content">

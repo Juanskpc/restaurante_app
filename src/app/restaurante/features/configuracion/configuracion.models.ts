@@ -25,6 +25,8 @@ export interface ConfiguracionNegocio {
    * hace que el pedido pase siempre, sin avisar de insumos faltantes ni mover el stock.
    */
   controla_inventario: boolean;
+  /** ¿El personal del negocio (mesero, cajero, dueño) puede elegirse como domiciliario? */
+  permite_domicilio_personal: boolean;
   can_edit: boolean;
 }
 
@@ -44,6 +46,7 @@ export interface ConfiguracionNegocioPayload {
   pregunta_cobro_envio?: boolean;
   permite_cuentas_cliente?: boolean;
   controla_inventario?: boolean;
+  permite_domicilio_personal?: boolean;
   id_paleta?: number | null;
 }
 

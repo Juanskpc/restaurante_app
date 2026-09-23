@@ -25,6 +25,8 @@ export interface MesaOrder {
   /** Desglose de multipago elegido al tomar el pedido; editable antes de cobrar. */
   pagos?: { id_metodo_pago: number; valor: number }[];
   nota?: string | null;
+  /** Quien tomó el pedido — no quien lo cobra o imprime la factura después. */
+  usuario?: { id_usuario: number; primer_nombre: string; primer_apellido: string } | null;
   items: MesaOrderItem[];
 }
 
@@ -77,6 +79,10 @@ export class MesasService {
 
   liberarMesa(idMesa: number): Observable<{ success: boolean; data: MesaBase }> {
     return this.http.patch<{ success: boolean; data: MesaBase }>(`${environment.apiUrl}/mesas/${idMesa}/liberar`, {});
+  }
+
+  eliminarMesa(idMesa: number): Observable<{ success: boolean; data: { id_mesa: number } }> {
+    return this.http.delete<{ success: boolean; data: { id_mesa: number } }>(`${environment.apiUrl}/mesas/${idMesa}`);
   }
 
   cerrarOrden(

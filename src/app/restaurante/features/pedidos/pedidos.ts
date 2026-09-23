@@ -4,6 +4,7 @@ import {
 } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, concat } from 'rxjs';
+import { last } from 'rxjs/operators';
 import { LucideAngularModule } from 'lucide-angular';
 import { FormsModule } from '@angular/forms';
 import { CurrencyPipe, isPlatformBrowser } from '@angular/common';
@@ -99,6 +100,8 @@ interface OrdenApi {
   id_mesa: number | null;
   id_metodo_pago?: number | null;
   nota?: string | null;
+  /** Quien tomó el pedido — no confundir con quien cobra o imprime la factura después. */
+  usuario?: { id_usuario: number; primer_nombre: string; primer_apellido: string } | null;
   tipo_pedido?: TipoPedido;
   valor_domicilio?: number | string | null;
   descuento?: number | string | null;
@@ -244,6 +247,8 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.domDomiciliarioId() !== null
   );
   readonly ordenActivaId = signal<number | null>(null);
+  /** Quien tomó el pedido cargado en pantalla. Null = pedido nuevo, todavía sin guardar. */
+  readonly ordenCreadorNombre = signal<string | null>(null);
   readonly itemsBaseOrdenActiva = signal<ItemOrden[]>([]);
   readonly notaBaseOrdenActiva = signal('');
   readonly itemsPagadosPorMesa = signal<Record<number, ItemOrden[]>>({});
@@ -542,6 +547,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
   ): void {
     const mappedItems = this.mapOrdenApiToItems(orden);
     this.ordenActivaId.set(orden.id_orden);
+    this.ordenCreadorNombre.set(this.nombreCreadorOrden(orden));
     this.pedidoDespachoSeleccionado.set(pedido);
 
     if (itemsPrevios.length > 0) {
@@ -834,6 +840,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.itemsBaseOrdenActiva.set([]);
     this.notaBaseOrdenActiva.set('');
     this.ordenActivaId.set(null);
+    this.ordenCreadorNombre.set(null);
     this.mesaId.set(null);
     this.notaOrden.set('');
     this.mesaRequeridaError.set(false);
@@ -1000,6 +1007,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.itemsBaseOrdenActiva.set([]);
     this.notaBaseOrdenActiva.set('');
     this.ordenActivaId.set(null);
+    this.ordenCreadorNombre.set(null);
 
     if (veniaConOrdenActiva) {
       this.items.set([]);
@@ -1049,6 +1057,13 @@ export class PedidosComponent implements OnInit, OnDestroy {
   }
 
 
+
+  /** Nombre de quien tomó la orden (dueño de `id_usuario` en el backend), o null si no vino. */
+  private nombreCreadorOrden(orden: OrdenApi): string | null {
+    const u = orden.usuario;
+    if (!u) return null;
+    return `${u.primer_nombre} ${u.primer_apellido}`.trim() || null;
+  }
 
   /** Desglose guardado de una orden, en filas para el selector. */
   private mapPagosOrden(orden: OrdenApi): FilaPago[] {
@@ -1106,6 +1121,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
           this.itemsBaseOrdenActiva.set([]);
           this.notaBaseOrdenActiva.set('');
           this.ordenActivaId.set(null);
+          this.ordenCreadorNombre.set(null);
 
           if (this.mesaSeleccionadaEstaDisponible(idMesa)) {
             this.limpiarItemsPagadosMesa(idMesa);
@@ -1148,6 +1164,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
 
             const mappedItems = this.mapOrdenApiToItems(orden);
             this.ordenActivaId.set(orden.id_orden);
+            this.ordenCreadorNombre.set(this.nombreCreadorOrden(orden));
 
             // Si había productos nuevos ya agregados, fusionarlos al pedido cargado
             if (itemsPrevios.length > 0) {
@@ -1442,16 +1459,28 @@ export class PedidosComponent implements OnInit, OnDestroy {
     const idOrdenActiva = (this.requiereMesa() || this.pedidoDespachoSeleccionado() !== null) ? this.ordenActivaId() : null;
     if (idOrdenActiva) {
       const itemsNuevos = this.obtenerItemsNuevosOrdenActiva();
+      const itemsQuitados = this.obtenerItemsQuitadosOrdenActiva();
       const domicilioCambio =
         this.permitePagoDomicilio() && this.valorDomicilio() !== this.valorDomicilioBase();
       const descuentoCambio =
         this.permiteDescuento() && this.descuento() !== this.descuentoBase();
 
+      // Lo quitado va SIEMPRE primero: si además hay productos nuevos, `agregar-items`
+      // lee el total actual de la orden para recalcular, y ese total tiene que reflejar
+      // ya lo que se acaba de retirar.
+      const quitar$ = itemsQuitados.length > 0
+        ? this.http.patch(
+            `${environment.apiUrl}/pedidos/${idOrdenActiva}/quitar-items`,
+            { id_negocio: this.negocioId(), items: this.mapItemsPayload(itemsQuitados) }
+          )
+        : null;
+
       if (itemsNuevos.length === 0) {
         // Sin productos nuevos, `agregar-items` no aplica (exige al menos uno).
-        // Si solo se corrigieron domicilio o descuento, van por sus endpoints
-        // dedicados, en secuencia: ambos recalculan el total de la misma orden.
+        // Lo quitado y las correcciones de domicilio/descuento van por sus endpoints
+        // dedicados, en secuencia: los tres recalculan el total de la misma orden.
         const ajustes: Observable<unknown>[] = [];
+        if (quitar$) ajustes.push(quitar$);
         if (domicilioCambio) {
           ajustes.push(this.http.patch(
             `${environment.apiUrl}/pedidos/${idOrdenActiva}/valor-domicilio`,
@@ -1474,6 +1503,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
               this.resetEstadoEnvio();
             },
             complete: () => {
+              this.itemsBaseOrdenActiva.set(this.cloneItems(this.items()));
               this.valorDomicilioBase.set(this.valorDomicilio());
               this.descuentoBase.set(this.descuento());
               this.procesarDestinoEnvio(destino, idOrdenActiva);
@@ -1486,7 +1516,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
         return;
       }
 
-      this.http.patch<{ success: boolean }>(
+      const agregar$ = this.http.patch<{ success: boolean }>(
         `${environment.apiUrl}/pedidos/${idOrdenActiva}/agregar-items`,
         {
           id_caja: this.getIdCaja(),
@@ -1503,9 +1533,15 @@ export class PedidosComponent implements OnInit, OnDestroy {
           ...bodyDescuento,
           ...this.construirPagosPedido(),
         }
-      ).subscribe({
+      );
+
+      // `last()`: con productos quitados la secuencia manda dos peticiones, y lo que
+      // valida el resultado final es la respuesta de `agregar-items` (la que corre
+      // después y ya ve el total sin lo retirado).
+      (quitar$ ? concat(quitar$, agregar$) : agregar$).pipe(last()).subscribe({
         next: res => {
-          if (!res?.success) {
+          const respuesta = res as { success?: boolean } | undefined;
+          if (!respuesta?.success) {
             this.resetEstadoEnvio();
             return;
           }
@@ -1853,6 +1889,35 @@ export class PedidosComponent implements OnInit, OnDestroy {
     return nuevos;
   }
 
+  /**
+   * Lo que se quitó o redujo respecto a la orden base (el reverso de
+   * `obtenerItemsNuevosOrdenActiva`). Sin esto, quitar un producto en pantalla nunca se
+   * le avisaba al backend — `agregar-items` solo sabe crear líneas nuevas — y al volver
+   * a cargar la orden el producto seguía ahí.
+   */
+  private obtenerItemsQuitadosOrdenActiva(): ItemOrden[] {
+    const actuales = this.agruparItems(this.items());
+    const base = this.agruparItems(this.itemsBaseOrdenActiva());
+    const quitados: ItemOrden[] = [];
+
+    for (const [key, itemBase] of base.entries()) {
+      const cantidadActual = actuales.get(key)?.cantidad ?? 0;
+      const cantidadQuitada = itemBase.cantidad - cantidadActual;
+
+      if (cantidadQuitada <= 0) continue;
+
+      quitados.push({
+        ...itemBase,
+        cantidad: cantidadQuitada,
+        ingredientes: [...itemBase.ingredientes],
+        exclusiones: new Set(itemBase.exclusiones),
+        exclusionesNombres: itemBase.exclusionesNombres ? [...itemBase.exclusionesNombres] : undefined,
+      });
+    }
+
+    return quitados;
+  }
+
   private marcarMesaPorCobrarSiAplica(): void {
     if (!this.requiereMesa()) {
       this.limpiarOrden(false);
@@ -2191,7 +2256,13 @@ export class PedidosComponent implements OnInit, OnDestroy {
 
   private buildTicketHtml(fecha: Date): string {
     const negocioNombre = this.escapeHtml(this.auth.negocio()?.nombre ?? 'Negocio');
-    const usuarioNombre = this.escapeHtml(this.auth.usuario()?.nombre_completo ?? 'Usuario');
+    // "Atiende" es quien TOMÓ el pedido, no quien está cobrando/imprimiendo la factura ahora
+    // mismo — pueden ser personas distintas (el mesero atendió la mesa, el cajero cobra después).
+    // Si el pedido es nuevo (todavía no tiene id_usuario propio guardado), la persona que lo está
+    // registrando en este momento SÍ es quien lo atiende.
+    const usuarioNombre = this.escapeHtml(
+      this.ordenCreadorNombre() ?? this.auth.usuario()?.nombre_completo ?? 'Usuario'
+    );
     const fechaTexto = this.escapeHtml(this.formatDateTime(fecha));
     const tipoPedido = this.tipoPedido() === 'MESA'
       ? 'En mesa'

@@ -19,14 +19,15 @@ import {
   DollarSign, Receipt, Star, TrendingUp, TrendingDown, ChartPie, Eye,
   Search, Plus, Minus, Trash2, Printer, CreditCard, Flame, NotebookPen, Send,
   CirclePlus, Pencil, Loader, Leaf, Folder, ToggleRight, ToggleLeft,
-  DoorOpen, Clock3, Download,
+  DoorOpen, Clock, Clock3, Download,
   CheckCircle, XCircle, RotateCw, FolderPlus, Save,
   AlertTriangle, Bike, Wallet, Play, PlusCircle, Square, Banknote,
   Home, Phone, PhoneCall, MapPin, User, StickyNote, ShoppingBag,
-  Copy, ArrowLeft, Lock, Truck, MessageCircle, Facebook, Instagram, CheckSquare, ExternalLink,
+  Copy, CopyPlus, ArrowLeft, Lock, Truck, MessageCircle, Facebook, Instagram, CheckSquare, ExternalLink,
   Utensils, Coffee, FolderX, Globe, Mail, ArrowRight, ImagePlus, Crop,
   LayoutGrid, Grid3x3, List, SquarePen,
-  PanelLeft, PanelLeftClose, PanelTop, Percent, Tag, Filter, Check, Info, Monitor, Smartphone, RotateCcw, Palette
+  PanelLeft, PanelLeftClose, PanelTop, Percent, Tag, Filter, Check, Info, Monitor, Smartphone,
+  RotateCcw, Palette, CircleAlert, Ban
 } from 'lucide-angular';
 
 const icons = {
@@ -36,14 +37,15 @@ const icons = {
   DollarSign, Receipt, Star, TrendingUp, TrendingDown, ChartPie, Eye,
   Search, Plus, Minus, Trash2, Printer, CreditCard, Flame, NotebookPen, Send,
   CirclePlus, Pencil, Loader, Leaf, Folder, ToggleRight, ToggleLeft,
-  DoorOpen, Clock3, Download,
+  DoorOpen, Clock, Clock3, Download,
   CheckCircle, XCircle, RotateCw, FolderPlus, Save,
   AlertTriangle, Bike, Wallet, Play, PlusCircle, Square, Banknote,
   Home, Phone, PhoneCall, MapPin, User, StickyNote, ShoppingBag,
-  Copy, ArrowLeft, Lock, Truck, MessageCircle, Facebook, Instagram, CheckSquare, ExternalLink,
+  Copy, CopyPlus, ArrowLeft, Lock, Truck, MessageCircle, Facebook, Instagram, CheckSquare, ExternalLink,
   Utensils, Coffee, FolderX, Globe, Mail, ArrowRight, ImagePlus, Crop,
   LayoutGrid, Grid3x3, List, SquarePen,
-  PanelLeft, PanelLeftClose, PanelTop, Percent, Tag, Filter, Check, Info, Monitor, Smartphone, RotateCcw, Palette
+  PanelLeft, PanelLeftClose, PanelTop, Percent, Tag, Filter, Check, Info, Monitor, Smartphone,
+  RotateCcw, Palette, CircleAlert, Ban
 };
 
 export const appConfig: ApplicationConfig = {

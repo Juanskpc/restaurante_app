@@ -115,6 +115,24 @@ export interface PedidoDespacho {
   pagos?: { id_metodo_pago: number; valor: number | string }[];
 }
 
+/**
+ * Un pedido cancelado HOY, tal como lo devuelve `GET /despacho/cancelados`.
+ *
+ * Deliberadamente más flaco que `PedidoDespacho`: esto es una alerta de lo que acaba de pasar
+ * en el turno, no una tarjeta para operar — no se cobra, no se edita, no se imprime. Lo único
+ * que importa es que se sepa que pasó y quién lo hizo.
+ */
+export interface PedidoCancelado {
+  id_orden: number;
+  numero_orden: string;
+  tipo_pedido: TipoPedido;
+  total: number;
+  contacto_nombre: string | null;
+  /** Quién lo canceló: el propio negocio desde el panel, o el cliente por WhatsApp. */
+  cancelado_por: 'cliente' | 'negocio' | null;
+  fecha_cierre: string;
+}
+
 @Component({
   selector: 'app-despacho',
   imports: [LucideAngularModule, CurrencyPipe, DatePipe, MultipagoSelectorComponent],
@@ -140,6 +158,13 @@ export class DespachoComponent implements OnInit {
   /** Solo la primera carga. Los refrescos del tiempo real no tapan el listado. */
   readonly cargando = signal(false);
   readonly refrescando = signal(false);
+  /**
+   * Los cancelados de HOY, aparte de `pedidos`: son una alerta de lo que acaba de pasar en el
+   * turno, no pedidos activos, y mezclarlos en la misma tarjeta que se cobra o se edita
+   * confundiría las dos cosas.
+   */
+  readonly canceladosRecientes = signal<PedidoCancelado[]>([]);
+  readonly mostrarCancelados = signal(false);
   readonly filtro = signal<FiltroTipo>('TODOS');
   readonly pedidoActivo = signal<PedidoDespacho | null>(null);
   readonly cobrandoId = signal<number | null>(null);
@@ -148,6 +173,9 @@ export class DespachoComponent implements OnInit {
   readonly cuentasCliente = signal<CuentaCliente[]>([]);
   readonly metodoPagoSeleccionado = signal<number | null>(null);
   readonly pagoSeleccion = signal<PagoSeleccion | null>(null);
+  /** Para el selector de "cambiar domiciliario". Antes solo se podía fijar al crear el pedido. */
+  readonly domiciliariosDisponibles = signal<Array<{ id_usuario: number; nombre: string }>>([]);
+  readonly asignandoDomiciliarioId = signal<number | null>(null);
 
   // ── Cobro del domicilio desde despacho ──
   /** Texto en crudo del campo; se normaliza al guardar. */
@@ -234,6 +262,7 @@ export class DespachoComponent implements OnInit {
   ngOnInit(): void {
     this.cargar();
     this.loadMetodosPago();
+    this.loadDomiciliarios();
     // Despacho también cobra, así que necesita saber si hay turno abierto. Sin esto
     // dependía de que el usuario hubiera pasado antes por POS o por Caja: entrando
     // directo aquí, el estado seguía vacío y el cobro se rechazaba con «caja cerrada».
@@ -243,10 +272,16 @@ export class DespachoComponent implements OnInit {
       this.loadCuentasCliente(idNegocioCaja);
     }
 
+    this.cargarCancelados();
+
     // Despacho es la pantalla que espera a cocina: en cuanto marcan un plato listo, aquí
-    // tiene que verse. Y los pedidos que entran por WhatsApp aparecen por este mismo camino.
+    // tiene que verse. Y los pedidos que entran por WhatsApp aparecen por este mismo camino —
+    // igual que una cancelación del cliente, que es la que nadie del negocio disparó.
     this.destroyRef.onDestroy(
-      this.realtime.alCambiar(['pedidos'], () => this.cargar()),
+      this.realtime.alCambiar(['pedidos'], () => {
+        this.cargar();
+        this.cargarCancelados();
+      }),
     );
 
     this.domicilioEditado$
@@ -281,6 +316,15 @@ export class DespachoComponent implements OnInit {
     this.catalogo.metodosPago(id).subscribe({
       next: (data) => this.metodosPago.set(data ?? []),
       error: () => this.metodosPago.set([]),
+    });
+  }
+
+  private loadDomiciliarios(): void {
+    const id = this.negocioId();
+    if (!id || !this.puedeUsarDomicilio()) return;
+    this.catalogo.domiciliarios(id).subscribe({
+      next: (data) => this.domiciliariosDisponibles.set(data ?? []),
+      error: () => this.domiciliariosDisponibles.set([]),
     });
   }
 
@@ -320,8 +364,31 @@ export class DespachoComponent implements OnInit {
     });
   }
 
+  private cargarCancelados(): void {
+    const id = this.negocioId();
+    if (!id) return;
+
+    const url = `${environment.apiUrl}/despacho/cancelados?id_negocio=${id}`;
+    this.http.get<{ success: boolean; data: PedidoCancelado[] }>(url).subscribe({
+      next: (res) => aplicarLista(this.canceladosRecientes, res?.data ?? [], (p) => p.id_orden),
+      // Silencioso a propósito: es información extra, no la pantalla principal. Si falla,
+      // Despacho sigue funcionando igual que antes de que esto existiera — y se queda con lo
+      // que ya tenía, que es mejor que vaciar el panel por un error de red.
+      error: () => {},
+    });
+  }
+
   seleccionarFiltro(f: FiltroTipo): void {
     this.filtro.set(f);
+  }
+
+  alternarCancelados(): void {
+    this.mostrarCancelados.update((v) => !v);
+  }
+
+  /** Quién lo canceló, en una palabra que el negocio entienda. */
+  canceladoPorLabel(p: PedidoCancelado): string {
+    return p.cancelado_por === 'cliente' ? 'Lo canceló el cliente' : 'Cancelado en el negocio';
   }
 
   rotarDensidad(): void {
@@ -433,12 +500,18 @@ export class DespachoComponent implements OnInit {
   /**
    * ¿Se le puede ofrecer el aviso? La respuesta la da el backend, entera.
    *
-   * Allí se comprueban las cuatro condiciones —el plan incluye el asistente, el pedido vino por
-   * WhatsApp, el cliente va a **venir** (a un domicilio lo que le llega es el domiciliario) y no
-   * se le ha avisado ya— y se vuelven a comprobar al pulsar. Aquí solo se lee.
+   * Allí se comprueban las condiciones —el plan incluye el asistente, el pedido vino por
+   * WhatsApp y no se le ha avisado ya— y se vuelven a comprobar al pulsar. Aquí solo se lee.
+   * Sirve tanto para LLEVAR como para DOMICILIO, cada uno con su propio texto — ver
+   * `etiquetaAvisar`.
    */
   puedeAvisarListo(p: PedidoDespacho): boolean {
     return Boolean(p.puede_avisar_listo);
+  }
+
+  /** El texto del botón cambia según qué le está pasando al cliente, no solo si puede avisarse. */
+  etiquetaAvisar(p: PedidoDespacho): string {
+    return p.tipo_pedido === 'DOMICILIO' ? 'Avisar que va en camino' : 'Avisar que está listo';
   }
 
   /**
@@ -493,6 +566,42 @@ export class DespachoComponent implements OnInit {
         // El backend ya escribe estos mensajes para que los lea quien apretó el botón (no tiene
         // conversación, pidió la baja, ya se le avisó): se enseñan tal cual.
         this.uiFeedback.error(err?.error?.message || 'No se pudo avisar al cliente.');
+      },
+    });
+  }
+
+  /**
+   * Asigna o cambia el domiciliario de un pedido a domicilio.
+   *
+   * Hasta ahora esto solo se podía fijar al tomar el pedido: un domiciliario asignado por el
+   * bot (al azar, o por turno) o por error en el mostrador se quedaba así para siempre. Con
+   * esto el negocio lo corrige sin tener que cancelar y volver a tomar el pedido entero.
+   */
+  cambiarDomiciliario(p: PedidoDespacho, idRaw: string): void {
+    const idDomiciliario = Number(idRaw);
+    if (!idDomiciliario || idDomiciliario === p.id_domiciliario) return;
+
+    this.asignandoDomiciliarioId.set(p.id_orden);
+    this.http.patch<{ success: boolean; data?: { domiciliario?: PedidoDespacho['domiciliario'] } }>(
+      `${environment.apiUrl}/pedidos/${p.id_orden}/domiciliario`,
+      { id_negocio: this.negocioId(), id_domiciliario: idDomiciliario },
+    ).subscribe({
+      next: (res) => {
+        const apply = (ord: PedidoDespacho) =>
+          ord.id_orden === p.id_orden
+            ? { ...ord, id_domiciliario: idDomiciliario, domiciliario: res?.data?.domiciliario ?? ord.domiciliario }
+            : ord;
+
+        this.pedidos.update((lista) => lista.map(apply));
+        const activo = this.pedidoActivo();
+        if (activo?.id_orden === p.id_orden) this.pedidoActivo.set(apply(activo));
+
+        this.asignandoDomiciliarioId.set(null);
+        this.uiFeedback.success('Domiciliario actualizado.');
+      },
+      error: (err: HttpErrorResponse) => {
+        this.asignandoDomiciliarioId.set(null);
+        this.uiFeedback.error(err?.error?.message || 'No se pudo cambiar el domiciliario.');
       },
     });
   }
@@ -986,7 +1095,11 @@ export class DespachoComponent implements OnInit {
 
   private buildTicketHtml(p: PedidoDespacho, fecha: Date): string {
     const negocio = this.escapeHtml(this.auth.negocio()?.nombre ?? 'Negocio');
-    const usuario = this.escapeHtml(this.auth.usuario()?.nombre_completo ?? 'Usuario');
+    // "Atiende" es quien tomó el pedido, no quien está cobrando/imprimiendo ahora mismo.
+    const creador = p.usuario;
+    const usuario = this.escapeHtml(
+      creador ? `${creador.primer_nombre} ${creador.primer_apellido}`.trim() : (this.auth.usuario()?.nombre_completo ?? 'Usuario')
+    );
     const fechaTexto = this.escapeHtml(this.formatDateTime(fecha));
     const tipoTexto = p.tipo_pedido === 'DOMICILIO' ? 'Domicilio' : 'Para llevar';
     const contacto = this.escapeHtml(p.contacto_nombre ?? '');

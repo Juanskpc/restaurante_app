@@ -108,7 +108,7 @@ $atencion: #9a4a00;
 
   &[data-tono='pendiente'] {
     background: var(--color-warning-bg);
-    color: $atencion;
+    color: var(--color-warning);
   }
 }
 
@@ -224,7 +224,7 @@ $atencion: #9a4a00;
 
 .cd-nota {
   background: var(--color-warning-bg);
-  color: $atencion;
+  color: var(--color-warning);
 }
 
 // ── Rejilla de la pestaña: carta y paletas a la izquierda, vista previa a la derecha ──
@@ -515,6 +515,93 @@ $atencion: #9a4a00;
   }
 }
 
+// ── Avisos ──
+.cd-avisos {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-secondary);
+
+  &--ok .cd-avisos__titulo {
+    color: var(--color-success);
+  }
+}
+
+.cd-avisos__titulo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: var(--font-size-sm);
+}
+
+.cd-contador {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-full);
+  background: var(--color-warning);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.cd-aviso {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-left-width: 3px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+
+  &[data-nivel='atencion'] {
+    border-left-color: var(--color-warning);
+
+    .cd-aviso__icono {
+      color: var(--color-warning);
+    }
+  }
+
+  &[data-nivel='info'] {
+    border-left-color: var(--color-primary);
+
+    .cd-aviso__icono {
+      color: var(--color-primary);
+    }
+  }
+}
+
+.cd-aviso__icono {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.cd-aviso__txt {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+
+  strong {
+    font-size: var(--font-size-sm);
+  }
+
+  p {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    line-height: 1.5;
+  }
+
+  .cd-btn--texto {
+    justify-self: start;
+    font-size: var(--font-size-xs);
+  }
+}
+
 // ── Marca ──
 
 // Campos cortos de a dos: la sección de marca se queda en la mitad de alto.
@@ -659,7 +746,7 @@ $atencion: #9a4a00;
 
   &.is-bajo {
     background: var(--color-warning-bg);
-    color: $atencion;
+    color: var(--color-warning);
   }
 }
 

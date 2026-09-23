@@ -156,6 +156,9 @@ export class ConfiguracionComponent {
   readonly controlaInventario = computed(() => this.configuracion()?.controla_inventario !== false);
   readonly guardandoInventario = signal(false);
 
+  readonly permiteDomicilioPersonal = computed(() => this.configuracion()?.permite_domicilio_personal === true);
+  readonly guardandoDomicilioPersonal = signal(false);
+
   // ── Métodos de pago ──
   readonly metodosPago = signal<MetodoPago[]>([]);
   readonly cargandoMetodos = signal(false);
@@ -204,6 +207,7 @@ export class ConfiguracionComponent {
     pregunta_cobro_envio: this.fb.control(false, { nonNullable: true }),
     permite_cuentas_cliente: this.fb.control(false, { nonNullable: true }),
     controla_inventario: this.fb.control(true, { nonNullable: true }),
+    permite_domicilio_personal: this.fb.control(false, { nonNullable: true }),
     id_paleta: this.fb.control<number | null>(null),
   });
 
@@ -341,9 +345,12 @@ export class ConfiguracionComponent {
    */
   private actualizarFlag(
     campo: 'permite_multipago' | 'permite_pago_domicilio' | 'permite_descuento' | 'pregunta_cobro_envio'
-      | 'permite_cuentas_cliente' | 'controla_inventario',
+      | 'permite_cuentas_cliente' | 'controla_inventario' | 'permite_domicilio_personal',
     activar: boolean,
-    textos: { guardando: WritableSignal<boolean>; titulo: string; on: string; off: string; error: string },
+    textos: {
+      guardando: WritableSignal<boolean>; titulo: string; on: string; off: string; error: string;
+      invalidarCache?: string;
+    },
   ): void {
     const idNegocio = this.negocioActivoId();
     if (!idNegocio || !this.canEdit()) return;
@@ -357,6 +364,7 @@ export class ConfiguracionComponent {
           this.configuracion.set(config);
           this.form.controls[campo].setValue(activar, { emitEvent: false });
           this.uiFeedback.success(activar ? textos.on : textos.off, textos.titulo);
+          if (textos.invalidarCache) this.catalogo.invalidate(textos.invalidarCache);
 
           const token = this.auth.getAccessToken();
           if (token) {
@@ -449,6 +457,24 @@ export class ConfiguracionComponent {
     });
   }
 
+  /**
+   * Domiciliario = personal del negocio.
+   *
+   * Encendido, el selector de domiciliario (al tomar un pedido a domicilio) deja de mostrar
+   * solo a quien tiene el rol DOMICILIARIO y muestra a todo el personal activo — para el
+   * negocio donde reparte el mesero, el cajero o el dueño, no alguien dedicado a eso.
+   */
+  toggleDomicilioPersonal(activar: boolean): void {
+    this.actualizarFlag('permite_domicilio_personal', activar, {
+      guardando: this.guardandoDomicilioPersonal,
+      titulo: 'Domiciliario = personal',
+      on: 'Ahora se puede elegir a cualquier persona del personal como domiciliario.',
+      off: 'Solo quienes tengan el rol Domiciliario aparecerán para asignar.',
+      error: 'No se pudo actualizar esta opción.',
+      invalidarCache: 'domiciliarios',
+    });
+  }
+
   cargarConfiguracion(idNegocio: number): void {
     this.loading.set(true);
     this.errorMessage.set(null);
@@ -475,6 +501,7 @@ export class ConfiguracionComponent {
             pregunta_cobro_envio: config.pregunta_cobro_envio === true,
             permite_cuentas_cliente: config.permite_cuentas_cliente === true,
             controla_inventario: config.controla_inventario !== false,
+            permite_domicilio_personal: config.permite_domicilio_personal === true,
             id_paleta: config.id_paleta ?? null,
           });
 
@@ -561,6 +588,7 @@ export class ConfiguracionComponent {
         pregunta_cobro_envio: value.pregunta_cobro_envio,
         permite_cuentas_cliente: value.permite_cuentas_cliente,
         controla_inventario: value.controla_inventario,
+        permite_domicilio_personal: value.permite_domicilio_personal,
         id_paleta: value.id_paleta,
       })
       .pipe(finalize(() => this.saving.set(false)))

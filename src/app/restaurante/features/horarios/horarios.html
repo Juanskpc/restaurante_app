@@ -1,0 +1,145 @@
+<section class="horarios-page">
+  <header class="horarios-header">
+    <div>
+      <h1>Horarios</h1>
+      <p>
+        El horario del negocio decide si el asistente de WhatsApp toma pedidos o avisa que
+        está cerrado. El de cada domiciliario decide a quién le asigna un pedido a domicilio.
+      </p>
+    </div>
+  </header>
+
+  <div class="barra">
+    <label class="barra__target">
+      <span>Aplicar a</span>
+      <select class="select"
+              [value]="usuarioSeleccionado() == null ? '' : usuarioSeleccionado()"
+              (change)="cambiarTarget($any($event.target).value)">
+        <option [value]="''">Horario de atención del negocio</option>
+        @for (d of domiciliarios(); track d.id_usuario) {
+          <option [value]="d.id_usuario">{{ d.nombre }} (domiciliario)</option>
+        }
+      </select>
+      <em>
+        @if (usuarioSeleccionado() == null) {
+          Si no cargas nada aquí, el asistente responde siempre — como hasta ahora.
+        } @else {
+          Cuándo dice estar en turno {{ nombreTarget() }}. Sin esto, la asignación sigue siendo al azar.
+        }
+      </em>
+    </label>
+
+    <div class="barra__stats">
+      <div>
+        <strong>{{ diasAbiertos() }}<em>/7</em></strong>
+        <span>días abiertos</span>
+      </div>
+      <div>
+        <strong>{{ horasSemanales() }}<em> h</em></strong>
+        <span>por semana</span>
+      </div>
+    </div>
+  </div>
+
+  @if (domiciliarios().length === 0) {
+    <div class="state state--warn">
+      Este negocio no tiene ningún domiciliario registrado todavía. Puedes seguir cargando el
+      horario del negocio; el de domiciliarios aparecerá aquí en cuanto tengas uno.
+    </div>
+  }
+
+  @if (cargando()) {
+    <div class="dias">
+      @for (i of [1,2,3,4,5,6,7]; track i) { <div class="dia dia--skeleton"></div> }
+    </div>
+  } @else {
+    <div class="dias">
+      @for (dia of diasSemana; track $index) {
+        @let abierto = (bloquesPorDia().get($index)?.length ?? 0) > 0;
+        <article class="dia" [class.dia--cerrado]="!abierto"
+                 [class.dia--error]="erroresPorDia().has($index)">
+          <header class="dia__head">
+            <div class="dia__nombre">
+              <strong>{{ dia }}</strong>
+              @if (abierto) { <em>{{ horasDelDia($index) }}</em> }
+            </div>
+            <button type="button" class="switch" [class.switch--on]="abierto"
+                    role="switch" [attr.aria-checked]="abierto"
+                    [disabled]="!puedeEditar()"
+                    [title]="abierto ? 'Cerrar este día' : 'Abrir este día'"
+                    (click)="alternarDia($index)">
+              <span class="switch__bola"></span>
+            </button>
+          </header>
+
+          @if (!abierto) {
+            <button type="button" class="dia__cerrado" [disabled]="!puedeEditar()" (click)="abrirDia($index)">
+              <lucide-icon name="moon" [size]="15" />
+              <span>Cerrado</span>
+              @if (puedeEditar()) { <em>Pulsa para abrir</em> }
+            </button>
+          } @else {
+            <div class="franjas">
+              @for (b of bloquesPorDia().get($index) || []; track b.uid) {
+                <div class="franja">
+                  <input class="input input--time" type="time" step="900"
+                         [value]="b.hora_inicio" [disabled]="!puedeEditar()"
+                         (change)="actualizarHora(b.uid, 'hora_inicio', $any($event.target).value)" />
+                  <span class="franja__sep">→</span>
+                  <input class="input input--time" type="time" step="900"
+                         [value]="b.hora_fin" [disabled]="!puedeEditar()"
+                         (change)="actualizarHora(b.uid, 'hora_fin', $any($event.target).value)" />
+                  @if (puedeEditar()) {
+                    <button type="button" class="franja__del" (click)="eliminarFranja(b.uid)"
+                            title="Quitar franja">
+                      <lucide-icon name="trash-2" [size]="14" />
+                    </button>
+                  }
+                </div>
+              }
+            </div>
+
+            @if (erroresPorDia().get($index); as err) {
+              <p class="dia__err"><lucide-icon name="alert-triangle" [size]="13" /> {{ err }}</p>
+            }
+
+            @if (puedeEditar()) {
+              <footer class="dia__foot">
+                <button type="button" class="mini" (click)="agregarFranja($index)">
+                  <lucide-icon name="plus" [size]="13" /> Franja
+                </button>
+                <button type="button" class="mini" (click)="copiarDia($index, 'laborables')"
+                        title="Copiar esta jornada a lunes–viernes">
+                  <lucide-icon name="copy" [size]="13" /> L–V
+                </button>
+                <button type="button" class="mini" (click)="copiarDia($index, 'todos')"
+                        title="Copiar esta jornada a todos los días">
+                  <lucide-icon name="copy-plus" [size]="13" /> Todos
+                </button>
+              </footer>
+            }
+          }
+        </article>
+      }
+    </div>
+
+    @if (puedeEditar()) {
+      <div class="acciones">
+        @if (sucio()) {
+          <span class="acciones__aviso">
+            <lucide-icon name="circle-alert" [size]="14" /> Tienes cambios sin guardar
+          </span>
+        }
+        <button type="button" class="btn-outline" (click)="cargarHorario()"
+                [disabled]="guardando() || !sucio()">
+          Descartar
+        </button>
+        <button type="button" class="btn-save" (click)="guardar()"
+                [disabled]="guardando() || hayErrores()">
+          <lucide-icon name="save" [size]="16" />
+          @if (guardando()) { Guardando… } @else { Guardar horario }
+        </button>
+      </div>
+    }
+  }
+</section>
