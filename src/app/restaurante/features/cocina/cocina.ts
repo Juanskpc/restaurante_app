@@ -7,6 +7,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { LucideAngularModule } from 'lucide-angular';
 
 import { RealtimeService } from '../../../core/services/realtime.service';
+import { aplicarLista } from '../../../core/utils/refresco-vivo';
 import { AuthService } from '../../../core/services/auth.service';
 import { environment } from '../../../../environments/environment';
 
@@ -62,7 +63,9 @@ export class CocinaComponent implements OnInit, OnDestroy {
   private readonly realtime = inject(RealtimeService);
 
   readonly ordenes    = signal<OrdenCocina[]>([]);
+  /** Solo la primera carga; los refrescos no tapan el tablero. */
   readonly cargando   = signal(false);
+  readonly refrescando = signal(false);
   readonly audioActivo = signal(true);
 
   /** Tick signal — actualizado cada 30 s para refrescar timers reactivamente. */
@@ -114,18 +117,34 @@ export class CocinaComponent implements OnInit, OnDestroy {
 
   // ── Carga de datos ──────────────────────────────────────────────────────────
 
+  /**
+   * Trae las comandas.
+   *
+   * La cocina mira esta pantalla de lejos y con las manos ocupadas: que el tablero desaparezca
+   * medio segundo cada vez que llega un aviso es justo lo que no puede pasar. Así que
+   * «Cargando» solo se ve la primera vez, y las comandas se fusionan con las que ya están —la
+   * que no cambió no se vuelve a dibujar.
+   */
   loadOrdenes(): void {
     const id = this.negocioId;
     if (!id) return;
-    this.cargando.set(true);
+
+    if (this.ordenes().length === 0) this.cargando.set(true);
+    this.refrescando.set(true);
+
     this.http.get<{ success: boolean; data: OrdenCocina[] }>(
       `${environment.apiUrl}/cocina?id_negocio=${id}`
     ).subscribe({
       next: res => {
-        this.ordenes.set(res?.data ?? []);
+        aplicarLista(this.ordenes, res?.data ?? [], (o) => o.id_orden);
         this.cargando.set(false);
+        this.refrescando.set(false);
       },
-      error: () => this.cargando.set(false),
+      // Se conserva lo que haya: un corte de red no puede vaciar el tablero de la cocina.
+      error: () => {
+        this.cargando.set(false);
+        this.refrescando.set(false);
+      },
     });
   }
 

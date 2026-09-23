@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
+import { CajaService } from './caja.service';
 
 /** Cómo lleva la cuenta este cliente: en plata o en tiquetes contados. */
 export type ModoCuenta = 'DINERO' | 'TIQUETES';
@@ -92,6 +93,7 @@ interface ApiResponse<T> {
 @Injectable({ providedIn: 'root' })
 export class ClientesService {
   private readonly http = inject(HttpClient);
+  private readonly cajaSvc = inject(CajaService);
   private readonly base = `${environment.apiUrl}/clientes`;
 
   listar(
@@ -152,7 +154,11 @@ export class ClientesService {
     descuento?: number | null;
     concepto?: string | null;
   }): Observable<ApiResponse<CuentaCliente>> {
-    return this.http.post<ApiResponse<CuentaCliente>>(`${this.base}/${idCuenta}/abonos`, payload);
+    // La plata entra en la caja en la que se está trabajando. Con una sola no se manda nada
+    // y el backend la resuelve, como siempre.
+    const idPuntoCaja = this.cajaSvc.idPuntoParaEnviar();
+    const cuerpo = idPuntoCaja ? { ...payload, id_punto_caja: idPuntoCaja } : payload;
+    return this.http.post<ApiResponse<CuentaCliente>>(`${this.base}/${idCuenta}/abonos`, cuerpo);
   }
 
   /**

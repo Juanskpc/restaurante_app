@@ -12,6 +12,7 @@ import {
   ClientesService, CuentaCliente, ModoCuenta, MovimientoCuenta,
 } from '../../../core/services/clientes.service';
 import { RealtimeService } from '../../../core/services/realtime.service';
+import { aplicarLista, aplicarValor } from '../../../core/utils/refresco-vivo';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 
 type Filtro = 'todos' | 'deben' | 'a_favor';
@@ -127,9 +128,9 @@ export class ClientesComponent implements OnInit {
     this.cargarCatalogos();
     this.destroyRef.onDestroy(
       this.realtime.alCambiar(['clientes'], () => {
-        this.cargar();
+        this.cargar({ silencioso: true });
         const sel = this.seleccionada();
-        if (sel) this.refrescarSeleccionada(sel.id_cuenta);
+        if (sel) this.refrescarSeleccionada(sel.id_cuenta, { silencioso: true });
       }),
     );
   }
@@ -138,18 +139,25 @@ export class ClientesComponent implements OnInit {
   // Carga
   // ============================================================
 
-  cargar(): void {
+  /**
+   * Trae las cuentas.
+   *
+   * `silencioso` lo usa el tiempo real: la lista se queda donde está y solo cambian los saldos
+   * que cambiaron. Al escribir en el buscador sí se enseña «Cargando…», porque ahí la lista va
+   * a ser otra y el usuario está esperando ese cambio.
+   */
+  cargar({ silencioso = false } = {}): void {
     const id = this.negocioId();
     if (!id) return;
 
-    this.cargando.set(true);
+    if (!silencioso || this.cuentas().length === 0) this.cargando.set(true);
     this.api.listar(id, { busqueda: this.busqueda().trim() || null, filtro: this.filtro() }).subscribe({
       next: (res) => {
-        this.cuentas.set(res?.data ?? []);
+        aplicarLista(this.cuentas, res?.data ?? [], (c) => c.id_cuenta);
         this.cargando.set(false);
       },
       error: () => {
-        this.cuentas.set([]);
+        if (!silencioso) this.cuentas.set([]);
         this.cargando.set(false);
       },
     });
@@ -180,23 +188,24 @@ export class ClientesComponent implements OnInit {
     this.movimientos.set([]);
   }
 
-  private refrescarSeleccionada(idCuenta: number): void {
+  private refrescarSeleccionada(idCuenta: number, { silencioso = false } = {}): void {
     const id = this.negocioId();
     if (!id) return;
 
-    this.cargandoMovimientos.set(true);
+    if (!silencioso || this.movimientos().length === 0) this.cargandoMovimientos.set(true);
+
     this.api.detalle(idCuenta, id).subscribe({
       next: (res) => {
-        if (res?.data) this.seleccionada.set(res.data);
+        if (res?.data) aplicarValor(this.seleccionada, res.data);
       },
     });
     this.api.movimientos(idCuenta, id).subscribe({
       next: (res) => {
-        this.movimientos.set(res?.data ?? []);
+        aplicarLista(this.movimientos, res?.data ?? [], (m) => m.id_movimiento);
         this.cargandoMovimientos.set(false);
       },
       error: () => {
-        this.movimientos.set([]);
+        if (!silencioso) this.movimientos.set([]);
         this.cargandoMovimientos.set(false);
       },
     });

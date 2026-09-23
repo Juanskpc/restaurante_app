@@ -25,7 +25,7 @@
 
   <!-- ── Tabla ── -->
   <div class="lista">
-      @if (cargando()) {
+      @if (cargando() && cuentas().length === 0) {
         <p class="estado">Cargando…</p>
       } @else if (cuentas().length === 0) {
         <div class="vacio">
@@ -165,7 +165,7 @@
 
         <!-- Movimientos -->
         <h3 class="detalle__titulo">Movimientos</h3>
-        @if (cargandoMovimientos()) {
+        @if (cargandoMovimientos() && movimientos().length === 0) {
           <p class="estado">Cargando…</p>
         } @else if (movimientos().length === 0) {
           <p class="estado">Todavía no hay movimientos en esta cuenta.</p>
