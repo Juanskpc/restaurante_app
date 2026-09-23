@@ -1,8 +1,10 @@
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { Injectable, PLATFORM_ID, computed, inject, signal } from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
 import { HttpClient, HttpParams, HttpResponse } from '@angular/common/http';
-import { Observable, catchError, firstValueFrom, map, of, tap } from 'rxjs';
+import { Observable, catchError, firstValueFrom, map, of, switchMap, tap } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
+import { aplicarValor } from '../utils/refresco-vivo';
 
 export interface CajaUsuario {
   id_usuario: number;
@@ -23,6 +25,9 @@ export interface Caja {
   estado: 'A' | 'C';
   observaciones?: string | null;
   usuario?: CajaUsuario | null;
+  /** De qué caja es el turno. Lo manda el backend al consultar la caja abierta. */
+  id_punto_caja?: number;
+  punto?: { id_punto_caja: number; nombre: string } | null;
   /** Calculados por el backend al consultar la caja abierta. */
   ingresos?: number | null;
   egresos?: number | null;
@@ -153,11 +158,46 @@ export interface CajaHistorial {
   diferencia: number | null;
   total_movimientos: number;
   importes_ocultos?: boolean;
+  /** A qué caja perteneció el turno (solo se pinta cuando el negocio tiene varias). */
+  id_punto_caja?: number | null;
+  punto?: string | null;
 }
 
 export interface HistorialCajas {
   total: number;
   rows: CajaHistorial[];
+}
+
+/**
+ * Una caja del negocio entendida como RUBRO de ingreso (Restaurante, Tienda…). Cada una lleva
+ * sus propios turnos. El negocio con una sola nunca ve nada de esto.
+ */
+export interface PuntoCaja {
+  id_punto_caja: number;
+  nombre: string;
+  descripcion?: string | null;
+  orden?: number;
+  estado?: 'A' | 'I';
+}
+
+/** Una fila del listado de gestión: la caja con lo que hace falta para decidir sobre ella. */
+export interface PuntoCajaAdmin extends PuntoCaja {
+  usuarios: number;
+  pedidos: number;
+  turno_abierto: boolean;
+}
+
+export interface ListadoCajas {
+  rows: PuntoCajaAdmin[];
+  /** `total = null` es sin tope. */
+  limite: { total: number | null; usadas: number; disponibles: number | null; plan: string | null };
+}
+
+export interface AsignacionCaja {
+  id_punto_caja: number;
+  id_usuario: number;
+  primer_nombre: string;
+  primer_apellido: string;
 }
 
 export interface ApiResponse<T> {
@@ -199,16 +239,105 @@ export class CajaService {
   /** Negocio al que corresponde el estado guardado: al cambiar de inquilino ya no sirve. */
   private negocioResuelto: number | null = null;
 
-  /** Carga la caja abierta del negocio y actualiza el signal. */
-  refrescar(idNegocio: number): Observable<ApiResponse<Caja | null>> {
-    this.cargando.set(true);
-    const req = this.http.get<ApiResponse<Caja | null>>(
-      `${this.base}/abierta?id_negocio=${idNegocio}`,
+  // ── Varias cajas (rubros) ──────────────────────────────────────────────────────────────
+  //
+  // Todo lo de abajo es invisible para el negocio de UNA caja, que es el caso normal: con
+  // una sola, `variasCajas()` es falso, no se pinta ningún selector y a las peticiones no se
+  // les añade `id_punto_caja` — el backend resuelve la única que hay, igual que siempre.
+
+  private readonly platformId = inject(PLATFORM_ID);
+  private readonly cajasBase = `${environment.apiUrl}/cajas`;
+
+  private readonly misCajasState = signal<PuntoCaja[]>([]);
+  /** Cajas que el usuario puede usar en el negocio activo. */
+  readonly misCajas = this.misCajasState.asReadonly();
+  readonly variasCajas = computed(() => this.misCajasState().length > 1);
+
+  private readonly puntoElegido = signal<number | null>(null);
+  private negocioDeCajas: number | null = null;
+
+  /** La caja en la que se está trabajando: la elegida, o la primera si no hay elección. */
+  readonly puntoActivo = computed<PuntoCaja | null>(() => {
+    const lista = this.misCajasState();
+    const id = this.puntoElegido();
+    return lista.find((p) => p.id_punto_caja === id) ?? lista[0] ?? null;
+  });
+
+  /** Lo que viaja en las peticiones: nada si solo hay una caja. */
+  idPuntoParaEnviar(): number | null {
+    return this.variasCajas() ? (this.puntoActivo()?.id_punto_caja ?? null) : null;
+  }
+
+  private claveElegida(idNegocio: number): string {
+    return `escalapp:caja-elegida:${idNegocio}`;
+  }
+
+  /**
+   * Trae las cajas del usuario. Si falla (backend viejo, red), se queda con la lista vacía:
+   * sin lista no hay selector ni `id_punto_caja`, que es exactamente el comportamiento de
+   * siempre.
+   */
+  cargarMisCajas(idNegocio: number, forzar = false): Observable<PuntoCaja[]> {
+    if (!forzar && this.negocioDeCajas === idNegocio) return of(this.misCajasState());
+    return this.http
+      .get<ApiResponse<PuntoCaja[]>>(`${this.cajasBase}/mias`, {
+        params: new HttpParams().set('id_negocio', String(idNegocio)),
+      })
+      .pipe(
+        map((res) => res?.data ?? []),
+        catchError(() => of([] as PuntoCaja[])),
+        tap((lista) => {
+          this.negocioDeCajas = idNegocio;
+          this.misCajasState.set(lista);
+          let guardada: number | null = null;
+          if (isPlatformBrowser(this.platformId)) {
+            try {
+              guardada = Number(localStorage.getItem(this.claveElegida(idNegocio))) || null;
+            } catch {
+              guardada = null;
+            }
+          }
+          const vale = lista.some((p) => p.id_punto_caja === guardada);
+          this.puntoElegido.set(vale ? guardada : (lista[0]?.id_punto_caja ?? null));
+        }),
+      );
+  }
+
+  /** Cambia la caja de trabajo y recarga su turno. Se recuerda por negocio en este equipo. */
+  seleccionarPunto(idNegocio: number, idPuntoCaja: number): Observable<ApiResponse<Caja | null>> {
+    this.puntoElegido.set(idPuntoCaja);
+    if (isPlatformBrowser(this.platformId)) {
+      try {
+        localStorage.setItem(this.claveElegida(idNegocio), String(idPuntoCaja));
+      } catch {
+        /* sin almacenamiento: la elección dura lo que dure la pestaña */
+      }
+    }
+    return this.refrescar(idNegocio);
+  }
+
+  /**
+   * Carga la caja abierta del negocio y actualiza el signal.
+   *
+   * `silencioso` es para los refrescos del tiempo real, que llegan cada pocos segundos sobre
+   * una pantalla que alguien está mirando: no encienden `cargando`, porque eso es lo que hace
+   * que la pantalla se vacíe y vuelva. Y el turno solo se reescribe si de verdad cambió algo,
+   * así que un aviso sin novedades no repinta nada.
+   */
+  refrescar(idNegocio: number, { silencioso = false } = {}): Observable<ApiResponse<Caja | null>> {
+    if (!silencioso) this.cargando.set(true);
+    const req = this.cargarMisCajas(idNegocio).pipe(
+      switchMap(() => {
+        let params = new HttpParams().set('id_negocio', String(idNegocio));
+        const punto = this.idPuntoParaEnviar();
+        if (punto) params = params.set('id_punto_caja', String(punto));
+        return this.http.get<ApiResponse<Caja | null>>(`${this.base}/abierta`, { params });
+      }),
     );
     return req.pipe(
       tap({
         next: (res) => {
-          this.cajaAbierta.set(res?.data ?? null);
+          aplicarValor(this.cajaAbierta, res?.data ?? null);
           this.negocioResuelto = idNegocio;
           this.resuelta.set(true);
           this.cargando.set(false);
@@ -230,9 +359,9 @@ export class CajaService {
    * abrió otro cajero. Si la consulta falla, devuelve el estado que ya se tenía
    * (no inventa un cierre) y deja que el backend decida al recibir la operación.
    */
-  verificar(idNegocio: number): Promise<Caja | null> {
+  verificar(idNegocio: number, { silencioso = false } = {}): Promise<Caja | null> {
     return firstValueFrom(
-      this.refrescar(idNegocio).pipe(
+      this.refrescar(idNegocio, { silencioso }).pipe(
         map((res) => res?.data ?? null),
         catchError(() => of(this.cajaAbierta())),
       ),
@@ -252,10 +381,15 @@ export class CajaService {
     this.resuelta.set(false);
     this.negocioResuelto = null;
     this.cargando.set(false);
+    this.misCajasState.set([]);
+    this.puntoElegido.set(null);
+    this.negocioDeCajas = null;
   }
 
   abrirCaja(payload: { id_negocio: number; monto_apertura: number; observaciones?: string | null; }): Observable<ApiResponse<Caja>> {
-    return this.http.post<ApiResponse<Caja>>(`${this.base}/abrir`, payload).pipe(
+    const punto = this.idPuntoParaEnviar();
+    const cuerpo = punto ? { ...payload, id_punto_caja: punto } : payload;
+    return this.http.post<ApiResponse<Caja>>(`${this.base}/abrir`, cuerpo).pipe(
       tap((res) => {
         if (res?.data) {
           this.cajaAbierta.set(res.data);
@@ -297,9 +431,17 @@ export class CajaService {
    */
   getHistorial(
     idNegocio: number,
-    opciones: { desde?: string | null; hasta?: string | null; limite?: number; offset?: number } = {},
+    opciones: {
+      desde?: string | null;
+      hasta?: string | null;
+      limite?: number;
+      offset?: number;
+      /** Solo los turnos de esta caja. Sin él, los de todas (cada fila dice de cuál es). */
+      idPuntoCaja?: number | null;
+    } = {},
   ): Observable<ApiResponse<HistorialCajas>> {
     let params = new HttpParams().set('id_negocio', String(idNegocio));
+    if (opciones.idPuntoCaja) params = params.set('id_punto_caja', String(opciones.idPuntoCaja));
     if (opciones.desde) params = params.set('desde', opciones.desde);
     if (opciones.hasta) params = params.set('hasta', opciones.hasta);
     if (opciones.limite != null) params = params.set('limite', String(opciones.limite));
@@ -360,16 +502,62 @@ export class CajaService {
   }
 
   getDomiciliariosResumen(idNegocio: number): Observable<ApiResponse<DomiciliariosResumen>> {
-    return this.http.get<ApiResponse<DomiciliariosResumen>>(
-      `${this.base}/domiciliarios?id_negocio=${idNegocio}`,
-    );
+    let params = new HttpParams().set('id_negocio', String(idNegocio));
+    const punto = this.idPuntoParaEnviar();
+    if (punto) params = params.set('id_punto_caja', String(punto));
+    return this.http.get<ApiResponse<DomiciliariosResumen>>(`${this.base}/domiciliarios`, { params });
   }
 
   transferirDomiciliario(idNegocio: number, idDomiciliario: number): Observable<ApiResponse<{ total_pedidos: number; total_monto: number }>> {
+    const punto = this.idPuntoParaEnviar();
     return this.http.post<ApiResponse<{ total_pedidos: number; total_monto: number }>>(
       `${this.base}/domiciliarios/transferir`,
-      { id_negocio: idNegocio, id_domiciliario: idDomiciliario },
+      {
+        id_negocio: idNegocio,
+        id_domiciliario: idDomiciliario,
+        ...(punto ? { id_punto_caja: punto } : {}),
+      },
     );
+  }
+
+  // ── Gestión de cajas (Configuración) ────────────────────────────────────────────────────
+
+  listarCajas(idNegocio: number): Observable<ApiResponse<ListadoCajas>> {
+    return this.http.get<ApiResponse<ListadoCajas>>(this.cajasBase, {
+      params: new HttpParams().set('id_negocio', String(idNegocio)),
+    });
+  }
+
+  listarAsignaciones(idNegocio: number): Observable<ApiResponse<AsignacionCaja[]>> {
+    return this.http.get<ApiResponse<AsignacionCaja[]>>(`${this.cajasBase}/asignaciones`, {
+      params: new HttpParams().set('id_negocio', String(idNegocio)),
+    });
+  }
+
+  crearCaja(payload: { id_negocio: number; nombre: string; descripcion?: string | null }): Observable<ApiResponse<PuntoCaja>> {
+    return this.http.post<ApiResponse<PuntoCaja>>(this.cajasBase, payload)
+      .pipe(tap(() => this.olvidarCajas()));
+  }
+
+  actualizarCaja(
+    idPuntoCaja: number,
+    payload: { id_negocio: number; nombre?: string; descripcion?: string | null; estado?: 'A' | 'I' },
+  ): Observable<ApiResponse<PuntoCaja>> {
+    return this.http.put<ApiResponse<PuntoCaja>>(`${this.cajasBase}/${idPuntoCaja}`, payload)
+      .pipe(tap(() => this.olvidarCajas()));
+  }
+
+  /** Lista vacía = sin restricción: el usuario puede usar todas las cajas activas. */
+  asignarCajasUsuario(idUsuario: number, idNegocio: number, idsPuntos: number[]): Observable<ApiResponse<PuntoCaja[]>> {
+    return this.http.put<ApiResponse<PuntoCaja[]>>(`${this.cajasBase}/usuarios/${idUsuario}`, {
+      id_negocio: idNegocio,
+      id_puntos_caja: idsPuntos,
+    }).pipe(tap(() => this.olvidarCajas()));
+  }
+
+  /** Tras cambiar cajas o asignaciones, la próxima consulta vuelve a pedir la lista. */
+  private olvidarCajas(): void {
+    this.negocioDeCajas = null;
   }
 
   /**

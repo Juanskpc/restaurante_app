@@ -124,13 +124,20 @@
   <!-- ════════════════ PANEL ORDEN (derecha) ════════════════ -->
   @if (!isMobileViewport() || ordenPanelOpen()) {
   <aside class="order-panel" [class.open]="ordenPanelOpen()">
+    <!-- En qué caja nace el pedido. Solo se pinta con varias cajas; va fuera del bloqueo
+         para poder cambiar a una caja abierta cuando la elegida está cerrada. -->
+    @if (variasCajas()) {
+      <div class="order-panel__caja">
+        <app-caja-selector />
+      </div>
+    }
     @if (cajaCerrada()) {
     <!-- Estado bloqueado: la caja del turno está cerrada -->
     <div class="order-locked">
       <div class="order-locked__icon">
         <lucide-icon name="lock" [size]="34" />
       </div>
-      <h3 class="order-locked__title">Caja cerrada</h3>
+      <h3 class="order-locked__title">Caja cerrada{{ variasCajas() && puntoActivo() ? ': ' + puntoActivo()!.nombre : '' }}</h3>
       <p class="order-locked__text">
         Abre la caja del turno para poder tomar y cobrar pedidos.
       </p>

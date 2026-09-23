@@ -351,6 +351,34 @@
           <span>Marcar como administrador principal</span>
         </label>
 
+        <!-- Cajas en las que cobra. Solo con varias cajas en el negocio. -->
+        @if (muestraCajas()) {
+          <fieldset class="cajas-usuario" [disabled]="viewMode()">
+            <legend>Cajas en las que trabaja</legend>
+            <div class="cajas-usuario__opciones">
+              @for (c of cajasNegocio(); track c.id_punto_caja) {
+                <label class="checkbox-row">
+                  <input
+                    type="checkbox"
+                    [checked]="cajasMarcadas().has(c.id_punto_caja)"
+                    (change)="alternarCaja(c.id_punto_caja, $any($event.target).checked)"
+                  >
+                  <span>{{ c.nombre }}</span>
+                </label>
+              }
+            </div>
+            <small class="hint">
+              @if (cajasMarcadas().size === 0) {
+                Sin marcar ninguna, puede usar todas las cajas.
+              } @else if (cajasMarcadas().size === 1) {
+                Solo trabajará en esa caja: nunca se le preguntará en cuál cobra.
+              } @else {
+                Al tomar un pedido elegirá en cuál de estas cajas va.
+              }
+            </small>
+          </fieldset>
+        }
+
         @if (!viewMode()) {
           <p class="hint">Seguridad: no se puede eliminar o desactivar el administrador principal ni dejar el sistema sin administradores activos.</p>
         }

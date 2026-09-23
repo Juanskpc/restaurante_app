@@ -19,6 +19,8 @@ import { ConfiguracionService, MetodoPago } from './configuracion.service';
 import { ConfiguracionNegocio } from './configuracion.models';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 import { CartaDisenoPanelComponent } from './carta-diseno/carta-diseno-panel';
+import { CajasPanelComponent } from './cajas-panel/cajas-panel';
+import { MiPlanPanelComponent } from './mi-plan/mi-plan-panel';
 
 /**
  * Mezcla un hex con blanco. `cantidad` = proporción de blanco (0 = el color tal
@@ -59,9 +61,14 @@ function optionalUrlValidator(control: AbstractControl): ValidationErrors | null
   return { url: true };
 }
 
+type TabConfig = 'general' | 'apariencia' | 'cobros' | 'cajas' | 'operacion';
+
 @Component({
   selector: 'app-configuracion',
-  imports: [ReactiveFormsModule, LucideAngularModule, CartaDisenoPanelComponent],
+  imports: [
+    ReactiveFormsModule, LucideAngularModule,
+    CartaDisenoPanelComponent, CajasPanelComponent, MiPlanPanelComponent,
+  ],
   templateUrl: './configuracion.html',
   styleUrl: './configuracion.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -81,13 +88,18 @@ export class ConfiguracionComponent {
    * llegar a tres interruptores; ahora cada bloque vive en su pestaña, igual que en
    * `reserva_app`. «Operación» agrupa los sí/no, que no dan para un panel cada uno.
    */
-  readonly tabs = [
+  private readonly todasLasTabs = [
     { id: 'general'    as const, label: 'General',    icono: 'settings' },
     { id: 'apariencia' as const, label: 'Apariencia', icono: 'palette' },
     { id: 'cobros'     as const, label: 'Cobros',     icono: 'wallet' },
+    { id: 'cajas'      as const, label: 'Cajas',      icono: 'banknote' },
     { id: 'operacion'  as const, label: 'Operación',  icono: 'toggle-right' },
   ];
-  readonly tab = signal<'general' | 'apariencia' | 'cobros' | 'operacion'>('general');
+  /** «Cajas» solo aparece para quien tiene el permiso de gestionarlas. */
+  readonly tabs = computed(() =>
+    this.todasLasTabs.filter((t) => t.id !== 'cajas' || this.auth.canAccessSubnivel('caja_gestionar')),
+  );
+  readonly tab = signal<TabConfig>('general');
 
   /** El editor de la carta: se le pregunta si hay cambios sin publicar antes de salir. */
   private readonly panelCarta = viewChild(CartaDisenoPanelComponent);
@@ -98,7 +110,7 @@ export class ConfiguracionComponent {
    * El borrador de la carta vive en pantalla y no se guarda hasta publicar: salir de
    * Apariencia desmonta el editor y lo descarta. Se pregunta solo si de verdad hay algo.
    */
-  async cambiarTab(id: 'general' | 'apariencia' | 'cobros' | 'operacion'): Promise<void> {
+  async cambiarTab(id: TabConfig): Promise<void> {
     if (id === this.tab()) return;
     if (this.tab() === 'apariencia' && this.panelCarta()?.hayCambios()) {
       const salir = await this.uiFeedback.confirm({

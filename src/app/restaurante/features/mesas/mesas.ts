@@ -11,6 +11,7 @@ import { MesasService, MesaDashboard, MesaCardStatus } from '../../../core/servi
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 import { VistaTarjetasService } from '../../../core/services/vista-tarjetas.service';
 import { RealtimeService } from '../../../core/services/realtime.service';
+import { aplicarLista } from '../../../core/utils/refresco-vivo';
 import { ClientesService, CuentaCliente } from '../../../core/services/clientes.service';
 import {
   FilaPago,
@@ -50,7 +51,10 @@ export class MesasComponent {
   private readonly paidItemsStorageKey = 'pedidos_items_pagados_mesa_v1';
 
   readonly mesas = signal<MesaDashboard[]>([]);
+  /** Solo la primera carga, cuando no hay nada que enseñar todavía. */
   readonly cargando = signal(false);
+  /** Hay una consulta en vuelo sobre datos que ya están en pantalla: no tapa nada. */
+  readonly refrescando = signal(false);
   readonly guardando = signal(false);
   readonly filtro = signal<FiltroEstado>('all');
   readonly mesaActivaId = signal<number | null>(null);
@@ -190,8 +194,8 @@ export class MesasComponent {
     // Ver `pedidos.ts`: sin el interruptor encendido no hay a quién preguntar.
     if (!this.auth.permiteCuentasCliente()) return;
     this.clientesApi.listar(idNegocio).subscribe({
-      next: (res) => this.cuentasCliente.set(res?.data ?? []),
-      error: () => this.cuentasCliente.set([]),
+      next: (res) => aplicarLista(this.cuentasCliente, res?.data ?? [], (c) => c.id_cuenta),
+      error: () => { /* se conserva la lista que ya estaba */ },
     });
   }
 
@@ -202,24 +206,45 @@ export class MesasComponent {
     });
   }
 
+  /**
+   * Trae el tablero.
+   *
+   * Dos cosas que parecen detalle y son justo lo que quita el parpadeo:
+   *
+   *  1. `cargando` solo se enciende cuando todavía no hay nada que mirar. En los refrescos del
+   *     tiempo real —que llegan cada pocos segundos— las tarjetas se quedan en pantalla; lo que
+   *     se mueve es `refrescando`, que solo gira el icono del botón.
+   *  2. Las mesas se fusionan con las que ya hay: la que no cambió conserva su objeto, así que
+   *     Angular no la vuelve a dibujar. Si no cambió ninguna, no se escribe la señal y la vista
+   *     ni se entera.
+   */
   loadMesas(): void {
     const id = this.negocioId();
     if (!id) return;
 
     this.hidratarItemsPagadosMesaCache();
 
-    this.cargando.set(true);
+    const esPrimeraCarga = this.mesas().length === 0;
+    if (esPrimeraCarga) this.cargando.set(true);
+    this.refrescando.set(true);
+
     this.mesasApi.getMesasDashboard(id).subscribe({
       next: (res) => {
-        this.mesas.set(res?.data ?? []);
+        aplicarLista(this.mesas, res?.data ?? [], (m) => m.id_mesa);
         this.cargando.set(false);
+        this.refrescando.set(false);
       },
-      error: () => this.cargando.set(false),
+      // Un refresco que falla deja lo que ya estaba: borrar el tablero por un corte de red es
+      // peor que enseñarlo con unos segundos de retraso.
+      error: () => {
+        this.cargando.set(false);
+        this.refrescando.set(false);
+      },
     });
   }
 
   actualizarMesas(): void {
-    if (this.cargando()) return;
+    if (this.refrescando()) return;
     this.loadMesas();
   }
 

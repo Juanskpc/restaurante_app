@@ -26,7 +26,7 @@
   </header>
 
   <nav class="tabs" role="tablist" aria-label="Secciones de configuración">
-    @for (t of tabs; track t.id) {
+    @for (t of tabs(); track t.id) {
       <button
         type="button"
         role="tab"
@@ -132,16 +132,25 @@
               }
             </label>
           </article>
+
+          <!-- Tu plan: solo lectura. Cambiarlo se hace en «Mis pagos», que es donde está el
+               cobro; aquí se ve lo que importa a diario (cuánto margen queda). -->
+          <app-mi-plan-panel />
         </div>
       }
+    </form>
 
-      <!-- ───────── Apariencia ───────── -->
-      @if (tab() === 'apariencia') {
+    <!-- ───────── Apariencia ─────────
+         Todo va fuera del <form>: el panel de la carta tiene su propio botón de publicar y,
+         dentro del formulario, cualquier botón o un Enter dispararían «Guardar paleta». Las
+         paletas se proyectan dentro del panel para que compartan fila con la vista previa. -->
+    @if (tab() === 'apariencia') {
+      <app-carta-diseno-panel [idNegocio]="config.id_negocio">
         <article class="panel panel--wide">
           <h2>Colores de la aplicación</h2>
           <p class="hint">
-            Tiñe el panel de tu negocio. La carta virtual también usa este color, salvo que
-            elijas otro más abajo.
+            Tiñe el panel de tu negocio. La carta virtual también parte de este color, salvo que
+            le elijas uno propio arriba.
           </p>
 
           <div class="palette-grid">
@@ -166,17 +175,7 @@
             }
           </div>
         </article>
-      }
-    </form>
-
-    <!-- ───────── Apariencia: carta virtual ─────────
-         Va fuera del <form>: tiene su propio botón de publicar, y dentro del formulario
-         cualquier botón o un Enter dispararían «Guardar paleta». -->
-    @if (tab() === 'apariencia') {
-      <app-carta-diseno-panel
-        [idNegocio]="config.id_negocio"
-        (irAGeneral)="tab.set('general')"
-      />
+      </app-carta-diseno-panel>
     }
 
     <!-- ───────── Cobros ───────── -->
@@ -243,6 +242,12 @@
           </ul>
         }
       </article>
+    }
+
+    <!-- ───────── Cajas ─────────
+         Los rubros de ingreso. Con una sola caja no hay nada que hacer aquí. -->
+    @if (tab() === 'cajas') {
+      <app-cajas-panel />
     }
 
     <!-- ───────── Operación ─────────

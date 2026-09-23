@@ -1,0 +1,135 @@
+// Mismo lenguaje que el resto de Configuración (.panel, .hint), redeclarado porque los
+// estilos del componente padre no alcanzan a este.
+.panel {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  padding: var(--spacing-md);
+  display: grid;
+  gap: 12px;
+
+  h2 {
+    margin: 0;
+    color: var(--color-text-primary);
+    font-size: var(--font-size-base);
+  }
+}
+
+.hint {
+  margin: 4px 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+}
+
+.cp__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.cp__cupo {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+
+  &--lleno {
+    color: var(--color-warning, #b45309);
+    background: color-mix(in srgb, var(--color-warning, #b45309) 12%, transparent);
+  }
+}
+
+.cp__aviso {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-md, 8px);
+  background: var(--color-bg-secondary, var(--color-bg));
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+}
+
+.cp__nueva,
+.cp__editar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+
+  @media (min-width: 720px) {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto;
+    align-items: center;
+  }
+}
+
+.cp__lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.cp__fila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 8px);
+  background: var(--color-bg);
+
+  &--inactiva { opacity: 0.65; }
+
+  .cp__editar { flex: 1; }
+}
+
+.cp__info {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+
+  strong { color: var(--color-text-primary); font-size: var(--font-size-sm); }
+  small { color: var(--color-text-secondary); font-size: var(--font-size-xs); }
+}
+
+.cp__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.cp__acciones {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cp__icono { padding: 6px 8px; }
+
+.cp__muted {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+}
+
+.cp__error {
+  margin: 0;
+  color: var(--color-error);
+  font-size: var(--font-size-sm);
+}

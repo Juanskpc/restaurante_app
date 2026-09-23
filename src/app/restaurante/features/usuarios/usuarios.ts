@@ -15,6 +15,7 @@ import { LucideAngularModule } from 'lucide-angular';
 import { UsuariosService } from './usuarios.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
+import { AsignacionCaja, CajaService, PuntoCaja } from '../../../core/services/caja.service';
 import {
   componerInvitacion, copiarAlPortapapeles, enviarInvitacion, urlDeAcceso,
 } from '../../../core/utils/invitacion';
@@ -57,6 +58,19 @@ export class UsuariosComponent {
   private readonly usuariosService = inject(UsuariosService);
   private readonly auth = inject(AuthService);
   private readonly uiFeedback = inject(UiFeedbackService);
+  private readonly cajaSvc = inject(CajaService);
+
+  // ── Cajas del usuario ──
+  //
+  // Solo se pinta si el negocio tiene más de una caja activa y quien edita puede gestionarlas.
+  // «Ninguna marcada» = sin restricción: la persona puede usar todas. Así el negocio que abre
+  // una segunda caja no tiene que repartir a nadie para seguir operando.
+  protected readonly cajasNegocio = signal<PuntoCaja[]>([]);
+  private readonly asignacionesCaja = signal<AsignacionCaja[]>([]);
+  protected readonly cajasMarcadas = signal<ReadonlySet<number>>(new Set());
+  protected readonly muestraCajas = computed(
+    () => this.cajasNegocio().length > 1 && this.auth.canAccessSubnivel('caja_gestionar'),
+  );
 
   protected readonly activeTab = signal<'usuarios' | 'roles'>('usuarios');
   protected readonly loading = signal(false);
@@ -165,6 +179,7 @@ export class UsuariosComponent {
 
       this.roleFilter.set(null);
       this.loadInitialData(idNegocio);
+      this.cargarCajas(idNegocio);
     });
 
     // Auto-uppercase en los campos de nombre (no afecta otras validaciones).
@@ -280,7 +295,45 @@ export class UsuariosComponent {
     this.loadPermisosRol(roleId);
   }
 
+  /** Cajas activas del negocio y quién tiene cuáles. Si falla, la sección no se muestra. */
+  private cargarCajas(idNegocio: number): void {
+    this.cajaSvc.listarCajas(idNegocio).subscribe({
+      next: (res) => this.cajasNegocio.set((res?.data?.rows ?? []).filter((c) => c.estado === 'A')),
+      error: () => this.cajasNegocio.set([]),
+    });
+    this.cajaSvc.listarAsignaciones(idNegocio).subscribe({
+      next: (res) => this.asignacionesCaja.set(res?.data ?? []),
+      error: () => this.asignacionesCaja.set([]),
+    });
+  }
+
+  private marcarCajasDe(idUsuario: number): void {
+    this.cajasMarcadas.set(new Set(
+      this.asignacionesCaja().filter((a) => a.id_usuario === idUsuario).map((a) => a.id_punto_caja),
+    ));
+  }
+
+  protected alternarCaja(idPuntoCaja: number, marcada: boolean): void {
+    const siguiente = new Set(this.cajasMarcadas());
+    if (marcada) siguiente.add(idPuntoCaja);
+    else siguiente.delete(idPuntoCaja);
+    this.cajasMarcadas.set(siguiente);
+  }
+
+  /** Guarda las cajas del usuario tras guardar sus datos. Un fallo aquí no deshace lo otro. */
+  private guardarCajasDe(idUsuario: number, idNegocio: number): void {
+    if (!this.muestraCajas() || !idUsuario) return;
+    const ids = [...this.cajasMarcadas()];
+    this.cajaSvc.asignarCajasUsuario(idUsuario, idNegocio, ids).subscribe({
+      next: () => this.cargarCajas(idNegocio),
+      error: (err: HttpErrorResponse) => {
+        this.uiFeedback.error(err?.error?.message || 'El usuario se guardó, pero no sus cajas.');
+      },
+    });
+  }
+
   protected openCreateModal(): void {
+    this.cajasMarcadas.set(new Set());
     this.userForm.reset({
       id_usuario: 0,
       primer_nombre: '',
@@ -305,6 +358,7 @@ export class UsuariosComponent {
 
   protected openEditModal(usuario: UsuarioAdmin): void {
     this.populateForm(usuario);
+    this.marcarCajasDe(usuario.id_usuario);
     this.viewMode.set(false);
     this.userForm.enable({ emitEvent: false });
     this.resetPasswordVisibility();
@@ -315,6 +369,7 @@ export class UsuariosComponent {
   /** Abre el mismo formulario que "Editar" pero en solo lectura. */
   protected openViewModal(usuario: UsuarioAdmin): void {
     this.populateForm(usuario);
+    this.marcarCajasDe(usuario.id_usuario);
     this.viewMode.set(true);
     // Deshabilitar todo el formulario lo vuelve de solo lectura.
     this.userForm.disable({ emitEvent: false });
@@ -471,7 +526,9 @@ export class UsuariosComponent {
     request$.pipe(
       finalize(() => this.saving.set(false)),
     ).subscribe({
-      next: () => {
+      next: (res) => {
+        const idGuardado = isCreate ? Number(res?.data?.id_usuario ?? 0) : formValue.id_usuario;
+        this.guardarCajasDe(idGuardado, idNegocio);
         if (isCreate) {
           this.uiFeedback.created('Usuario creado correctamente.');
           // La contraseña solo se tiene aquí, en el formulario que se está cerrando:

@@ -11,6 +11,8 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { AuthService } from '../../../core/services/auth.service';
 import { CajaService } from '../../../core/services/caja.service';
+import { CajaSelectorComponent } from '../../shared/caja-selector/caja-selector';
+import { aplicarLista } from '../../../core/utils/refresco-vivo';
 import { RealtimeService } from '../../../core/services/realtime.service';
 import { ClientesService, CuentaCliente } from '../../../core/services/clientes.service';
 import { CatalogoCacheService } from '../../../core/services/catalogo-cache.service';
@@ -164,7 +166,7 @@ interface ItemOrdenCache {
  */
 @Component({
   selector: 'app-pedidos',
-  imports: [LucideAngularModule, FormsModule, CurrencyPipe, RouterLink, MultipagoSelectorComponent],
+  imports: [LucideAngularModule, FormsModule, CurrencyPipe, RouterLink, MultipagoSelectorComponent, CajaSelectorComponent],
   templateUrl: './pedidos.html',
   styleUrl: './pedidos.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -350,6 +352,9 @@ export class PedidosComponent implements OnInit, OnDestroy {
   readonly negocioId = computed(() => this.auth.negocio()?.id_negocio ?? null);
   readonly requiereMesa = computed(() => this.tipoPedido() === 'MESA');
   readonly cajaAbierta = this.cajaSvc.cajaAbierta;
+  /** Varias cajas (rubros): el selector del panel dice en cuál nace el pedido. */
+  readonly variasCajas = this.cajaSvc.variasCajas;
+  readonly puntoActivo = this.cajaSvc.puntoActivo;
   /**
    * Solo se da por cerrada cuando el servidor ya contestó. Mientras la consulta
    * está en vuelo el POS no se bloquea: dar `null` por «cerrada» antes de tener
@@ -438,7 +443,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
       this.realtime.alCambiar(['clientes'], () => this.loadCuentasCliente()),
       this.realtime.alCambiar(['mesas'], () => this.loadMesas()),
       this.realtime.alCambiar(['pedidos'], () => this.recargarPedidosDespacho()),
-      this.realtime.alCambiar(['caja'], () => this.revisarCaja()),
+      this.realtime.alCambiar(['caja'], () => this.revisarCaja({ silencioso: true })),
     ];
 
     this.aplicarEdicionDesdeQueryParams();
@@ -723,18 +728,18 @@ export class PedidosComponent implements OnInit, OnDestroy {
       this.cargandoMesas.set(false);
       return;
     }
-    this.cargandoMesas.set(true);
+    // El selector de mesa no puede vaciarse mientras alguien lo está usando: «Cargando» solo
+    // la primera vez, y después las mesas se fusionan (la que no cambió no se repinta).
+    if (this.mesas().length === 0) this.cargandoMesas.set(true);
+
     this.http.get<{ success: boolean; data: Mesa[] }>(
       `${environment.apiUrl}/mesas?id_negocio=${id}`
     ).subscribe({
       next: res => {
-        this.mesas.set(res?.data ?? []);
+        aplicarLista(this.mesas, res?.data ?? [], (m) => m.id_mesa);
         this.cargandoMesas.set(false);
       },
-      error: () => {
-        this.mesas.set([]);
-        this.cargandoMesas.set(false);
-      },
+      error: () => this.cargandoMesas.set(false),
     });
   }
 
@@ -898,19 +903,20 @@ export class PedidosComponent implements OnInit, OnDestroy {
   private loadPedidosDespacho(tipo: 'LLEVAR' | 'DOMICILIO'): void {
     const id = this.negocioId();
     if (!id) return;
-    this.cargandoPedidosDespacho.set(true);
+    if (this.pedidosDespacho().length === 0) this.cargandoPedidosDespacho.set(true);
+
     this.http.get<{ success: boolean; data: PedidoDespacho[] }>(
       `${environment.apiUrl}/despacho?id_negocio=${id}`
     ).subscribe({
       next: (res) => {
         const pedidos = (res?.data ?? []).filter(p => p.tipo_pedido === tipo && p.estado_pago === 'pendiente_pago');
-        this.pedidosDespacho.set(pedidos);
+        // Fusionar y no reemplazar importa aquí más que en ningún sitio: esta lista alimenta
+        // el desplegable de pedidos pendientes, y reescribirla entera mientras el cajero lo
+        // tiene abierto se lo cerraba en la cara.
+        aplicarLista(this.pedidosDespacho, pedidos, (p) => p.id_orden);
         this.cargandoPedidosDespacho.set(false);
       },
-      error: () => {
-        this.pedidosDespacho.set([]);
-        this.cargandoPedidosDespacho.set(false);
-      },
+      error: () => this.cargandoPedidosDespacho.set(false),
     });
   }
 
@@ -1035,8 +1041,10 @@ export class PedidosComponent implements OnInit, OnDestroy {
     // por cada carga de pantalla en todos los negocios que no las usan.
     if (!id || !this.auth.permiteCuentasCliente()) return;
     this.clientesApi.listar(id).subscribe({
-      next: (res) => this.cuentasCliente.set(res?.data ?? []),
-      error: () => this.cuentasCliente.set([]),
+      // Fusionar: esta lista alimenta el selector de pago, y reescribirla entera cada vez que
+      // alguien abona en otra pantalla lo repintaba delante del cajero.
+      next: (res) => aplicarLista(this.cuentasCliente, res?.data ?? [], (c) => c.id_cuenta),
+      error: () => { /* se conserva la lista que ya estaba */ },
     });
   }
 
@@ -1362,10 +1370,16 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.resetEstadoEnvio();
   }
 
-  /** Relee el estado de la caja sin recargar la página (botón del aviso). */
-  revisarCaja(): void {
+  /**
+   * Relee el estado de la caja sin recargar la página (botón del aviso).
+   *
+   * `silencioso` para los avisos del tiempo real: el POS no debe enseñar «Comprobando…» cada
+   * vez que alguien cobra en otra pantalla. El botón del aviso sí lo pide, porque ahí el
+   * cajero pulsó y quiere ver que algo pasó.
+   */
+  revisarCaja({ silencioso = false } = {}): void {
     const idNeg = this.negocioId();
-    if (idNeg) void this.cajaSvc.verificar(idNeg);
+    if (idNeg) void this.cajaSvc.verificar(idNeg, { silencioso });
   }
 
   private enviarPedido(destino: DestinoEnvio, permitirStockNegativo = false, esReintentoStock = false): void {
@@ -1523,6 +1537,9 @@ export class PedidosComponent implements OnInit, OnDestroy {
       ...bodyDescuento,
       ...this.construirPagosPedido(),
     };
+    // Solo con varias cajas: con una, el backend la resuelve sola, como siempre.
+    const idPuntoCaja = this.cajaSvc.idPuntoParaEnviar();
+    if (idPuntoCaja) body['id_punto_caja'] = idPuntoCaja;
     if (tipo === 'DOMICILIO') {
       body['contacto_nombre']    = this.domContacto().trim() || null;
       body['contacto_telefono']  = this.domTelefono().trim() || null;
@@ -1947,6 +1964,19 @@ export class PedidosComponent implements OnInit, OnDestroy {
 
   private async manejarErrorEnvio(err: HttpErrorResponse, destino: DestinoEnvio, permitirStockNegativo: boolean): Promise<void> {
     const codigo = err?.error?.errors?.code || err?.error?.code;
+    // El servidor sabe de más cajas que este equipo (se creó una mientras el POS estaba
+    // abierto): se recarga la lista para que aparezca el selector y se pide elegir.
+    if (codigo === 'PUNTO_CAJA_REQUERIDO' || codigo === 'PUNTO_CAJA_INVALIDO') {
+      const idNeg = this.negocioId();
+      if (idNeg) this.cajaSvc.cargarMisCajas(idNeg, true).subscribe(() => this.revisarCaja());
+      await this.uiFeedback.alert({
+        title: 'Elige la caja',
+        message: 'Este negocio maneja varias cajas. Elige arriba del pedido en cuál va y vuelve a enviarlo.',
+        tone: 'warning',
+      });
+      this.resetEstadoEnvio();
+      return;
+    }
     if (codigo === 'CAJA_CERRADA') {
       this.revisarCaja();
       await this.uiFeedback.alert({

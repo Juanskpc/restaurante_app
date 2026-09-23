@@ -604,3 +604,29 @@ th {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Cajas en las que trabaja el usuario (solo con varias cajas en el negocio). */
+.cajas-usuario {
+  margin: 12px 0 0;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 8px);
+  display: grid;
+  gap: 8px;
+
+  legend {
+    padding: 0 6px;
+    font-size: var(--font-size-xs, 12px);
+    font-weight: 700;
+    color: var(--color-text-secondary);
+  }
+
+  &__opciones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+  }
+
+  .hint { margin: 0; }
+}

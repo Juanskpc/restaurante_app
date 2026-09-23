@@ -24,9 +24,9 @@
       </label>
       <button class="btn-ghost btn-refresh"
               (click)="actualizarMesas()"
-              [disabled]="cargando() || guardando()"
+              [disabled]="refrescando() || guardando()"
               title="Actualizar estado de mesas y pedidos">
-        <lucide-icon name="rotate-cw" [size]="16" [class.spin]="cargando()" />
+        <lucide-icon name="rotate-cw" [size]="16" [class.spin]="refrescando()" />
         <span class="btn-label">Actualizar</span>
       </button>
       @if (canCrearMesa()) {
@@ -46,6 +46,8 @@
     <button class="chip disabled" [class.active]="filtro() === 'disabled'" (click)="selectFilter('disabled')">Deshabilitadas</button>
   </div>
 
+  <!-- «Cargando» solo la primera vez. Después el tablero se queda quieto y las tarjetas se
+       actualizan por dentro: un refresco del tiempo real ya no lo desmonta. -->
   @if (cargando()) {
     <div class="state">Cargando mesas...</div>
   }
@@ -54,7 +56,7 @@
     <div class="state">No hay mesas para este filtro.</div>
   }
 
-  @if (!cargando() && mesasFiltradas().length > 0) {
+  @if (mesasFiltradas().length > 0) {
     <div [class]="'grid densidad-' + densidad()">
       @for (mesa of mesasFiltradas(); track mesa.id_mesa) {
         <article class="mesa-card" [class]="'status-' + mesa.status" (click)="openMesa(mesa)">

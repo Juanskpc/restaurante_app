@@ -18,6 +18,8 @@ import {
 import { CatalogoCacheService } from '../../../core/services/catalogo-cache.service';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 import { RealtimeService } from '../../../core/services/realtime.service';
+import { aplicarLista } from '../../../core/utils/refresco-vivo';
+import { CajaSelectorComponent } from '../../shared/caja-selector/caja-selector';
 
 type ModalActivo = null | 'apertura' | 'cierre' | 'movimiento' | 'domiciliarios' | 'historial';
 
@@ -37,6 +39,7 @@ const SIN_METODO = 'sin';
   selector: 'app-caja',
   standalone: true,
   imports: [
+    CajaSelectorComponent,
     FormsModule, LucideAngularModule, NgTemplateOutlet, CurrencyPipe, DatePipe, DecimalPipe,
   ],
   templateUrl: './caja.html',
@@ -55,6 +58,8 @@ export class CajaComponent implements OnInit, OnDestroy {
 
   readonly caja = this.cajaSvc.cajaAbierta;
   readonly cargando = this.cajaSvc.cargando;
+  readonly variasCajas = this.cajaSvc.variasCajas;
+  readonly puntoActivo = this.cajaSvc.puntoActivo;
   readonly movimientos = signal<MovimientoCaja[]>([]);
   readonly cargandoMovimientos = signal(false);
   readonly domiciliariosResumen = signal<DomiciliarioResumen[]>([]);
@@ -274,9 +279,11 @@ export class CajaComponent implements OnInit, OnDestroy {
     // El turno lo mueven varias personas a la vez: un mesero cobra en el POS y ese ingreso
     // tiene que aparecer aquí sin que el cajero recargue. También `pedidos`, porque el
     // listado del turno se arma con los pedidos cobrados.
+    // En silencio: el cajero está mirando el arqueo y no puede ver cómo desaparece cada vez
+    // que alguien cobra en otra pantalla. Lo que cambie entra en su fila y ya.
     this.dejarDeEscuchar = this.realtime.alCambiar(
       ['caja', 'pedidos'],
-      () => this.refrescarCaja(),
+      () => this.refrescarCaja({ silencioso: true }),
     );
   }
 
@@ -295,27 +302,49 @@ export class CajaComponent implements OnInit, OnDestroy {
     });
   }
 
-  refrescarCaja(): void {
+  /**
+   * Vuelve a pedir el turno y sus movimientos.
+   *
+   * `silencioso` es como llegan los avisos del tiempo real: sin vaciar la pantalla y sin
+   * spinners. Solo el botón «Actualizar» y la carga inicial piden el modo ruidoso.
+   */
+  refrescarCaja({ silencioso = false } = {}): void {
     const id = this.idNegocio();
     if (!id) return;
-    this.cajaSvc.refrescar(id).subscribe({
+    this.cajaSvc.refrescar(id, { silencioso }).subscribe({
       next: () => {
         const caja = this.caja();
-        if (caja) this.cargarMovimientos(caja.id_caja);
+        if (caja) this.cargarMovimientos(caja.id_caja, { silencioso });
         else this.movimientos.set([]);
       },
     });
   }
 
-  private cargarMovimientos(idCaja: number): void {
-    this.cargandoMovimientos.set(true);
+  /**
+   * El selector ya recargó el turno de la caja elegida; aquí se vacía lo que era de la otra
+   * (el listado, los domiciliarios, el historial abierto) y se vuelve a pedir.
+   */
+  alCambiarCaja(): void {
+    this.cerrarTodasLasFilas();
+    const caja = this.caja();
+    if (caja) this.cargarMovimientos(caja.id_caja);
+    else this.movimientos.set([]);
+    if (this.modal() === 'domiciliarios') this.cargarResumenDomiciliarios();
+  }
+
+  private cargarMovimientos(idCaja: number, { silencioso = false } = {}): void {
+    // «Cargando…» solo cuando no hay nada que enseñar. Con el listado ya en pantalla, los
+    // movimientos se fusionan: los que ya estaban conservan su fila (y su acordeón abierto),
+    // y el cobro nuevo aparece sin que se muevan los demás.
+    if (!silencioso || this.movimientos().length === 0) this.cargandoMovimientos.set(true);
+
     this.cajaSvc.getMovimientos(idCaja).subscribe({
       next: (res) => {
-        this.movimientos.set(res?.data ?? []);
+        aplicarLista(this.movimientos, res?.data ?? [], (m) => m.id_movimiento);
         this.cargandoMovimientos.set(false);
       },
       error: () => {
-        this.movimientos.set([]);
+        if (!silencioso) this.movimientos.set([]);
         this.cargandoMovimientos.set(false);
       },
     });

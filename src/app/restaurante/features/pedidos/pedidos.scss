@@ -1780,3 +1780,10 @@
     cursor: not-allowed;
   }
 }
+
+
+/* Selector de caja (solo con varias): una franja fina sobre el pedido. */
+.order-panel__caja {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--color-border);
+}

@@ -947,3 +947,17 @@
     grid-template-columns: 1fr;
   }
 }
+
+
+/* ── Varias cajas ──
+   El selector va bajo el subtítulo: es contexto de toda la pantalla, no una acción más. */
+.caja-header__selector {
+  margin-top: 10px;
+
+  &:empty { display: none; }
+}
+
+.hist-item__caja {
+  font-weight: 600;
+  color: var(--color-primary);
+}

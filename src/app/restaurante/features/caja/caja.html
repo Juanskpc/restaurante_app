@@ -3,6 +3,10 @@
     <div>
       <h1>Caja</h1>
       <p class="subtitle">Control del turno operativo: apertura, movimientos y cierre.</p>
+      <!-- Solo aparece si el usuario maneja más de una caja (rubro). -->
+      <div class="caja-header__selector">
+        <app-caja-selector (cambio)="alCambiarCaja()" />
+      </div>
     </div>
     <div class="header-actions">
       @if (!caja() && puedeAbrir()) {
@@ -44,12 +48,18 @@
     </div>
   </header>
 
-  @if (cargando()) {
+  <!-- Con un turno ya en pantalla no se vuelve a «Cargando…»: el arqueo se queda donde está
+       y solo cambian los números que cambiaron. -->
+  @if (cargando() && !caja()) {
     <div class="estado">Cargando…</div>
   } @else if (!caja()) {
     <div class="caja-vacia">
       <lucide-icon name="wallet" size="48" />
-      <h2>No hay caja abierta</h2>
+      @if (variasCajas() && puntoActivo(); as p) {
+        <h2>No hay caja abierta en {{ p.nombre }}</h2>
+      } @else {
+        <h2>No hay caja abierta</h2>
+      }
       <p>Para tomar pedidos y cobrar, primero abre la caja del turno.</p>
     </div>
   } @else {
@@ -158,7 +168,7 @@
         </div>
       }
 
-      @if (cargandoMovimientos()) {
+      @if (cargandoMovimientos() && movimientos().length === 0) {
         <p class="estado">Cargando…</p>
       } @else if (movimientos().length === 0) {
         <p class="estado">Sin movimientos registrados aún.</p>
@@ -595,6 +605,10 @@
                       {{ c.fecha_cierre ? (c.fecha_cierre | date:'dd/MM/yyyy HH:mm') : 'Sin cerrar' }}
                     </span>
                     <span class="hist-item__meta">
+                      @if (variasCajas() && c.punto) {
+                        <span class="hist-item__caja">{{ c.punto }}</span>
+                        <span class="punto">·</span>
+                      }
                       <lucide-icon name="user" size="12" />
                       {{ c.usuario.primer_nombre }} {{ c.usuario.primer_apellido }}
                       <span class="punto">·</span>

@@ -1,0 +1,136 @@
+<article class="panel panel--wide cp" id="cajas">
+  <header class="cp__head">
+    <div>
+      <h2>Cajas del negocio</h2>
+      <p class="hint">
+        Cada caja es un rubro que cuadras por separado —por ejemplo el restaurante y la tienda—,
+        con sus propios turnos y su arqueo. Si solo manejas una, no tienes que hacer nada aquí.
+      </p>
+    </div>
+    @if (limite(); as l) {
+      <span class="cp__cupo" [class.cp__cupo--lleno]="sinCupo()">
+        @if (l.total == null) {
+          {{ l.usadas }} activas · sin límite
+        } @else {
+          {{ l.usadas }} de {{ l.total }} cajas
+        }
+      </span>
+    }
+  </header>
+
+  @if (sinCupo()) {
+    <p class="cp__aviso">
+      <lucide-icon name="info" [size]="15" aria-hidden="true" />
+      Tu plan ({{ limite()?.plan }}) ya usa todas sus cajas. Para abrir otra, pide el complemento
+      «Caja adicional» con el equipo de EscalApp.
+    </p>
+  } @else {
+    <div class="cp__nueva">
+      <input
+        class="input"
+        type="text"
+        maxlength="60"
+        placeholder="Nombre de la caja (ej: Tienda)"
+        [value]="nuevoNombre()"
+        (input)="nuevoNombre.set($any($event.target).value)"
+        (keydown.enter)="crear()"
+      />
+      <input
+        class="input"
+        type="text"
+        maxlength="160"
+        placeholder="Descripción (opcional)"
+        [value]="nuevaDescripcion()"
+        (input)="nuevaDescripcion.set($any($event.target).value)"
+        (keydown.enter)="crear()"
+      />
+      <button
+        type="button"
+        class="btn btn--primary"
+        [disabled]="guardando() || nuevoNombre().trim().length < 2"
+        (click)="crear()"
+      >
+        <lucide-icon name="circle-plus" [size]="16" /> Crear caja
+      </button>
+    </div>
+  }
+
+  @if (cargando()) {
+    <p class="cp__muted">Cargando…</p>
+  } @else if (error()) {
+    <p class="cp__error">{{ error() }}</p>
+  } @else {
+    <ul class="cp__lista">
+      @for (c of cajas(); track c.id_punto_caja) {
+        <li class="cp__fila" [class.cp__fila--inactiva]="c.estado === 'I'">
+          @if (editandoId() === c.id_punto_caja) {
+            <div class="cp__editar">
+              <input
+                class="input"
+                type="text"
+                maxlength="60"
+                [value]="editandoNombre()"
+                (input)="editandoNombre.set($any($event.target).value)"
+                (keydown.enter)="guardarEdicion()"
+              />
+              <input
+                class="input"
+                type="text"
+                maxlength="160"
+                placeholder="Descripción (opcional)"
+                [value]="editandoDescripcion()"
+                (input)="editandoDescripcion.set($any($event.target).value)"
+                (keydown.enter)="guardarEdicion()"
+              />
+              <div class="cp__acciones">
+                <button type="button" class="btn btn--primary" [disabled]="guardando()" (click)="guardarEdicion()">
+                  Guardar
+                </button>
+                <button type="button" class="btn btn--outline" (click)="cancelarEdicion()">Cancelar</button>
+              </div>
+            </div>
+          } @else {
+            <div class="cp__info">
+              <strong>{{ c.nombre }}</strong>
+              @if (c.descripcion) {
+                <small>{{ c.descripcion }}</small>
+              }
+              <span class="cp__meta">
+                @if (c.estado === 'I') {
+                  <span class="es-badge">Inactiva</span>
+                } @else if (c.turno_abierto) {
+                  <span class="es-badge es-badge--success">Turno abierto</span>
+                } @else {
+                  <span class="es-badge">Sin turno</span>
+                }
+                <span>
+                  {{ c.usuarios === 0 ? 'La usan todos los usuarios' : c.usuarios + (c.usuarios === 1 ? ' usuario asignado' : ' usuarios asignados') }}
+                </span>
+              </span>
+            </div>
+            <div class="cp__acciones">
+              <button type="button" class="btn btn--outline cp__icono" title="Editar" (click)="iniciarEdicion(c)">
+                <lucide-icon name="pencil" [size]="14" />
+              </button>
+              <button
+                type="button"
+                class="btn btn--outline"
+                [disabled]="guardando() || (c.estado === 'I' && sinCupo())"
+                [title]="c.estado === 'I' && sinCupo() ? 'Tu plan no tiene cupo para otra caja activa' : ''"
+                (click)="cambiarEstado(c)"
+              >
+                {{ c.estado === 'A' ? 'Desactivar' : 'Activar' }}
+              </button>
+            </div>
+          }
+        </li>
+      }
+    </ul>
+
+    <p class="cp__muted">
+      Para decidir quién cobra en cada caja, ve a <strong>Usuarios</strong> y edita a la persona.
+      Quien no tenga cajas asignadas puede usar todas; quien tenga más de una elige al tomar el
+      pedido.
+    </p>
+  }
+</article>

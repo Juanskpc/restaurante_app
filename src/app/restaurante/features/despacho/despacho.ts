@@ -13,6 +13,7 @@ import { Router } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
 import { CajaService } from '../../../core/services/caja.service';
 import { RealtimeService } from '../../../core/services/realtime.service';
+import { aplicarLista } from '../../../core/utils/refresco-vivo';
 import { ClientesService, CuentaCliente } from '../../../core/services/clientes.service';
 import { CatalogoCacheService } from '../../../core/services/catalogo-cache.service';
 import { VistaTarjetasService } from '../../../core/services/vista-tarjetas.service';
@@ -136,7 +137,9 @@ export class DespachoComponent implements OnInit {
   private readonly isBrowser = isPlatformBrowser(this.platformId);
 
   readonly pedidos = signal<PedidoDespacho[]>([]);
+  /** Solo la primera carga. Los refrescos del tiempo real no tapan el listado. */
   readonly cargando = signal(false);
+  readonly refrescando = signal(false);
   readonly filtro = signal<FiltroTipo>('TODOS');
   readonly pedidoActivo = signal<PedidoDespacho | null>(null);
   readonly cobrandoId = signal<number | null>(null);
@@ -267,8 +270,8 @@ export class DespachoComponent implements OnInit {
     // Ver `pedidos.ts`: sin el interruptor encendido no hay a quién preguntar.
     if (!this.auth.permiteCuentasCliente()) return;
     this.clientesApi.listar(idNegocio).subscribe({
-      next: (res) => this.cuentasCliente.set(res?.data ?? []),
-      error: () => this.cuentasCliente.set([]),
+      next: (res) => aplicarLista(this.cuentasCliente, res?.data ?? [], (c) => c.id_cuenta),
+      error: () => { /* se conserva la lista que ya estaba */ },
     });
   }
 
@@ -281,22 +284,38 @@ export class DespachoComponent implements OnInit {
     });
   }
 
+  /**
+   * Trae los pedidos en curso.
+   *
+   * Despacho es la pantalla que más avisos recibe (cada plato que cocina marca listo es uno),
+   * así que aquí el repintado se nota más que en ninguna otra. Por eso el listado NO se
+   * desmonta al refrescar: solo se enciende «Cargando» si todavía no hay nada, y los pedidos
+   * se fusionan uno a uno — el que no cambió conserva su objeto y su tarjeta se queda quieta.
+   */
   cargar(): void {
     const id = this.negocioId();
     if (!id) return;
-    this.cargando.set(true);
+
+    const esPrimeraCarga = this.pedidos().length === 0;
+    if (esPrimeraCarga) this.cargando.set(true);
+    this.refrescando.set(true);
 
     const url = `${environment.apiUrl}/despacho?id_negocio=${id}`;
 
     this.http.get<{ success: boolean; data: PedidoDespacho[] }>(url).subscribe({
       next: (res) => {
-        this.pedidos.set(res?.data ?? []);
+        aplicarLista(this.pedidos, res?.data ?? [], (p) => p.id_orden);
         this.cargando.set(false);
+        this.refrescando.set(false);
       },
       error: () => {
-        this.pedidos.set([]);
         this.cargando.set(false);
-        this.uiFeedback.error('No se pudieron cargar los pedidos de despacho.');
+        this.refrescando.set(false);
+        // Si ya había pedidos en pantalla se quedan: un corte de red no vacía el despacho, y
+        // el aviso de error tampoco hace falta ahí — el siguiente refresco lo arregla solo.
+        if (esPrimeraCarga) {
+          this.uiFeedback.error('No se pudieron cargar los pedidos de despacho.');
+        }
       },
     });
   }
@@ -836,7 +855,10 @@ export class DespachoComponent implements OnInit {
 
     const origenCobro = p.tipo_pedido === 'DOMICILIO' ? 'DOMICILIARIO' : 'CAJA';
     let idCaja = origenCobro === 'CAJA' ? this.cajaSvc.cajaAbierta()?.id_caja ?? null : null;
-    if (origenCobro === 'CAJA' && !idCaja) {
+    // Con varias cajas el pedido se cobra en la SUYA, que puede no ser la que este equipo
+    // tiene elegida: comprobar aquí la elegida bloquearía cobros válidos. Decide el servidor,
+    // que responde CAJA_CERRADA (con el nombre de la caja) si de verdad está cerrada.
+    if (origenCobro === 'CAJA' && !idCaja && !this.cajaSvc.variasCajas()) {
       // El estado local puede estar viejo (otro equipo abrió el turno, o la consulta
       // falló): se pregunta al servidor antes de negar el cobro.
       const idNeg = this.negocioId();

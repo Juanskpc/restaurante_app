@@ -30,16 +30,16 @@
       </label>
       <button class="btn-finalizar-todo"
               (click)="finalizarTodo()"
-              [disabled]="cargando() || pedidosFiltrados().length === 0"
+              [disabled]="refrescando() || pedidosFiltrados().length === 0"
               title="Finalizar todos los pedidos cobrados">
         <lucide-icon name="check-square" [size]="16" />
         <span class="btn-label">Finalizar todo</span>
       </button>
       <button class="btn-ghost btn-refresh"
               (click)="cargar()"
-              [disabled]="cargando()"
+              [disabled]="refrescando()"
               title="Actualizar">
-        <lucide-icon name="rotate-cw" [size]="16" [class.spin]="cargando()" />
+        <lucide-icon name="rotate-cw" [size]="16" [class.spin]="refrescando()" />
         <span class="btn-label">Actualizar</span>
       </button>
     </div>
@@ -89,7 +89,8 @@
     </div>
   }
 
-  @if (!cargando() && pedidosFiltrados().length > 0) {
+  <!-- Sin `cargando` en la condición: el listado sigue en pantalla mientras se refresca. -->
+  @if (pedidosFiltrados().length > 0) {
     <div [class]="'grid densidad-' + densidad()">
       @for (p of pedidosFiltrados(); track p.id_orden) {
         <article class="despacho-card" [class]="'tipo-' + p.tipo_pedido"
