@@ -64,6 +64,13 @@
             <span>{{ mesa.nombre }}</span>
             <div class="header-actions">
               @if (mesa.status === 'occupied' || mesa.status === 'payment') {
+              @if (canImprimirPedido()) {
+                <button class="quick-release-btn"
+                        title="Imprimir tiquete"
+                        (click)="imprimirDesdeCard(mesa, $event)">
+                  <lucide-icon name="printer" [size]="14" />
+                </button>
+              }
               @if (canAccionesPedido()) {
                 <button class="quick-release-btn"
                         title="Liberar mesa"

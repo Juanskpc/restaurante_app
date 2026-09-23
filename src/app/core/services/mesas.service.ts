@@ -15,6 +15,8 @@ export interface MesaOrderItem {
 
 export interface MesaOrder {
   id_orden?: number;
+  /** «ORD-1052»: se imprime junto a la mesa en la comanda. */
+  numero_orden?: string | null;
   total: number;
   /** Rebaja ya restada del total; editable desde el cobro de la mesa. */
   descuento?: number;

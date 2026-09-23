@@ -741,12 +741,19 @@ export class MesasComponent {
       || (this.canAdministracionMesa() && (mesa.status === 'available' || mesa.status === 'disabled'));
   }
 
-  imprimirResumenMesa(): void {
-    const mesa = this.mesaActiva();
+  /** El icono de la tarjeta: imprime sin abrir el detalle de la mesa, como en Despacho. */
+  imprimirDesdeCard(mesa: MesaDashboard, event: Event): void {
+    event.stopPropagation();
+    if (!this.canImprimirPedido()) return;
+    this.imprimirResumenMesa(mesa);
+  }
+
+  imprimirResumenMesa(mesaElegida?: MesaDashboard): void {
+    const mesa = mesaElegida ?? this.mesaActiva();
     if (!mesa || !this.isBrowser) return;
 
     const itemsPendientes = mesa.order.items ?? [];
-    const itemsPagados = this.itemsPagadosMesaActiva();
+    const itemsPagados = this.itemsPagadosPorMesa()[mesa.id_mesa] ?? [];
 
     if (itemsPendientes.length === 0 && itemsPagados.length === 0) {
       void this.uiFeedback.alert({
@@ -811,7 +818,9 @@ export class MesasComponent {
     );
     const fechaTexto = this.escapeHtml(this.formatDateTime(fecha));
     const tipoPedido = 'En mesa';
-    const mesaTexto = this.escapeHtml(mesa.nombre);
+    // «Mesa 1 - ORD-1052»: con el número de la orden, como la comanda de Despacho.
+    const numeroOrden = mesa.order.numero_orden?.trim() || '';
+    const mesaTexto = this.escapeHtml(numeroOrden ? `${mesa.nombre} - ${numeroOrden}` : mesa.nombre);
     const itemsTicket = itemsPendientes.length > 0 ? itemsPendientes : itemsPagados;
     const notaOrden = this.escapeHtml(mesa.order.nota?.trim() || '');
     const notaHtml = notaOrden
@@ -843,7 +852,7 @@ export class MesasComponent {
       <html lang="es">
       <head>
         <meta charset="utf-8" />
-        <title>Ticket pedido</title>
+        <title>Ticket ${this.escapeHtml(numeroOrden || 'pedido')}</title>
         <style>
           @page {
             size: 80mm auto;
