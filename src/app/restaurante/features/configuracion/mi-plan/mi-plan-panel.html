@@ -1,0 +1,63 @@
+<article class="panel panel--wide mp" id="mi-plan">
+  @if (cargando()) {
+    <p class="mp__muted">Cargando tu plan…</p>
+  } @else if (limites(); as l) {
+    <header class="mp__head">
+      <div>
+        <h2>Tu plan</h2>
+        <p class="hint">Lo que tienes contratado y cuánto margen te queda.</p>
+      </div>
+      <span class="mp__plan">{{ l.plan }}</span>
+    </header>
+
+    <!-- Lo que de verdad se pregunta aquí: ¿me cabe otro usuario?, ¿otra caja? -->
+    <div class="mp__limites">
+      <div class="mp__limite">
+        <span class="mp__limite-num">{{ l.usuarios.total ?? '∞' }}</span>
+        <span class="mp__limite-txt">
+          usuarios
+          @if (l.usuarios.adicionales > 0) {
+            <small>{{ l.usuarios.incluidos ?? '∞' }} del plan + {{ l.usuarios.adicionales }} extra</small>
+          }
+        </span>
+      </div>
+      <div class="mp__limite">
+        <span class="mp__limite-num">{{ l.cajas.total ?? '∞' }}</span>
+        <span class="mp__limite-txt">
+          cajas
+          @if (l.cajas.adicionales > 0) {
+            <small>{{ l.cajas.incluidos ?? '∞' }} del plan + {{ l.cajas.adicionales }} extra</small>
+          }
+        </span>
+      </div>
+    </div>
+
+    @if (contratados().length) {
+      <ul class="mp__comps">
+        @for (c of contratados(); track c.codigo) {
+          <li>
+            <span>{{ c.cantidad }} × {{ c.nombre }}</span>
+            <span class="mp__muted">{{ dinero(c.cantidad * c.precio) }} al mes</span>
+          </li>
+        }
+      </ul>
+    }
+
+    @if (pendientes().length) {
+      <p class="mp__pendiente">
+        <lucide-icon name="clock" [size]="14" aria-hidden="true" />
+        Tienes un cambio pedido que se aplica cuando pagues el cobro correspondiente.
+      </p>
+    }
+
+    <div class="mp__pie">
+      <span class="mp__muted">
+        Para cambiar de plan o ajustar usuarios y cajas, ve a Mis pagos.
+      </span>
+      <button type="button" class="btn btn--primary" (click)="gestionar()">
+        Gestionar mi plan
+        <lucide-icon name="arrow-right" [size]="15" aria-hidden="true" />
+      </button>
+    </div>
+  }
+</article>

@@ -430,7 +430,7 @@ export class AuthService {
    * salida: se pide un código de un solo uso y se entra por `/auth/callback`,
    * que rehidrata la sesión del admin_app. Así se evita caer en el login.
    */
-  async irAlInicio(): Promise<void> {
+  async irAlInicio(destino = '/admin/dashboard'): Promise<void> {
     const adminUrl = environment.adminUrl ?? 'http://localhost:4002';
     if (!isPlatformBrowser(this.platformId)) return;
 
@@ -445,15 +445,19 @@ export class AuthService {
         );
         const code = res?.data?.code;
         if (code) {
-          window.location.href = `${adminUrl}/auth/callback?code=${encodeURIComponent(code)}`;
+          // `destino` deja entrar directo a la pantalla que se pidió (por ejemplo «Mis pagos»)
+          // en vez de aterrizar siempre en el panel y tener que buscarla.
+          window.location.href =
+            `${adminUrl}/auth/callback?code=${encodeURIComponent(code)}` +
+            `&destino=${encodeURIComponent(destino)}`;
           return;
         }
       } catch {
-        // Si falla la generación del código, se cae al dashboard directo
+        // Si falla la generación del código, se cae al destino directo
         // (admin_app pedirá login si no encuentra sesión propia).
       }
     }
-    window.location.href = `${adminUrl}/admin/dashboard`;
+    window.location.href = `${adminUrl}${destino}`;
   }
 
   canAccessRoute(routePath: string): boolean {
