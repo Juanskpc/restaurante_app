@@ -199,6 +199,16 @@
                       >
                         <lucide-icon name="plus" [size]="14" />
                       </button>
+                      <button
+                        type="button"
+                        class="icon-btn"
+                        title="Restablecer a 0"
+                        aria-label="Restablecer a 0"
+                        [disabled]="guardando() === insumo.id_ingrediente || insumo.stock_actual === 0"
+                        (click)="restablecerACero(insumo)"
+                      >
+                        <lucide-icon name="rotate-ccw" [size]="14" />
+                      </button>
                     </div>
                   </td>
                   }

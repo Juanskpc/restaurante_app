@@ -20,6 +20,7 @@ import { ConfiguracionNegocio } from './configuracion.models';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 import { CartaDisenoPanelComponent } from './carta-diseno/carta-diseno-panel';
 import { CajasPanelComponent } from './cajas-panel/cajas-panel';
+import { BarriosPanelComponent } from './barrios-panel/barrios-panel';
 import { MiPlanPanelComponent } from './mi-plan/mi-plan-panel';
 
 /**
@@ -67,7 +68,7 @@ type TabConfig = 'general' | 'apariencia' | 'cobros' | 'cajas' | 'operacion';
   selector: 'app-configuracion',
   imports: [
     ReactiveFormsModule, LucideAngularModule,
-    CartaDisenoPanelComponent, CajasPanelComponent, MiPlanPanelComponent,
+    CartaDisenoPanelComponent, CajasPanelComponent, BarriosPanelComponent, MiPlanPanelComponent,
   ],
   templateUrl: './configuracion.html',
   styleUrl: './configuracion.scss',

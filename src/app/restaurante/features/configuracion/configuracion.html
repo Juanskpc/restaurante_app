@@ -341,6 +341,11 @@
           </label>
         </div>
       </article>
+
+      <!-- Solo con el cobro de domicilio encendido: sin él no se pregunta el barrio ni se cobra. -->
+      @if (permitePagoDomicilio()) {
+        <app-barrios-panel [canEdit]="canEdit()" />
+      }
     }
   }
 </section>

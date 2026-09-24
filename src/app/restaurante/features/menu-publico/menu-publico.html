@@ -144,12 +144,18 @@
     </main>
   }
 
-  <!-- ═══════════ AVISO: FUERA DE ATENCIÓN ═══════════ -->
-  <!-- La carta se sigue viendo: solo se avisa que "agregar"/"pedir" están desactivados. -->
-  @if (!negocioInvalido() && !planInactivo() && negocio() && avisoAtencion(); as aviso) {
-    <div class="aviso-atencion">
-      <lucide-icon name="clock" [size]="16" />
-      <span>{{ aviso }}</span>
+  <!-- ═══════════ CÓMO PIDE (chip para cambiarlo) ═══════════
+       Solo con la elección hecha y el negocio atendiendo. Cerrado no hay nada que elegir. -->
+  @if (!negocioInvalido() && !planInactivo() && negocio() && mostrarChip()) {
+    <div class="eleccion-bar">
+      <button type="button" class="eleccion-chip" (click)="cambiarEleccion()">
+        <lucide-icon
+          [name]="carrito.modalidad() === 'D' ? 'bike' : carrito.modalidad() === 'L' ? 'armchair' : 'shopping-bag'"
+          [size]="16"
+        />
+        <span class="eleccion-chip__texto">{{ resumenEleccion() }}</span>
+        <span class="eleccion-chip__cambiar">Cambiar</span>
+      </button>
     </div>
   }
 
@@ -244,44 +250,16 @@
                           @if (prod.disponible === false) {
                             <span class="agotado-badge">Agotado</span>
                           }
+                          <!-- El control vive en su propia fila (alto fijo) debajo del precio: al
+                               pasar de «+» a «− n +» el precio no se mueve. Con `order` en CSS
+                               sube justo bajo el precio; en las composiciones de texto queda al final. -->
+                          @if (pedidosHabilitados() && prod.disponible !== false) {
+                            <div class="fila-accion">
+                              <ng-container *ngTemplateOutlet="controlPedido; context: { $implicit: prod }" />
+                            </div>
+                          }
                         </div>
 
-                        @if (puedePedir() && prod.disponible !== false) {
-                          <div class="fila-accion">
-                            @if (carrito.cantidadDe(prod.id_producto) > 0) {
-                              <div class="product-qty">
-                                <button
-                                  type="button"
-                                  class="qty-btn"
-                                  (click)="quitarDelCarrito(prod.id_producto)"
-                                  [attr.aria-label]="'Quitar uno de ' + prod.nombre"
-                                >
-                                  <lucide-icon name="minus" [size]="16" />
-                                </button>
-                                <span class="qty-value" aria-live="polite">
-                                  {{ carrito.cantidadDe(prod.id_producto) }}
-                                </span>
-                                <button
-                                  type="button"
-                                  class="qty-btn"
-                                  (click)="agregarAlCarrito(prod)"
-                                  [attr.aria-label]="'Agregar otro ' + prod.nombre"
-                                >
-                                  <lucide-icon name="plus" [size]="16" />
-                                </button>
-                              </div>
-                            } @else {
-                              <button
-                                type="button"
-                                class="fila-add"
-                                (click)="agregarAlCarrito(prod)"
-                                [attr.aria-label]="'Agregar ' + prod.nombre + ' al pedido'"
-                              >
-                                <lucide-icon name="plus" [size]="18" />
-                              </button>
-                            }
-                          </div>
-                        }
                       </li>
                     }
                   </ul>
@@ -320,7 +298,7 @@
   <!-- ═══════════ Pie de EscalApp ═══════════
        Una sola línea, como en el portal de reservas: la invitación a crear un menú propio y la
        nota legal. El pie de la carta de otro negocio es su cierre, no nuestro escaparate. -->
-  <footer class="pie" [class.pie--con-boton]="puedePedir() && !carrito.vacio()">
+  <footer class="pie" [class.pie--con-boton]="pedidosHabilitados() && !carrito.vacio()">
     <div class="pie__interior">
       <a class="pie__cta" [href]="appSiteUrl" target="_blank" rel="noopener">
         <span>Crea tu propio menú digital</span>
@@ -365,56 +343,197 @@
     <div class="product-info">
       <div class="product-header">
         <h3 class="product-name">{{ prod.nombre }}</h3>
-        <span class="product-price">{{ formatPrice(prod.precio) }}</span>
+        <div class="product-precio-col">
+          <span class="product-price">{{ formatPrice(prod.precio) }}</span>
+          @if (pedidosHabilitados() && prod.disponible !== false) {
+            <div class="fila-accion">
+              <ng-container *ngTemplateOutlet="controlPedido; context: { $implicit: prod }" />
+            </div>
+          }
+        </div>
       </div>
 
       @if (prod.descripcion) {
         <p class="product-desc">{{ prod.descripcion }}</p>
       }
 
-      @if (puedePedir() && prod.disponible !== false) {
-        <!--
-          Dos estados, no uno. Con el producto ya en el carrito se muestran los
-          controles de cantidad en vez de un botón que repite «Agregar»: quien quiere
-          dos hamburguesas necesita ver cuántas lleva, no adivinar si pulsó bien.
-        -->
-        @if (carrito.cantidadDe(prod.id_producto) > 0) {
-          <div class="product-qty">
-            <button
-              type="button"
-              class="qty-btn"
-              (click)="quitarDelCarrito(prod.id_producto)"
-              [attr.aria-label]="'Quitar uno de ' + prod.nombre"
-            >
-              <lucide-icon name="minus" [size]="16" />
+    </div>
+  </article>
+</ng-template>
+
+<!-- ═══════ CONTROL DE AGREGAR (lista y tarjeta) ═══════
+
+     Dos estados, no uno. Con el producto ya en el carrito se muestran los controles de cantidad en
+     vez de un botón que repite «Agregar»: quien quiere dos hamburguesas necesita ver cuántas lleva.
+     Los dos viven en una fila de alto fijo (`.fila-accion`), así el cambio no mueve nada.
+-->
+<ng-template #controlPedido let-prod>
+  @if (carrito.cantidadDe(prod.id_producto) > 0) {
+    <div class="product-qty">
+      <button
+        type="button"
+        [disabled]="!atendiendoAhora()"
+        [attr.title]="atendiendoAhora() ? null : textoFueraDeHorario"
+        class="qty-btn"
+        (click)="quitarDelCarrito(prod.id_producto)"
+        [attr.aria-label]="'Quitar uno de ' + prod.nombre"
+      >
+        <lucide-icon name="minus" [size]="14" />
+      </button>
+      <span class="qty-value" aria-live="polite">
+        {{ carrito.cantidadDe(prod.id_producto) }}
+      </span>
+      <button
+        type="button"
+        [disabled]="!atendiendoAhora()"
+        [attr.title]="atendiendoAhora() ? null : textoFueraDeHorario"
+        class="qty-btn"
+        (click)="agregarAlCarrito(prod)"
+        [attr.aria-label]="'Agregar otro ' + prod.nombre"
+      >
+        <lucide-icon name="plus" [size]="14" />
+      </button>
+    </div>
+  } @else {
+    <button
+      type="button"
+      [disabled]="!atendiendoAhora()"
+      [attr.title]="atendiendoAhora() ? null : textoFueraDeHorario"
+      class="add-btn"
+      (click)="agregarAlCarrito(prod)"
+      [attr.aria-label]="'Agregar ' + prod.nombre + ' al pedido'"
+    >
+      <lucide-icon name="plus" [size]="16" />
+    </button>
+  }
+</ng-template>
+
+<!-- ═══════ MODAL: ¿QUITAR ALGÚN INGREDIENTE? ═══════
+
+     Solo para productos con ingredientes removibles. Todos vienen incluidos; se marca «quitar» en
+     los que no se quieren y «Agregar» confirma con un toque. Foco atrapado, Esc cierra.
+-->
+@if (modalProducto(); as p) {
+  <div class="ingredientes-overlay" (click)="cerrarModalIngredientes()">
+    <div
+      #modalIngredientes
+      class="ingredientes"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="ingredientes-titulo"
+      (click)="$event.stopPropagation()"
+      (keydown)="onTeclaModal($event)"
+    >
+      <h2 id="ingredientes-titulo" class="ingredientes__titulo">{{ p.nombre }}</h2>
+      <p class="ingredientes__sub">¿Quieres quitar algún ingrediente?</p>
+
+      <ul class="ingredientes__lista">
+        @for (r of removiblesDe(p); track r.id_ingrediente) {
+          <li>
+            <label class="ingrediente" [class.ingrediente--quitado]="quitarSel().has(r.id_ingrediente)">
+              <input
+                type="checkbox"
+                [checked]="quitarSel().has(r.id_ingrediente)"
+                (change)="alternarQuitar(r.id_ingrediente)"
+              />
+              <span class="ingrediente__nombre">{{ r.nombre }}</span>
+              <span class="ingrediente__estado">
+                {{ quitarSel().has(r.id_ingrediente) ? 'Sin ' + r.nombre.toLowerCase() : 'Incluido' }}
+              </span>
+            </label>
+          </li>
+        }
+      </ul>
+
+      <div class="ingredientes__acciones">
+        <button type="button" class="ingredientes__cancelar" (click)="cerrarModalIngredientes()">
+          Cancelar
+        </button>
+        <button type="button" class="ingredientes__agregar" (click)="confirmarModalIngredientes()">
+          Agregar · {{ formatPrice(p.precio) }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ═══════ ¿CÓMO QUIERES PEDIR? ═══════
+
+     Antes de los productos. Solo cuando se puede pedir Y el negocio atiende ahora: cerrado no
+     hay nada que elegir, y sin pedidos habilitados la carta es de solo lectura.
+     Es una capa que tapa la carta hasta elegir, no otra ruta: el estado vive en el carrito.
+-->
+@if (mostrarSelector()) {
+  <div class="eleccion-overlay" role="dialog" aria-modal="true" aria-labelledby="eleccion-titulo">
+    <div class="eleccion">
+      <div class="eleccion__marca">
+        @if (logoUrl(); as logo) {
+          <img class="eleccion__logo" [src]="resolveImg(logo)" alt="" width="48" height="48" />
+        } @else {
+          <span class="eleccion__monograma" aria-hidden="true">{{ iniciales() }}</span>
+        }
+        <span class="eleccion__negocio">{{ negocio()?.nombre }}</span>
+      </div>
+
+      @switch (pasoEleccion()) {
+        @case ('modalidad') {
+          <h2 id="eleccion-titulo" class="eleccion__titulo">¿Cómo quieres pedir?</h2>
+          <div class="eleccion__tarjetas">
+            @if (hayMesas()) {
+              <button type="button" class="eleccion-tarjeta" (click)="elegirModalidad('L')">
+                <lucide-icon name="armchair" [size]="28" />
+                <span class="eleccion-tarjeta__titulo">En el local</span>
+                <span class="eleccion-tarjeta__sub">Estoy sentado en una mesa</span>
+              </button>
+            }
+            <button type="button" class="eleccion-tarjeta" (click)="elegirModalidad('D')">
+              <lucide-icon name="bike" [size]="28" />
+              <span class="eleccion-tarjeta__titulo">A domicilio</span>
+              <span class="eleccion-tarjeta__sub">Te lo llevamos</span>
             </button>
-            <span class="qty-value" aria-live="polite">
-              {{ carrito.cantidadDe(prod.id_producto) }}
-            </span>
-            <button
-              type="button"
-              class="qty-btn"
-              (click)="agregarAlCarrito(prod)"
-              [attr.aria-label]="'Agregar otro ' + prod.nombre"
-            >
-              <lucide-icon name="plus" [size]="16" />
+            <button type="button" class="eleccion-tarjeta" (click)="elegirModalidad('R')">
+              <lucide-icon name="shopping-bag" [size]="28" />
+              <span class="eleccion-tarjeta__titulo">Recoger en el local</span>
+              <span class="eleccion-tarjeta__sub">Pasas por él</span>
             </button>
           </div>
-        } @else {
-          <button
-            type="button"
-            class="product-add"
-            (click)="agregarAlCarrito(prod)"
-            [attr.aria-label]="'Agregar ' + prod.nombre + ' al pedido'"
-          >
-            <lucide-icon name="plus" [size]="16" />
-            <span>Agregar</span>
+        }
+        @case ('barrio') {
+          <h2 id="eleccion-titulo" class="eleccion__titulo">¿En qué barrio estás?</h2>
+          <p class="eleccion__sub">Así te decimos cuánto cuesta el domicilio.</p>
+          <div class="eleccion__lista">
+            @for (b of barriosInfo().barrios; track b.id_barrio) {
+              <button type="button" class="eleccion-opcion" (click)="elegirBarrio(b)">
+                <span>{{ b.nombre }}</span>
+                <strong>{{ formatPrice(b.valor) }}</strong>
+              </button>
+            }
+            <button type="button" class="eleccion-opcion eleccion-opcion--otro" (click)="elegirBarrio(null)">
+              <span>Otro barrio</span>
+              <small>El restaurante te confirma el valor</small>
+            </button>
+          </div>
+          <button type="button" class="eleccion__atras" (click)="cambiarEleccion()">
+            <lucide-icon name="arrow-left" [size]="16" /> Cambiar cómo quiero pedir
+          </button>
+        }
+        @case ('mesa') {
+          <h2 id="eleccion-titulo" class="eleccion__titulo">¿En qué mesa estás?</h2>
+          <div class="eleccion__mesas">
+            @for (m of mesas(); track m.id_mesa) {
+              <button type="button" class="eleccion-mesa" (click)="elegirMesa(m)">
+                {{ m.nombre }}
+              </button>
+            }
+          </div>
+          <button type="button" class="eleccion__atras" (click)="cambiarEleccion()">
+            <lucide-icon name="arrow-left" [size]="16" /> Cambiar cómo quiero pedir
           </button>
         }
       }
     </div>
-  </article>
-</ng-template>
+  </div>
+}
 
 <!-- ═══════ PEDIDO: BOTÓN FLOTANTE Y PRE-PEDIDO ═══════
 
@@ -422,10 +541,12 @@
      pedidos desde la carta. Sin eso, el menú sigue siendo un menú perfectamente útil: se mira,
      y no se ofrece un botón que no lleva a ningún sitio.
 -->
-@if (puedePedir() && !carrito.vacio()) {
+@if (pedidosHabilitados() && !carrito.vacio()) {
   <button
     type="button"
     class="fab-pedido"
+    [disabled]="!atendiendoAhora()"
+    [attr.title]="atendiendoAhora() ? null : textoFueraDeHorario"
     (click)="abrirPrePedido()"
     [attr.aria-label]="'Ver mi pedido (' + carrito.cantidadTotal() + ' productos)'"
   >
@@ -452,20 +573,23 @@
       </header>
 
       <ul class="pre-pedido-items">
-        @for (item of carrito.items(); track item.id_producto) {
+        <!-- Cada LÍNEA (producto + lo que se le quitó) se ve y se ajusta por separado. -->
+        @for (item of carrito.items(); track claveDe(item)) {
           <li class="pre-pedido-item">
             <div class="pp-info">
               <span class="pp-nombre">{{ item.nombre }}</span>
+              @if (item.exclusiones.length) {
+                <span class="pp-sin">{{ textoSin(item.exclusiones) }}</span>
+              }
               <span class="pp-precio">{{ formatPrice(item.precio * item.cantidad) }}</span>
             </div>
             <div class="pp-qty">
-              <button type="button" class="qty-btn" (click)="quitarDelCarrito(item.id_producto)"
+              <button type="button" class="qty-btn" (click)="ajustarLinea(claveDe(item), -1)"
                       [attr.aria-label]="'Quitar uno de ' + item.nombre">
                 <lucide-icon name="minus" [size]="14" />
               </button>
               <span class="qty-value">{{ item.cantidad }}</span>
-              <button type="button" class="qty-btn"
-                      (click)="carrito.agregar({ id_producto: item.id_producto, nombre: item.nombre, precio: item.precio })"
+              <button type="button" class="qty-btn" (click)="ajustarLinea(claveDe(item), 1)"
                       [attr.aria-label]="'Agregar otro ' + item.nombre">
                 <lucide-icon name="plus" [size]="14" />
               </button>
@@ -474,9 +598,26 @@
         }
       </ul>
 
+      @if (resumenEleccion()) {
+        <p class="pre-pedido-eleccion">
+          <lucide-icon
+            [name]="carrito.modalidad() === 'D' ? 'bike' : carrito.modalidad() === 'L' ? 'armchair' : 'shopping-bag'"
+            [size]="16"
+          />
+          <span>{{ resumenEleccion() }}</span>
+        </p>
+      }
+
+      @if (carrito.domicilio() > 0) {
+        <div class="pre-pedido-linea">
+          <span>Domicilio ({{ carrito.barrio()?.nombre }})</span>
+          <span>{{ formatPrice(carrito.domicilio()) }}</span>
+        </div>
+      }
+
       <div class="pre-pedido-total">
         <span>Total aproximado</span>
-        <strong>{{ formatPrice(carrito.total()) }}</strong>
+        <strong>{{ formatPrice(carrito.totalConDomicilio()) }}</strong>
       </div>
 
       <!--
@@ -491,7 +632,7 @@
         es para recoger o a domicilio.
       -->
       <p class="pre-pedido-nota">
-        El total final lo confirma el restaurante: puede subir por desechables o por el domicilio.
+        {{ notaTotal() }}
       </p>
 
       <button type="button" class="pre-pedido-enviar" (click)="enviarPorWhatsApp()">

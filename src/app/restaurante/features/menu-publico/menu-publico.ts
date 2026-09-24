@@ -17,8 +17,9 @@ import { DOCUMENT, NgTemplateOutlet, isPlatformBrowser } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
+import { catchError, forkJoin, of } from 'rxjs';
 
-import { CarritoService } from './carrito.service';
+import { CarritoService, MesaElegida, Modalidad, claveLinea } from './carrito.service';
 import { environment } from '../../../../environments/environment';
 import {
   CartaPublicaConfig,
@@ -51,7 +52,19 @@ interface ProductoPublico {
   es_popular: boolean;
   /** `false` = agotado. Llegan siempre; la carta decide si mostrarlos según su diseño. */
   disponible?: boolean;
+  /** Solo lo que se puede quitar (id y nombre): sin cantidades, stock ni costos. Puede faltar con un backend anterior. */
+  ingredientes_removibles?: { id_ingrediente: number; nombre: string }[];
 }
+
+/** Barrio con su precio de domicilio, tal como lo devuelve `/public/negocios/:id/barrios`. */
+interface BarrioPublico {
+  id_barrio: number;
+  nombre: string;
+  valor: number;
+}
+
+/** Cuál de los pasos de «¿cómo quieres pedir?» toca ahora. */
+type PasoEleccion = 'modalidad' | 'barrio' | 'mesa';
 
 /** Una categoría con sus productos, tal como la devuelve `/public/carta/completa`. */
 interface SeccionPublica extends CategoriaPublica {
@@ -80,7 +93,7 @@ interface NegocioPublico {
   plan_activo: boolean;
   /** Diseño publicado, ya recortado por el plan. Puede faltar con un backend anterior. */
   carta?: CartaPublicaConfig | null;
-  /** Puede faltar con un backend anterior; en ese caso se trata como "abierto" (ver `puedePedir`). */
+  /** Puede faltar con un backend anterior; en ese caso se trata como "abierto" (ver `atendiendoAhora`). */
   atencion?: { estado: EstadoAtencion } | null;
 }
 
@@ -123,44 +136,188 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly carrito = inject(CarritoService);
 
   /**
-   * ¿Se muestra el botón de pedido?
-   *
-   * Hacen falta tres cosas: un WhatsApp publicado al que escribir, un plan que incluya los
-   * pedidos desde la carta (`carta.puede_pedir`; si la respuesta no lo trae, se conserva el
-   * comportamiento de antes de existir los planes) y que el negocio esté atendiendo AHORA
-   * (`atendiendoAhora`, 2026-09-22). Sin esto último, el cliente armaba el carrito, abría
-   * WhatsApp, y era el bot quien le decía que no podía tomarlo — la carta se puede seguir
-   * mirando, pedir no.
+   * ¿La carta ofrece pedir? Hacen falta un WhatsApp publicado al que escribir y un plan que
+   * incluya los pedidos desde la carta (`carta.puede_pedir`; si la respuesta no lo trae, se
+   * conserva el comportamiento de antes de existir los planes). Falso = carta de solo lectura:
+   * los botones NO se muestran.
    */
-  readonly puedePedir = computed(() => {
+  readonly pedidosHabilitados = computed(() => {
     const negocio = this.negocio();
     if (!negocio?.url_whatsapp) return false;
-    if (!(negocio.carta?.puede_pedir ?? true)) return false;
-    return this.atendiendoAhora();
+    return negocio.carta?.puede_pedir ?? true;
   });
 
   /**
    * ¿Está el negocio atendiendo AHORA MISMO? Mismo estado que usa el saludo del bot
-   * (`horarioService.estadoDeAtencion`): horario y caja cruzados en un solo sitio.
+   * (`horarioService.estadoDeAtencion`): horario y caja cruzados en un solo sitio. Falso = los
+   * botones se VEN pero desactivados (2026-09-24: sustituye a la franja de aviso).
    *
-   * `undefined` en la respuesta (backend anterior a este campo) se trata como "abierto": es el
-   * comportamiento de siempre, no una carta rota por un dato que todavía no existía.
+   * `undefined` en la respuesta (backend anterior a este campo) se trata como "abierto".
    */
   readonly atendiendoAhora = computed(() => (this.negocio()?.atencion?.estado ?? 'abierto') === 'abierto');
 
-  /** El texto del aviso cuando NO se puede pedir por horario — `null` cuando sí se puede. */
-  readonly avisoAtencion = computed<string | null>(() => {
-    switch (this.negocio()?.atencion?.estado) {
-      case 'fuera_de_horario':
-        return 'Ahora mismo estamos fuera de nuestro horario de atención. Puedes ver la carta, pero no hacer pedidos por ahora.';
-      case 'aun_no_abre':
-        return 'Ya estamos en nuestro horario de atención, pero todavía no hemos abierto. Puedes ver la carta mientras tanto.';
-      case 'cerrado_sin_horario':
-        return 'Estamos cerrados en este momento. Puedes ver la carta, pero no hacer pedidos por ahora.';
+  readonly textoFueraDeHorario = 'Disponible en horario de atención';
+
+  // ── ¿Cómo quieres pedir? ──────────────────────────────────────────────────────────────
+  //
+  // Antes de los productos: en el local / a domicilio / recoger. Solo cuando se puede pedir y el
+  // negocio atiende ahora. El estado inicial es el mismo en el servidor y en el navegador; lo
+  // que el cliente eligió antes se restaura DESPUÉS, en `carrito.iniciar` (solo navegador).
+
+  /** Barrios con precio (solo si el negocio cobra el domicilio por barrio) y mesas activas. */
+  readonly barriosInfo = signal<{ habilitado: boolean; barrios: BarrioPublico[] }>({
+    habilitado: false,
+    barrios: [],
+  });
+  readonly mesas = signal<MesaElegida[]>([]);
+  /** Hasta que llegan barrios y mesas no se muestra el selector: no parpadea con opciones a medias. */
+  readonly eleccionCargada = signal(false);
+  /** «Cambiar»: vuelve al primer paso aunque ya haya una elección. */
+  private readonly forzarInicio = signal(false);
+
+  readonly hayBarrios = computed(
+    () => this.barriosInfo().habilitado && this.barriosInfo().barrios.length > 0,
+  );
+  readonly hayMesas = computed(() => this.mesas().length > 0);
+
+  /** El paso que toca, o `null` si la elección está completa. */
+  readonly pasoEleccion = computed<PasoEleccion | null>(() => {
+    const modalidad = this.carrito.modalidad();
+    if (this.forzarInicio() || modalidad === null) return 'modalidad';
+    if (modalidad === 'D' && this.hayBarrios() && this.carrito.barrio() === null) return 'barrio';
+    if (modalidad === 'L' && this.carrito.mesa() === null) return 'mesa';
+    return null;
+  });
+
+  /** El selector se ve solo cuando se puede pedir, se atiende ahora y falta elegir algo. */
+  readonly mostrarSelector = computed(
+    () =>
+      this.pedidosHabilitados() &&
+      this.atendiendoAhora() &&
+      !this.esVistaPrevia() &&
+      this.eleccionCargada() &&
+      this.pasoEleccion() !== null,
+  );
+
+  /** ¿Se ofrece cambiar lo elegido? Solo con elección completa y pedido posible. */
+  readonly mostrarChip = computed(
+    () =>
+      this.pedidosHabilitados() &&
+      this.atendiendoAhora() &&
+      !this.esVistaPrevia() &&
+      this.eleccionCargada() &&
+      this.pasoEleccion() === null,
+  );
+
+  /** «A domicilio · Centro · $4.500», «Para recoger», «En el local · Mesa 3». */
+  readonly resumenEleccion = computed(() => {
+    const barrio = this.carrito.barrio();
+    switch (this.carrito.modalidad()) {
+      case 'D':
+        if (!barrio) return 'A domicilio';
+        return barrio.id_barrio === 0
+          ? 'A domicilio · Otro barrio'
+          : `A domicilio · ${barrio.nombre} · ${this.formatPrice(barrio.valor ?? 0)}`;
+      case 'R':
+        return 'Para recoger en el local';
+      case 'L':
+        return `En el local · ${this.carrito.mesa()?.nombre ?? ''}`.trim();
       default:
-        return null;
+        return '';
     }
   });
+
+  /** La nota bajo el total: solo nombra el recargo que de verdad puede aplicar. */
+  readonly notaTotal = computed(() => {
+    switch (this.carrito.modalidad()) {
+      case 'D':
+        return this.carrito.domicilio() > 0
+          ? 'El total final lo confirma el restaurante: puede variar por desechables.'
+          : 'El total final lo confirma el restaurante: no incluye el domicilio y puede variar por desechables.';
+      case 'R':
+      case 'L':
+        return 'El total final lo confirma el restaurante: puede variar por desechables.';
+      default:
+        return 'El total final lo confirma el restaurante: puede subir por desechables o por el domicilio.';
+    }
+  });
+
+  elegirModalidad(modalidad: Modalidad): void {
+    this.forzarInicio.set(false);
+    this.carrito.elegirModalidad(modalidad);
+  }
+
+  elegirBarrio(barrio: BarrioPublico | null): void {
+    this.carrito.elegirBarrio(
+      barrio
+        ? { id_barrio: barrio.id_barrio, nombre: barrio.nombre, valor: barrio.valor }
+        : { id_barrio: 0, nombre: 'Otro barrio', valor: null },
+    );
+  }
+
+  elegirMesa(mesa: MesaElegida): void {
+    this.carrito.elegirMesa(mesa);
+  }
+
+  cambiarEleccion(): void {
+    this.forzarInicio.set(true);
+  }
+
+  /**
+   * Lee barrios y mesas del negocio. Un fallo de cualquiera de las dos NO tumba la carta:
+   * sin barrios el domicilio se pide sin barrio, sin mesas «En el local» no aparece.
+   */
+  private cargarEleccion(idNegocio: number): void {
+    if (!this.pedidosHabilitados()) {
+      this.eleccionCargada.set(true);
+      return;
+    }
+    const base = `${environment.apiUrl}/public/negocios/${idNegocio}`;
+    forkJoin({
+      barrios: this.http
+        .get<{ data: { habilitado: boolean; barrios: BarrioPublico[] } }>(`${base}/barrios`)
+        .pipe(catchError(() => of(null))),
+      mesas: this.http
+        .get<{ data: MesaElegida[] }>(`${base}/mesas`)
+        .pipe(catchError(() => of(null))),
+    }).subscribe(({ barrios, mesas }) => {
+      this.barriosInfo.set(barrios?.data ?? { habilitado: false, barrios: [] });
+      this.mesas.set(mesas?.data ?? []);
+      this.reconciliarEleccion();
+      this.eleccionCargada.set(true);
+    });
+  }
+
+  /**
+   * Lo guardado de otra visita puede haber dejado de valer: un barrio borrado, una mesa
+   * desactivada, «en el local» en un negocio sin mesas. Se suelta y se vuelve a preguntar.
+   * Y una mesa en la URL (`?mesa=<id>`, el QR de la mesa) manda sobre lo guardado.
+   */
+  private reconciliarEleccion(): void {
+    const modalidad = this.carrito.modalidad();
+    const barrio = this.carrito.barrio();
+    if (modalidad === 'D' && barrio && barrio.id_barrio !== 0) {
+      const sigue = this.barriosInfo().barrios.some((b) => b.id_barrio === barrio.id_barrio);
+      if (!sigue || !this.hayBarrios()) this.carrito.elegirBarrio(null);
+    }
+    if (modalidad === 'D' && barrio && !this.hayBarrios()) this.carrito.elegirBarrio(null);
+    if (modalidad === 'L') {
+      const mesa = this.carrito.mesa();
+      if (!this.hayMesas()) this.carrito.elegirModalidad(null);
+      else if (mesa && !this.mesas().some((m) => m.id_mesa === mesa.id_mesa)) {
+        this.carrito.elegirMesa(null);
+      }
+    }
+
+    const deLaUrl = Number(this.route.snapshot.queryParamMap.get('mesa'));
+    if (Number.isInteger(deLaUrl) && deLaUrl > 0) {
+      const mesa = this.mesas().find((m) => m.id_mesa === deLaUrl);
+      if (mesa) {
+        this.carrito.elegirModalidad('L');
+        this.carrito.elegirMesa(mesa);
+      }
+    }
+  }
 
   /** El panel de pre-pedido, para revisar antes de mandar. */
   readonly prePedidoAbierto = signal(false);
@@ -332,6 +489,8 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
       this.negocioInvalido.set(false);
       this.planInactivo.set(false);
       this.negocio.set(null);
+      this.eleccionCargada.set(false);
+      this.forzarInicio.set(false);
       this.secciones.set([]);
       this.categoriaActiva.set(null);
       this.negocioId.set(id);
@@ -504,6 +663,14 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
   agregarAlCarrito(prod: ProductoPublico): void {
     // Un agotado se muestra para que el cliente sepa que existe, no para pedirlo.
     if (prod.disponible === false) return;
+    if (!this.atendiendoAhora()) return;
+    // Con ingredientes que se pueden quitar, el «+» abre SIEMPRE el modal (aunque ya haya líneas
+    // de ese producto): quien pide una segunda hamburguesa puede querer otra distinta. Sin
+    // removibles se agrega directo, como siempre.
+    if (this.removiblesDe(prod).length > 0) {
+      this.abrirModalIngredientes(prod);
+      return;
+    }
     this.carrito.agregar({
       id_producto: prod.id_producto,
       nombre: prod.nombre,
@@ -513,6 +680,95 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
 
   quitarDelCarrito(idProducto: number): void {
     this.carrito.quitar(idProducto);
+  }
+
+  /** Suma o resta UNA línea del pre-pedido (producto + lo que se le quitó). */
+  ajustarLinea(clave: string, delta: number): void {
+    this.carrito.sumarALinea(clave, delta);
+  }
+
+  protected claveDe = claveLinea;
+
+  /** «sin cebolla, sin tomate». */
+  protected textoSin(exclusiones: { nombre: string }[]): string {
+    return exclusiones.map((e) => `sin ${e.nombre}`).join(', ');
+  }
+
+  // ── Modal «¿quitar algún ingrediente?» ────────────────────────────────────────────────
+  //
+  // Se abre desde el «+» de un producto con ingredientes removibles. Todos vienen incluidos;
+  // el cliente marca «quitar» en los que no quiere y confirma con un toque. SSR-safe: solo
+  // toca el DOM (foco) en el navegador.
+
+  readonly modalProducto = signal<ProductoPublico | null>(null);
+  readonly quitarSel = signal<ReadonlySet<number>>(new Set());
+  private readonly modalRef = viewChild<ElementRef<HTMLElement>>('modalIngredientes');
+  private focoPrevio: HTMLElement | null = null;
+
+  protected removiblesDe(prod: ProductoPublico): { id_ingrediente: number; nombre: string }[] {
+    return prod.ingredientes_removibles ?? [];
+  }
+
+  private abrirModalIngredientes(prod: ProductoPublico): void {
+    if (isPlatformBrowser(this.platformId)) {
+      this.focoPrevio = this.document.activeElement as HTMLElement | null;
+    }
+    this.quitarSel.set(new Set());
+    this.modalProducto.set(prod);
+    if (isPlatformBrowser(this.platformId)) {
+      // El foco entra al diálogo en cuanto se pinta.
+      setTimeout(() => this.modalRef()?.nativeElement.querySelector<HTMLElement>('input, button')?.focus());
+    }
+  }
+
+  cerrarModalIngredientes(): void {
+    this.modalProducto.set(null);
+    if (isPlatformBrowser(this.platformId)) {
+      this.focoPrevio?.focus();
+      this.focoPrevio = null;
+    }
+  }
+
+  alternarQuitar(idIngrediente: number): void {
+    const nuevo = new Set(this.quitarSel());
+    if (nuevo.has(idIngrediente)) nuevo.delete(idIngrediente);
+    else nuevo.add(idIngrediente);
+    this.quitarSel.set(nuevo);
+  }
+
+  confirmarModalIngredientes(): void {
+    const prod = this.modalProducto();
+    if (!prod) return;
+    const quitados = this.removiblesDe(prod).filter((r) => this.quitarSel().has(r.id_ingrediente));
+    this.carrito.agregar(
+      { id_producto: prod.id_producto, nombre: prod.nombre, precio: prod.precio },
+      quitados,
+    );
+    this.cerrarModalIngredientes();
+  }
+
+  /** Esc cierra; Tab no sale del diálogo (foco atrapado). */
+  onTeclaModal(evento: KeyboardEvent): void {
+    if (evento.key === 'Escape') {
+      evento.preventDefault();
+      this.cerrarModalIngredientes();
+      return;
+    }
+    if (evento.key !== 'Tab') return;
+    const foco = Array.from(
+      this.modalRef()?.nativeElement.querySelectorAll<HTMLElement>('input, button:not([disabled])') ?? [],
+    );
+    if (foco.length === 0) return;
+    const primero = foco[0];
+    const ultimo = foco[foco.length - 1];
+    const activo = this.document.activeElement;
+    if (evento.shiftKey && activo === primero) {
+      evento.preventDefault();
+      ultimo.focus();
+    } else if (!evento.shiftKey && activo === ultimo) {
+      evento.preventDefault();
+      primero.focus();
+    }
   }
 
   abrirPrePedido(): void {
@@ -584,6 +840,7 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
           }
 
           this.cargarCarta(idNegocio);
+          this.cargarEleccion(idNegocio);
         },
         error: () => {
           this.negocioInvalido.set(true);

@@ -38,6 +38,44 @@ export class ConfiguracionService {
       .pipe(map((res) => res.data ?? []));
   }
 
+  // ── Barrios con precio de domicilio ──
+  listarBarrios(idNegocio: number): Observable<BarrioDomicilio[]> {
+    const params = new HttpParams().set('id_negocio', String(idNegocio));
+    return this.http
+      .get<ApiResponse<BarrioDomicilio[]>>(`${environment.apiUrl}/barrios-domicilio`, { params })
+      .pipe(map((res) => res.data ?? []));
+  }
+
+  crearBarrio(idNegocio: number, nombre: string, valor: number): Observable<BarrioDomicilio> {
+    return this.http
+      .post<ApiResponse<BarrioDomicilio>>(`${environment.apiUrl}/barrios-domicilio`, {
+        id_negocio: idNegocio,
+        nombre,
+        valor,
+      })
+      .pipe(map((res) => res.data));
+  }
+
+  actualizarBarrio(
+    idBarrio: number,
+    idNegocio: number,
+    nombre: string,
+    valor: number,
+  ): Observable<BarrioDomicilio> {
+    return this.http
+      .put<ApiResponse<BarrioDomicilio>>(`${environment.apiUrl}/barrios-domicilio/${idBarrio}`, {
+        id_negocio: idNegocio,
+        nombre,
+        valor,
+      })
+      .pipe(map((res) => res.data));
+  }
+
+  eliminarBarrio(idBarrio: number, idNegocio: number): Observable<unknown> {
+    const params = new HttpParams().set('id_negocio', String(idNegocio));
+    return this.http.delete(`${environment.apiUrl}/barrios-domicilio/${idBarrio}`, { params });
+  }
+
   // ── Métodos de pago ──
   listarMetodosPago(idNegocio: number, incluirInactivos = false): Observable<MetodoPago[]> {
     let params = new HttpParams().set('id_negocio', String(idNegocio));
@@ -74,4 +112,10 @@ export interface MetodoPago {
   nombre: string;
   estado: 'A' | 'I';
   fecha_creacion: string;
+}
+
+export interface BarrioDomicilio {
+  id_barrio: number;
+  nombre: string;
+  valor: number;
 }

@@ -212,4 +212,217 @@ describe('CarritoService', () => {
       expect(carrito.cantidadTotal()).toBe(1);
     });
   });
+
+  describe('cómo quiere pedir — modificadores del código (contrato con el bot)', () => {
+    beforeEach(() => carrito.agregar(hamburguesa));
+
+    it('SIN elección el código y el mensaje son exactamente los de siempre', () => {
+      expect(carrito.codigoCompacto()).toBe('#P12-39x1');
+      expect(carrito.mensajeParaWhatsApp()).not.toContain('Modalidad');
+      expect(carrito.mensajeParaWhatsApp()).not.toContain('Domicilio');
+    });
+
+    it('domicilio con barrio: ~m=D~z=<id> y el domicilio suma al total', () => {
+      carrito.elegirModalidad('D');
+      carrito.elegirBarrio({ id_barrio: 7, nombre: 'Centro', valor: 4500 });
+
+      expect(carrito.codigoCompacto()).toBe('#P12-39x1~m=D~z=7');
+      expect(carrito.totalConDomicilio()).toBe(32000 + 4500);
+      const mensaje = carrito.mensajeParaWhatsApp();
+      expect(mensaje).toContain('A domicilio · Centro');
+      expect(mensaje).toContain('Domicilio: ');
+      // El total del mensaje incluye el domicilio.
+      expect(mensaje).toMatch(/Total aproximado: \$\s?36\.500/);
+    });
+
+    it('«otro barrio» va como z=0 y no suma nada', () => {
+      carrito.elegirModalidad('D');
+      carrito.elegirBarrio({ id_barrio: 0, nombre: 'Otro barrio', valor: null });
+
+      expect(carrito.codigoCompacto()).toBe('#P12-39x1~m=D~z=0');
+      expect(carrito.domicilio()).toBe(0);
+    });
+
+    it('recoger: ~m=R; en el local: ~m=L~t=<mesa>', () => {
+      carrito.elegirModalidad('R');
+      expect(carrito.codigoCompacto()).toBe('#P12-39x1~m=R');
+
+      carrito.elegirModalidad('L');
+      carrito.elegirMesa({ id_mesa: 5, nombre: 'Mesa 5', numero: 5 });
+      expect(carrito.codigoCompacto()).toBe('#P12-39x1~m=L~t=5');
+    });
+
+    it('el código con modificadores sigue en la ÚLTIMA línea y solo', () => {
+      carrito.elegirModalidad('D');
+      carrito.elegirBarrio({ id_barrio: 7, nombre: 'Centro', valor: 4500 });
+
+      const lineas = carrito.mensajeParaWhatsApp().split('\n');
+      expect(lineas[lineas.length - 1]).toBe('#P12-39x1~m=D~z=7');
+    });
+
+    it('cambiar de modalidad suelta el barrio y la mesa que ya no aplican', () => {
+      carrito.elegirModalidad('D');
+      carrito.elegirBarrio({ id_barrio: 7, nombre: 'Centro', valor: 4500 });
+      carrito.elegirModalidad('R');
+
+      expect(carrito.barrio()).toBeNull();
+      expect(carrito.domicilio()).toBe(0);
+      expect(carrito.codigoCompacto()).toBe('#P12-39x1~m=R');
+    });
+
+    it('la elección se recuerda entre visitas, por negocio', () => {
+      carrito.elegirModalidad('D');
+      carrito.elegirBarrio({ id_barrio: 7, nombre: 'Centro', valor: 4500 });
+
+      carrito.iniciar(12);
+      expect(carrito.modalidad()).toBe('D');
+      expect(carrito.barrio()?.id_barrio).toBe(7);
+
+      carrito.iniciar(99);
+      expect(carrito.modalidad()).toBeNull();
+    });
+
+    it('lo guardado con otra forma o vencido se ignora', () => {
+      localStorage.setItem('escalapp.pedido.12', JSON.stringify({ v: 9 }));
+      carrito.iniciar(12);
+      expect(carrito.modalidad()).toBeNull();
+
+      localStorage.setItem(
+        'escalapp.pedido.12',
+        JSON.stringify({ v: 1, guardado: Date.now() - 5 * 60 * 60 * 1000, modalidad: 'R', barrio: null, mesa: null }),
+      );
+      carrito.iniciar(12);
+      expect(carrito.modalidad()).toBeNull();
+    });
+  });
+
+  describe('ingredientes quitados — líneas distintas y el código `-r`', () => {
+    const cebolla = { id_ingrediente: 12, nombre: 'cebolla' };
+    const tomate = { id_ingrediente: 15, nombre: 'tomate' };
+
+    it('sin exclusiones todo es como siempre: `39x1`, sin «(sin …)»', () => {
+      carrito.agregar(hamburguesa);
+      expect(carrito.codigoCompacto()).toBe('#P12-39x1');
+      expect(carrito.mensajeParaWhatsApp()).toContain('• 1 × Hamburguesa doble\n');
+      expect(carrito.items()[0].exclusiones).toEqual([]);
+    });
+
+    it('«una sin cebolla» y «una con todo» son DOS líneas del mismo producto', () => {
+      carrito.agregar(hamburguesa, [cebolla]);
+      carrito.agregar(hamburguesa);
+
+      expect(carrito.items()).toHaveLength(2);
+      expect(carrito.codigoCompacto()).toBe('#P12-39x1-r12,39x1');
+    });
+
+    it('se suman solo las líneas con el MISMO conjunto de exclusiones (sin importar el orden)', () => {
+      carrito.agregar(hamburguesa, [tomate, cebolla]);
+      carrito.agregar(hamburguesa, [cebolla, tomate]);
+
+      expect(carrito.items()).toHaveLength(1);
+      expect(carrito.items()[0].cantidad).toBe(2);
+      expect(carrito.codigoCompacto()).toBe('#P12-39x2-r12.15');
+    });
+
+    it('el mensaje legible dice «(sin cebolla, sin tomate)»', () => {
+      carrito.agregar(hamburguesa, [cebolla, tomate]);
+      expect(carrito.mensajeParaWhatsApp()).toContain('• 1 × Hamburguesa doble (sin cebolla, sin tomate)');
+    });
+
+    it('la línea #P sigue siendo la ÚLTIMA y sola', () => {
+      carrito.agregar(hamburguesa, [cebolla]);
+      const lineas = carrito.mensajeParaWhatsApp().split('\n');
+      expect(lineas[lineas.length - 1]).toBe('#P12-39x1-r12');
+    });
+
+    it('el «n» de la tarjeta suma TODAS las líneas del producto', () => {
+      carrito.agregar(hamburguesa, [cebolla]);
+      carrito.agregar(hamburguesa, [cebolla]);
+      carrito.agregar(hamburguesa);
+      carrito.agregar(limonada);
+
+      expect(carrito.cantidadDe(39)).toBe(3);
+      expect(carrito.cantidadDe(41)).toBe(1);
+    });
+
+    it('el «−» de la tarjeta resta de la línea MÁS RECIENTE del producto', () => {
+      carrito.agregar(hamburguesa, [cebolla]); // antigua
+      carrito.agregar(hamburguesa); // más reciente
+      carrito.quitar(39);
+
+      expect(carrito.items()).toHaveLength(1);
+      expect(carrito.items()[0].exclusiones).toEqual([cebolla]); // la reciente salió
+    });
+
+    it('cada línea se ajusta por separado y sale al llegar a cero', () => {
+      carrito.agregar(hamburguesa, [cebolla]);
+      carrito.agregar(hamburguesa);
+      carrito.sumarALinea('39:12', 2);
+      carrito.sumarALinea('39:', -1);
+
+      expect(carrito.items()).toHaveLength(1);
+      expect(carrito.items()[0].cantidad).toBe(3);
+    });
+
+    it('un texto largo recorta SOLO lo legible: la línea #P va completa', () => {
+      for (let n = 1; n <= 28; n++) {
+        carrito.agregar({ id_producto: n, nombre: `Producto con un nombre bastante largo número ${n}`, precio: 1000 }, [
+          { id_ingrediente: n, nombre: 'ingrediente con nombre largo uno' },
+          { id_ingrediente: n + 100, nombre: 'ingrediente con nombre largo dos' },
+        ]);
+      }
+      const mensaje = carrito.mensajeParaWhatsApp();
+      const lineas = mensaje.split('\n');
+
+      expect(lineas[lineas.length - 1]).toBe(carrito.codigoCompacto());
+      expect(carrito.codigoCompacto().match(/x1-r/g)).toHaveLength(28); // ningún producto se perdió
+      expect(mensaje).toContain('… y ');
+      expect(mensaje.length - carrito.codigoCompacto().length).toBeLessThan(1700);
+    });
+
+    it('sin pasarse de largo el texto no se recorta', () => {
+      carrito.agregar(hamburguesa, [cebolla]);
+      expect(carrito.mensajeParaWhatsApp()).not.toContain('… y ');
+    });
+
+    it('persistencia: las exclusiones sobreviven a recargar', () => {
+      carrito.agregar(hamburguesa, [cebolla, tomate]);
+      carrito.iniciar(12);
+      expect(carrito.items()[0].exclusiones).toEqual([cebolla, tomate]);
+    });
+
+    it('un carrito guardado con el formato anterior (v2, sin exclusiones) sigue leyéndose', () => {
+      localStorage.setItem(
+        'escalapp.carrito.12',
+        JSON.stringify({
+          v: 2,
+          guardado: Date.now(),
+          enviadoEn: null,
+          items: [{ id_producto: 39, nombre: 'Hamburguesa doble', precio: 32000, cantidad: 2 }],
+        }),
+      );
+      carrito.iniciar(12);
+
+      expect(carrito.items()).toEqual([{ ...hamburguesa, cantidad: 2, exclusiones: [] }]);
+    });
+
+    it('exclusiones guardadas con basura se descartan sin perder el carrito', () => {
+      localStorage.setItem(
+        'escalapp.carrito.12',
+        JSON.stringify({
+          v: 3,
+          guardado: Date.now(),
+          enviadoEn: null,
+          items: [
+            {
+              id_producto: 39, nombre: 'H', precio: 1000, cantidad: 1,
+              exclusiones: [{ id_ingrediente: 'x', nombre: 5 }, { id_ingrediente: 7, nombre: 'ok' }],
+            },
+          ],
+        }),
+      );
+      carrito.iniciar(12);
+      expect(carrito.items()[0].exclusiones).toEqual([{ id_ingrediente: 7, nombre: 'ok' }]);
+    });
+  });
 });

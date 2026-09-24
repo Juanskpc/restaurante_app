@@ -272,6 +272,41 @@ export class InventarioComponent {
     });
   }
 
+  /**
+   * Deja el stock en 0 como un ajuste con historia (el backend lo registra con usuario y motivo
+   * «Restablecido a 0»). Pide confirmación con el diálogo de la app, no con `window.confirm`.
+   */
+  async restablecerACero(insumo: InventarioInsumo): Promise<void> {
+    if (!this.canAjusteRapido()) return;
+    const idNegocio = this.negocioId();
+    if (!idNegocio || this.guardando() || insumo.stock_actual === 0) return;
+
+    const confirmado = await this.uiFeedback.confirm({
+      title: 'Restablecer a 0',
+      message: `El stock de "${insumo.nombre}" (${insumo.stock_actual} ${insumo.unidad_medida}) quedará en 0 y el cambio se guardará en el historial. ¿Deseas continuar?`,
+      confirmText: 'Restablecer',
+      cancelText: 'Cancelar',
+      tone: 'warning',
+    });
+    if (!confirmado) return;
+
+    this.guardando.set(insumo.id_ingrediente);
+    this.http.post(
+      `${environment.apiUrl}/inventario/ingredientes/${insumo.id_ingrediente}/restablecer`,
+      { id_negocio: idNegocio }
+    ).subscribe({
+      next: () => {
+        this.guardando.set(null);
+        this.uiFeedback.updated('El stock quedó en 0.');
+        this.loadInventario(idNegocio);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.guardando.set(null);
+        this.uiFeedback.error(this.getHttpErrorMessage(err) || 'No fue posible restablecer el stock.');
+      },
+    });
+  }
+
   abrirEditarInsumo(insumo: InventarioInsumo): void {
     if (!this.canGestionarInsumo()) return;
     this.editandoInsumo.set(insumo);

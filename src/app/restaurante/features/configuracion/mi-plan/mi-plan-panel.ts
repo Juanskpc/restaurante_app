@@ -107,6 +107,11 @@ export class MiPlanPanelComponent implements OnInit {
   }
 
   protected gestionar(): void {
-    void this.auth.irAlInicio('/admin/mis-pagos');
+    // El negocio que se está gestionando viaja como `?negocio=<id>`: con varios negocios, Mis
+    // pagos abría siempre el primero. `irAlInicio` lo codifica y el callback del admin lo respeta
+    // (solo rutas internas), así que sobrevive al paso por el SSO.
+    const idNegocio = this.auth.negocio()?.id_negocio;
+    const destino = idNegocio ? `/admin/mis-pagos?negocio=${idNegocio}` : '/admin/mis-pagos';
+    void this.auth.irAlInicio(destino);
   }
 }

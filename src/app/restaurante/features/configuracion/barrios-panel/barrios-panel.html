@@ -1,0 +1,105 @@
+<article class="panel panel--wide bp" id="barrios">
+  <header>
+    <h2>Barrios y valor del domicilio</h2>
+    <p class="hint">
+      La carta virtual le pide el barrio a quien pide a domicilio y le muestra lo que cuesta llevarle
+      el pedido. Si no aparece en tu lista, puede elegir «Otro barrio»: el pedido entra sin valor de
+      domicilio y tú se lo confirmas.
+    </p>
+  </header>
+
+  @if (canEdit()) {
+    <div class="bp__nuevo">
+      <input
+        class="input"
+        type="text"
+        maxlength="100"
+        placeholder="Barrio (ej: Centro)"
+        [value]="nuevoNombre()"
+        (input)="nuevoNombre.set($any($event.target).value)"
+        (keydown.enter)="crear()"
+      />
+      <input
+        class="input"
+        type="text"
+        inputmode="numeric"
+        maxlength="9"
+        placeholder="Valor (ej: 4000)"
+        [value]="nuevoValor()"
+        (input)="nuevoValor.set($any($event.target).value)"
+        (keydown.enter)="crear()"
+      />
+      <button
+        type="button"
+        class="btn btn--primary"
+        [disabled]="guardando() || !puedeCrear()"
+        (click)="crear()"
+      >
+        <lucide-icon name="circle-plus" [size]="16" /> Agregar
+      </button>
+    </div>
+  }
+
+  @if (cargando()) {
+    <p class="bp__muted">Cargando…</p>
+  } @else if (error()) {
+    <p class="bp__error">{{ error() }}</p>
+  } @else if (barrios().length === 0) {
+    <p class="bp__muted">Aún no tienes barrios. Sin ellos, el domicilio se cobra como hasta ahora.</p>
+  } @else {
+    <ul class="bp__lista">
+      @for (b of barrios(); track b.id_barrio) {
+        <li class="bp__fila">
+          @if (editandoId() === b.id_barrio) {
+            <div class="bp__editar">
+              <input
+                class="input"
+                type="text"
+                maxlength="100"
+                [value]="editandoNombre()"
+                (input)="editandoNombre.set($any($event.target).value)"
+                (keydown.enter)="guardarEdicion()"
+              />
+              <input
+                class="input"
+                type="text"
+                inputmode="numeric"
+                maxlength="9"
+                [value]="editandoValor()"
+                (input)="editandoValor.set($any($event.target).value)"
+                (keydown.enter)="guardarEdicion()"
+              />
+              <div class="bp__acciones">
+                <button type="button" class="btn btn--primary" [disabled]="guardando()" (click)="guardarEdicion()">
+                  Guardar
+                </button>
+                <button type="button" class="btn btn--outline" (click)="cancelarEdicion()">Cancelar</button>
+              </div>
+            </div>
+          } @else {
+            <div class="bp__info">
+              <strong>{{ b.nombre }}</strong>
+              <span class="bp__valor">{{ dinero(b.valor) }}</span>
+            </div>
+            @if (canEdit()) {
+              <div class="bp__acciones">
+                <button type="button" class="btn btn--outline bp__icono" title="Editar" (click)="iniciarEdicion(b)">
+                  <lucide-icon name="pencil" [size]="14" />
+                </button>
+                <button
+                  type="button"
+                  class="btn btn--outline bp__icono"
+                  title="Quitar"
+                  [disabled]="guardando()"
+                  (click)="eliminar(b)"
+                >
+                  <lucide-icon name="trash-2" [size]="14" />
+                </button>
+              </div>
+            }
+          }
+        </li>
+      }
+    </ul>
+  }
+</article>
