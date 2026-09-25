@@ -20,6 +20,14 @@ import { LucideAngularModule } from 'lucide-angular';
 import { catchError, forkJoin, of } from 'rxjs';
 
 import { CarritoService, MesaElegida, Modalidad, claveLinea } from './carrito.service';
+import {
+  CampoCliente,
+  ETIQUETAS,
+  MAXIMOS,
+  limpiarTelefono,
+  requisitos,
+  validarCliente,
+} from './datos-cliente';
 import { environment } from '../../../../environments/environment';
 import {
   CartaPublicaConfig,
@@ -773,12 +781,103 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
 
   abrirPrePedido(): void {
     if (this.carrito.vacio()) return;
+    this.pasoPanel.set('pedido');
+    this.intentoEnvio.set(false);
     this.prePedidoAbierto.set(true);
   }
 
   cerrarPrePedido(): void {
     this.prePedidoAbierto.set(false);
   }
+
+  // ── Panel «Tu pedido»: título según la modalidad y paso de datos del cliente ────────────
+
+  /** `pedido` = la lista; `datos` = nombre, teléfono, dirección y nota antes de abrir WhatsApp. */
+  readonly pasoPanel = signal<'pedido' | 'datos'>('pedido');
+  /** Los errores solo se enseñan tras intentar continuar: no se le grita a quien apenas empieza. */
+  readonly intentoEnvio = signal(false);
+
+  readonly tituloPedido = computed(() => {
+    switch (this.carrito.modalidad()) {
+      case 'D':
+        return 'Tu pedido a domicilio';
+      case 'L':
+        return 'Tu pedido en mesa'; // sin el nombre de la mesa
+      case 'R':
+        return 'Tu pedido para llevar';
+      default:
+        return 'Tu pedido';
+    }
+  });
+
+  readonly iconoPedido = computed(() => {
+    switch (this.carrito.modalidad()) {
+      case 'D':
+        return 'bike';
+      case 'L':
+        return 'armchair';
+      default:
+        return 'shopping-bag';
+    }
+  });
+
+  readonly cliente = this.carrito.cliente;
+  readonly requisitosCliente = computed(() => requisitos(this.carrito.modalidad()));
+  readonly erroresCliente = computed(() => validarCliente(this.carrito.modalidad(), this.carrito.cliente()));
+
+  protected etiquetaCampo(campo: CampoCliente): string {
+    return ETIQUETAS[campo];
+  }
+
+  protected maximoCampo(campo: CampoCliente): number {
+    return MAXIMOS[campo];
+  }
+
+  protected autocompletar(campo: CampoCliente): string | null {
+    return { nombre: 'name', telefono: 'tel', direccion: 'street-address', nota: null }[campo];
+  }
+
+  protected mostrarError(campo: CampoCliente): boolean {
+    return this.intentoEnvio() && !!this.erroresCliente()[campo];
+  }
+
+  protected cambiarCampo(campo: CampoCliente, valor: string): void {
+    // El teléfono se limpia al escribir (solo dígitos y un + inicial); el resto se guarda tal cual y
+    // se sanea al armar el mensaje.
+    this.carrito.guardarCliente({ [campo]: campo === 'telefono' ? limpiarTelefono(valor) : valor });
+  }
+
+  /** «Continuar» del pedido: con modalidad elegida pide los datos; sin ella (caso raro) abre WhatsApp. */
+  continuarDelPedido(): void {
+    if (!this.carrito.modalidad()) {
+      this.enviarPorWhatsApp();
+      return;
+    }
+    this.intentoEnvio.set(false);
+    this.pasoPanel.set('datos');
+  }
+
+  volverAlPedido(): void {
+    this.pasoPanel.set('pedido');
+  }
+
+  /** ¿Este producto tiene ingredientes que se puedan quitar? (para «+ Otra con cambios»). */
+  protected tieneRemovibles(idProducto: number): boolean {
+    const prod = this.productoPorId().get(idProducto);
+    return !!prod && this.removiblesDe(prod).length > 0;
+  }
+
+  /** Otra unidad DISTINTA de un producto que ya está en el pedido: abre el modal de ingredientes. */
+  agregarOtraDistinta(idProducto: number): void {
+    const prod = this.productoPorId().get(idProducto);
+    if (prod) this.agregarAlCarrito(prod);
+  }
+
+  private readonly productoPorId = computed(() => {
+    const mapa = new Map<number, ProductoPublico>();
+    for (const s of this.secciones()) for (const p of s.productos) mapa.set(p.id_producto, p);
+    return mapa;
+  });
 
   /**
    * Abre WhatsApp con el pedido escrito.
@@ -788,6 +887,16 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
    * arranca limpia en vez de resucitar un pedido que ya salió hace días.
    */
   enviarPorWhatsApp(): void {
+    // Con modalidad elegida hacen falta los datos: si falta algo se enseña qué y no se abre nada.
+    if (this.carrito.modalidad()) {
+      this.intentoEnvio.set(true);
+      if (Object.keys(this.erroresCliente()).length > 0) {
+        if (isPlatformBrowser(this.platformId)) {
+          this.document.getElementById(`cli-${Object.keys(this.erroresCliente())[0]}`)?.focus();
+        }
+        return;
+      }
+    }
     const enlace = this.carrito.enlaceWhatsApp(this.negocio()?.url_whatsapp);
     if (!enlace) return;
     if (!isPlatformBrowser(this.platformId)) return;

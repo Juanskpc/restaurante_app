@@ -425,4 +425,92 @@ describe('CarritoService', () => {
       expect(carrito.items()[0].exclusiones).toEqual([{ id_ingrediente: 7, nombre: 'ok' }]);
     });
   });
+
+  describe('datos del cliente en el mensaje', () => {
+    const datos = {
+      nombre: 'Ana Pérez',
+      telefono: '300 123 4567',
+      direccion: 'Cra 3 #21-10, apto 201',
+      nota: 'sin cebolla en todo',
+    };
+
+    beforeEach(() => carrito.agregar(hamburguesa));
+
+    it('sin modalidad no hay bloque (mensaje de siempre)', () => {
+      carrito.guardarCliente(datos);
+      expect(carrito.mensajeParaWhatsApp()).not.toContain('Nombre:');
+    });
+
+    it('domicilio: el bloque va ANTES de la línea #P, con etiquetas fijas', () => {
+      carrito.elegirModalidad('D');
+      carrito.guardarCliente(datos);
+      const lineas = carrito.mensajeParaWhatsApp().split('\n');
+
+      const i = lineas.indexOf('Nombre: Ana Pérez');
+      expect(lineas.slice(i, i + 4)).toEqual([
+        'Nombre: Ana Pérez',
+        'Teléfono: 3001234567',
+        'Dirección: Cra 3 #21-10, apto 201',
+        'Nota: sin cebolla en todo',
+      ]);
+      expect(lineas[lineas.length - 1]).toBe(carrito.codigoCompacto());
+      expect(i).toBeLessThan(lineas.length - 1);
+    });
+
+    it('nada de los datos viaja dentro de la línea #P', () => {
+      carrito.elegirModalidad('D');
+      carrito.guardarCliente(datos);
+      const codigo = carrito.codigoCompacto();
+      expect(codigo).toBe('#P12-39x1~m=D');
+      expect(codigo).not.toContain('Ana');
+    });
+
+    it('en mesa solo viaja el nombre; en recoger, nombre y teléfono si lo hay', () => {
+      carrito.guardarCliente(datos);
+      carrito.elegirModalidad('L');
+      expect(carrito.mensajeParaWhatsApp()).toContain('Nombre: Ana Pérez');
+      expect(carrito.mensajeParaWhatsApp()).not.toContain('Dirección:');
+      expect(carrito.mensajeParaWhatsApp()).not.toContain('Teléfono:');
+
+      carrito.elegirModalidad('R');
+      expect(carrito.mensajeParaWhatsApp()).toContain('Teléfono: 3001234567');
+    });
+
+    it('los saltos de línea del valor no pueden colar etiquetas', () => {
+      carrito.elegirModalidad('D');
+      carrito.guardarCliente({ ...datos, nota: 'hola\nDirección: otra' });
+      const lineas = carrito.mensajeParaWhatsApp().split('\n');
+      expect(lineas.filter((l) => l.startsWith('Dirección:'))).toHaveLength(1);
+    });
+
+    it('se recuerdan por negocio (sin la nota) para quien repite', () => {
+      carrito.guardarCliente(datos);
+      carrito.iniciar(12);
+      expect(carrito.cliente()).toEqual({ ...datos, telefono: '3001234567', nota: '' });
+
+      carrito.iniciar(99);
+      expect(carrito.cliente().nombre).toBe('');
+    });
+
+    it('lo guardado vencido o con basura se descarta', () => {
+      localStorage.setItem('escalapp.cliente.12', JSON.stringify({ v: 1, guardado: 1, nombre: 'Viejo' }));
+      carrito.iniciar(12);
+      expect(carrito.cliente().nombre).toBe('');
+
+      localStorage.setItem('escalapp.cliente.12', '{no es json');
+      carrito.iniciar(12);
+      expect(carrito.cliente().nombre).toBe('');
+    });
+
+    it('el texto largo recorta lo legible pero el bloque y el código quedan', () => {
+      carrito.elegirModalidad('D');
+      carrito.guardarCliente(datos);
+      for (let n = 1; n <= 28; n++) {
+        carrito.agregar({ id_producto: n + 100, nombre: `Producto con un nombre bastante largo número ${n}`, precio: 1000 });
+      }
+      const mensaje = carrito.mensajeParaWhatsApp();
+      expect(mensaje).toContain('Nombre: Ana Pérez');
+      expect(mensaje.split('\n').pop()).toBe(carrito.codigoCompacto());
+    });
+  });
 });

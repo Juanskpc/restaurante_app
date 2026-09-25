@@ -18,17 +18,50 @@ const CLAVE = 'negocio_sidebar_colapsado';
 export class SidebarService {
   private readonly platformId = inject(PLATFORM_ID);
 
-  private readonly estado = signal(this.leerGuardado());
+  /**
+   * Cómo lo quiere el usuario cuando nadie le impone nada. Solo lo cambia el botón del menú, y es
+   * lo único que se guarda en `localStorage`.
+   *
+   * Existe separado de `estado` porque hay pantallas que lo pliegan por su cuenta (`pedir`): sin
+   * esta copia, entrar y salir de una de ellas dejaría el menú plegado para siempre a quien lo
+   * tenía desplegado.
+   */
+  private readonly preferencia = signal(this.leerGuardado());
+  private readonly estado = signal(this.preferencia());
   readonly colapsado = this.estado.asReadonly();
   readonly expandido = computed(() => !this.estado());
 
+  /**
+   * Cuántas pantallas piden ahora mismo el ancho completo. Es un contador y no un booleano: al
+   * navegar, la pantalla nueva puede pedirlo antes de que la vieja lo suelte, y con un booleano
+   * ese orden dejaba el menú desplegado.
+   */
+  private pedidos = 0;
+
+  /** Una pantalla de trabajo pide todo el ancho (hoy Pedidos); cada `pedir()` lleva su `soltar()`. */
+  pedir(): void {
+    this.pedidos += 1;
+    this.estado.set(true);
+  }
+
+  soltar(): void {
+    this.pedidos = Math.max(0, this.pedidos - 1);
+    if (this.pedidos === 0) this.estado.set(this.preferencia());
+  }
+
+  /**
+   * El botón del menú. Dentro de una pantalla que pidió el ancho, el clic vale para esa visita
+   * —el menú se abre y se queda—, pero al volver a entrar la pantalla lo pliega otra vez.
+   */
   alternar(): void {
     this.estado.update((v) => !v);
+    this.preferencia.set(this.estado());
     this.guardar();
   }
 
   fijar(colapsado: boolean): void {
     this.estado.set(colapsado);
+    this.preferencia.set(colapsado);
     this.guardar();
   }
 
@@ -46,7 +79,7 @@ export class SidebarService {
   private guardar(): void {
     if (!isPlatformBrowser(this.platformId)) return;
     try {
-      localStorage.setItem(CLAVE, String(this.estado()));
+      localStorage.setItem(CLAVE, String(this.preferencia()));
     } catch {
       /* modo privado o almacenamiento bloqueado: la elección dura lo que dure la pestaña */
     }

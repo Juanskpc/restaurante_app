@@ -425,15 +425,17 @@
       (keydown)="onTeclaModal($event)"
     >
       <h2 id="ingredientes-titulo" class="ingredientes__titulo">{{ p.nombre }}</h2>
-      <p class="ingredientes__sub">¿Quieres quitar algún ingrediente?</p>
+      <p class="ingredientes__sub">Todo viene incluido. Desmarca lo que no quieras.</p>
 
       <ul class="ingredientes__lista">
         @for (r of removiblesDe(p); track r.id_ingrediente) {
           <li>
+            <!-- Marcado = incluido; desmarcado = «Sin X». El estado va DENTRO de la etiqueta, así el
+                 nombre accesible del checkbox dice «Cebolla, incluido» o «Cebolla, sin cebolla». -->
             <label class="ingrediente" [class.ingrediente--quitado]="quitarSel().has(r.id_ingrediente)">
               <input
                 type="checkbox"
-                [checked]="quitarSel().has(r.id_ingrediente)"
+                [checked]="!quitarSel().has(r.id_ingrediente)"
                 (change)="alternarQuitar(r.id_ingrediente)"
               />
               <span class="ingrediente__nombre">{{ r.nombre }}</span>
@@ -513,8 +515,8 @@
               <small>El restaurante te confirma el valor</small>
             </button>
           </div>
-          <button type="button" class="eleccion__atras" (click)="cambiarEleccion()">
-            <lucide-icon name="arrow-left" [size]="16" /> Cambiar cómo quiero pedir
+          <button type="button" class="btn btn--outline eleccion__volver" (click)="cambiarEleccion()">
+            <lucide-icon name="arrow-left" [size]="16" /> Volver
           </button>
         }
         @case ('mesa') {
@@ -526,8 +528,8 @@
               </button>
             }
           </div>
-          <button type="button" class="eleccion__atras" (click)="cambiarEleccion()">
-            <lucide-icon name="arrow-left" [size]="16" /> Cambiar cómo quiero pedir
+          <button type="button" class="btn btn--outline eleccion__volver" (click)="cambiarEleccion()">
+            <lucide-icon name="arrow-left" [size]="16" /> Volver
           </button>
         }
       }
@@ -566,93 +568,152 @@
       (click)="$event.stopPropagation()"
     >
       <header class="pre-pedido-header">
-        <h2 id="pre-pedido-titulo">Tu pedido</h2>
+        <h2 id="pre-pedido-titulo">
+          <lucide-icon [name]="iconoPedido()" [size]="20" aria-hidden="true" />
+          {{ tituloPedido() }}
+        </h2>
         <button type="button" class="pre-pedido-cerrar" (click)="cerrarPrePedido()" aria-label="Cerrar">
           <lucide-icon name="x" [size]="20" />
         </button>
       </header>
 
-      <ul class="pre-pedido-items">
-        <!-- Cada LÍNEA (producto + lo que se le quitó) se ve y se ajusta por separado. -->
-        @for (item of carrito.items(); track claveDe(item)) {
-          <li class="pre-pedido-item">
-            <div class="pp-info">
-              <span class="pp-nombre">{{ item.nombre }}</span>
-              @if (item.exclusiones.length) {
-                <span class="pp-sin">{{ textoSin(item.exclusiones) }}</span>
+      @if (pasoPanel() === 'pedido') {
+        <!-- Solo la lista hace scroll: el total y el botón se quedan fijos abajo. -->
+        <ul class="pre-pedido-items">
+          <!-- Cada LÍNEA (producto + lo que se le quitó) se ve y se ajusta por separado. El «+» de
+               una línea suma a ESA línea (mismas exclusiones), sin modal. -->
+          @for (item of carrito.items(); track claveDe(item)) {
+            <li class="pre-pedido-item">
+              <div class="pp-info">
+                <span class="pp-nombre">{{ item.nombre }}</span>
+                @if (item.exclusiones.length) {
+                  <span class="pp-sin">{{ textoSin(item.exclusiones) }}</span>
+                }
+                <span class="pp-precio">{{ formatPrice(item.precio * item.cantidad) }}</span>
+                <!-- Producto con ingredientes removibles: otra unidad DISTINTA abre el modal de ingredientes. -->
+                @if (tieneRemovibles(item.id_producto)) {
+                  <button type="button" class="pp-otra" (click)="agregarOtraDistinta(item.id_producto)">
+                    + Otra con cambios
+                  </button>
+                }
+              </div>
+              <div class="pp-qty">
+                <button type="button" class="qty-btn" (click)="ajustarLinea(claveDe(item), -1)"
+                        [attr.aria-label]="'Quitar uno de ' + item.nombre">
+                  <lucide-icon name="minus" [size]="14" />
+                </button>
+                <span class="qty-value">{{ item.cantidad }}</span>
+                <button type="button" class="qty-btn" (click)="ajustarLinea(claveDe(item), 1)"
+                        [attr.aria-label]="'Agregar otro ' + item.nombre">
+                  <lucide-icon name="plus" [size]="14" />
+                </button>
+              </div>
+            </li>
+          }
+        </ul>
+      } @else {
+        <!-- Datos del cliente, para que el bot no tenga que preguntarlos uno a uno por WhatsApp. -->
+        <form class="pre-pedido-datos" novalidate (submit)="$event.preventDefault(); enviarPorWhatsApp()">
+          <p class="pre-pedido-datos__ayuda">
+            Estos datos van en tu mensaje para que el restaurante no tenga que pedírtelos.
+          </p>
+          @for (r of requisitosCliente(); track r.campo) {
+            <div class="campo" [class.campo--error]="mostrarError(r.campo)">
+              <label class="campo__etiqueta" [for]="'cli-' + r.campo">
+                {{ etiquetaCampo(r.campo) }}
+                @if (!r.obligatorio) { <span class="campo__opcional">(opcional)</span> }
+              </label>
+              @if (r.campo === 'nota') {
+                <textarea
+                  class="campo__entrada"
+                  [id]="'cli-' + r.campo"
+                  rows="2"
+                  [attr.maxlength]="maximoCampo(r.campo)"
+                  [value]="cliente()[r.campo]"
+                  [attr.aria-invalid]="mostrarError(r.campo) ? 'true' : null"
+                  [attr.aria-describedby]="mostrarError(r.campo) ? 'cli-err-' + r.campo : null"
+                  (input)="cambiarCampo(r.campo, $any($event.target).value)"
+                ></textarea>
+              } @else {
+                <input
+                  class="campo__entrada"
+                  [id]="'cli-' + r.campo"
+                  [type]="r.campo === 'telefono' ? 'tel' : 'text'"
+                  [attr.inputmode]="r.campo === 'telefono' ? 'tel' : null"
+                  [attr.autocomplete]="autocompletar(r.campo)"
+                  [attr.maxlength]="maximoCampo(r.campo)"
+                  [value]="cliente()[r.campo]"
+                  [attr.aria-invalid]="mostrarError(r.campo) ? 'true' : null"
+                  [attr.aria-describedby]="mostrarError(r.campo) ? 'cli-err-' + r.campo : null"
+                  (input)="cambiarCampo(r.campo, $any($event.target).value)"
+                />
               }
-              <span class="pp-precio">{{ formatPrice(item.precio * item.cantidad) }}</span>
+              @if (mostrarError(r.campo)) {
+                <span class="campo__error" [id]="'cli-err-' + r.campo" role="alert">
+                  {{ erroresCliente()[r.campo] }}
+                </span>
+              }
             </div>
-            <div class="pp-qty">
-              <button type="button" class="qty-btn" (click)="ajustarLinea(claveDe(item), -1)"
-                      [attr.aria-label]="'Quitar uno de ' + item.nombre">
-                <lucide-icon name="minus" [size]="14" />
-              </button>
-              <span class="qty-value">{{ item.cantidad }}</span>
-              <button type="button" class="qty-btn" (click)="ajustarLinea(claveDe(item), 1)"
-                      [attr.aria-label]="'Agregar otro ' + item.nombre">
-                <lucide-icon name="plus" [size]="14" />
-              </button>
-            </div>
-          </li>
+          }
+        </form>
+      }
+
+      <!-- Pie FIJO: el total y los botones no se van con el scroll de la lista. -->
+      <div class="pre-pedido-pie">
+        @if (carrito.domicilio() > 0) {
+          <div class="pre-pedido-linea">
+            <span>Domicilio ({{ carrito.barrio()?.nombre }})</span>
+            <span>{{ formatPrice(carrito.domicilio()) }}</span>
+          </div>
         }
-      </ul>
 
-      @if (resumenEleccion()) {
-        <p class="pre-pedido-eleccion">
-          <lucide-icon
-            [name]="carrito.modalidad() === 'D' ? 'bike' : carrito.modalidad() === 'L' ? 'armchair' : 'shopping-bag'"
-            [size]="16"
-          />
-          <span>{{ resumenEleccion() }}</span>
-        </p>
-      }
-
-      @if (carrito.domicilio() > 0) {
-        <div class="pre-pedido-linea">
-          <span>Domicilio ({{ carrito.barrio()?.nombre }})</span>
-          <span>{{ formatPrice(carrito.domicilio()) }}</span>
+        <div class="pre-pedido-total">
+          <span>Total aproximado</span>
+          <strong>{{ formatPrice(carrito.totalConDomicilio()) }}</strong>
         </div>
-      }
 
-      <div class="pre-pedido-total">
-        <span>Total aproximado</span>
-        <strong>{{ formatPrice(carrito.totalConDomicilio()) }}</strong>
+        <!--
+          «Aproximado» no es una excusa: el asistente relee el catálogo al crear la orden, así que
+          si algo cambió de precio o se agotó entre que el cliente miró y escribió, manda el
+          catálogo. Prometer aquí un total exacto sería prometer por cuenta de otro.
+        -->
+        <p class="pre-pedido-nota">{{ notaTotal() }}</p>
+
+        @if (pasoPanel() === 'pedido') {
+          <button type="button" class="pre-pedido-enviar" (click)="continuarDelPedido()">
+            @if (carrito.modalidad()) {
+              <span>Continuar</span>
+              <lucide-icon name="arrow-right" [size]="18" />
+            } @else {
+              <lucide-icon name="message-circle" [size]="18" />
+              <span>Continuar por WhatsApp</span>
+            }
+          </button>
+          <button type="button" class="pre-pedido-vaciar" (click)="carrito.vaciar(); cerrarPrePedido()">
+            Vaciar pedido
+          </button>
+        } @else {
+          <div class="pre-pedido-acciones">
+            <button type="button" class="btn btn--outline" (click)="volverAlPedido()">
+              <lucide-icon name="arrow-left" [size]="16" /> Volver
+            </button>
+            <button type="button" class="pre-pedido-enviar" (click)="enviarPorWhatsApp()">
+              <lucide-icon name="message-circle" [size]="18" />
+              <span>Continuar por WhatsApp</span>
+            </button>
+          </div>
+
+          <!--
+            Aquí es donde el número de esta persona empieza a viajar. El aviso va pegado al botón y
+            no escondido en el pie: el consentimiento tiene que estar donde se consiente.
+          -->
+          <p class="pre-pedido-legal">
+            Al continuar, tu número de WhatsApp y tu pedido se tratarán conforme a la
+            <a [href]="urlPrivacidad" target="_blank" rel="noopener">política de tratamiento de datos</a>,
+            que incluye su almacenamiento en servidores fuera de Colombia.
+          </p>
+        }
       </div>
-
-      <!--
-        «Aproximado» no es una excusa: el asistente relee el catálogo al crear la orden, así que
-        si algo cambió de precio o se agotó entre que el cliente miró y escribió, manda el
-        catálogo. Prometer aquí un total exacto sería prometer por cuenta de otro.
-
-        Desde el 2026-09-08 se dice además POR QUÉ puede subir. «Aproximado» a secas se lee como
-        una fórmula de descargo; nombrar los dos recargos reales —desechables y domicilio— es lo
-        que evita que el cliente sienta que le cobraron de más en la puerta. Los dos van juntos
-        aquí, y no condicionados como en WhatsApp, porque en la carta todavía no se ha elegido si
-        es para recoger o a domicilio.
-      -->
-      <p class="pre-pedido-nota">
-        {{ notaTotal() }}
-      </p>
-
-      <button type="button" class="pre-pedido-enviar" (click)="enviarPorWhatsApp()">
-        <lucide-icon name="message-circle" [size]="18" />
-        <span>Continuar por WhatsApp</span>
-      </button>
-
-      <!--
-        Aquí es donde el número de esta persona empieza a viajar. El aviso va pegado al botón y
-        no escondido en el pie: el consentimiento tiene que estar donde se consiente.
-      -->
-      <p class="pre-pedido-legal">
-        Al continuar, tu número de WhatsApp y tu pedido se tratarán conforme a la
-        <a [href]="urlPrivacidad" target="_blank" rel="noopener">política de tratamiento de datos</a>,
-        que incluye su almacenamiento en servidores fuera de Colombia.
-      </p>
-
-      <button type="button" class="pre-pedido-vaciar" (click)="carrito.vaciar(); cerrarPrePedido()">
-        Vaciar pedido
-      </button>
     </div>
   </div>
 }

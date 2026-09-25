@@ -1,6 +1,16 @@
 import { Injectable, computed, inject, signal, PLATFORM_ID } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 
+import {
+  CLIENTE_VACIO,
+  CampoCliente,
+  DatosCliente,
+  MAXIMOS,
+  lineasDelBloque,
+  limpiarTelefono,
+  sanear,
+} from './datos-cliente';
+
 /** Un ingrediente que el cliente quitó de un plato («sin cebolla»). */
 export interface IngredienteQuitado {
   id_ingrediente: number;
@@ -28,6 +38,9 @@ export function claveLinea(item: Pick<ItemCarrito, 'id_producto' | 'exclusiones'
   const ids = [...new Set(item.exclusiones.map((e) => e.id_ingrediente))].sort((a, b) => a - b);
   return `${item.id_producto}:${ids.join('.')}`;
 }
+
+/** Cuánto se recuerdan nombre, teléfono y dirección de un cliente que repite: 90 días. */
+const VIGENCIA_CLIENTE_MS = 90 * 24 * 60 * 60 * 1000;
 
 /** Más largo que esto el texto legible del mensaje se recorta (la línea `#P…` jamás). */
 const MAX_TEXTO_HUMANO = 1500;
@@ -127,6 +140,13 @@ export class CarritoService {
   private readonly _barrio = signal<BarrioElegido | null>(null);
   private readonly _mesa = signal<MesaElegida | null>(null);
 
+  // ── Datos del cliente (nombre, teléfono, dirección, nota) ─────────────────────────────
+  //
+  // Se piden en el panel antes de abrir WhatsApp. Se recuerdan por negocio en el navegador para
+  // quien repite (menos la nota, que es de ESTE pedido). Valor inicial vacío en servidor y cliente.
+  private readonly _cliente = signal<DatosCliente>({ ...CLIENTE_VACIO });
+  readonly cliente = this._cliente.asReadonly();
+
   readonly modalidad = this._modalidad.asReadonly();
   readonly barrio = this._barrio.asReadonly();
   readonly mesa = this._mesa.asReadonly();
@@ -160,6 +180,13 @@ export class CarritoService {
     this._enviadoEn.set(null);
     this._items.set(this.leerGuardado(idNegocio));
     this.restaurarEleccion(idNegocio);
+    this.restaurarCliente(idNegocio);
+  }
+
+  /** Cambia uno o varios datos del cliente y los recuerda (sin la nota). */
+  guardarCliente(cambios: Partial<DatosCliente>): void {
+    this._cliente.update((c) => ({ ...c, ...cambios }));
+    this.guardarClienteEnNavegador();
   }
 
   // ── La elección: cómo lo quiere recibir ───────────────────────────────────────────────
@@ -273,12 +300,17 @@ export class CarritoService {
     const cuando = this.lineaModalidad();
     const domicilio = this.domicilio();
 
+    // El bloque de datos del cliente va ANTES de la línea `#P`, con etiquetas fijas que el bot lee
+    // por etiqueta. Solo las que aplican a la modalidad y tienen valor.
+    const bloque = lineasDelBloque(this._modalidad(), this._cliente());
+
     const cola = [
       '',
       ...(cuando ? [cuando] : []),
       ...(domicilio > 0 ? [`Domicilio: ${this.formatearPrecio(domicilio)}`] : []),
       `Total aproximado: ${this.formatearPrecio(this.totalConDomicilio())}`,
       '',
+      ...(bloque.length ? [...bloque, ''] : []),
     ];
 
     // El texto legible se recorta si se pasa (la URL de wa.me tiene largo práctico); la línea
@@ -381,6 +413,56 @@ export class CarritoService {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(valor);
+  }
+
+  // ── Persistencia de los datos del cliente ────────────────────────────────────────────
+  //
+  // Para que quien repite no vuelva a escribirlos. Se guarda sin la nota (es de este pedido) y
+  // con una vigencia larga: es una comodidad, no un pedido en marcha. Solo en el navegador y
+  // dentro de try/catch, como todo lo demás.
+
+  private claveCliente(idNegocio: number): string {
+    return `escalapp.cliente.${idNegocio}`;
+  }
+
+  private guardarClienteEnNavegador(): void {
+    const id = this._idNegocio();
+    if (id === null || !isPlatformBrowser(this.platformId)) return;
+    const { nombre, telefono, direccion } = this._cliente();
+    try {
+      localStorage.setItem(
+        this.claveCliente(id),
+        JSON.stringify({ v: 1, guardado: Date.now(), nombre, telefono, direccion }),
+      );
+    } catch {
+      // Sin almacenamiento los datos duran lo que dure la pestaña.
+    }
+  }
+
+  private restaurarCliente(idNegocio: number): void {
+    this._cliente.set({ ...CLIENTE_VACIO });
+    if (!isPlatformBrowser(this.platformId)) return;
+    try {
+      const crudo = localStorage.getItem(this.claveCliente(idNegocio));
+      if (!crudo) return;
+      const s = JSON.parse(crudo);
+      const vale =
+        s && s.v === 1 && Number.isFinite(s.guardado) && Date.now() - s.guardado <= VIGENCIA_CLIENTE_MS;
+      if (!vale) {
+        localStorage.removeItem(this.claveCliente(idNegocio));
+        return;
+      }
+      const texto = (v: unknown, campo: CampoCliente) =>
+        typeof v === 'string' ? sanear(v, MAXIMOS[campo]) : '';
+      this._cliente.set({
+        nombre: texto(s.nombre, 'nombre'),
+        telefono: limpiarTelefono(texto(s.telefono, 'telefono')),
+        direccion: texto(s.direccion, 'direccion'),
+        nota: '',
+      });
+    } catch {
+      // JSON corrupto o sin acceso: se empieza con el formulario vacío.
+    }
   }
 
   // ── Persistencia de la elección ──────────────────────────────────────────────────────

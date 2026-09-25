@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable, map } from 'rxjs';
+import { Observable, catchError, map, of } from 'rxjs';
 
 import { environment } from '../../../../environments/environment';
 import {
@@ -23,6 +23,23 @@ export class UsuariosService {
   private readonly http = inject(HttpClient);
 
   private readonly adminApi = environment.apiUrl.replace(/\/restaurante\/?$/, '/admin');
+
+  /**
+   * Cuántos usuarios le caben al negocio (plan + complementos). `null` = sin tope, o que este
+   * usuario no puede consultarlo (solo el administrador del negocio ve su plan): en los dos casos
+   * la pantalla simplemente no enseña el contador.
+   */
+  getTopeUsuarios(idNegocio: number): Observable<number | null> {
+    return this.http
+      .get<{ data?: { limites?: { usuarios?: { total?: number | null } } | null } }>(
+        `${this.adminApi}/cobranza/mi-plan`,
+        { params: new HttpParams().set('id_negocio', String(idNegocio)) },
+      )
+      .pipe(
+        map((res) => res?.data?.limites?.usuarios?.total ?? null),
+        catchError(() => of(null)),
+      );
+  }
 
   getUsuarios(filters?: {
     search?: string;

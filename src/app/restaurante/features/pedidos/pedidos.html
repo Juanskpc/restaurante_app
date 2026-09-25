@@ -76,16 +76,28 @@
       }
     </div>
 
-    <!-- Título de sección -->
-    @if (categorias().length > 0) {
-      @for (cat of categorias(); track cat.id_categoria) {
-        @if (cat.id_categoria === categoriaActiva()) {
-          <div class="products-section-title">
-            {{ cat.icono }} {{ cat.nombre }} — {{ cat.total_productos }} productos
-          </div>
+    <!-- Título de sección + acceso a editar un pedido ya tomado -->
+    <div class="products-section-row">
+      @if (categorias().length > 0) {
+        @for (cat of categorias(); track cat.id_categoria) {
+          @if (cat.id_categoria === categoriaActiva()) {
+            <div class="products-section-title">
+              {{ cat.icono }} {{ cat.nombre }} — {{ cat.total_productos }} productos
+            </div>
+          }
         }
       }
-    }
+      @if (tiposPedidoDisponibles().length > 0) {
+        <button type="button"
+                class="btn-editar-pedido"
+                [disabled]="cajaCerrada()"
+                [title]="cajaCerrada() ? 'Abre la caja para editar pedidos' : 'Buscar un pedido ya tomado para editarlo'"
+                (click)="abrirModalEditar()">
+          <lucide-icon name="pencil" [size]="14" />
+          Editar pedido
+        </button>
+      }
+    </div>
 
     <!-- Grid de productos -->
     <div class="products-grid">
@@ -388,7 +400,6 @@
             <div class="item-emoji">{{ item.icono }}</div>
             <div class="item-info">
               <div class="item-name">{{ item.nombre }}</div>
-              <div class="item-price paid-price">{{ item.precio_unitario | currency:'COP':'symbol-narrow':'1.0-0' }} c/u</div>
               <div class="item-line-total paid-price">
                 x{{ item.cantidad }} = {{ item.precio_unitario * item.cantidad | currency:'COP':'symbol-narrow':'1.0-0' }}
               </div>
@@ -420,7 +431,6 @@
             <div class="item-emoji">{{ item.icono }}</div>
             <div class="item-info">
               <div class="item-name">{{ item.nombre }}</div>
-              <div class="item-price">{{ item.precio_unitario | currency:'COP':'symbol-narrow':'1.0-0' }} c/u</div>
               <div class="item-line-total">
                 x{{ item.cantidad }} = {{ item.precio_unitario * item.cantidad | currency:'COP':'symbol-narrow':'1.0-0' }}
               </div>
@@ -436,7 +446,7 @@
                 <button class="action-btn customize-btn"
                         title="Personalizar ingredientes"
                         (click)="abrirPersonalizacion(item)">
-                  <lucide-icon name="settings" [size]="14" />
+                  <lucide-icon name="salad" [size]="14" />
                 </button>
               }
               <div class="item-qty">
@@ -590,8 +600,13 @@
 
 <!-- ═══════ FAB: Ver orden en móvil ═══════ -->
 @if (totalItems() > 0) {
-  <button class="fab-order" (click)="toggleOrdenPanel()">
+  <button class="fab-order"
+          [class.fab-order--aviso]="avisoFab() !== null"
+          (click)="toggleOrdenPanel()">
     <lucide-icon name="clipboard-list" [size]="22" />
+    @if (avisoFab(); as aviso) {
+      <span class="fab-aviso" role="status">{{ aviso }}</span>
+    }
     <span class="fab-badge">{{ totalItems() }}</span>
   </button>
 }
@@ -632,6 +647,90 @@
       <button class="modal-done" (click)="confirmarPersonalizacion()">
         Listo
       </button>
+    </div>
+  </div>
+}
+
+<!-- ═══════ MODAL: Editar pedido ═══════ -->
+@if (modalEditarAbierto()) {
+  <div class="modal-overlay modal-overlay-top" (click)="cerrarModalEditar()">
+    <div class="modal-content editar-modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>
+          <lucide-icon name="pencil" [size]="18" />
+          Editar pedido
+        </h3>
+        <button class="modal-close" (click)="cerrarModalEditar()" aria-label="Cerrar">
+          <lucide-icon name="x" [size]="20" />
+        </button>
+      </div>
+
+      <div class="order-type-switch editar-tipos" role="tablist" aria-label="Tipo de pedido">
+        @if (canUsarEnMesa()) {
+          <button class="type-btn" role="tab"
+                  [class.active]="editarTipo() === 'MESA'"
+                  (click)="cambiarTipoEditar('MESA')">
+            <lucide-icon name="armchair" [size]="16" />
+            <span class="type-btn-label">En mesa</span>
+          </button>
+        }
+        @if (canUsarParaLlevar()) {
+          <button class="type-btn" role="tab"
+                  [class.active]="editarTipo() === 'LLEVAR'"
+                  (click)="cambiarTipoEditar('LLEVAR')">
+            <lucide-icon name="shopping-bag" [size]="16" />
+            <span class="type-btn-label">Para llevar</span>
+          </button>
+        }
+        @if (canUsarDomicilio()) {
+          <button class="type-btn" role="tab"
+                  [class.active]="editarTipo() === 'DOMICILIO'"
+                  (click)="cambiarTipoEditar('DOMICILIO')">
+            <lucide-icon name="bike" [size]="16" />
+            <span class="type-btn-label">Domicilio</span>
+          </button>
+        }
+      </div>
+
+      <div class="editar-lista">
+        @if (editarCargando()) {
+          <div class="editar-estado">Cargando pedidos…</div>
+        } @else if (editarLista().length === 0) {
+          <div class="editar-estado editar-estado--vacio">
+            <lucide-icon name="folder-x" [size]="26" />
+            <p>
+              Actualmente no hay registros para este tipo de pedido:
+              {{ editarTipo() === 'MESA' ? 'en mesa' : editarTipo() === 'LLEVAR' ? 'para llevar' : 'a domicilio' }}.
+            </p>
+          </div>
+        } @else {
+          @for (p of editarLista(); track p.id_orden) {
+            <button type="button" class="editar-item"
+                    [class.active]="editarSeleccion() === p.id_orden"
+                    [attr.aria-pressed]="editarSeleccion() === p.id_orden"
+                    (click)="seleccionarPedidoEditar(p.id_orden)">
+              <span class="editar-item__main">
+                <span class="editar-item__titulo">{{ p.titulo }}</span>
+                <span class="editar-item__sub">
+                  {{ p.numero_orden }}@if (p.subtitulo) { · {{ p.subtitulo }} }
+                </span>
+              </span>
+              <span class="editar-item__total">{{ p.total | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+            </button>
+          }
+        }
+      </div>
+
+      <div class="dom-actions">
+        <button type="button" class="btn-secondary" [disabled]="editarAplicando()" (click)="cerrarModalEditar()">
+          Cancelar
+        </button>
+        <button type="button" class="modal-done"
+                [disabled]="editarSeleccion() === null || editarAplicando()"
+                (click)="editarPedidoSeleccionado()">
+          {{ editarAplicando() ? 'Cargando…' : 'Editar' }}
+        </button>
+      </div>
     </div>
   </div>
 }

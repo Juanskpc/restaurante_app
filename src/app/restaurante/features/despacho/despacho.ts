@@ -39,6 +39,9 @@ type FiltroTipo = 'TODOS' | 'LLEVAR' | 'DOMICILIO' | 'WHATSAPP';
 /** Espera tras la última tecla antes de guardar domicilio o descuento. */
 const AUTOGUARDADO_MS = 500;
 
+/** Dónde se recuerda qué cancelados ya se «finalizaron» (se quitaron de la pantalla) en este equipo. */
+const CANCELADOS_FINALIZADOS_KEY = 'despacho_cancelados_finalizados_v1';
+
 interface DetalleDespacho {
   id_producto: number;
   cantidad: number;
@@ -159,12 +162,15 @@ export class DespachoComponent implements OnInit {
   readonly cargando = signal(false);
   readonly refrescando = signal(false);
   /**
-   * Los cancelados de HOY, aparte de `pedidos`: son una alerta de lo que acaba de pasar en el
-   * turno, no pedidos activos, y mezclarlos en la misma tarjeta que se cobra o se edita
-   * confundiría las dos cosas.
+   * Los cancelados de HOY. Viven aparte de `pedidos` (son otro endpoint y no se pueden cobrar ni
+   * editar), pero se pintan en la misma cuadrícula como una tarjeta más, marcada «Cancelado».
    */
   readonly canceladosRecientes = signal<PedidoCancelado[]>([]);
-  readonly mostrarCancelados = signal(false);
+  /**
+   * Cancelados que el usuario ya «finalizó» (quitó de la pantalla). Se guarda en el equipo: el
+   * servidor solo devuelve los de hoy, así que al cambiar el día se vacía solo.
+   */
+  private readonly canceladosFinalizados = signal<ReadonlySet<number>>(new Set());
   readonly filtro = signal<FiltroTipo>('TODOS');
   readonly pedidoActivo = signal<PedidoDespacho | null>(null);
   readonly cobrandoId = signal<number | null>(null);
@@ -232,11 +238,33 @@ export class DespachoComponent implements OnInit {
     return lista.filter((p) => p.tipo_pedido === f);
   });
 
+  /** Cancelados de hoy que siguen en pantalla (no finalizados). */
+  readonly canceladosVisibles = computed(() => {
+    const finalizados = this.canceladosFinalizados();
+    return this.canceladosRecientes().filter(
+      (c) => !finalizados.has(c.id_orden) && (c.tipo_pedido !== 'DOMICILIO' || this.puedeUsarDomicilio()),
+    );
+  });
+
+  /** Los cancelados que corresponden al filtro activo. Los de WhatsApp no se distinguen aquí. */
+  readonly canceladosFiltrados = computed(() => {
+    const f = this.filtro();
+    const lista = this.canceladosVisibles();
+    if (f === 'TODOS') return lista;
+    if (f === 'WHATSAPP') return [];
+    return lista.filter((c) => c.tipo_pedido === f);
+  });
+
+  // Los contadores de los filtros cuentan también los cancelados visibles: si no, la tarjeta
+  // «Cancelado» aparecería en la lista con un número que no la incluye.
+  readonly countTodos = computed(() => this.pedidos().length + this.canceladosVisibles().length);
   readonly countLlevar = computed(() =>
-    this.pedidos().filter((p) => p.tipo_pedido === 'LLEVAR').length,
+    this.pedidos().filter((p) => p.tipo_pedido === 'LLEVAR').length
+    + this.canceladosVisibles().filter((c) => c.tipo_pedido === 'LLEVAR').length,
   );
   readonly countDomicilio = computed(() =>
-    this.pedidos().filter((p) => p.tipo_pedido === 'DOMICILIO').length,
+    this.pedidos().filter((p) => p.tipo_pedido === 'DOMICILIO').length
+    + this.canceladosVisibles().filter((c) => c.tipo_pedido === 'DOMICILIO').length,
   );
   readonly countWhatsapp = computed(() => this.pedidos().filter((p) => p.de_whatsapp).length);
 
@@ -260,6 +288,7 @@ export class DespachoComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    this.canceladosFinalizados.set(this.leerCanceladosFinalizados());
     this.cargar();
     this.loadMetodosPago();
     this.loadDomiciliarios();
@@ -370,7 +399,11 @@ export class DespachoComponent implements OnInit {
 
     const url = `${environment.apiUrl}/despacho/cancelados?id_negocio=${id}`;
     this.http.get<{ success: boolean; data: PedidoCancelado[] }>(url).subscribe({
-      next: (res) => aplicarLista(this.canceladosRecientes, res?.data ?? [], (p) => p.id_orden),
+      next: (res) => {
+        const lista = res?.data ?? [];
+        aplicarLista(this.canceladosRecientes, lista, (p) => p.id_orden);
+        this.podarCanceladosFinalizados(lista);
+      },
       // Silencioso a propósito: es información extra, no la pantalla principal. Si falla,
       // Despacho sigue funcionando igual que antes de que esto existiera — y se queda con lo
       // que ya tenía, que es mejor que vaciar el panel por un error de red.
@@ -382,8 +415,41 @@ export class DespachoComponent implements OnInit {
     this.filtro.set(f);
   }
 
-  alternarCancelados(): void {
-    this.mostrarCancelados.update((v) => !v);
+  /** «Finalizar» en una tarjeta cancelada: la quita de la pantalla. No toca el pedido en el servidor. */
+  finalizarCancelado(c: PedidoCancelado, event: Event): void {
+    event.stopPropagation();
+    this.canceladosFinalizados.update((s) => new Set(s).add(c.id_orden));
+    this.guardarCanceladosFinalizados();
+  }
+
+  private leerCanceladosFinalizados(): ReadonlySet<number> {
+    if (!this.isBrowser) return new Set();
+    try {
+      const crudo = JSON.parse(localStorage.getItem(CANCELADOS_FINALIZADOS_KEY) ?? '[]');
+      return new Set(Array.isArray(crudo) ? crudo.filter((n): n is number => Number.isInteger(n)) : []);
+    } catch {
+      return new Set();
+    }
+  }
+
+  private guardarCanceladosFinalizados(): void {
+    if (!this.isBrowser) return;
+    try {
+      localStorage.setItem(CANCELADOS_FINALIZADOS_KEY, JSON.stringify([...this.canceladosFinalizados()]));
+    } catch {
+      // Modo privado o almacenamiento lleno: se recuerda solo mientras la pestaña siga abierta.
+    }
+  }
+
+  /** Olvida los finalizados que el servidor ya no devuelve (de otro día): la lista no crece sin fin. */
+  private podarCanceladosFinalizados(vigentes: PedidoCancelado[]): void {
+    const actuales = this.canceladosFinalizados();
+    if (actuales.size === 0) return;
+    const ids = new Set(vigentes.map((c) => c.id_orden));
+    const restantes = [...actuales].filter((id) => ids.has(id));
+    if (restantes.length === actuales.size) return;
+    this.canceladosFinalizados.set(new Set(restantes));
+    this.guardarCanceladosFinalizados();
   }
 
   /** Quién lo canceló, en una palabra que el negocio entienda. */
@@ -920,6 +986,7 @@ export class DespachoComponent implements OnInit {
         if (res?.success) {
           this.pedidos.update(lista => lista.filter(ord => ord.id_orden !== p.id_orden));
           if (this.pedidoActivo()?.id_orden === p.id_orden) this.pedidoActivo.set(null);
+          this.cargarCancelados();
           this.uiFeedback.success('Pedido eliminado correctamente.', 'Eliminado');
         }
       },

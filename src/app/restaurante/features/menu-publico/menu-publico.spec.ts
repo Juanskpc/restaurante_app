@@ -3,7 +3,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { of } from 'rxjs';
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as Lucide from 'lucide-angular';
 import { LUCIDE_ICONS, LucideIconProvider } from 'lucide-angular';
 
@@ -488,5 +488,216 @@ describe('MenuPublicoComponent — quitar ingredientes al agregar', () => {
 
     expect(carrito.items()).toHaveLength(1);
     expect(carrito.items()[0].exclusiones.map((e) => e.id_ingrediente)).toEqual([12]);
+  });
+
+  describe('modal de ingredientes: marcado = incluido', () => {
+    it('todos los checkboxes vienen MARCADOS y dicen «Incluido»', () => {
+      const fixture = montar();
+      fixture.componentInstance.agregarAlCarrito(producto(4) as never);
+      fixture.detectChanges();
+
+      const cajas = fixture.nativeElement.querySelectorAll('.ingrediente input[type=checkbox]');
+      expect(cajas).toHaveLength(2);
+      for (const c of cajas) expect((c as HTMLInputElement).checked).toBe(true);
+      expect(fixture.nativeElement.querySelector('.ingredientes').textContent).toContain('Incluido');
+    });
+
+    it('DESMARCAR quita: «Sin cebolla», y el código lleva -r', () => {
+      const fixture = montar();
+      const comp = fixture.componentInstance;
+      comp.agregarAlCarrito(producto(4) as never);
+      fixture.detectChanges();
+
+      const caja = fixture.nativeElement.querySelector('.ingrediente input') as HTMLInputElement;
+      caja.click(); // desmarca la primera (Cebolla)
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('.ingrediente').textContent).toContain('Sin cebolla');
+
+      comp.confirmarModalIngredientes();
+      expect(TestBed.inject(CarritoService).codigoCompacto()).toBe('#P12-4x1-r12~m=R');
+    });
+
+    it('volver a marcarlo lo incluye otra vez', () => {
+      const fixture = montar();
+      const comp = fixture.componentInstance;
+      comp.agregarAlCarrito(producto(4) as never);
+      fixture.detectChanges();
+      const caja = fixture.nativeElement.querySelector('.ingrediente input') as HTMLInputElement;
+      caja.click();
+      caja.click();
+      comp.confirmarModalIngredientes();
+
+      expect(TestBed.inject(CarritoService).items()[0].exclusiones).toEqual([]);
+    });
+  });
+
+  describe('panel «Tu pedido»', () => {
+    function abrirPanel(modalidad: 'D' | 'R' | 'L' | null) {
+      const fixture = montar();
+      const carrito = TestBed.inject(CarritoService);
+      carrito.elegirModalidad(modalidad);
+      carrito.agregar({ id_producto: 9, nombre: 'Limonada', precio: 7000 });
+      fixture.componentInstance.abrirPrePedido();
+      fixture.detectChanges();
+      return fixture;
+    }
+
+    it.each([
+      ['D', 'Tu pedido a domicilio', 'bike'],
+      ['L', 'Tu pedido en mesa', 'armchair'],
+      ['R', 'Tu pedido para llevar', 'shopping-bag'],
+    ] as const)('modalidad %s → «%s» con su icono', (m, titulo, icono) => {
+      const fixture = abrirPanel(m);
+      expect(fixture.nativeElement.querySelector('#pre-pedido-titulo').textContent.trim()).toBe(titulo);
+      expect(fixture.componentInstance.iconoPedido()).toBe(icono);
+    });
+
+    it('sin modalidad el título es «Tu pedido»', () => {
+      expect(abrirPanel(null).nativeElement.querySelector('#pre-pedido-titulo').textContent.trim()).toBe('Tu pedido');
+    });
+
+    it('el título en mesa NO lleva el nombre de la mesa', () => {
+      const fixture = montar();
+      const carrito = TestBed.inject(CarritoService);
+      carrito.elegirModalidad('L');
+      carrito.elegirMesa({ id_mesa: 3, nombre: 'Mesa 3', numero: 3 });
+      carrito.agregar({ id_producto: 9, nombre: 'Limonada', precio: 7000 });
+      fixture.componentInstance.abrirPrePedido();
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('#pre-pedido-titulo').textContent).not.toContain('Mesa 3');
+    });
+
+    it('ya no repite el tipo de pedido casi al final', () => {
+      const fixture = abrirPanel('D');
+      expect(fixture.nativeElement.querySelector('.pre-pedido-eleccion')).toBeNull();
+    });
+
+    it('el total y el botón viven en el PIE fijo; la lista que hace scroll no los contiene', () => {
+      const fixture = abrirPanel('D');
+      const el = fixture.nativeElement as HTMLElement;
+      const pie = el.querySelector('.pre-pedido-pie')!;
+      const lista = el.querySelector('.pre-pedido-items')!;
+
+      expect(pie.querySelector('.pre-pedido-total')).not.toBeNull();
+      expect(pie.querySelector('.pre-pedido-enviar')).not.toBeNull();
+      expect(lista.querySelector('.pre-pedido-total')).toBeNull();
+      expect(lista.querySelector('.pre-pedido-enviar')).toBeNull();
+    });
+
+    it('«+ Otra con cambios» solo en productos con removibles, y abre el modal', () => {
+      const fixture = montar();
+      const carrito = TestBed.inject(CarritoService);
+      carrito.agregar({ id_producto: 4, nombre: 'Hamburguesa', precio: 20000 });
+      carrito.agregar({ id_producto: 9, nombre: 'Limonada', precio: 7000 });
+      fixture.componentInstance.abrirPrePedido();
+      fixture.detectChanges();
+
+      const botones = fixture.nativeElement.querySelectorAll('.pp-otra');
+      expect(botones).toHaveLength(1); // solo la hamburguesa
+      (botones[0] as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect(fixture.componentInstance.modalProducto()?.id_producto).toBe(4);
+    });
+
+    it('el «+» de una LÍNEA existente suma a esa línea con las mismas exclusiones, SIN modal', () => {
+      const fixture = montar();
+      const carrito = TestBed.inject(CarritoService);
+      carrito.agregar({ id_producto: 4, nombre: 'Hamburguesa', precio: 20000 }, [
+        { id_ingrediente: 12, nombre: 'Cebolla' },
+      ]);
+      fixture.componentInstance.abrirPrePedido();
+      fixture.detectChanges();
+
+      const mas = fixture.nativeElement.querySelectorAll('.pp-qty .qty-btn')[1] as HTMLButtonElement;
+      mas.click();
+      expect(fixture.componentInstance.modalProducto()).toBeNull();
+      expect(carrito.items()).toHaveLength(1);
+      expect(carrito.items()[0].cantidad).toBe(2);
+    });
+  });
+
+  describe('paso de datos del cliente antes de WhatsApp', () => {
+    let abrir: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      abrir = vi.spyOn(window, 'open').mockReturnValue(null);
+    });
+    afterEach(() => abrir.mockRestore());
+
+    function panel(modalidad: 'D' | 'R' | 'L') {
+      const fixture = montar();
+      const carrito = TestBed.inject(CarritoService);
+      carrito.elegirModalidad(modalidad);
+      carrito.agregar({ id_producto: 9, nombre: 'Limonada', precio: 7000 });
+      const comp = fixture.componentInstance;
+      comp.abrirPrePedido();
+      comp.continuarDelPedido();
+      fixture.detectChanges();
+      return { fixture, comp, carrito };
+    }
+
+    const etiquetas = (f: { nativeElement: HTMLElement }) =>
+      Array.from(f.nativeElement.querySelectorAll('.campo__etiqueta')).map((e) =>
+        (e.textContent ?? '').replace(/\s+/g, ' ').trim(),
+      );
+
+    it('domicilio: pide nombre, teléfono, dirección y nota (opcional)', () => {
+      const { fixture } = panel('D');
+      expect(etiquetas(fixture)).toEqual(['Nombre', 'Teléfono', 'Dirección', 'Nota (opcional)']);
+    });
+
+    it('recoger: nombre y teléfono (opcional)', () => {
+      expect(etiquetas(panel('R').fixture)).toEqual(['Nombre', 'Teléfono (opcional)']);
+    });
+
+    it('en mesa: solo el nombre', () => {
+      expect(etiquetas(panel('L').fixture)).toEqual(['Nombre']);
+    });
+
+    it('con datos incompletos NO abre WhatsApp, enseña los errores y lleva el foco al primero', () => {
+      const { fixture, comp } = panel('D');
+      comp.enviarPorWhatsApp();
+      fixture.detectChanges();
+
+      expect(abrir).not.toHaveBeenCalled();
+      const errores = fixture.nativeElement.querySelectorAll('.campo__error');
+      expect(errores).toHaveLength(3);
+      expect((fixture.nativeElement.querySelector('#cli-nombre') as HTMLInputElement).getAttribute('aria-invalid')).toBe('true');
+    });
+
+    it('con los datos completos abre WhatsApp con el bloque ANTES de la línea #P', () => {
+      const { fixture, comp, carrito } = panel('D');
+      carrito.guardarCliente({
+        nombre: 'Ana Pérez', telefono: '3001234567', direccion: 'Cra 3 #21-10', nota: 'sin cebolla',
+      });
+      comp.enviarPorWhatsApp();
+      fixture.detectChanges();
+
+      expect(abrir).toHaveBeenCalledOnce();
+      const texto = decodeURIComponent(String(abrir.mock.calls[0][0]).split('text=')[1]);
+      const lineas = texto.split('\n');
+      expect(lineas).toContain('Nombre: Ana Pérez');
+      expect(lineas).toContain('Nota: sin cebolla');
+      expect(lineas[lineas.length - 1]).toBe('#P12-9x1~m=D');
+    });
+
+    it('«Volver» regresa a la lista sin perder lo escrito', () => {
+      const { fixture, comp, carrito } = panel('D');
+      carrito.guardarCliente({ nombre: 'Ana' });
+      comp.volverAlPedido();
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.querySelector('.pre-pedido-items')).not.toBeNull();
+      expect(carrito.cliente().nombre).toBe('Ana');
+    });
+
+    it('el teléfono se limpia al escribir: solo dígitos', () => {
+      const { fixture } = panel('D');
+      const tel = fixture.nativeElement.querySelector('#cli-telefono') as HTMLInputElement;
+      tel.value = '(300) 123-4567 abc';
+      tel.dispatchEvent(new Event('input'));
+
+      expect(TestBed.inject(CarritoService).cliente().telefono).toBe('3001234567');
+    });
   });
 });

@@ -79,7 +79,7 @@
   max-width: 960px;
   width: 100%;
   margin: 0 auto;
-  padding: 0 clamp(12px, 4vw, 24px);
+  padding: 0 clamp(16px, 4vw, 24px);
 }
 
 /* ═══════════════════════════════════════════
@@ -680,15 +680,18 @@
   color: var(--color-text-primary);
 }
 
+/* Las tarjetas ocupan el ancho útil: 1 o 2 columnas según quepan, centradas. */
 .social-grid {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
   gap: var(--spacing-xs);
+  justify-content: center;
 }
 
 .social-item {
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   padding: 10px 18px;
   border-radius: var(--radius-md);
@@ -1048,8 +1051,11 @@
 .pre-pedido {
   width: 100%;
   max-width: 30rem;
-  max-height: 85vh;
-  overflow-y: auto;
+  max-height: min(90dvh, 44rem);
+  /* Columna: cabecera y pie fijos; solo la lista (o el formulario) hace scroll. */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   padding: 1.25rem;
   /* Hoja inferior en móvil, tarjeta centrada en pantalla grande: en un teléfono
      el pedido se revisa con el pulgar, y una tarjeta centrada deja los botones
@@ -1065,12 +1071,18 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex: 0 0 auto;
   margin-bottom: 1rem;
 
   h2 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
     margin: 0;
     font-size: 1.125rem;
     color: var(--color-text-primary);
+
+    lucide-icon { color: var(--color-primary); }
   }
 }
 
@@ -1089,9 +1101,20 @@
 }
 
 .pre-pedido-items {
-  margin: 0 0 1rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: 0 0 0.5rem;
   padding: 0;
   list-style: none;
+}
+
+/* El pie no se va con el scroll: total, aviso y botones siempre a la vista. */
+.pre-pedido-pie {
+  flex: 0 0 auto;
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--color-border);
 }
 
 .pre-pedido-item {
@@ -1875,10 +1898,12 @@
   position: fixed;
   inset: 0;
   z-index: 120;
-  overflow-y: auto;
-  display: grid;
-  place-items: center;
-  padding: 24px 16px calc(24px + env(safe-area-inset-bottom, 0px));
+  height: 100dvh;
+  overflow: hidden; /* la pantalla NO hace scroll: solo lo hace la lista, si hace falta */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px));
   background: color-mix(in srgb, var(--color-bg) 92%, transparent);
   backdrop-filter: blur(6px);
 }
@@ -1886,8 +1911,34 @@
 .eleccion {
   width: 100%;
   max-width: 460px;
-  display: grid;
-  gap: 16px;
+  max-height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Lo único que puede hacer scroll: la lista, nunca la pantalla. */
+.eleccion__tarjetas,
+.eleccion__lista,
+.eleccion__mesas {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.eleccion__volver { align-self: flex-start; flex-shrink: 0; }
+
+/* Móvil pequeño (360×640) y pantallas bajitas: todo más compacto para que quepa sin scroll. */
+@media (max-height: 700px) {
+  .eleccion { gap: 8px; }
+  .eleccion__logo, .eleccion__monograma { width: 36px; height: 36px; }
+  .eleccion__titulo { font-size: 1.25rem; }
+  .eleccion__tarjetas, .eleccion__lista { gap: 8px; }
+  .eleccion-tarjeta { padding: 10px 12px; column-gap: 12px; }
+  .eleccion-tarjeta__titulo { font-size: 1rem; }
+  .eleccion-opcion { padding: 10px 14px; }
+  .eleccion-mesa { padding: 12px 8px; }
 }
 
 .eleccion__marca {
@@ -2011,20 +2062,6 @@
   font-weight: 700;
 }
 
-.eleccion__atras {
-  justify-self: start;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 0;
-  border: 0;
-  background: none;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--font-size-sm);
-}
-
 .eleccion-bar {
   margin: 0 auto;
   max-width: 960px;
@@ -2058,17 +2095,6 @@
 .eleccion-chip__cambiar {
   color: var(--color-primary);
   font-weight: 700;
-}
-
-.pre-pedido-eleccion {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
-
-  lucide-icon { color: var(--color-primary); }
 }
 
 .pre-pedido-linea {
@@ -2213,4 +2239,72 @@
   color: var(--color-text-secondary);
   font-size: var(--font-size-xs);
   line-height: 1.3;
+}
+
+/* «+ Otra con cambios» y el paso de datos del cliente. Solo tokens `--color-*`. */
+.pp-otra {
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--color-primary-text);
+  font: inherit;
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  cursor: pointer;
+
+  &:hover { text-decoration: underline; }
+  &:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+}
+
+.pre-pedido-datos {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  margin-bottom: 0.5rem;
+}
+
+.pre-pedido-datos__ayuda {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.campo { display: grid; gap: 4px; }
+
+.campo__etiqueta {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.campo__opcional { color: var(--color-text-secondary); font-weight: 400; }
+
+.campo__entrada {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 10px);
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  font: inherit;
+  resize: vertical;
+
+  &:focus-visible { outline: none; border-color: var(--color-primary); box-shadow: var(--focus-ring); }
+}
+
+.campo--error .campo__entrada { border-color: var(--color-error); }
+
+.campo__error { color: var(--color-error); font-size: var(--font-size-xs); }
+
+.pre-pedido-acciones {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: stretch;
 }

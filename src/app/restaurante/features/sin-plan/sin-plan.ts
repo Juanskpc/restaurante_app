@@ -24,7 +24,11 @@ import { AuthService } from '../../../core/services/auth.service';
           <lucide-icon name="arrow-left" [size]="16" aria-hidden="true" />
           Ir al dashboard
         </a>
-        <button type="button" class="btn btn-primary" (click)="auth.logout()">
+        <button type="button" class="btn btn-primary" (click)="auth.irAMisPagos()">
+          <lucide-icon name="credit-card" [size]="16" aria-hidden="true" />
+          Ver mi plan
+        </button>
+        <button type="button" class="btn btn-outline" (click)="auth.logout()">
           <lucide-icon name="log-out" [size]="16" aria-hidden="true" />
           Volver al admin
         </button>

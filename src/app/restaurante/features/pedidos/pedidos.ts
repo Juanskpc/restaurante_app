@@ -17,6 +17,7 @@ import { aplicarLista } from '../../../core/utils/refresco-vivo';
 import { RealtimeService } from '../../../core/services/realtime.service';
 import { ClientesService, CuentaCliente } from '../../../core/services/clientes.service';
 import { CatalogoCacheService } from '../../../core/services/catalogo-cache.service';
+import { SidebarService } from '../../../core/services/sidebar.service';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 import { environment } from '../../../../environments/environment';
 import {
@@ -149,6 +150,28 @@ interface PedidoDespacho {
   }>;
 }
 
+/** Fila del modal «Editar pedido»: lo mínimo para reconocer el pedido y elegirlo. */
+interface PedidoEditable {
+  id_orden: number;
+  numero_orden: string;
+  tipo: TipoPedido;
+  /** «Mesa 3», el nombre del cliente o su dirección: lo que distingue un pedido de otro. */
+  titulo: string;
+  subtitulo: string;
+  total: number;
+  fecha_creacion: string;
+  /** Solo en LLEVAR/DOMICILIO: el pedido de despacho que se vuelca en el POS. */
+  despacho?: PedidoDespacho;
+  id_mesa?: number | null;
+}
+
+/** Lo que `GET /pedidos/abiertas` trae de más sobre `OrdenApi`. */
+type OrdenAbierta = OrdenApi & {
+  total?: number | string | null;
+  mesa?: string | null;
+  fecha_creacion?: string;
+};
+
 interface ItemOrdenCache {
   id_producto: number;
   nombre: string;
@@ -182,6 +205,9 @@ export class PedidosComponent implements OnInit, OnDestroy {
   private readonly clientesApi = inject(ClientesService);
   private suscripcionesRealtime: Array<() => void> = [];
   private readonly catalogo = inject(CatalogoCacheService);
+  private readonly sidebar = inject(SidebarService);
+  private anchoPedido = false;
+  private avisoFabTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly uiFeedback = inject(UiFeedbackService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -278,6 +304,16 @@ export class PedidosComponent implements OnInit, OnDestroy {
   readonly pedidoDespachoSeleccionado = signal<PedidoDespacho | null>(null);
 
   // Para modal de personalización de ingredientes
+  // ── Modal «Editar pedido» ──
+  readonly modalEditarAbierto = signal(false);
+  readonly editarTipo = signal<TipoPedido>('MESA');
+  readonly editarLista = signal<PedidoEditable[]>([]);
+  readonly editarCargando = signal(false);
+  readonly editarSeleccion = signal<number | null>(null);
+  readonly editarAplicando = signal(false);
+  /** Mensaje del botón flotante (móvil) tras cargar un pedido; null = botón normal. */
+  readonly avisoFab = signal<string | null>(null);
+
   readonly itemEditando = signal<ItemOrden | null>(null);
   /** Exclusiones temporales mientras el modal está abierto. */
   readonly exclusionesTemp = signal<Set<number>>(new Set());
@@ -428,6 +464,10 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.updateViewportState();
     if (this.isBrowser) {
       window.addEventListener('resize', this.onResize);
+      // La vista de trabajo necesita el ancho: el menú se pliega mientras Pedidos esté a la
+      // vista y vuelve a como el usuario lo tenía al salir.
+      this.sidebar.pedir();
+      this.anchoPedido = true;
     }
 
     this.hidratarItemsPagadosMesa();
@@ -579,6 +619,193 @@ export class PedidosComponent implements OnInit, OnDestroy {
     }
   }
 
+  // ===================== Editar pedido (modal) =====================
+
+  abrirModalEditar(): void {
+    const tipos = this.tiposPedidoDisponibles();
+    if (tipos.length === 0) return;
+    const actual = this.tipoPedido();
+    this.editarSeleccion.set(null);
+    this.modalEditarAbierto.set(true);
+    this.cambiarTipoEditar(tipos.includes(actual) ? actual : tipos[0]);
+  }
+
+  cerrarModalEditar(): void {
+    if (this.editarAplicando()) return;
+    this.modalEditarAbierto.set(false);
+  }
+
+  /** Cambia la pestaña del modal y trae los pedidos que hay de ese tipo. */
+  cambiarTipoEditar(tipo: TipoPedido): void {
+    this.editarTipo.set(tipo);
+    this.editarSeleccion.set(null);
+    this.editarLista.set([]);
+    this.editarCargando.set(true);
+
+    const id = this.negocioId();
+    if (!id) {
+      this.editarCargando.set(false);
+      return;
+    }
+
+    // Se descarta la respuesta si el usuario ya cambió de pestaña: llegan en desorden.
+    const vigente = (): boolean => this.editarTipo() === tipo && this.modalEditarAbierto();
+
+    if (tipo === 'MESA') {
+      this.http.get<{ success: boolean; data: OrdenAbierta[] }>(
+        `${environment.apiUrl}/pedidos/abiertas?id_negocio=${id}`
+      ).subscribe({
+        next: (res) => {
+          if (!vigente()) return;
+          const filas = (res?.data ?? [])
+            .filter((o) => o.id_mesa != null && (o.tipo_pedido ?? 'MESA') === 'MESA')
+            .map<PedidoEditable>((o) => ({
+              id_orden: o.id_orden,
+              numero_orden: o.numero_orden ?? `#${o.id_orden}`,
+              tipo: 'MESA',
+              titulo: this.mesas().find((m) => m.id_mesa === o.id_mesa)?.nombre ?? o.mesa ?? `Mesa ${o.id_mesa}`,
+              subtitulo: `${(o.detalles ?? []).reduce((n, d) => n + Number(d.cantidad ?? 0), 0)} productos`,
+              total: Number(o.total ?? 0),
+              fecha_creacion: o.fecha_creacion ?? '',
+              id_mesa: o.id_mesa,
+            }));
+          this.editarLista.set(filas);
+          this.editarCargando.set(false);
+        },
+        error: () => {
+          if (!vigente()) return;
+          this.editarCargando.set(false);
+          this.uiFeedback.error('No se pudieron cargar los pedidos en mesa.');
+        },
+      });
+      return;
+    }
+
+    this.http.get<{ success: boolean; data: PedidoDespacho[] }>(
+      `${environment.apiUrl}/despacho?id_negocio=${id}`
+    ).subscribe({
+      next: (res) => {
+        if (!vigente()) return;
+        const filas = (res?.data ?? [])
+          .filter((p) => p.tipo_pedido === tipo && p.estado_pago === 'pendiente_pago')
+          .map<PedidoEditable>((p) => ({
+            id_orden: p.id_orden,
+            numero_orden: p.numero_orden,
+            tipo,
+            titulo: p.contacto_nombre || 'Sin nombre',
+            subtitulo: (tipo === 'DOMICILIO' ? p.direccion_domicilio : p.contacto_telefono) || '',
+            total: Number(p.total ?? 0),
+            fecha_creacion: p.fecha_creacion,
+            despacho: p,
+          }));
+        this.editarLista.set(filas);
+        this.editarCargando.set(false);
+      },
+      error: () => {
+        if (!vigente()) return;
+        this.editarCargando.set(false);
+        this.uiFeedback.error('No se pudieron cargar los pedidos de despacho.');
+      },
+    });
+  }
+
+  seleccionarPedidoEditar(idOrden: number): void {
+    this.editarSeleccion.set(this.editarSeleccion() === idOrden ? null : idOrden);
+  }
+
+  /** «Editar»: vuelca el pedido elegido en el panel de Pedido, con todo lo que tenga. */
+  async editarPedidoSeleccionado(): Promise<void> {
+    const idOrden = this.editarSeleccion();
+    const fila = this.editarLista().find((f) => f.id_orden === idOrden);
+    if (!fila || this.editarAplicando()) return;
+
+    // Lo que hay escrito en pantalla se pierde al cargar otro pedido: se pregunta antes.
+    const hayAlgoEscrito = this.items().length > 0 && this.ordenActivaId() !== fila.id_orden;
+    if (hayAlgoEscrito) {
+      const confirmar = await this.uiFeedback.confirm({
+        title: 'Reemplazar pedido en pantalla',
+        message: 'Hay un pedido en pantalla. Al cargar el otro se descartará lo que no hayas enviado.',
+        confirmText: 'Cargar pedido',
+        cancelText: 'Volver',
+        tone: 'warning',
+      });
+      if (!confirmar) return;
+    }
+
+    this.editarAplicando.set(true);
+    this.http.get<{ success: boolean; data: OrdenApi }>(
+      `${environment.apiUrl}/pedidos/${fila.id_orden}`
+    ).subscribe({
+      next: (res) => {
+        this.editarAplicando.set(false);
+        const orden = res?.data;
+        if (!orden) {
+          this.uiFeedback.error('No se pudo cargar el pedido para editarlo.');
+          return;
+        }
+        this.volcarPedidoEditable(fila, orden);
+        this.modalEditarAbierto.set(false);
+        this.avisarPedidoCargado(fila.numero_orden);
+      },
+      error: () => {
+        this.editarAplicando.set(false);
+        this.uiFeedback.error('No se pudo cargar el pedido para editarlo.');
+      },
+    });
+  }
+
+  /** Deja el POS como si el pedido se hubiera abierto desde su mesa o desde Despacho. */
+  private volcarPedidoEditable(fila: PedidoEditable, orden: OrdenApi): void {
+    // Parte de un POS limpio: si no, los datos del pedido anterior (domicilio, descuento,
+    // efectivo recibido) se mezclarían con los del que se carga.
+    void this.limpiarOrden(false);
+    this.tipoPedido.set(fila.tipo);
+    this.mesaRequeridaError.set(false);
+
+    if (fila.tipo === 'MESA') {
+      this.mesaId.set(fila.id_mesa ?? orden.id_mesa ?? null);
+      this.pedidoDespachoSeleccionado.set(null);
+      const items = this.mapOrdenApiToItems(orden);
+      this.ordenActivaId.set(orden.id_orden);
+      this.ordenCreadorNombre.set(this.nombreCreadorOrden(orden));
+      this.items.set(items);
+      this.itemsBaseOrdenActiva.set(this.cloneItems(items));
+      this.notaOrden.set(orden.nota ?? '');
+      this.notaBaseOrdenActiva.set(orden.nota ?? '');
+      this.metodoPagoId.set(orden.id_metodo_pago ?? null);
+      this.filasPago.set(this.mapPagosOrden(orden));
+      this.metodoPagoRequeridoError.set(false);
+      this.hidratarAjustesPrecio(orden);
+      return;
+    }
+
+    this.mesaId.set(null);
+    if (fila.despacho) {
+      this.pedidosDespacho.set(
+        this.editarLista().flatMap((f) => (f.despacho ? [f.despacho] : [])),
+      );
+      this.aplicarOrdenDespachoEnPos(fila.despacho, orden, []);
+    }
+  }
+
+  /**
+   * Avisa que el pedido quedó cargado. En móvil el panel del pedido no se abre —el usuario sigue
+   * en la carta— y el aviso lo da el botón flotante, que se alarga con el mensaje y se recoge
+   * solo. En escritorio el panel ya está a la vista, y basta un aviso normal.
+   */
+  private avisarPedidoCargado(numeroOrden: string): void {
+    if (!this.isMobileViewport()) {
+      this.uiFeedback.success(`Pedido ${numeroOrden} cargado para editar.`, 'Editando pedido');
+      return;
+    }
+    this.avisoFab.set('Pedido cargado correctamente');
+    if (this.avisoFabTimer) clearTimeout(this.avisoFabTimer);
+    this.avisoFabTimer = setTimeout(() => {
+      this.avisoFab.set(null);
+      this.avisoFabTimer = null;
+    }, 2800);
+  }
+
   // ===================== Valor del domicilio =====================
 
   toggleCobrarDomicilio(activar: boolean): void {
@@ -673,6 +900,8 @@ export class PedidosComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     if (this.searchTimer) clearTimeout(this.searchTimer);
+    if (this.avisoFabTimer) clearTimeout(this.avisoFabTimer);
+    if (this.anchoPedido) this.sidebar.soltar();
     if (this.isBrowser) {
       window.removeEventListener('resize', this.onResize);
     }

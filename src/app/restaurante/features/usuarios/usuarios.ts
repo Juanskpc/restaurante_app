@@ -96,6 +96,13 @@ export class UsuariosComponent {
   protected readonly enviandoInvitacion = signal(false);
 
   protected readonly usuarios = signal<UsuarioAdmin[]>([]);
+
+  /** Lo que le caben al negocio según su plan y complementos; `null` = no se sabe o sin tope. */
+  protected readonly topeUsuarios = signal<number | null>(null);
+  /** «X de N usuarios»: los activos de la lista (el asistente del bot no se lista ni cuenta). */
+  protected readonly usuariosActivos = computed(
+    () => this.usuarios().filter((u) => u.estado === 'A').length,
+  );
   protected readonly roles = signal<RolAdminOption[]>([]);
   protected readonly roleFilter = signal<number | null>(null);
   protected readonly estadoFilter = signal<EstadoRegistro | 'ALL'>('ALL');
@@ -244,6 +251,7 @@ export class UsuariosComponent {
     ).subscribe({
       next: (usuarios) => {
         this.usuarios.set(usuarios);
+        this.usuariosService.getTopeUsuarios(idNegocio).subscribe((tope) => this.topeUsuarios.set(tope));
 
         const selected = this.selectedRoleId();
         if (selected) {
@@ -533,7 +541,7 @@ export class UsuariosComponent {
           this.uiFeedback.created('Usuario creado correctamente.');
           // La contraseña solo se tiene aquí, en el formulario que se está cerrando:
           // se prepara la invitación antes de perderla.
-          this.prepararInvitacion(payload.primer_nombre, payload.email, formValue.password || '');
+          this.prepararInvitacion(payload.primer_nombre, payload.num_identificacion, formValue.password || '');
         } else {
           this.uiFeedback.updated('Los datos del usuario fueron actualizados.');
         }
@@ -549,14 +557,14 @@ export class UsuariosComponent {
   }
 
   /** Deja el mensaje listo y abre el aviso para enviarlo. */
-  private prepararInvitacion(nombre: string, usuario: string, password: string): void {
+  private prepararInvitacion(nombre: string, identificacion: string, password: string): void {
     if (!password) return;
     this.invitacionNombre.set(nombre);
     this.invitacion.set(componerInvitacion({
       nombre,
       negocio: this.auth.negocio()?.nombre ?? 'tu negocio',
-      usuario,
-      etiquetaUsuario: 'Usuario (correo)',
+      usuario: identificacion,
+      etiquetaUsuario: 'Usuario (tu número de identificación)',
       password,
       url: urlDeAcceso(environment.adminUrl),
     }));
@@ -813,6 +821,13 @@ export class UsuariosComponent {
 
   private extractError(error: unknown, fallback: string): string {
     const httpError = error as HttpErrorResponse;
+    // El plan no deja añadir más gente: se dice cuánto le cabe y adónde ir a ampliarlo.
+    if (httpError?.error?.code === 'LIMITE_USUARIOS') {
+      const total = Number(httpError.error?.data?.total);
+      return Number.isFinite(total) && total > 0
+        ? `Tu plan permite ${total} ${total === 1 ? 'usuario' : 'usuarios'}. Para agregar más, amplía tu plan en Mis pagos.`
+        : 'Tu plan no permite más usuarios. Para agregar más, amplía tu plan en Mis pagos.';
+    }
     return httpError?.error?.message || fallback;
   }
 
