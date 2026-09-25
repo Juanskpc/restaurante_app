@@ -850,6 +850,10 @@
   }
 }
 
+// «Sin cebolla»: lo que el cliente pidió quitar, a la vista en la tarjeta y en el detalle.
+.card-productos .sin { font-style: normal; color: var(--color-error); }
+.item-sin { font-size: var(--font-size-xs); font-weight: 600; color: var(--color-error); }
+
 // Productos del pedido listados dentro de la tarjeta, sin abrir el detalle.
 .card-productos {
   list-style: none;

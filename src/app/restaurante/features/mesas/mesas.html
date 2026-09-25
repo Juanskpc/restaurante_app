@@ -163,7 +163,7 @@
                 @for (item of mesa.order.items; track $index) {
                   <li>
                     <span class="qty">{{ item.cantidad }}×</span>
-                    <span class="ellipsis">{{ item.name }}</span>
+                    <span class="ellipsis">{{ item.name }}@if (item.sin?.length) { <em class="sin">· sin {{ item.sin!.join(', ') }}</em> }</span>
                   </li>
                 }
               </ul>
@@ -240,6 +240,9 @@
                 <div class="item-row">
                   <div class="item-main">
                     <span class="item-name">{{ item.name }}</span>
+                    @if (item.sin?.length) {
+                      <span class="item-sin">Sin {{ item.sin!.join(', ') }}</span>
+                    }
                     <span class="item-meta">{{ item.cantidad }} x {{ formatMoney(item.price) }}</span>
                   </div>
                   <strong>{{ formatMoney(item.price * item.cantidad) }}</strong>

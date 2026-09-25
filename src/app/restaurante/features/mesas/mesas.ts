@@ -42,6 +42,7 @@ interface ItemPagadoMesa {
   price: number;
   cantidad: number;
   nota?: string | null;
+  sin?: string[];
 }
 
 @Component({
@@ -1024,6 +1025,10 @@ export class MesasComponent {
         const notaItemHtml = notaItem
           ? `<tr><td></td><td colspan="3" class="item-meta">Nota: ${notaItem}</td></tr>`
           : '';
+        const sin = (item.sin ?? []).map((n) => this.escapeHtml(n)).join(', ');
+        const sinHtml = sin
+          ? `<tr><td></td><td colspan="3" class="item-meta">Sin: ${sin}</td></tr>`
+          : '';
 
         return `
           <tr>
@@ -1032,6 +1037,7 @@ export class MesasComponent {
             <td>${this.formatCurrency(item.price)}</td>
             <td class="text-right">${this.formatCurrency(totalLinea)}</td>
           </tr>
+          ${sinHtml}
           ${notaItemHtml}
         `;
       })
@@ -1282,7 +1288,7 @@ export class MesasComponent {
     return Number(digits);
   }
 
-  private persistirItemsPagadosMesaCache(idMesa: number, items: Array<{ name: string; price: number; cantidad: number; nota?: string | null }>): void {
+  private persistirItemsPagadosMesaCache(idMesa: number, items: Array<{ name: string; price: number; cantidad: number; nota?: string | null; sin?: string[] }>): void {
     if (typeof window === 'undefined') return;
 
     try {
@@ -1297,6 +1303,7 @@ export class MesasComponent {
         cantidad: Math.max(1, Number(item.cantidad ?? 1)),
         exclusiones: [],
         exclusionesNombres: [],
+        sin: item.sin ?? [],
         nota: item.nota ?? '',
       }));
 

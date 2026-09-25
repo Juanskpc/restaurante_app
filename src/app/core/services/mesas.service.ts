@@ -11,6 +11,8 @@ export interface MesaOrderItem {
   price: number;
   cantidad: number;
   nota?: string | null;
+  /** Los ingredientes que el cliente pidió quitar («cebolla»): «sin cebolla». */
+  sin?: string[];
 }
 
 export interface MesaOrder {

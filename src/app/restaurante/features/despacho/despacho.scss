@@ -671,6 +671,15 @@
   }
   .nombre {
     color: var(--color-text-primary);
+    display: flex;
+    flex-direction: column;
+  }
+  // «Sin cebolla»: el cliente lo pidió, y quien arma y quien reparte tienen que verlo.
+  .sin {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    font-style: normal;
+    color: var(--color-error);
   }
   .line-total {
     font-weight: 600;
@@ -851,6 +860,12 @@
 }
 
 // Productos listados dentro de la tarjeta, sin abrir el detalle.
+.card-productos .sin {
+  font-style: normal;
+  font-weight: 600;
+  color: var(--color-error);
+}
+
 .card-productos {
   list-style: none;
   margin: 4px 0 0;

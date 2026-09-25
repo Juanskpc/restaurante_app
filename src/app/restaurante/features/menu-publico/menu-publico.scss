@@ -1015,6 +1015,28 @@
   &:hover { transform: scale(1.05); }
 }
 
+.fab-texto { display: none; }
+
+/* En pantallas grandes el redondel de 56 px con solo el ícono queda pequeño y no dice qué hace: se
+   vuelve una píldora con el ícono y «Pedir aquí». En móvil sigue siendo el redondel de siempre. */
+@media (min-width: 768px) {
+  .fab-pedido {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    width: auto;
+    height: 3.75rem;
+    padding: 0 1.6rem 0 1.4rem;
+    border-radius: 999px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .fab-texto { display: inline; }
+}
+
 .fab-badge {
   position: absolute;
   top: -0.25rem;

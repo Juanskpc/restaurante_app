@@ -562,6 +562,8 @@
     [attr.aria-label]="'Ver mi pedido (' + carrito.cantidadTotal() + ' productos)'"
   >
     <lucide-icon name="shopping-bag" [size]="24" />
+    <!-- Solo en pantallas grandes: el ícono solo se pierde ahí, y una palabra dice qué hace. -->
+    <span class="fab-texto" aria-hidden="true">Pedir aquí</span>
     <span class="fab-badge" aria-hidden="true">{{ carrito.cantidadTotal() }}</span>
   </button>
 }

@@ -193,7 +193,7 @@
                 @for (d of p.detalles ?? []; track $index) {
                   <li>
                     <span class="qty">{{ d.cantidad }}×</span>
-                    <span class="ellipsis">{{ d.producto?.nombre || '(Producto)' }}</span>
+                    <span class="ellipsis">{{ d.producto?.nombre || '(Producto)' }}@if (textoSin(d); as sin) { <em class="sin">· sin {{ sin }}</em> }</span>
                   </li>
                 }
               </ul>
@@ -547,7 +547,12 @@
               @for (d of p.detalles ?? []; track $index) {
                 <li>
                   <span class="qty">{{ d.cantidad }}×</span>
-                  <span class="nombre">{{ d.producto?.nombre || '(Producto)' }}</span>
+                  <span class="nombre">
+                    {{ d.producto?.nombre || '(Producto)' }}
+                    @if (textoSin(d); as sin) {
+                      <small class="sin">Sin {{ sin }}</small>
+                    }
+                  </span>
                   <span class="line-total">
                     {{ d.cantidad * d.precio_unitario | currency:'COP':'symbol-narrow':'1.0-0' }}
                   </span>

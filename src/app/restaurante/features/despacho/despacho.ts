@@ -48,6 +48,8 @@ interface DetalleDespacho {
   precio_unitario: number;
   nota?: string | null;
   producto?: { nombre: string };
+  /** Los ingredientes que el cliente pidió quitar: cada uno trae su nombre. */
+  exclusiones?: Array<{ id_ingrediente: number; ingrediente?: { nombre: string } | null }>;
 }
 
 export interface PedidoDespacho {
@@ -158,6 +160,14 @@ export class DespachoComponent implements OnInit {
   private readonly isBrowser = isPlatformBrowser(this.platformId);
 
   readonly pedidos = signal<PedidoDespacho[]>([]);
+  /** «cebolla, tomate»: lo que el cliente pidió quitar de una línea, o `''` si no pidió quitar nada. */
+  textoSin(d: DetalleDespacho): string {
+    return (d.exclusiones ?? [])
+      .map((e) => e.ingrediente?.nombre)
+      .filter((n): n is string => Boolean(n))
+      .join(', ');
+  }
+
   /** Solo la primera carga. Los refrescos del tiempo real no tapan el listado. */
   readonly cargando = signal(false);
   readonly refrescando = signal(false);
@@ -1217,6 +1227,10 @@ export class DespachoComponent implements OnInit {
 
     const filasItems = (p.detalles ?? []).map(d => {
       const nombre = this.escapeHtml(d.producto?.nombre ?? '(Producto)');
+      const sin = this.escapeHtml(this.textoSin(d));
+      const sinHtml = sin
+        ? `<tr><td></td><td colspan="3" class="item-meta">Sin: ${sin}</td></tr>`
+        : '';
       const lineTotal = d.cantidad * d.precio_unitario;
       const notaItem = d.nota ? this.escapeHtml(String(d.nota)) : '';
       const notaItemHtml = notaItem
@@ -1229,6 +1243,7 @@ export class DespachoComponent implements OnInit {
           <td>${this.formatCurrency(d.precio_unitario)}</td>
           <td class="text-right">${this.formatCurrency(lineTotal)}</td>
         </tr>
+        ${sinHtml}
         ${notaItemHtml}`;
     }).join('');
 
