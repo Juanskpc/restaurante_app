@@ -60,7 +60,7 @@ export class SidebarComponent {
     { icon: 'bike',              label: 'Despacho',        route: '/despacho',        section: 'main' },
     { icon: 'flame',             label: 'Cocina',          route: '/cocina',          section: 'main' },
     { icon: 'utensils-crossed',  label: 'Menú',            route: '/menu',            section: 'main' },
-    { icon: 'armchair',          label: 'Mesas',           route: '/mesas',           section: 'secondary' },
+    { icon: 'mesa',    label: 'Mesas',           route: '/mesas',           section: 'secondary' },
     { icon: 'users',             label: 'Clientes',        route: '/clientes',        section: 'secondary' },
     { icon: 'wallet',            label: 'Caja',            route: '/caja',            section: 'secondary' },
     { icon: 'package',           label: 'Inventario',      route: '/inventario',      section: 'secondary' },

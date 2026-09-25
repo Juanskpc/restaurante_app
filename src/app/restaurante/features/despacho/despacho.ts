@@ -34,7 +34,7 @@ type TipoPedido = 'MESA' | 'LLEVAR' | 'DOMICILIO';
  * además para llevar o a domicilio, y aparece en los dos sitios. No son pestañas excluyentes que
  * repartan la lista: son tres maneras de mirar la misma.
  */
-type FiltroTipo = 'TODOS' | 'LLEVAR' | 'DOMICILIO' | 'WHATSAPP';
+type FiltroTipo = 'TODOS' | 'LLEVAR' | 'DOMICILIO' | 'WHATSAPP' | 'CANCELADOS';
 
 /** Espera tras la última tecla antes de guardar domicilio o descuento. */
 const AUTOGUARDADO_MS = 500;
@@ -234,6 +234,8 @@ export class DespachoComponent implements OnInit {
     const f = this.filtro();
     const lista = this.pedidos();
     if (f === 'TODOS') return lista;
+    // «Cancelados» solo enseña los cancelados: los pedidos vivos no entran.
+    if (f === 'CANCELADOS') return [];
     if (f === 'WHATSAPP') return lista.filter((p) => p.de_whatsapp);
     return lista.filter((p) => p.tipo_pedido === f);
   });
@@ -250,7 +252,7 @@ export class DespachoComponent implements OnInit {
   readonly canceladosFiltrados = computed(() => {
     const f = this.filtro();
     const lista = this.canceladosVisibles();
-    if (f === 'TODOS') return lista;
+    if (f === 'TODOS' || f === 'CANCELADOS') return lista;
     if (f === 'WHATSAPP') return [];
     return lista.filter((c) => c.tipo_pedido === f);
   });
@@ -267,6 +269,17 @@ export class DespachoComponent implements OnInit {
     + this.canceladosVisibles().filter((c) => c.tipo_pedido === 'DOMICILIO').length,
   );
   readonly countWhatsapp = computed(() => this.pedidos().filter((p) => p.de_whatsapp).length);
+  readonly countCancelados = computed(() => this.canceladosVisibles().length);
+
+  /**
+   * El chip de «Cancelados» se esconde cuando no queda ninguno (todos finalizados, o cambió el
+   * día), y el filtro no puede sobrevivirle: se quedaría la pantalla vacía sin chip para salir.
+   */
+  private readonly filtroCanceladosEffect = effect(() => {
+    if (this.countCancelados() === 0 && this.filtro() === 'CANCELADOS') {
+      this.filtro.set('TODOS');
+    }
+  });
 
   /** Si el negocio apaga Domicilios, el filtro activo no puede quedarse ahí colgado. */
   private readonly filtroPermisoEffect = effect(() => {
@@ -958,23 +971,23 @@ export class DespachoComponent implements OnInit {
     });
   }
 
-  async eliminarPedido(p: PedidoDespacho, event: Event): Promise<void> {
+  async cancelarPedido(p: PedidoDespacho, event: Event): Promise<void> {
     event.stopPropagation();
 
     if (!this.puedeCancelarNoPagados()) {
       await this.uiFeedback.alert({
         title: 'Acceso restringido',
-        message: 'Tu rol no tiene permiso para eliminar pedidos pendientes de pago.',
+        message: 'Tu rol no tiene permiso para cancelar pedidos pendientes de pago.',
         tone: 'warning',
       });
       return;
     }
 
     const confirmar = await this.uiFeedback.confirm({
-      title: 'Eliminar pedido',
+      title: 'Cancelar pedido',
       message: `Se cancelará el pedido ${p.numero_orden}. Esta acción no se puede deshacer.`,
-      confirmText: 'Eliminar',
-      cancelText: 'Cancelar',
+      confirmText: 'Cancelar pedido',
+      cancelText: 'Volver',
       tone: 'warning',
     });
     if (!confirmar) return;
@@ -987,12 +1000,12 @@ export class DespachoComponent implements OnInit {
           this.pedidos.update(lista => lista.filter(ord => ord.id_orden !== p.id_orden));
           if (this.pedidoActivo()?.id_orden === p.id_orden) this.pedidoActivo.set(null);
           this.cargarCancelados();
-          this.uiFeedback.success('Pedido eliminado correctamente.', 'Eliminado');
+          this.uiFeedback.success('El pedido fue cancelado.', 'Pedido cancelado');
         }
       },
       error: (err) => {
         const msg = err?.error?.message;
-        this.uiFeedback.error(msg || 'No se pudo eliminar el pedido.');
+        this.uiFeedback.error(msg || 'No se pudo cancelar el pedido.');
       },
     });
   }

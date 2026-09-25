@@ -118,6 +118,39 @@ describe('MenuPublicoComponent — cómo quieres pedir', () => {
     expect(fixture.nativeElement.textContent).toContain('¿Cómo quieres pedir?');
   });
 
+  it('«Procesando» hasta que negocio, carta y elección estén listos; después se destapa', async () => {
+    const fixture = montar();
+    const comp = fixture.componentInstance;
+
+    // Antes de tener nada: solo el «Procesando», y la carta tapada (sin pie ni colores por defecto).
+    expect(comp.preparando()).toBe(true);
+    expect(fixture.nativeElement.querySelector('.carta-preparando')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('.public-menu--preparando')).not.toBeNull();
+
+    responder({ mesas: MESAS });
+    fixture.detectChanges();
+    await new Promise((r) => setTimeout(r, 100)); // fuentes (no hay hoja que bajar en el test)
+    fixture.detectChanges();
+
+    expect(comp.preparando()).toBe(false);
+    expect(fixture.nativeElement.querySelector('.carta-preparando')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.public-menu--preparando')).toBeNull();
+  });
+
+  it('un negocio que no existe deja de «procesar» y enseña el aviso', async () => {
+    const fixture = montar();
+    http.expectOne((r) => r.url.endsWith(`/public/negocios/${ID}`)).flush(null, {
+      status: 404,
+      statusText: 'Not Found',
+    });
+    fixture.detectChanges();
+    await new Promise((r) => setTimeout(r, 100));
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.preparando()).toBe(false);
+    expect(fixture.nativeElement.textContent).toContain('Negocio no encontrado');
+  });
+
   it('CERRADO no muestra selector: la carta se ve, pedir queda desactivado', () => {
     for (const estado of ['fuera_de_horario', 'aun_no_abre', 'cerrado_sin_horario']) {
       TestBed.resetTestingModule();
@@ -646,12 +679,55 @@ describe('MenuPublicoComponent — quitar ingredientes al agregar', () => {
       expect(etiquetas(fixture)).toEqual(['Nombre', 'Teléfono', 'Dirección', 'Nota (opcional)']);
     });
 
-    it('recoger: nombre y teléfono (opcional)', () => {
-      expect(etiquetas(panel('R').fixture)).toEqual(['Nombre', 'Teléfono (opcional)']);
+    it('recoger: nombre, teléfono (opcional) y nota (opcional)', () => {
+      expect(etiquetas(panel('R').fixture)).toEqual([
+        'Nombre',
+        'Teléfono (opcional)',
+        'Nota (opcional)',
+      ]);
     });
 
-    it('en mesa: solo el nombre', () => {
-      expect(etiquetas(panel('L').fixture)).toEqual(['Nombre']);
+    it('en mesa: nombre y nota (opcional)', () => {
+      expect(etiquetas(panel('L').fixture)).toEqual(['Nombre', 'Nota (opcional)']);
+    });
+
+    it('nombre y teléfono comparten renglón solo cuando la modalidad pide los dos', () => {
+      const mitades = (f: { nativeElement: HTMLElement }) =>
+        f.nativeElement.querySelectorAll('.campo--mitad').length;
+      expect(mitades(panel('D').fixture)).toBe(2);
+      TestBed.resetTestingModule();
+      expect(mitades(panel('L').fixture)).toBe(0);
+    });
+
+    describe('texto bajo el total', () => {
+      const nota = (m: 'D' | 'R' | 'L') =>
+        panel(m).fixture.nativeElement.querySelector('.pre-pedido-nota')?.textContent?.trim() ?? null;
+
+      it('en mesa NO se muestra: no hay empaque ni domicilio que pueda cambiar el total', () => {
+        expect(nota('L')).toBeNull();
+      });
+
+      it('para recoger y a domicilio habla de empaque, nunca de «desechables»', () => {
+        TestBed.resetTestingModule();
+        const recoger = nota('R');
+        TestBed.resetTestingModule();
+        const domicilio = nota('D');
+        expect(recoger).toContain('empaque');
+        expect(domicilio).toContain('empaque');
+        expect(domicilio).toContain('domicilio');
+        expect(`${recoger} ${domicilio}`).not.toMatch(/desechable/i);
+      });
+    });
+
+    it('el aviso de privacidad ya no habla del almacenamiento fuera de Colombia', () => {
+      const texto = panel('D').fixture.nativeElement.querySelector('.pre-pedido-legal')?.textContent ?? '';
+      expect(texto).toContain('política de tratamiento de datos');
+      expect(texto).not.toMatch(/fuera de Colombia|servidores/i);
+    });
+
+    it('el botón dice «Pedir por WhatsApp»', () => {
+      const boton = panel('D').fixture.nativeElement.querySelector('.pre-pedido-enviar');
+      expect(boton?.textContent).toContain('Pedir por WhatsApp');
     });
 
     it('con datos incompletos NO abre WhatsApp, enseña los errores y lleva el foco al primero', () => {

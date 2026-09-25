@@ -37,6 +37,8 @@ export interface MesaDashboard {
   nombre: string;
   numero: number;
   capacidad: number;
+  /** «Piso 1», «Patio»…: texto libre del administrador. `null` = sin sección. */
+  seccion?: string | null;
   estado: 'A' | 'I';
   estado_servicio: 'DISPONIBLE' | 'OCUPADA' | 'POR_COBRAR';
   status: MesaCardStatus;
@@ -49,6 +51,7 @@ export interface MesaBase {
   nombre: string;
   numero: number;
   capacidad: number;
+  seccion?: string | null;
   estado: 'A' | 'I';
   estado_servicio: 'DISPONIBLE' | 'OCUPADA' | 'POR_COBRAR';
 }
@@ -63,11 +66,11 @@ export class MesasService {
     );
   }
 
-  crearMesa(payload: { id_negocio: number; nombre: string; numero?: number; capacidad?: number }): Observable<{ success: boolean; data: MesaBase }> {
+  crearMesa(payload: { id_negocio: number; nombre: string; numero?: number; capacidad?: number; seccion?: string }): Observable<{ success: boolean; data: MesaBase }> {
     return this.http.post<{ success: boolean; data: MesaBase }>(`${environment.apiUrl}/mesas`, payload);
   }
 
-  editarMesa(idMesa: number, payload: { nombre?: string; numero?: number; capacidad?: number }): Observable<{ success: boolean; data: MesaBase }> {
+  editarMesa(idMesa: number, payload: { nombre?: string; numero?: number; capacidad?: number; seccion?: string }): Observable<{ success: boolean; data: MesaBase }> {
     return this.http.put<{ success: boolean; data: MesaBase }>(`${environment.apiUrl}/mesas/${idMesa}`, payload);
   }
 
@@ -81,6 +84,11 @@ export class MesasService {
 
   liberarMesa(idMesa: number): Observable<{ success: boolean; data: MesaBase }> {
     return this.http.patch<{ success: boolean; data: MesaBase }>(`${environment.apiUrl}/mesas/${idMesa}/liberar`, {});
+  }
+
+  /** Cancela el pedido abierto (el mismo endpoint de Despacho). No devuelve la mesa a «libre». */
+  cancelarPedido(idOrden: number): Observable<{ success: boolean }> {
+    return this.http.patch<{ success: boolean }>(`${environment.apiUrl}/pedidos/${idOrden}/cancelar`, {});
   }
 
   eliminarMesa(idMesa: number): Observable<{ success: boolean; data: { id_mesa: number } }> {

@@ -87,7 +87,7 @@ export class DashboardComponent {
         trendLabel: 'vs ayer',
       },
       {
-        icon: 'armchair',
+        icon: 'mesa',
         label: 'Mesas Ocupadas',
         value: `${r.kpis.mesas_ocupadas.ocupadas}/${r.kpis.mesas_ocupadas.total}`,
         trend: `${r.kpis.mesas_ocupadas.porcentaje}%`,

@@ -73,6 +73,15 @@
         WhatsApp ({{ countWhatsapp() }})
       </button>
     }
+    <!-- Los cancelados también salen en «Todos»; este chip deja verlos SOLOS. Como el de WhatsApp,
+         solo aparece si hay alguno. -->
+    @if (countCancelados() > 0) {
+      <button class="chip chip-cancelados" [class.active]="filtro() === 'CANCELADOS'"
+              (click)="seleccionarFiltro('CANCELADOS')">
+        <lucide-icon name="ban" [size]="13" />
+        Cancelados ({{ countCancelados() }})
+      </button>
+    }
   </div>
 
   @if (cargando()) {
@@ -123,12 +132,13 @@
               @if (esPendientePago(p)) {
                 @if (puedeCancelarNoPagados()) {
                   <button type="button" class="card-action danger"
-                          title="Eliminar pedido"
-                          (click)="eliminarPedido(p, $event)">
+                          title="Cancelar pedido"
+                          aria-label="Cancelar pedido"
+                          (click)="cancelarPedido(p, $event)">
                     <lucide-icon name="x-circle" [size]="16" />
                   </button>
                 } @else {
-                  <span class="card-action blocked" title="Sin permiso para eliminar pendientes de pago">
+                  <span class="card-action blocked" title="Sin permiso para cancelar pendientes de pago">
                     <lucide-icon name="lock" [size]="16" />
                   </span>
                 }
@@ -585,9 +595,9 @@
             {{ cobrandoId() === p.id_orden ? 'Cobrando...' : 'Cobrar' }}
           </button>
           @if (puedeCancelarNoPagados()) {
-            <button class="btn-danger" (click)="eliminarPedido(p, $event)">
+            <button class="btn-danger" (click)="cancelarPedido(p, $event)">
               <lucide-icon name="x-circle" [size]="16" />
-              Eliminar
+              Cancelar
             </button>
           }
         } @else {

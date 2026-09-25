@@ -505,6 +505,21 @@ export class PedidosComponent implements OnInit, OnDestroy {
    */
   private aplicarEdicionDesdeQueryParams(): void {
     const params = this.route.snapshot.queryParamMap;
+
+    // Entrada desde la tarjeta de Mesas («Agregar»): /pedidos?mesa=<id_mesa>. Deja el POS en
+    // «En mesa» con esa mesa elegida y, si ya tiene pedido, ese pedido cargado sin preguntar (a
+    // mano, al elegir la mesa del selector, sí se pregunta).
+    const idMesa = Number(params.get('mesa'));
+    if (Number.isInteger(idMesa) && idMesa > 0) {
+      void this.router.navigate([], { relativeTo: this.route, queryParams: {}, replaceUrl: true });
+      if (this.tipoPedidoPermitido('MESA')) {
+        this.tipoPedido.set('MESA');
+        // Quien pulsó «Editar pedido» ya dijo que quiere ese pedido: no se le pregunta.
+        this.seleccionarMesa(String(idMesa), { sinConfirmar: true });
+      }
+      return;
+    }
+
     const idOrden = Number(params.get('editar'));
     if (!Number.isInteger(idOrden) || idOrden <= 0) return;
 
@@ -1218,7 +1233,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
     });
   }
 
-  seleccionarMesa(rawValue: string): void {
+  seleccionarMesa(rawValue: string, opciones: { sinConfirmar?: boolean } = {}): void {
     const mesaActual = this.mesaId();
     const veniaConOrdenActiva = this.ordenActivaId() !== null;
     const selectedMesa = rawValue ? +rawValue : null;
@@ -1229,7 +1244,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.mesaRequeridaError.set(false);
 
     if (selectedMesa) {
-      this.cargarOrdenActivaMesa(selectedMesa, mesaActual);
+      this.cargarOrdenActivaMesa(selectedMesa, mesaActual, opciones.sinConfirmar === true);
       return;
     }
 
@@ -1317,7 +1332,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.efectivoRecibidoInput.set(rawValue);
   }
 
-  private cargarOrdenActivaMesa(idMesa: number, mesaAnterior: number | null): void {
+  private cargarOrdenActivaMesa(idMesa: number, mesaAnterior: number | null, sinConfirmar = false): void {
     const idNegocio = this.negocioId();
     if (!idNegocio) return;
 
@@ -1366,7 +1381,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
           return;
         }
 
-        const confirmarReemplazo = await this.uiFeedback.confirm({
+        const confirmarReemplazo = sinConfirmar || await this.uiFeedback.confirm({
           title: 'Pedido existente en mesa',
           message: itemsPrevios.length > 0
             ? 'La mesa tiene un pedido abierto. Se cargará y los productos que agregaste se conservarán como adiciones.'
@@ -1420,8 +1435,50 @@ export class PedidosComponent implements OnInit, OnDestroy {
     });
   }
 
+  /**
+   * Los ingredientes de cada producto de la carta, por id. La orden guardada solo dice qué se quitó
+   * de cada línea, no qué se puede quitar: sin esto los pedidos cargados perdían el ícono de
+   * personalizar y ya no se les podía editar los ingredientes.
+   */
+  private readonly ingredientesPorProducto = new Map<number, Ingrediente[]>();
+
+  /**
+   * Completa los ingredientes de las líneas de un pedido cargado (y de su copia base, que sirve de
+   * comparación). Solo rellena lo que está vacío y solo si el producto tiene algo que ofrecer: así
+   * no se cambia la identidad de una línea que se esté editando en ese momento.
+   *
+   * Cambiar los ingredientes de una línea cambia su clave (producto + exclusiones + nota), y el
+   * envío ya sabe traducirlo: quita la línea vieja (`quitar-items`) y agrega la nueva
+   * (`agregar-items`), así que el pedido llega actualizado a mesa o despacho.
+   */
+  private completarIngredientes(): void {
+    const id = this.negocioId();
+    if (!id) return;
+    this.catalogo.productosConIngredientes(id).subscribe({
+      next: (lista) => {
+        for (const p of lista ?? []) {
+          this.ingredientesPorProducto.set(p.id_producto, (p.ingredientes ?? []) as Ingrediente[]);
+        }
+        const completar = (items: ItemOrden[]): ItemOrden[] =>
+          items.map((i) => {
+            const ings = this.ingredientesPorProducto.get(i.id_producto);
+            return i.ingredientes.length === 0 && ings?.length ? { ...i, ingredientes: ings } : i;
+          });
+        this.items.update(completar);
+        this.itemsBaseOrdenActiva.update(completar);
+      },
+      error: () => {
+        /* sin ingredientes el pedido se ve y se cobra igual; solo no se puede personalizar */
+      },
+    });
+  }
+
   private mapOrdenApiToItems(orden: OrdenApi): ItemOrden[] {
-    return (orden.detalles ?? []).map(det => {
+    const detalles = orden.detalles ?? [];
+    if (detalles.some(d => !this.ingredientesPorProducto.has(d.id_producto))) {
+      this.completarIngredientes();
+    }
+    return detalles.map(det => {
       const exclusiones = det.exclusiones ?? [];
       const exclusionesNombres = exclusiones
         .map(excl => excl.ingrediente?.nombre)
@@ -1433,7 +1490,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
         icono: det.producto?.icono ?? '🍽️',
         precio_unitario: Number(det.precio_unitario ?? det.producto?.precio ?? 0),
         cantidad: Number(det.cantidad ?? 1),
-        ingredientes: [],
+        ingredientes: this.ingredientesPorProducto.get(det.id_producto) ?? [],
         exclusiones: new Set<number>(exclusiones.map(excl => excl.id_ingrediente)),
         exclusionesNombres,
         nota: det.nota ?? '',

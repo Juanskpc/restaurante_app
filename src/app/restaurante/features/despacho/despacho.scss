@@ -97,6 +97,16 @@
       background: color-mix(in srgb, var(--color-success) 10%, var(--color-surface));
     }
   }
+
+  // Cancelados: del rojo de error, el mismo con que se marca la tarjeta cancelada.
+  &.chip-cancelados {
+    color: var(--color-error);
+
+    &.active {
+      border-color: var(--color-error);
+      background: color-mix(in srgb, var(--color-error) 10%, var(--color-surface));
+    }
+  }
 }
 
 .state {

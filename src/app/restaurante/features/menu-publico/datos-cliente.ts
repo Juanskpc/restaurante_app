@@ -50,10 +50,12 @@ export interface Requisito {
 
 /**
  * Qué se pide según cómo quiere recibir el pedido:
- *  - domicilio: nombre, teléfono y dirección obligatorios; nota opcional.
+ *  - domicilio: nombre, teléfono y dirección obligatorios.
  *  - recoger: nombre obligatorio; teléfono opcional (WhatsApp ya lo trae, pero puede ser otro).
  *  - en el local (mesa): solo el nombre.
- * La nota es solo del domicilio.
+ * La nota especial es OPCIONAL en las tres (desde 2026-09-25: antes era solo del domicilio, y quien
+ * pedía en mesa o para recoger no tenía dónde decir «sin cebolla en todo»). El bot ya la lee y la
+ * guarda sea cual sea el tipo de pedido.
  */
 export function requisitos(modalidad: Modalidad | null): Requisito[] {
   switch (modalidad) {
@@ -68,9 +70,13 @@ export function requisitos(modalidad: Modalidad | null): Requisito[] {
       return [
         { campo: 'nombre', obligatorio: true },
         { campo: 'telefono', obligatorio: false },
+        { campo: 'nota', obligatorio: false },
       ];
     case 'L':
-      return [{ campo: 'nombre', obligatorio: true }];
+      return [
+        { campo: 'nombre', obligatorio: true },
+        { campo: 'nota', obligatorio: false },
+      ];
     default:
       return [];
   }

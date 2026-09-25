@@ -263,6 +263,12 @@ $pos-btn-h: 38px;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
+
+    // ⚠️ Ninguna sección se encoge: el panel es una columna con scroll propio, y un hijo con
+    // `overflow` (la tira de categorías lo tiene, por su scroll horizontal) tiene alto mínimo 0, así
+    // que al haber muchos productos el navegador lo aplastaba hasta hacerlo desaparecer. Se veía al
+    // volver a poner las categorías arriba: la tira estaba, pero con alto cero.
+    > * { flex-shrink: 0; }
   }
 
   // ≥ 992px: el panel NO scrollea como un todo; la cabecera (buscador +
@@ -773,6 +779,18 @@ $pos-btn-h: 38px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    line-height: 1.25;
+  }
+
+  // El ícono es un elemento en línea: dentro de un flex conserva el hueco de la línea de texto
+  // (donde se posan las letras) y se veía más arriba que su etiqueta. Como caja flex sin altura de
+  // línea propia queda centrado con el texto, y no encoge.
+  lucide-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    line-height: 0;
   }
 
   &:hover {
@@ -1122,11 +1140,28 @@ $pos-btn-h: 38px;
   color: var(--color-success);
 }
 
+// ─── Pie del pedido: nota + totales + botones ───────────────
+// Los tres juntos y al fondo del panel. Antes la nota y los totales iban pegados a la lista y solo
+// los botones bajaban (`margin-top: auto`), y en móvil quedaba un hueco entre unos y otros.
+.order-footer {
+  // Con pocos productos se va al fondo; con muchos, se queda a la vista (`sticky`) mientras la
+  // lista se desplaza por detrás, así el total y los botones nunca se pierden abajo.
+  margin-top: auto;
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+
+  // Un pie más alto que la pantalla (teléfono en horizontal) taparía la lista entera: ahí va en
+  // el flujo, detrás de los productos.
+  @media (max-height: 640px) { position: static; }
+}
+
 // ─── Botones de acción ──────────────────────────────────────
 .action-btns {
-  // `margin-top: auto`: con pocos productos y espacio de sobra, los botones se van al fondo del
-  // panel; con muchos, el panel crece y quedan tras la lista (se ven al hacer scroll).
-  margin-top: auto;
+  // Van dentro de `.order-footer`, que es quien los lleva al fondo.
   padding: var(--spacing-sm) var(--spacing-md);
   display: flex;
   flex-direction: column;

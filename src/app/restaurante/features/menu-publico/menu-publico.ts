@@ -235,18 +235,23 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   });
 
-  /** La nota bajo el total: solo nombra el recargo que de verdad puede aplicar. */
+  /**
+   * La nota bajo el total: solo nombra el recargo que de verdad puede aplicar, y en mesa no hay
+   * ninguno (no hay empaque ni domicilio), así que ahí no se muestra nada (`''`).
+   */
   readonly notaTotal = computed(() => {
+    const base = 'El total final lo confirma el restaurante';
     switch (this.carrito.modalidad()) {
       case 'D':
         return this.carrito.domicilio() > 0
-          ? 'El total final lo confirma el restaurante: puede variar por desechables.'
-          : 'El total final lo confirma el restaurante: no incluye el domicilio y puede variar por desechables.';
+          ? `${base}: puede variar por el empaque.`
+          : `${base}: no incluye el domicilio y puede variar por el empaque.`;
       case 'R':
+        return `${base}: puede variar por el empaque.`;
       case 'L':
-        return 'El total final lo confirma el restaurante: puede variar por desechables.';
+        return '';
       default:
-        return 'El total final lo confirma el restaurante: puede subir por desechables o por el domicilio.';
+        return `${base}: puede subir por el empaque o el domicilio.`;
     }
   });
 
@@ -343,6 +348,27 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly cargandoNegocio = signal(false);
   readonly cargandoCarta = signal(false);
 
+  /** Las fuentes de la carta ya bajaron (o pasó el tope de espera): ver `preparando`. */
+  private readonly fuentesListas = signal(false);
+
+  /**
+   * ¿Ya hay con qué pintar la carta CON SU IDENTIDAD? Negocio (y con él su diseño y colores),
+   * carta, elección de modalidad y fuentes. Mientras falte algo no se enseña nada de la carta: el
+   * visitante veía primero el pie de EscalApp y un esqueleto con los colores por defecto, y
+   * después el cambio a los de la marca. Un negocio inválido o sin plan también es «listo»: ahí
+   * lo que se muestra es el aviso, y no hay nada más que esperar.
+   */
+  private readonly datosListos = computed(() => {
+    if (this.negocioInvalido() || this.planInactivo()) return !this.cargandoNegocio();
+    if (!this.negocio()) return false;
+    return !this.cargandoNegocio() && !this.cargandoCarta() && this.eleccionCargada();
+  });
+
+  /** Pantalla de «Procesando» encima de la carta. La vista previa del panel nunca la lleva. */
+  readonly preparando = computed(
+    () => !this.esVistaPrevia() && !(this.datosListos() && this.fuentesListas()),
+  );
+
   /** La categoría que se está leyendo. `null` = todavía ninguna: manda la primera. */
   readonly categoriaActiva = signal<number | null>(null);
 
@@ -427,13 +453,55 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
    */
   private readonly cargaFuentes = effect(() => {
     const url = urlGoogleFonts(fuentesARequerir(this.diseno()));
-    if (!url || !isPlatformBrowser(this.platformId)) return;
+    if (!url || !isPlatformBrowser(this.platformId)) {
+      this.hojaFuentesLista.set(true);
+      return;
+    }
     if (this.document.head.querySelector(`link[data-carta-fuentes="${url}"]`)) return;
+    this.hojaFuentesLista.set(false);
     const enlace = this.document.createElement('link');
+    enlace.onload = enlace.onerror = () => this.hojaFuentesLista.set(true);
     enlace.rel = 'stylesheet';
     enlace.href = url;
     enlace.setAttribute('data-carta-fuentes', url);
     this.document.head.appendChild(enlace);
+  });
+
+  /** La hoja de Google Fonts ya llegó. Sin diseño con fuentes que pedir no hay nada que esperar. */
+  private readonly hojaFuentesLista = signal(true);
+
+  /**
+   * Con los datos ya pintados (aunque todavía tapados) se espera a las fuentes: destapar antes las
+   * cambiaría a la vista. Tope de 4 s para que una fuente lenta no deje el «Procesando» puesto.
+   */
+  private readonly esperaFuentes = effect((onCleanup) => {
+    if (!this.datosListos() || this.fuentesListas()) return;
+    if (!isPlatformBrowser(this.platformId)) {
+      this.fuentesListas.set(true);
+      return;
+    }
+    const listo = () => this.fuentesListas.set(true);
+    const tope = setTimeout(listo, 4000);
+    onCleanup(() => clearTimeout(tope));
+    // Leído aquí para que el efecto se repita cuando la hoja llegue.
+    if (!this.hojaFuentesLista()) return;
+    requestAnimationFrame(() => (this.document.fonts?.ready ?? Promise.resolve()).then(listo));
+  });
+
+  /**
+   * Con el selector «¿Cómo quieres pedir?» abierto la carta de atrás NO se mueve: sin esto un
+   * gesto fuera de las tarjetas arrastraba el fondo.
+   */
+  private readonly bloqueoScrollSelector = effect((onCleanup) => {
+    if (!isPlatformBrowser(this.platformId) || !this.mostrarSelector()) return;
+    const { documentElement, body } = this.document;
+    const antes = [documentElement.style.overflow, body.style.overflow];
+    documentElement.style.overflow = 'hidden';
+    body.style.overflow = 'hidden';
+    onCleanup(() => {
+      documentElement.style.overflow = antes[0];
+      body.style.overflow = antes[1];
+    });
   });
 
   readonly anio = new Date().getFullYear();
@@ -502,6 +570,7 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
       this.secciones.set([]);
       this.categoriaActiva.set(null);
       this.negocioId.set(id);
+      this.fuentesListas.set(false);
       // El carrito se ata al negocio ANTES de cargar nada: la clave de guardado lleva su id,
       // para que quien mire dos cartas distintas no se encuentre los platos de una en la otra.
       this.carrito.iniciar(id);
@@ -823,6 +892,11 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
 
   readonly cliente = this.carrito.cliente;
   readonly requisitosCliente = computed(() => requisitos(this.carrito.modalidad()));
+
+  /** Nombre y teléfono comparten renglón cuando la modalidad pide los dos: el formulario cabe. */
+  readonly datosEnDosColumnas = computed(() =>
+    this.requisitosCliente().some((r) => r.campo === 'telefono'),
+  );
   readonly erroresCliente = computed(() => validarCliente(this.carrito.modalidad(), this.carrito.cliente()));
 
   protected etiquetaCampo(campo: CampoCliente): string {

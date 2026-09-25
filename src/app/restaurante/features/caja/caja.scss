@@ -8,6 +8,21 @@
   width: 100%;
 }
 
+// Móvil: el `.content` del layout ya trae su margen (1 rem); aquí no se suma otro. Se le devuelve casi
+// todo y queda un margen de 10 px: lo justo para que no se pegue al borde de la pantalla, y que la
+// tabla y las tarjetas tengan casi todo el ancho.
+@media (max-width: 767px) {
+  .caja-page {
+    width: auto;
+    max-width: none;
+    margin: calc(-1 * var(--spacing-md) + 10px);
+    padding: 0;
+    gap: .75rem;
+  }
+
+  .caja-card { padding: .6rem .5rem; gap: .75rem; }
+}
+
 .caja-header {
   display: flex;
   align-items: flex-start;
@@ -198,24 +213,31 @@
     overflow-x: auto;
   }
 
+  // Cada celda va en UNA sola línea y las columnas se ajustan a su contenido: el alto de una fila
+  // es el de una línea, y en la misma pantalla caben muchos más registros. Si el ancho no alcanza,
+  // se desplaza de lado (`.movimientos__table`), no hacia abajo.
   table {
     width: 100%;
     border-collapse: collapse;
-    font-size: .9rem;
-    min-width: 640px;
+    font-size: .92rem;
 
-    th, td { padding: .55rem .35rem; text-align: left; border-bottom: 1px solid var(--color-border); }
+    th, td {
+      padding: .7rem .75rem;
+      text-align: left;
+      border-bottom: 1px solid var(--color-border);
+      white-space: nowrap;
+    }
     th { font-weight: 600; color: var(--color-text-secondary); font-size: .75rem; text-transform: uppercase; }
     td.num, th.num { text-align: right; }
     .ref { color: var(--color-text-secondary); }
 
-    // Un pedido con multipago lleva dos nombres unidos por «+»: sin esto la
-    // columna estira la tabla y el resto de celdas se aprieta.
     td.col-metodo {
-      max-width: 12rem;
       color: var(--color-text-secondary);
-      font-size: .82rem;
+      font-size: .85rem;
     }
+
+    // La fecha corta (año de 2 dígitos) es para el móvil.
+    .f-corta { display: none; }
   }
 
   .badge {
@@ -275,6 +297,22 @@
     color: var(--color-text-secondary);
   }
 
+  // Móvil: filas lo más bajas posible. Se prioriza ver muchos registros sobre la comodidad de la
+  // celda (el scroll de lado es barato; el de abajo, no).
+  @media (max-width: 767px) {
+    table { font-size: .72rem; }
+    table th, table td { padding: .22rem .32rem; }
+    table th { font-size: .58rem; }
+    table td.col-metodo { font-size: .68rem; }
+    table .f-larga { display: none; }
+    table .f-corta { display: inline; }
+    .badge { padding: .04rem .38rem; font-size: .6rem; }
+    .btn-eliminar { width: 20px; height: 20px; }
+    .btn-expandir { width: 20px; height: 20px; }
+    th.col-expandir, td.col-expandir { padding-left: .1rem; padding-right: .1rem; }
+    .marca-anulado { font-size: .62rem; }
+  }
+
   // ── Acordeón: productos del pedido bajo su fila ──
 
   .sr-only {
@@ -326,9 +364,16 @@
   .fila-detalle > td {
     padding: 0 .35rem .7rem;
     background: color-mix(in srgb, var(--color-text-primary) 4%, transparent);
+    white-space: normal; // el detalle sí parte líneas: no es una celda de la tabla
   }
 
   .detalle-pedido {
+    // Con la tabla más ancha que la pantalla, el detalle se queda pegado a la izquierda y con el
+    // ancho visible, en vez de estirarse hasta el final de la fila.
+    position: sticky;
+    left: 0;
+    width: min(100%, calc(100vw - 1.5rem));
+    box-sizing: border-box;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md, .5rem);
     background: var(--color-surface);

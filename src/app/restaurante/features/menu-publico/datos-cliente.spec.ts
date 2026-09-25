@@ -33,15 +33,28 @@ describe('datos del cliente', () => {
       ]);
     });
 
-    it('recoger: nombre obligatorio y teléfono opcional', () => {
+    it('recoger: nombre obligatorio; teléfono y nota opcionales', () => {
       expect(requisitos('R')).toEqual([
         { campo: 'nombre', obligatorio: true },
         { campo: 'telefono', obligatorio: false },
+        { campo: 'nota', obligatorio: false },
       ]);
     });
 
-    it('en el local: solo el nombre', () => {
-      expect(requisitos('L')).toEqual([{ campo: 'nombre', obligatorio: true }]);
+    it('en el local: nombre obligatorio y nota opcional', () => {
+      expect(requisitos('L')).toEqual([
+        { campo: 'nombre', obligatorio: true },
+        { campo: 'nota', obligatorio: false },
+      ]);
+    });
+
+    it('la nota especial es opcional en TODOS los tipos de pedido', () => {
+      for (const m of ['D', 'R', 'L'] as const) {
+        expect(requisitos(m).find((r) => r.campo === 'nota'), m).toEqual({
+          campo: 'nota',
+          obligatorio: false,
+        });
+      }
     });
 
     it('sin modalidad no se pide nada', () => {
@@ -128,8 +141,11 @@ describe('datos del cliente', () => {
       expect(lineasDelBloque('R', { ...CLIENTE_VACIO, nombre: 'Ana' })).toEqual(['Nombre: Ana']);
     });
 
-    it('solo las etiquetas de la modalidad: en mesa no viaja dirección ni teléfono', () => {
-      expect(lineasDelBloque('L', completo)).toEqual(['Nombre: Ana Pérez']);
+    it('solo las etiquetas de la modalidad: en mesa no viaja dirección ni teléfono, pero sí la nota', () => {
+      expect(lineasDelBloque('L', completo)).toEqual([
+        'Nombre: Ana Pérez',
+        'Nota: sin cebolla en todo',
+      ]);
     });
 
     it('una nota con saltos de línea no puede colar una etiqueta nueva', () => {

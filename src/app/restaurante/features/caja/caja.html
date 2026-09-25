@@ -1,7 +1,7 @@
 <section class="caja-page">
   <header class="caja-header">
     <div>
-      <h1>Caja</h1>
+      <!-- Sin título: el nombre de la vista ya está en el encabezado de la app. -->
       <p class="subtitle">Control del turno operativo: apertura, movimientos y cierre.</p>
       <!-- Solo aparece si el usuario maneja más de una caja (rubro). -->
       <div class="caja-header__selector">
@@ -71,7 +71,7 @@
         </div>
         <div>
           <span class="label">Apertura</span>
-          <strong>{{ caja()!.fecha_apertura | date:'dd/MM/yyyy HH:mm' }}</strong>
+          <strong>{{ caja()!.fecha_apertura | date:'dd/MM/yyyy hh:mm a':undefined:'en-US' }}</strong>
         </div>
         @if (puedeVerIngresos()) {
           <div>
@@ -214,7 +214,10 @@
                       </button>
                     }
                   </td>
-                  <td>{{ m.fecha | date:'dd/MM/yyyy HH:mm' }}</td>
+                  <td class="col-fecha">
+                    <span class="f-larga">{{ m.fecha | date:'dd/MM/yyyy hh:mm a':undefined:'en-US' }}</span>
+                    <span class="f-corta">{{ m.fecha | date:'dd/MM/yy hh:mm a':undefined:'en-US' }}</span>
+                  </td>
                   <td>
                     <span class="badge"
                           [class.badge--in]="m.tipo === 'INGRESO' && !m.es_anulacion && !m.anulado"
@@ -439,11 +442,11 @@
           <div class="hist-fechas">
             <span>
               <lucide-icon name="play" size="13" />
-              {{ sel.fecha_apertura | date:'dd/MM/yyyy HH:mm' }}
+              {{ sel.fecha_apertura | date:'dd/MM/yyyy hh:mm a':undefined:'en-US' }}
             </span>
             <span>
               <lucide-icon name="square" size="13" />
-              {{ sel.fecha_cierre ? (sel.fecha_cierre | date:'dd/MM/yyyy HH:mm') : 'Sin cerrar' }}
+              {{ sel.fecha_cierre ? (sel.fecha_cierre | date:'dd/MM/yyyy hh:mm a':undefined:'en-US') : 'Sin cerrar' }}
             </span>
             <span>
               <lucide-icon name="user" size="13" />
@@ -531,7 +534,10 @@
                           </button>
                         }
                       </td>
-                      <td>{{ m.fecha | date:'dd/MM/yyyy HH:mm' }}</td>
+                      <td class="col-fecha">
+                    <span class="f-larga">{{ m.fecha | date:'dd/MM/yyyy hh:mm a':undefined:'en-US' }}</span>
+                    <span class="f-corta">{{ m.fecha | date:'dd/MM/yy hh:mm a':undefined:'en-US' }}</span>
+                  </td>
                       <td>
                         <span class="badge"
                               [class.badge--in]="m.tipo === 'INGRESO' && !m.es_anulacion && !m.anulado"
@@ -600,9 +606,9 @@
                 <article class="hist-item">
                   <div class="hist-item__info">
                     <span class="hist-item__rango">
-                      {{ c.fecha_apertura | date:'dd/MM/yyyy HH:mm' }}
+                      {{ c.fecha_apertura | date:'dd/MM/yyyy hh:mm a':undefined:'en-US' }}
                       <lucide-icon name="arrow-right" size="13" />
-                      {{ c.fecha_cierre ? (c.fecha_cierre | date:'dd/MM/yyyy HH:mm') : 'Sin cerrar' }}
+                      {{ c.fecha_cierre ? (c.fecha_cierre | date:'dd/MM/yyyy hh:mm a':undefined:'en-US') : 'Sin cerrar' }}
                     </span>
                     <span class="hist-item__meta">
                       @if (variasCajas() && c.punto) {

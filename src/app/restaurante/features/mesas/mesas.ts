@@ -2,6 +2,7 @@ import { Component, ChangeDetectionStrategy, DestroyRef, computed, effect, injec
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { Observable, Subject, of } from 'rxjs';
 import { catchError, debounceTime, map, switchMap, tap } from 'rxjs/operators';
 import { LucideAngularModule } from 'lucide-angular';
@@ -18,6 +19,18 @@ import {
   MultipagoSelectorComponent,
   PagoSeleccion,
 } from '../../shared/multipago-selector/multipago-selector';
+import { AccionMesa, accionPrincipalDe } from './mesa-accion';
+import { agruparPorSeccion, normalizarSeccion, seccionesExistentes } from './mesa-secciones';
+import {
+  ALERTA_MINUTOS,
+  FormaMesa,
+  Silla,
+  formaDeMesa,
+  minutosDeEtiqueta,
+  puestos,
+  sillasDeMesa,
+  superaAlerta,
+} from './mesa-geometria';
 
 type FiltroEstado = 'all' | 'available' | 'occupied' | 'payment' | 'disabled';
 
@@ -45,6 +58,7 @@ export class MesasComponent {
   private readonly vista = inject(VistaTarjetasService);
   private readonly realtime = inject(RealtimeService);
   private readonly clientesApi = inject(ClientesService);
+  private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly platformId = inject(PLATFORM_ID);
   private readonly isBrowser = isPlatformBrowser(this.platformId);
@@ -54,7 +68,6 @@ export class MesasComponent {
   /** Solo la primera carga, cuando no hay nada que enseñar todavía. */
   readonly cargando = signal(false);
   /** Hay una consulta en vuelo sobre datos que ya están en pantalla: no tapa nada. */
-  readonly refrescando = signal(false);
   readonly guardando = signal(false);
   readonly filtro = signal<FiltroEstado>('all');
   readonly mesaActivaId = signal<number | null>(null);
@@ -62,6 +75,13 @@ export class MesasComponent {
   readonly modalNuevaMesa = signal(false);
   readonly editandoMesaId = signal<number | null>(null);
   readonly formNombre = signal('');
+  readonly formCapacidad = signal(4);
+  readonly formSeccion = signal('');
+  /** La lista de mesas para editarlas (botón «Editar mesas» del encabezado). */
+  readonly modalEditarMesas = signal(false);
+  readonly capacidadMin = 1;
+  readonly capacidadMax = 20;
+  readonly alertaMinutos = ALERTA_MINUTOS;
   readonly efectivoRecibidoInput = signal('');
   readonly cobroError = signal('');
   readonly itemsPagadosPorMesa = signal<Record<number, ItemPagadoMesa[]>>({});
@@ -130,6 +150,20 @@ export class MesasComponent {
     if (f === 'all') return this.mesas();
     return this.mesas().filter((m) => m.status === f);
   });
+
+  /** Las mesas por sección; sin ninguna sección en uso queda un solo grupo sin título. */
+  readonly gruposMesas = computed(() => agruparPorSeccion(this.mesasFiltradas()));
+
+  /** Las secciones que ya existen: se sugieren al escribir una para no duplicarla con otro nombre. */
+  readonly seccionesSugeridas = computed(() => seccionesExistentes(this.mesas()));
+
+  /**
+   * Cancelar un pedido exige el mismo permiso que en Despacho (`despacho_cancelar_no_pagado`): el
+   * servidor lo vuelve a comprobar, esto solo evita ofrecer un botón que acabaría en un 403.
+   */
+  readonly canCancelarPedido = computed(
+    () => this.auth.canAccessSubnivel('despacho_cancelar_no_pagado') && this.canAccionesPedido(),
+  );
 
   readonly mesaActiva = computed(() => {
     const id = this.mesaActivaId();
@@ -226,26 +260,18 @@ export class MesasComponent {
 
     const esPrimeraCarga = this.mesas().length === 0;
     if (esPrimeraCarga) this.cargando.set(true);
-    this.refrescando.set(true);
 
     this.mesasApi.getMesasDashboard(id).subscribe({
       next: (res) => {
         aplicarLista(this.mesas, res?.data ?? [], (m) => m.id_mesa);
         this.cargando.set(false);
-        this.refrescando.set(false);
       },
       // Un refresco que falla deja lo que ya estaba: borrar el tablero por un corte de red es
       // peor que enseñarlo con unos segundos de retraso.
       error: () => {
         this.cargando.set(false);
-        this.refrescando.set(false);
       },
     });
-  }
-
-  actualizarMesas(): void {
-    if (this.refrescando()) return;
-    this.loadMesas();
   }
 
   rotarDensidad(): void {
@@ -378,6 +404,8 @@ export class MesasComponent {
 
     this.editandoMesaId.set(null);
     this.formNombre.set('');
+    this.formCapacidad.set(4);
+    this.formSeccion.set('');
     this.modalNuevaMesa.set(true);
   }
 
@@ -386,6 +414,8 @@ export class MesasComponent {
 
     this.editandoMesaId.set(mesa.id_mesa);
     this.formNombre.set(mesa.nombre);
+    this.formCapacidad.set(puestos(mesa.capacidad));
+    this.formSeccion.set(normalizarSeccion(mesa.seccion));
     this.modalNuevaMesa.set(true);
   }
 
@@ -400,15 +430,21 @@ export class MesasComponent {
 
     if (!nombre) return;
     if (!editingId && !idNegocio) return;
+    const capacidad = this.capacidadValida();
+    if (capacidad === null) return;
+    // Al editar, vacía = quitarle la sección (el servidor la guarda como NULL).
+    const seccion = normalizarSeccion(this.formSeccion());
 
     this.guardando.set(true);
 
     const req = editingId
-      ? this.mesasApi.editarMesa(editingId, { nombre })
+      ? this.mesasApi.editarMesa(editingId, { nombre, capacidad, seccion })
       : this.mesasApi.crearMesa({
           id_negocio: idNegocio!,
           nombre,
           numero: this.nextNumero(),
+          capacidad,
+          ...(seccion ? { seccion } : {}),
         });
 
     req.subscribe({
@@ -427,6 +463,67 @@ export class MesasComponent {
         this.uiFeedback.error('No fue posible guardar la mesa.');
       },
     });
+  }
+
+  /** Puestos del formulario, o `null` si no es un entero entre el mínimo y el máximo. */
+  capacidadValida(): number | null {
+    const n = Number(this.formCapacidad());
+    return Number.isInteger(n) && n >= this.capacidadMin && n <= this.capacidadMax ? n : null;
+  }
+
+  setCapacidad(valor: number | string | null): void {
+    this.formCapacidad.set(valor === null || valor === '' ? NaN : Number(valor));
+  }
+
+  // ── Tarjeta: la mesa vista desde arriba ──
+
+  formaMesa(mesa: MesaDashboard): FormaMesa {
+    return formaDeMesa(mesa.capacidad);
+  }
+
+  sillasMesa(mesa: MesaDashboard): Silla[] {
+    return sillasDeMesa(mesa.capacidad);
+  }
+
+  puestosMesa(mesa: MesaDashboard): number {
+    return puestos(mesa.capacidad);
+  }
+
+  /** Solo una mesa con cuenta abierta tiene monto y tiempo que mostrar. */
+  tieneCuenta(mesa: MesaDashboard): boolean {
+    return mesa.status === 'occupied' || mesa.status === 'payment';
+  }
+
+  /** Ocupada y pasada de tiempo: la única que se marca en alerta (la que espera cuenta no). */
+  enAlerta(mesa: MesaDashboard): boolean {
+    return mesa.status === 'occupied' && superaAlerta(minutosDeEtiqueta(mesa.time));
+  }
+
+  /** El POS es donde se toma y se edita un pedido: hace falta el permiso de acciones y la ruta. */
+  private puedeIrAPedidos(): boolean {
+    return this.canAccionesPedido() && this.auth.canAccessRoute('/pedidos');
+  }
+
+  /** El botón principal de la tarjeta (ver `mesa-accion.ts`), o `null` si no hay nada que ofrecer. */
+  accionPrincipal(mesa: MesaDashboard): AccionMesa | null {
+    return accionPrincipalDe(mesa.status, this.puedeIrAPedidos());
+  }
+
+  /**
+   * Tomar o editar el pedido lleva al POS con la mesa elegida (si ya tiene pedido, Pedidos
+   * pregunta antes de cargarlo); «ver» abre el detalle. El clic no sube: la tarjeta entera abre
+   * el detalle, y aquí no debe abrirse por debajo.
+   */
+  ejecutarAccionPrincipal(mesa: MesaDashboard, event: Event): void {
+    event.stopPropagation();
+    const accion = this.accionPrincipal(mesa);
+    if (!accion) return;
+
+    if (accion.tipo === 'ver') {
+      this.openMesa(mesa);
+      return;
+    }
+    void this.router.navigate(['/pedidos'], { queryParams: { mesa: mesa.id_mesa } });
   }
 
   abrirMesa(): void {
@@ -537,6 +634,87 @@ export class MesasComponent {
         this.uiFeedback.error(err?.error?.message || 'No fue posible confirmar el cobro de la mesa.');
       },
     });
+  }
+
+  /** Cancelar el pedido tiene sentido cuando ya hay productos en él, y solo con el permiso. */
+  puedeCancelar(mesa: MesaDashboard): boolean {
+    return (mesa.status === 'occupied' || mesa.status === 'payment')
+      && !!mesa.order.id_orden
+      && mesa.order.items.length > 0
+      && this.canCancelarPedido();
+  }
+
+  cancelarDesdeCard(mesa: MesaDashboard, event: Event): void {
+    event.stopPropagation();
+    void this.cancelarPedidoMesa(mesa);
+  }
+
+  /**
+   * Cancela el pedido abierto de la mesa. Cancelar la orden no toca la mesa, y una mesa «por cobrar»
+   * o «ocupada» sin pedido no tiene sentido, así que después se le devuelve su estado: «libre»,
+   * salvo que ya se hubiera cobrado parte de la cuenta (esos clientes siguen sentados: queda
+   * «ocupada» y se libera a mano cuando se vayan).
+   */
+  async cancelarPedidoMesa(mesa: MesaDashboard): Promise<void> {
+    if (!this.puedeCancelar(mesa) || this.guardando()) return;
+    const idOrden = mesa.order.id_orden!;
+    const yaPagaronAlgo = (this.itemsPagadosPorMesa()[mesa.id_mesa] ?? []).length > 0;
+
+    const confirmado = await this.uiFeedback.confirm({
+      title: 'Cancelar pedido',
+      message: `Se cancelará el pedido de ${mesa.nombre} (${this.formatMoney(mesa.order.total)}). Esta acción no se puede deshacer.`,
+      confirmText: 'Cancelar pedido',
+      cancelText: 'Volver',
+      tone: 'warning',
+    });
+    if (!confirmado) return;
+
+    this.guardando.set(true);
+    this.mesasApi.cancelarPedido(idOrden).subscribe({
+      next: () => {
+        const paso$ = yaPagaronAlgo
+          ? this.mesasApi.cambiarEstadoServicio(mesa.id_mesa, 'OCUPADA')
+          : this.mesasApi.liberarMesa(mesa.id_mesa);
+        paso$.subscribe({
+          next: () => this.terminarCancelacion(mesa, yaPagaronAlgo),
+          // El pedido ya se canceló: si la mesa no volvió a su estado, se avisa y se deja que
+          // el tablero se refresque para que la mesa se libere a mano.
+          error: () => {
+            this.terminarCancelacion(mesa, yaPagaronAlgo);
+            this.uiFeedback.error('El pedido se canceló, pero no se pudo actualizar el estado de la mesa.');
+          },
+        });
+      },
+      error: (err: { error?: { message?: string } }) => {
+        this.guardando.set(false);
+        this.uiFeedback.error(err?.error?.message || 'No fue posible cancelar el pedido.');
+      },
+    });
+  }
+
+  private terminarCancelacion(mesa: MesaDashboard, yaPagaronAlgo: boolean): void {
+    this.guardando.set(false);
+    if (!yaPagaronAlgo) this.limpiarItemsPagadosMesaCache(mesa.id_mesa);
+    if (this.mesaActivaId() === mesa.id_mesa) this.closeMesa();
+    this.uiFeedback.success(`El pedido de ${mesa.nombre} fue cancelado.`, 'Pedido cancelado');
+    this.loadMesas();
+  }
+
+  // ── Editar mesas (lista con todas, desde el encabezado) ──
+
+  abrirEditarMesas(): void {
+    if (!this.canAdministracionMesa()) return;
+    this.modalEditarMesas.set(true);
+  }
+
+  cerrarEditarMesas(): void {
+    this.modalEditarMesas.set(false);
+  }
+
+  /** Del listado al formulario de esa mesa. */
+  editarDesdeLista(mesa: MesaDashboard): void {
+    this.cerrarEditarMesas();
+    this.openEditarMesa(mesa);
   }
 
   liberarMesaDesdeCard(mesa: MesaDashboard, event: Event): void {
@@ -665,40 +843,39 @@ export class MesasComponent {
 
   statusIcon(status: MesaCardStatus): string {
     if (status === 'available') return 'check-circle';
-    if (status === 'occupied') return 'clipboard-list';
+    if (status === 'occupied') return 'utensils';
     if (status === 'payment') return 'receipt';
-    return 'x-circle';
+    return 'lock';
   }
 
-  modalActions(status: MesaCardStatus): Array<{ key: string; label: string; style: 'primary' | 'warning' | 'ghost'; icon: string }> {
+  /**
+   * Las acciones del pie del modal de la mesa, la principal primero. «Liberar mesa» solo se ofrece
+   * cuando NO hay pedido (con uno abierto el servidor la rechazaría); con productos pendientes lo
+   * que corresponde es cobrarlo o cancelarlo.
+   */
+  modalActions(mesa: MesaDashboard): Array<{ key: string; label: string; style: 'primary' | 'warning' | 'danger' | 'ghost'; icon: string }> {
+    type Accion = { key: string; label: string; style: 'primary' | 'warning' | 'danger' | 'ghost'; icon: string };
+    const status = mesa.status;
+
     if (status === 'available') {
       if (!this.canAccionesPedido()) return [];
       return [{ key: 'abrir', label: 'Reservar mesa', style: 'primary', icon: 'circle-plus' }];
     }
 
-    if (status === 'occupied') {
-      const actions: Array<{ key: string; label: string; style: 'primary' | 'warning' | 'ghost'; icon: string }> = [];
+    if (status === 'occupied' || status === 'payment') {
+      const actions: Accion[] = [];
       if (this.canAccionesPedido()) {
-        actions.push({ key: 'cuenta', label: 'Marcar por cobrar', style: 'warning', icon: 'receipt' });
+        actions.push(status === 'payment'
+          ? { key: 'cobrar', label: 'Cobrar', style: 'primary', icon: 'banknote' }
+          : { key: 'cuenta', label: 'Marcar por cobrar', style: 'warning', icon: 'receipt' });
       }
       if (this.canImprimirPedido()) {
         actions.push({ key: 'imprimir', label: 'Imprimir', style: 'ghost', icon: 'printer' });
       }
-      if (this.canAccionesPedido()) {
-        actions.push({ key: 'liberar', label: 'Liberar mesa', style: 'ghost', icon: 'door-open' });
+      if (this.puedeCancelar(mesa)) {
+        actions.push({ key: 'cancelar', label: 'Cancelar pedido', style: 'danger', icon: 'x' });
       }
-      return actions;
-    }
-
-    if (status === 'payment') {
-      const actions: Array<{ key: string; label: string; style: 'primary' | 'warning' | 'ghost'; icon: string }> = [];
-      if (this.canAccionesPedido()) {
-        actions.push({ key: 'cobrar', label: 'Cobro', style: 'ghost', icon: 'credit-card' });
-      }
-      if (this.canImprimirPedido()) {
-        actions.push({ key: 'imprimir', label: 'Imprimir', style: 'ghost', icon: 'printer' });
-      }
-      if (this.canAccionesPedido()) {
+      if (this.canAccionesPedido() && this.puedeLiberarMesa(mesa)) {
         actions.push({ key: 'liberar', label: 'Liberar mesa', style: 'ghost', icon: 'door-open' });
       }
       return actions;
@@ -720,6 +897,10 @@ export class MesasComponent {
     if (action === 'cuenta') this.pedirCuenta();
     if (action === 'cobrar') this.confirmarCobro();
     if (action === 'liberar') this.liberarMesaActual();
+    if (action === 'cancelar') {
+      const mesa = this.mesaActiva();
+      if (mesa) void this.cancelarPedidoMesa(mesa);
+    }
   }
 
   formatMoney(value: number): string {
@@ -730,6 +911,15 @@ export class MesasComponent {
     return `$ ${this.moneyFormatter.format(numericValue)}`;
   }
 
+  /** «$ 125 k» / «$ 1,2 M»: para la tarjeta más chica, donde «$ 125.000» no cabe. */
+  formatMoneyCompact(value: number): string {
+    const n = Number(value);
+    if (!Number.isFinite(n) || n <= 0) return '$ 0';
+    if (n >= 1_000_000) return `$ ${(n / 1_000_000).toFixed(1).replace('.', ',').replace(/,0$/, '')} M`;
+    if (n >= 1_000) return `$ ${Math.round(n / 1_000)} k`;
+    return `$ ${Math.round(n)}`;
+  }
+
   getMesaTimeLabel(mesa: MesaDashboard): string {
     if (mesa.time) return mesa.time;
     if (mesa.status === 'occupied' || mesa.status === 'payment') return '0 min';
@@ -737,7 +927,7 @@ export class MesasComponent {
   }
 
   puedeVerBloquesAccionMesa(mesa: MesaDashboard): boolean {
-    return this.modalActions(mesa.status).length > 0
+    return this.modalActions(mesa).length > 0
       || (this.canAdministracionMesa() && (mesa.status === 'available' || mesa.status === 'disabled'));
   }
 

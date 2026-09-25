@@ -1,4 +1,13 @@
-<div class="public-menu">
+<!-- «Procesando» hasta que la carta tenga todo para pintarse con la identidad del negocio (ver
+     `preparando`): antes se veían primero el pie de EscalApp y los colores por defecto. -->
+@if (preparando()) {
+  <div class="carta-preparando" role="status" aria-live="polite">
+    <span class="carta-preparando__giro" aria-hidden="true"></span>
+    <span class="carta-preparando__texto">Procesando…</span>
+  </div>
+}
+
+<div class="public-menu" [class.public-menu--preparando]="preparando()" [attr.inert]="preparando() ? '' : null">
   <!-- ═══════════ HERO HEADER (se va con el scroll) ═══════════ -->
   <header class="hero">
     <div class="hero-inner">
@@ -615,10 +624,12 @@
         <!-- Datos del cliente, para que el bot no tenga que preguntarlos uno a uno por WhatsApp. -->
         <form class="pre-pedido-datos" novalidate (submit)="$event.preventDefault(); enviarPorWhatsApp()">
           <p class="pre-pedido-datos__ayuda">
-            Estos datos van en tu mensaje para que el restaurante no tenga que pedírtelos.
+            Van en tu mensaje para que el restaurante no tenga que pedírtelos.
           </p>
           @for (r of requisitosCliente(); track r.campo) {
-            <div class="campo" [class.campo--error]="mostrarError(r.campo)">
+            <div class="campo"
+                 [class.campo--mitad]="datosEnDosColumnas() && (r.campo === 'nombre' || r.campo === 'telefono')"
+                 [class.campo--error]="mostrarError(r.campo)">
               <label class="campo__etiqueta" [for]="'cli-' + r.campo">
                 {{ etiquetaCampo(r.campo) }}
                 @if (!r.obligatorio) { <span class="campo__opcional">(opcional)</span> }
@@ -677,7 +688,9 @@
           si algo cambió de precio o se agotó entre que el cliente miró y escribió, manda el
           catálogo. Prometer aquí un total exacto sería prometer por cuenta de otro.
         -->
-        <p class="pre-pedido-nota">{{ notaTotal() }}</p>
+        @if (notaTotal()) {
+          <p class="pre-pedido-nota">{{ notaTotal() }}</p>
+        }
 
         @if (pasoPanel() === 'pedido') {
           <button type="button" class="pre-pedido-enviar" (click)="continuarDelPedido()">
@@ -685,8 +698,8 @@
               <span>Continuar</span>
               <lucide-icon name="arrow-right" [size]="18" />
             } @else {
-              <lucide-icon name="message-circle" [size]="18" />
-              <span>Continuar por WhatsApp</span>
+              <lucide-icon name="message-circle" [size]="16" />
+              <span>Pedir por WhatsApp</span>
             }
           </button>
           <button type="button" class="pre-pedido-vaciar" (click)="carrito.vaciar(); cerrarPrePedido()">
@@ -698,8 +711,8 @@
               <lucide-icon name="arrow-left" [size]="16" /> Volver
             </button>
             <button type="button" class="pre-pedido-enviar" (click)="enviarPorWhatsApp()">
-              <lucide-icon name="message-circle" [size]="18" />
-              <span>Continuar por WhatsApp</span>
+              <lucide-icon name="message-circle" [size]="16" />
+              <span>Pedir por WhatsApp</span>
             </button>
           </div>
 
@@ -709,8 +722,7 @@
           -->
           <p class="pre-pedido-legal">
             Al continuar, tu número de WhatsApp y tu pedido se tratarán conforme a la
-            <a [href]="urlPrivacidad" target="_blank" rel="noopener">política de tratamiento de datos</a>,
-            que incluye su almacenamiento en servidores fuera de Colombia.
+            <a [href]="urlPrivacidad" target="_blank" rel="noopener">política de tratamiento de datos</a>.
           </p>
         }
       </div>

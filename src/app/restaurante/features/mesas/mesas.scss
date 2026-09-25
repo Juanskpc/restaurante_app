@@ -25,6 +25,17 @@
   align-items: center;
   gap: var(--spacing-sm);
 
+  > lucide-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--color-primary) 12%, var(--color-surface));
+    color: var(--color-primary);
+  }
+
   h1 {
     font-size: var(--font-size-xl);
     color: var(--color-text-primary);
@@ -60,13 +71,25 @@
   to { transform: rotate(360deg); }
 }
 
+// Una sola fila: si no caben todos los filtros se desliza de lado, en vez de partirse en dos o
+// tres renglones y quitarle alto al salón.
 .stats-strip {
   display: flex;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 2px;
+
+  &::-webkit-scrollbar { display: none; }
 }
 
 .chip {
+  flex: 0 0 auto;
+  white-space: nowrap;
   border: 1px solid var(--color-border);
   background: var(--color-surface);
   color: var(--color-text-secondary);
@@ -84,33 +107,33 @@
 
 .chip.available {
   border-color: var(--color-status-available-border);
-  color: var(--color-status-available);
+  color: var(--color-status-available-text);
 
   &.active {
     border-color: var(--color-status-available-border);
-    color: var(--color-status-available);
+    color: var(--color-status-available-text);
     background: var(--color-status-available-bg);
   }
 }
 
 .chip.occupied {
   border-color: var(--color-status-occupied-border);
-  color: var(--color-status-occupied);
+  color: var(--color-status-occupied-text);
 
   &.active {
     border-color: var(--color-status-occupied-border);
-    color: var(--color-status-occupied);
+    color: var(--color-status-occupied-text);
     background: var(--color-status-occupied-bg);
   }
 }
 
 .chip.payment {
   border-color: var(--color-status-payment-border);
-  color: var(--color-status-payment);
+  color: var(--color-status-payment-text);
 
   &.active {
     border-color: var(--color-status-payment-border);
-    color: var(--color-status-payment);
+    color: var(--color-status-payment-text);
     background: var(--color-status-payment-bg);
   }
 }
@@ -119,12 +142,62 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: var(--spacing-md);
-  overflow: auto;
+  // ⚠️ Cada fila mide lo que pide el contenido de su tarjeta. La rejilla tiene el alto de la
+  // pantalla y las tarjetas llevan `overflow: hidden`, así que su alto mínimo automático es 0: con
+  // filas `auto` el espacio disponible se repartía entre todas y cada tarjeta se recortaba a la
+  // fuerza (en 1 columna solo quedaba el encabezado). `max-content` lo impide, y la rejilla
+  // simplemente se desplaza si no cabe.
+  grid-auto-rows: max-content;
+  // Sin esto, con pocas mesas las filas se estirarían hasta llenar la pantalla.
+  align-content: start;
   padding-top: 4px;
+}
+
+// El salón: aquí vive el scroll, y dentro van una o varias rejillas (una por sección).
+.salon-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding-bottom: var(--spacing-md);
 }
 
+.seccion-titulo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: var(--spacing-md) 0 4px;
+  font-size: var(--font-size-md, 1.05rem);
+  font-weight: 700;
+  color: var(--color-text-primary);
+
+  &:first-child { margin-top: 0; }
+
+  // El título acompaña a sus mesas: una línea que se estira hasta el borde.
+  &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--color-border);
+  }
+}
+
+.seccion-titulo__cuenta {
+  order: 2;
+  padding: 1px 8px;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--color-primary) 12%, var(--color-surface));
+  color: var(--color-primary);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+}
+
 .mesa-card {
+  // Columna: el cuerpo se estira (`flex: 1`) y la fila de acciones queda siempre pegada al borde
+  // inferior. La altura la pone la fila de la rejilla (todas las tarjetas de una fila igualan a
+  // la más alta); la tarjeta en sí nunca lleva altura fija.
+  display: flex;
+  flex-direction: column;
   border-radius: var(--radius-lg);
   border: 1px solid var(--color-border);
   background: var(--color-surface);
@@ -158,7 +231,9 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 14px;
+  // Alto fijo: las mesas libres no llevan botones y, sin esto, quedarían más bajas.
+  min-height: 46px;
+  padding: 8px 14px;
   font-weight: 700;
 }
 
@@ -168,46 +243,48 @@
   gap: 8px;
 }
 
-.quick-release-btn {
+// Botones de la esquina (imprimir / liberar): con cuerpo propio —fondo, borde y sombra— para que
+// se lean como botones y no como un adorno del encabezado.
+.quick-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid color-mix(in srgb, var(--color-error) 40%, var(--color-border));
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--color-error) 12%, transparent);
-  color: var(--color-error);
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   padding: 0;
+  border: 1px solid color-mix(in srgb, currentColor 30%, var(--color-border));
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--color-text-primary) 12%, transparent);
   cursor: pointer;
+  transition: background var(--transition-fast), transform var(--transition-fast);
 
   &:hover {
-    background: color-mix(in srgb, var(--color-error) 20%, transparent);
+    background: color-mix(in srgb, currentColor 10%, var(--color-surface));
+    transform: translateY(-1px);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+
+  &.peligro {
+    color: var(--color-error);
+    background: color-mix(in srgb, var(--color-error) 8%, var(--color-surface));
+
+    &:hover { background: color-mix(in srgb, var(--color-error) 18%, var(--color-surface)); }
   }
 }
 
 .mesa-card-body {
+  flex: 1 1 auto;
   padding: 18px 14px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
-}
-
-.total {
-  font-size: 1.4rem;
-  font-weight: 800;
-  color: var(--color-text-primary);
-  line-height: 1;
-}
-
-.meta {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
 }
 
 .badge {
@@ -223,17 +300,17 @@
 
 .mesa-card-header.status-available {
   background: var(--color-status-available-bg);
-  color: var(--color-status-available);
+  color: var(--color-status-available-text);
 }
 
 .mesa-card-header.status-occupied {
   background: var(--color-status-occupied-bg);
-  color: var(--color-status-occupied);
+  color: var(--color-status-occupied-text);
 }
 
 .mesa-card-header.status-payment {
   background: var(--color-status-payment-bg);
-  color: var(--color-status-payment);
+  color: var(--color-status-payment-text);
 }
 
 .mesa-card.status-disabled {
@@ -249,21 +326,21 @@
 .status-tag.status-available {
   border-color: var(--color-status-available-border);
   background: var(--color-status-available-bg);
-  color: var(--color-status-available);
+  color: var(--color-status-available-text);
 }
 
 .badge.status-occupied,
 .status-tag.status-occupied {
   border-color: var(--color-status-occupied-border);
   background: var(--color-status-occupied-bg);
-  color: var(--color-status-occupied);
+  color: var(--color-status-occupied-text);
 }
 
 .badge.status-payment,
 .status-tag.status-payment {
   border-color: var(--color-status-payment-border);
   background: var(--color-status-payment-bg);
-  color: color-mix(in srgb, var(--color-status-payment) 78%, var(--color-text-primary));
+  color: var(--color-status-payment-text);
 }
 
 .badge.status-disabled,
@@ -355,11 +432,11 @@
   }
 }
 
+// Sin scroll propio: la lista de productos crece con su contenido y quien se desplaza es el
+// cuerpo del modal (`.modal-body-scroll`), un solo scroll.
 .items {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  max-height: 220px;
-  overflow: auto;
 }
 
 .items-section-title {
@@ -549,6 +626,68 @@
   border-top: 1px solid var(--color-border);
   padding: var(--spacing-sm) var(--spacing-md) var(--spacing-md);
   background: var(--color-surface);
+}
+
+// Pie del modal de la mesa: fijo, fuera del cuerpo con scroll. Las acciones siempre a la vista.
+.modal-footer-fijo {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px var(--spacing-md) calc(10px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+
+  button { flex: 0 1 auto; justify-content: center; }
+}
+
+.modal-sin-acciones {
+  margin: var(--spacing-md);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.opcional { color: var(--color-text-muted); font-weight: 400; }
+
+// «Editar mesas»: la lista de todas, por sección.
+.editar-seccion {
+  margin: var(--spacing-sm) 0 4px;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+
+  &:first-child { margin-top: 0; }
+}
+
+.editar-lista {
+  list-style: none;
+  margin: 0 0 var(--spacing-sm);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.editar-fila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+
+  &__info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+
+    strong { color: var(--color-text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    span { color: var(--color-text-secondary); font-size: var(--font-size-xs); }
+  }
 }
 
 .modal-block {
@@ -756,6 +895,7 @@
 // debe conservar su forma original.
 .mesas-header .header-right {
   .btn-densidad,
+  .btn-editar-mesas,
   .btn-refresh,
   .btn-primary,
   .toggle-productos {
@@ -770,8 +910,8 @@
     white-space: nowrap;
   }
 
-  // Solo ícono: no lleva etiqueta.
-  .btn-densidad { padding: 0 11px; }
+  // «Cambiar tamaño» lleva texto en escritorio; en móvil se queda solo el ícono (ver abajo).
+  .btn-densidad { padding: 0 14px; }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -795,14 +935,6 @@
 
 .header-actions { flex-shrink: 0; }
 
-.total { overflow-wrap: anywhere; }
-
-.meta {
-  flex-wrap: wrap;
-  row-gap: 2px;
-  min-width: 0;
-}
-
 .badge { white-space: nowrap; }
 
 // ═══════════════════════════════════════════════════════════
@@ -818,8 +950,6 @@
 
   .mesa-card-header { padding: 8px 11px; font-size: var(--font-size-sm); }
   .mesa-card-body   { padding: 12px 11px; gap: 6px; }
-  .total            { font-size: 1.15rem; }
-  .meta             { font-size: var(--font-size-xs); }
 }
 
 .grid.densidad-mini {
@@ -828,13 +958,307 @@
 
   .mesa-card-header { padding: 6px 9px; font-size: var(--font-size-xs); }
   .mesa-card-body   { padding: 9px 8px; gap: 4px; }
-  .total            { font-size: 0.95rem; }
-  .meta             { font-size: 10px; }
   .badge            { font-size: 9px; padding: 2px 7px; }
   .card-productos li { font-size: 10px; }
+}
 
-  // Con la tarjeta ya angosta, el ícono solo roba ancho.
-  .meta lucide-icon { display: none; }
+// ═══════════════════════════════════════════════════════════
+// La mesa vista desde arriba
+//
+// La forma (redonda / cuadrada / rectangular) y las sillas salen de los puestos de la mesa
+// (ver mesa-geometria.ts). El color viene de los tokens de estado, que siguen la paleta del
+// negocio: aquí no se escribe ningún color a mano.
+// ═══════════════════════════════════════════════════════════
+
+.mesa-card {
+  position: relative;
+
+  // Tono del estado, compartido por sillas, tablero y botones de la misma tarjeta.
+  --tono: var(--color-text-secondary);
+  --tono-bg: var(--color-bg-secondary);
+  --tono-borde: var(--color-border-strong);
+  --tono-texto: var(--color-text-secondary);
+
+  &.status-available {
+    --tono: var(--color-status-available);
+    --tono-bg: var(--color-status-available-bg);
+    --tono-borde: var(--color-status-available-border);
+    --tono-texto: var(--color-status-available-text);
+  }
+
+  &.status-occupied {
+    --tono: var(--color-status-occupied);
+    --tono-bg: var(--color-status-occupied-bg);
+    --tono-borde: var(--color-status-occupied-border);
+    --tono-texto: var(--color-status-occupied-text);
+  }
+
+  &.status-payment {
+    --tono: var(--color-status-payment);
+    --tono-bg: var(--color-status-payment-bg);
+    --tono-borde: var(--color-status-payment-border);
+    --tono-texto: var(--color-status-payment-text);
+  }
+
+  // Más de 45 min ocupada: el borde de la tarjeta también avisa, no solo el reloj.
+  &.retraso {
+    border-color: color-mix(in srgb, var(--color-error) 70%, var(--color-border));
+    box-shadow:
+      var(--shadow-elevated),
+      0 0 0 2px color-mix(in srgb, var(--color-error) 20%, transparent);
+  }
+}
+
+.salon {
+  --silla-largo: 18px;
+  --silla-alto: 10px;
+  --lado: 104px;
+
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  // Las sillas asoman por fuera de la mesa: se les deja sitio para no pisar el encabezado.
+  padding: calc(var(--silla-largo) * 0.6) calc(var(--silla-largo) * 0.6) calc(var(--silla-largo) * 0.5);
+}
+
+// Sin alturas fijas: el alto sale de la proporción, y el ancho nunca pasa del de la tarjeta.
+.salon-mesa {
+  position: relative;
+  width: min(var(--lado), 100%);
+  aspect-ratio: 1;
+}
+
+.salon.forma-redonda .tablero { border-radius: 50%; }
+.salon.forma-cuadrada .tablero { border-radius: 22%; }
+
+.salon.forma-rectangular {
+  .salon-mesa {
+    width: 100%;
+    max-width: calc(var(--lado) * 1.9);
+    aspect-ratio: 1.9;
+  }
+
+  .tablero { border-radius: 18px; }
+}
+
+.sillas {
+  position: absolute;
+  inset: 0;
+}
+
+// Una silla: el borde grueso es el respaldo, y queda del lado de afuera porque cada una gira
+// para mirar hacia la mesa. Se dibuja DEBAJO del tablero para que parezca metida bajo la mesa.
+.silla {
+  position: absolute;
+  width: var(--silla-largo);
+  height: var(--silla-alto);
+  border-radius: 6px 6px 3px 3px;
+  background: color-mix(in srgb, var(--tono) 24%, var(--color-surface));
+  border: 1px solid var(--tono-borde);
+  border-top-width: 3px;
+}
+
+.tablero {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px;
+  background: var(--tono-bg);
+  border: 2px solid var(--tono-borde);
+  color: var(--tono-texto);
+  // El «mantel»: un segundo borde interior que le da cuerpo a la mesa.
+  box-shadow: inset 0 0 0 4px color-mix(in srgb, var(--color-surface) 55%, transparent);
+  min-width: 0;
+}
+
+.tablero-icono { flex-shrink: 0; }
+
+// Capacidad: [👥 4]. Un ícono de personas y el número, de tamaño moderado, para que nadie lo
+// confunda con el número de la mesa (que va en el encabezado de la tarjeta).
+.puestos {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--color-surface) 70%, transparent);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+}
+
+// Monto y tiempo: dos celdas de alto fijo, con o sin cuenta, para que todas las tarjetas
+// queden alineadas en vertical.
+.resumen {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  width: 100%;
+  min-height: 52px;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-border);
+}
+
+.dato {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+.monto-corto { display: none; }
+
+.dato-etq {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.valor {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  border: 1px solid transparent;
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+
+  &.sin-dato {
+    font-weight: 500;
+    color: var(--color-text-muted);
+  }
+
+  &.alerta {
+    color: var(--color-error);
+    background: color-mix(in srgb, var(--color-error) 14%, var(--color-surface));
+    border-color: color-mix(in srgb, var(--color-error) 45%, transparent);
+    animation: mesa-alerta 1.8s ease-in-out infinite;
+  }
+}
+
+@keyframes mesa-alerta {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-error) 35%, transparent); }
+  50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--color-error) 0%, transparent); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .valor.alerta { animation: none; }
+}
+
+// ── Acción principal ──
+// UN botón, en el flujo de la tarjeta y pegado al borde inferior, que dice lo que hace. La fila
+// existe siempre (vacía si no hay acción) para que el alto sea el mismo en todas las tarjetas.
+.acciones-rapidas {
+  display: flex;
+  min-height: 58px;
+  padding: 0 12px 12px;
+  margin-top: auto;
+}
+
+.accion {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--transition-fast), transform var(--transition-fast);
+
+  lucide-icon { flex-shrink: 0; }
+
+  &:active { transform: translateY(1px); }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+}
+
+// Mesa libre: primario suave —hay algo que empezar—.
+.accion-tomar {
+  background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface));
+  color: var(--color-primary);
+
+  &:hover { background: color-mix(in srgb, var(--color-primary) 18%, var(--color-surface)); }
+}
+
+// Mesa con cuenta abierta: primario lleno —hay un pedido en curso—.
+.accion-editar {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+
+  &:hover { background: color-mix(in srgb, var(--color-primary) 88%, black); }
+}
+
+// El texto corto solo existe para las tarjetas angostas: se elige por el ancho de LA TARJETA, no
+// el de la pantalla (con el botón de tamaño una pantalla grande también da tarjetas pequeñas).
+// Nunca queda solo el ícono: eso era justo lo ambiguo.
+.txt-corto { display: none; }
+
+.mesa-card { container-type: inline-size; }
+
+@container (max-width: 230px) {
+  .txt-largo { display: none; }
+  .txt-corto { display: inline; }
+  .accion { padding: 0 8px; gap: 6px; }
+}
+
+// ── Tamaños ──
+.grid.densidad-compacta {
+  .salon { --silla-largo: 15px; --silla-alto: 8px; --lado: 84px; }
+  .tablero-icono { display: none; }
+  .mesa-card-header { min-height: 40px; padding: 6px 11px; }
+  .mesa-card-body { gap: 8px; }
+  .resumen { min-height: 46px; padding-top: 8px; }
+  .valor { font-size: var(--font-size-sm); }
+  .acciones-rapidas { min-height: 50px; padding: 0 8px 8px; }
+  .accion { height: 36px; }
+}
+
+.grid.densidad-mini {
+  .salon { --silla-largo: 11px; --silla-alto: 6px; --lado: 62px; }
+  .tablero { padding: 2px; gap: 2px; }
+  // Con la tarjeta tan chica el ícono de estado y las etiquetas sobran: queda [👥 n], el monto
+  // compacto y el tiempo, sin partirse en dos líneas.
+  .mesa-card-body { padding: 8px 6px; }
+  .tablero-icono,
+  .dato-etq,
+  .valor lucide-icon { display: none; }
+  .puestos { padding: 1px 5px; gap: 3px; font-size: 10px; }
+  .mesa-card-header { min-height: 34px; padding: 4px 8px; }
+  .resumen { min-height: 34px; padding-top: 6px; gap: 2px; }
+  .valor { font-size: 9px; padding: 1px 3px; white-space: nowrap; overflow-wrap: normal; }
+  .acciones-rapidas { min-height: 38px; padding: 0 5px 6px; }
+  .accion { height: 30px; padding: 0 4px; gap: 4px; font-size: 10px; border-radius: var(--radius-sm); }
+  .mesa-card-header > span { font-size: 10px; }
+  .header-actions { gap: 3px; }
+  .quick-btn { width: 22px; height: 22px; }
+  .monto-largo { display: none; }
+  .monto-corto { display: inline; }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -856,6 +1280,8 @@
 
   // Refrescar y crear pasan a ser solo el ícono para que la fila quepa.
   .mesas-header .header-right {
+    .btn-densidad,
+    .btn-editar-mesas,
     .btn-refresh,
     .btn-primary {
       padding: 0 11px;

@@ -1,7 +1,7 @@
 <section class="mesas-layout">
   <header class="mesas-header">
     <div class="brand">
-      <lucide-icon name="armchair" [size]="20" />
+      <lucide-icon name="mesa" [size]="20" />
       <div>
         <h1>Mesas</h1>
         <p>Gestion de salon en tiempo real</p>
@@ -15,6 +15,7 @@
               [title]="densidadTitulo()"
               aria-label="Cambiar tamaño de las tarjetas">
         <lucide-icon [name]="densidadIcono()" [size]="16" />
+        <span class="btn-label">Cambiar tamaño</span>
       </button>
       <label class="toggle-productos" title="Mostrar los productos del pedido en cada tarjeta">
         <input type="checkbox"
@@ -22,13 +23,12 @@
                (change)="setVerProductos($any($event.target).checked)" />
         <span>Ver productos</span>
       </label>
-      <button class="btn-ghost btn-refresh"
-              (click)="actualizarMesas()"
-              [disabled]="refrescando() || guardando()"
-              title="Actualizar estado de mesas y pedidos">
-        <lucide-icon name="rotate-cw" [size]="16" [class.spin]="refrescando()" />
-        <span class="btn-label">Actualizar</span>
+      @if (canAdministracionMesa() && mesas().length > 0) {
+      <button class="btn-ghost btn-editar-mesas" type="button" (click)="abrirEditarMesas()">
+        <lucide-icon name="pencil" [size]="16" />
+        <span class="btn-label">Editar mesas</span>
       </button>
+      }
       @if (canCrearMesa()) {
       <button class="btn-primary" (click)="openNuevaMesa()" [disabled]="mesas().length >= maxMesas">
         <lucide-icon name="plus" [size]="16" />
@@ -57,37 +57,104 @@
   }
 
   @if (mesasFiltradas().length > 0) {
-    <div [class]="'grid densidad-' + densidad()">
-      @for (mesa of mesasFiltradas(); track mesa.id_mesa) {
-        <article class="mesa-card" [class]="'status-' + mesa.status" (click)="openMesa(mesa)">
+    <div class="salon-scroll">
+     @for (grupo of gruposMesas(); track grupo.clave) {
+      @if (grupo.titulo) {
+        <h2 class="seccion-titulo">
+          {{ grupo.titulo }}
+          <span class="seccion-titulo__cuenta">{{ grupo.mesas.length }}</span>
+        </h2>
+      }
+      <div [class]="'grid densidad-' + densidad()">
+      @for (mesa of grupo.mesas; track mesa.id_mesa) {
+        <article class="mesa-card"
+                 [class]="'status-' + mesa.status"
+                 [class.retraso]="enAlerta(mesa)"
+                 (click)="openMesa(mesa)">
           <header class="mesa-card-header" [class]="'status-' + mesa.status">
             <span>{{ mesa.nombre }}</span>
             <div class="header-actions">
               @if (mesa.status === 'occupied' || mesa.status === 'payment') {
               @if (canImprimirPedido()) {
-                <button class="quick-release-btn"
+                <button class="quick-btn"
+                        type="button"
                         title="Imprimir tiquete"
+                        aria-label="Imprimir tiquete"
                         (click)="imprimirDesdeCard(mesa, $event)">
                   <lucide-icon name="printer" [size]="14" />
                 </button>
               }
-              @if (canAccionesPedido()) {
-                <button class="quick-release-btn"
+              @if (puedeCancelar(mesa)) {
+                <button class="quick-btn peligro"
+                        type="button"
+                        title="Cancelar pedido"
+                        aria-label="Cancelar pedido"
+                        (click)="cancelarDesdeCard(mesa, $event)">
+                  <lucide-icon name="x" [size]="14" />
+                </button>
+              } @else if (canAccionesPedido() && puedeLiberarMesa(mesa)) {
+                <button class="quick-btn peligro"
+                        type="button"
                         title="Liberar mesa"
+                        aria-label="Liberar mesa"
                         (click)="liberarMesaDesdeCard(mesa, $event)">
                   <lucide-icon name="door-open" [size]="14" />
                 </button>
               }
               }
-              <lucide-icon [name]="statusIcon(mesa.status)" [size]="16" />
             </div>
           </header>
 
           <div class="mesa-card-body">
-            <div class="total">{{ formatMoney(mesa.order.total) }}</div>
-            <div class="meta">
-              <lucide-icon name="clock-3" [size]="13" />
-              <span>{{ getMesaTimeLabel(mesa) }}</span>
+            <!-- La mesa vista desde arriba: la forma y las sillas salen de los puestos. -->
+            <div class="salon" [class]="'forma-' + formaMesa(mesa)">
+              <div class="salon-mesa">
+                <div class="sillas" aria-hidden="true">
+                  @for (silla of sillasMesa(mesa); track $index) {
+                    <span class="silla"
+                          [style.left.%]="silla.x"
+                          [style.top.%]="silla.y"
+                          [style.transform]="'translate(-50%, -50%) rotate(' + silla.giro + 'deg)'"></span>
+                  }
+                </div>
+                <div class="tablero">
+                  <lucide-icon class="tablero-icono" [name]="statusIcon(mesa.status)" [size]="22" />
+                  <span class="puestos"
+                        [attr.title]="puestosMesa(mesa) + (puestosMesa(mesa) === 1 ? ' puesto' : ' puestos')"
+                        [attr.aria-label]="puestosMesa(mesa) + (puestosMesa(mesa) === 1 ? ' puesto' : ' puestos')">
+                    <lucide-icon name="users" [size]="densidad() === 'mini' ? 10 : 14" />
+                    {{ puestosMesa(mesa) }}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Monto y tiempo ocupan SIEMPRE el mismo sitio: una mesa libre muestra «—» y así
+                 todas las tarjetas quedan alineadas, con o sin pedido. -->
+            <div class="resumen">
+              <div class="dato">
+                <span class="dato-etq">Monto</span>
+                <span class="valor" [class.sin-dato]="!tieneCuenta(mesa)">
+                  @if (tieneCuenta(mesa)) {
+                    <span class="monto-largo">{{ formatMoney(mesa.order.total) }}</span>
+                    <span class="monto-corto">{{ formatMoneyCompact(mesa.order.total) }}</span>
+                  } @else {
+                    —
+                  }
+                </span>
+              </div>
+              <div class="dato">
+                <span class="dato-etq">Tiempo</span>
+                <span class="valor"
+                      [class.sin-dato]="!tieneCuenta(mesa)"
+                      [class.alerta]="enAlerta(mesa)"
+                      [attr.title]="enAlerta(mesa) ? 'Lleva más de ' + alertaMinutos + ' minutos ocupada' : null">
+                  @if (enAlerta(mesa)) {
+                    <lucide-icon name="alert-triangle" [size]="12" />
+                  }
+                  {{ tieneCuenta(mesa) ? getMesaTimeLabel(mesa) : '—' }}
+                </span>
+              </div>
             </div>
             <span class="badge" [class]="'badge status-' + mesa.status">{{ statusLabel(mesa.status) }}</span>
 
@@ -102,8 +169,30 @@
               </ul>
             }
           </div>
+
+          <!-- Acciones rápidas: aparecen al pasar el cursor (o el foco); en pantallas táctiles,
+               que no tienen «hover», se quedan a la vista. -->
+          <!-- Una sola acción, descriptiva, pegada al borde inferior. La fila existe siempre (vacía
+               si no hay acción) para que el alto sea el mismo en todas las tarjetas. -->
+          <div class="acciones-rapidas" (click)="$event.stopPropagation()">
+            @let accion = accionPrincipal(mesa);
+            @if (accion) {
+              <button type="button"
+                      class="accion"
+                      [class.accion-tomar]="accion.tipo === 'tomar'"
+                      [class.accion-editar]="accion.tipo !== 'tomar'"
+                      [attr.aria-label]="accion.largo + ' — ' + mesa.nombre"
+                      (click)="ejecutarAccionPrincipal(mesa, $event)">
+                <lucide-icon [name]="accion.icono" [size]="16" />
+                <span class="txt-largo">{{ accion.largo }}</span>
+                <span class="txt-corto">{{ accion.corto }}</span>
+              </button>
+            }
+          </div>
         </article>
       }
+      </div>
+     }
     </div>
   }
 </section>
@@ -244,60 +333,37 @@
           }
         </section>
 
-        @if (modalActions(mesa.status).length > 0) {
-        <section class="modal-block">
-          <div class="modal-block-head">
-            <h4>Acciones del pedido</h4>
-            @if (mesa.status === 'occupied') {
-              <p>Usa "Marcar por cobrar" para mover la mesa al estado de caja.</p>
-            }
-          </div>
-
-          <div class="modal-actions modal-actions-order">
-            @for (a of modalActions(mesa.status); track a.key) {
-              <button [class]="a.style === 'primary' ? 'btn-primary' : (a.style === 'warning' ? 'btn-warning' : 'btn-ghost')"
-                      (click)="runAction(a.key)"
-                      [disabled]="guardando()">
-                <lucide-icon [name]="a.icon" [size]="16" /> {{ a.label }}
-              </button>
-            }
-          </div>
-        </section>
-        }
-
-        @if (canAdministracionMesa() && (mesa.status === 'available' || mesa.status === 'disabled')) {
-        <section class="modal-block modal-block-admin">
-          <div class="modal-block-head">
-            <h4>Administracion de mesa</h4>
-            <p>Ajusta nombre y disponibilidad de la mesa.</p>
-          </div>
-
-          <div class="modal-actions modal-actions-admin">
-            <button class="btn-ghost" (click)="openEditarMesa(mesa)">
-              <lucide-icon name="pencil" [size]="16" /> Editar mesa
-            </button>
-            <button class="btn-danger" (click)="toggleHabilitar()" [disabled]="guardando()">
-              <lucide-icon [name]="mesa.estado === 'A' ? 'x-circle' : 'check-circle'" [size]="16" />
-              {{ mesa.estado === 'A' ? 'Deshabilitar' : 'Habilitar' }} mesa
-            </button>
-            @if (mesa.estado === 'I') {
-              <button class="btn-danger" (click)="eliminarMesa()" [disabled]="guardando()">
-                <lucide-icon name="trash-2" [size]="16" /> Eliminar mesa
-              </button>
-            }
-          </div>
-        </section>
-        }
-
         @if (!puedeVerBloquesAccionMesa(mesa)) {
-          <section class="modal-block">
-            <div class="modal-block-head">
-              <h4>Sin acciones disponibles</h4>
-              <p>Tu rol no tiene subpermisos habilitados para operar mesas desde este modulo.</p>
-            </div>
-          </section>
+          <p class="modal-sin-acciones">
+            Tu rol no tiene permisos habilitados para operar mesas desde este módulo.
+          </p>
         }
       </div>
+
+      <!-- Pie FIJO: las acciones no se van con el scroll, que es solo del cuerpo. -->
+      @if (puedeVerBloquesAccionMesa(mesa)) {
+        <footer class="modal-footer-fijo">
+          @for (a of modalActions(mesa); track a.key) {
+            <button type="button"
+                    [class]="'btn-' + (a.style === 'ghost' ? 'ghost' : a.style)"
+                    (click)="runAction(a.key)"
+                    [disabled]="guardando()">
+              <lucide-icon [name]="a.icon" [size]="16" /> {{ a.label }}
+            </button>
+          }
+          @if (canAdministracionMesa() && (mesa.status === 'available' || mesa.status === 'disabled')) {
+            <button type="button" class="btn-ghost" (click)="toggleHabilitar()" [disabled]="guardando()">
+              <lucide-icon [name]="mesa.estado === 'A' ? 'x-circle' : 'check-circle'" [size]="16" />
+              {{ mesa.estado === 'A' ? 'Deshabilitar' : 'Habilitar' }}
+            </button>
+            @if (mesa.estado === 'I') {
+              <button type="button" class="btn-danger" (click)="eliminarMesa()" [disabled]="guardando()">
+                <lucide-icon name="trash-2" [size]="16" /> Eliminar
+              </button>
+            }
+          }
+        </footer>
+      }
     </div>
   </div>
 }
@@ -318,6 +384,32 @@
             Nombre
             <input type="text" [ngModel]="formNombre()" (ngModelChange)="formNombre.set($event)" placeholder="Mesa 12" />
           </label>
+          <label>
+            Sección <span class="opcional">(opcional)</span>
+            <input type="text"
+                   maxlength="60"
+                   list="secciones-sugeridas"
+                   [ngModel]="formSeccion()"
+                   (ngModelChange)="formSeccion.set($event)"
+                   placeholder="Piso 1, Patio, Terraza…" />
+            <datalist id="secciones-sugeridas">
+              @for (sec of seccionesSugeridas(); track sec) {
+                <option [value]="sec"></option>
+              }
+            </datalist>
+            <small>Agrupa las mesas en el salón. Escribe una nueva o elige una que ya exista.</small>
+          </label>
+          <label>
+            Puestos
+            <input type="number"
+                   inputmode="numeric"
+                   [min]="capacidadMin"
+                   [max]="capacidadMax"
+                   step="1"
+                   [ngModel]="formCapacidad()"
+                   (ngModelChange)="setCapacidad($event)" />
+            <small>De {{ capacidadMin }} a {{ capacidadMax }}. Define cómo se dibuja la mesa: redonda, cuadrada o larga.</small>
+          </label>
           @if (!editandoMesaId()) {
             <small>El numero de mesa se asigna automaticamente en orden consecutivo.</small>
           }
@@ -326,9 +418,47 @@
 
       <footer class="modal-actions modal-form-footer">
         <button class="btn-ghost" (click)="closeNuevaMesa()">Cancelar</button>
-        <button class="btn-primary" (click)="saveMesa()" [disabled]="guardando() || !formNombre().trim()">
+        <button class="btn-primary" (click)="saveMesa()" [disabled]="guardando() || !formNombre().trim() || capacidadValida() === null">
           {{ editandoMesaId() ? 'Guardar cambios' : 'Crear mesa' }}
         </button>
+      </footer>
+    </div>
+  </div>
+}
+
+@if (modalEditarMesas()) {
+  <div class="overlay" (click)="cerrarEditarMesas()">
+    <div class="modal modal-form" (click)="$event.stopPropagation()">
+      <header class="modal-header">
+        <h3>Editar mesas</h3>
+        <button class="icon-btn" (click)="cerrarEditarMesas()" aria-label="Cerrar">
+          <lucide-icon name="x" [size]="18" />
+        </button>
+      </header>
+
+      <div class="modal-body-scroll modal-body-scroll-form">
+        @for (grupo of gruposMesas(); track grupo.clave) {
+          @if (grupo.titulo) {
+            <h4 class="editar-seccion">{{ grupo.titulo }}</h4>
+          }
+          <ul class="editar-lista">
+            @for (mesa of grupo.mesas; track mesa.id_mesa) {
+              <li class="editar-fila">
+                <div class="editar-fila__info">
+                  <strong>{{ mesa.nombre }}</strong>
+                  <span>{{ puestosMesa(mesa) }} {{ puestosMesa(mesa) === 1 ? 'puesto' : 'puestos' }}@if (mesa.estado === 'I') { · Deshabilitada }</span>
+                </div>
+                <button type="button" class="btn-ghost" (click)="editarDesdeLista(mesa)">
+                  <lucide-icon name="pencil" [size]="14" /> Editar
+                </button>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+
+      <footer class="modal-actions modal-form-footer">
+        <button class="btn-ghost" (click)="cerrarEditarMesas()">Cerrar</button>
       </footer>
     </div>
   </div>
