@@ -313,10 +313,23 @@ export class MenuComponent implements OnInit, OnDestroy {
     const id = this.negocioId();
     if (!id) return;
     this.cargando.set(true);
+    // Se busca sobre el listado de ADMINISTRACIÓN, filtrando aquí. `/carta/buscar` es el
+    // buscador público y devuelve otra forma (`categoria` como objeto, sin `id_categoria`
+    // ni `unidad_medida` de los ingredientes): al editar un producto hallado por la barra
+    // de búsqueda el modal se abría SIN categoría y había que elegirla de nuevo para guardar.
+    const buscado = normalizeSearchValue(term);
     this.http.get<{ success: boolean; data: ProductoAdmin[] }>(
-      `${environment.apiUrl}/carta/buscar?id_negocio=${id}&include_disabled=1&q=${encodeURIComponent(term)}`
+      `${environment.apiUrl}/carta/admin/productos?id_negocio=${id}`
     ).subscribe({
-      next: res => { this.productos.set(res?.data ?? []); this.cargando.set(false); },
+      next: res => {
+        const coincidencias = (res?.data ?? []).filter(p =>
+          normalizeSearchValue(p.nombre).includes(buscado)
+          || normalizeSearchValue(p.descripcion ?? '').includes(buscado),
+        );
+        // Si el usuario siguió escribiendo mientras llegaba esta respuesta, ya no vale.
+        if (this.searchTerm().trim() === term) this.productos.set(coincidencias);
+        this.cargando.set(false);
+      },
       error: () => this.cargando.set(false),
     });
   }
