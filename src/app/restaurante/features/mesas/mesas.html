@@ -23,6 +23,12 @@
                (change)="setVerProductos($any($event.target).checked)" />
         <span>Ver productos</span>
       </label>
+      @if (canAdministracionMesa()) {
+      <button class="btn-ghost btn-editar-mesas" type="button" (click)="abrirSecciones()">
+        <lucide-icon name="layers" [size]="16" />
+        <span class="btn-label">Secciones</span>
+      </button>
+      }
       @if (canAdministracionMesa() && mesas().length > 0) {
       <button class="btn-ghost btn-editar-mesas" type="button" (click)="abrirEditarMesas()">
         <lucide-icon name="pencil" [size]="16" />
@@ -38,6 +44,24 @@
     </div>
   </header>
 
+  <!-- Pestañas por sección: «Todas» deja el salón como siempre (agrupado, con títulos) y cada una de las
+       demás enseña solo sus mesas. Sin secciones no hay pestañas. -->
+  @if (tabs().length > 0) {
+    <div class="tabs-seccion" role="tablist" aria-label="Secciones del salón">
+      @for (t of tabs(); track t.clave) {
+        <button type="button"
+                role="tab"
+                class="tab-seccion"
+                [class.active]="tabSeccion() === t.clave"
+                [attr.aria-selected]="tabSeccion() === t.clave"
+                (click)="seleccionarTab(t.clave)">
+          {{ t.etiqueta }}
+          <span class="tab-seccion__cuenta">{{ t.total }}</span>
+        </button>
+      }
+    </div>
+  }
+
   <div class="stats-strip">
     <button class="chip" [class.active]="filtro() === 'all'" (click)="selectFilter('all')">Todas</button>
     <button class="chip available" [class.active]="filtro() === 'available'" (click)="selectFilter('available')">Libres ({{ countAvailable() }})</button>
@@ -52,11 +76,11 @@
     <div class="state">Cargando mesas...</div>
   }
 
-  @if (!cargando() && mesasFiltradas().length === 0) {
-    <div class="state">No hay mesas para este filtro.</div>
+  @if (!cargando() && gruposMesas().length === 0) {
+    <div class="state">{{ mensajeVacio() }}</div>
   }
 
-  @if (mesasFiltradas().length > 0) {
+  @if (gruposMesas().length > 0) {
     <div class="salon-scroll">
      @for (grupo of gruposMesas(); track grupo.clave) {
       @if (grupo.titulo) {
@@ -64,6 +88,9 @@
           {{ grupo.titulo }}
           <span class="seccion-titulo__cuenta">{{ grupo.mesas.length }}</span>
         </h2>
+      }
+      @if (grupo.mesas.length === 0) {
+        <p class="seccion-vacia">Sin mesas todavía. Asígnalas desde «Secciones».</p>
       }
       <div [class]="'grid densidad-' + densidad()">
       @for (mesa of grupo.mesas; track mesa.id_mesa) {
@@ -389,18 +416,25 @@
           </label>
           <label>
             Sección <span class="opcional">(opcional)</span>
-            <input type="text"
-                   maxlength="60"
-                   list="secciones-sugeridas"
-                   [ngModel]="formSeccion()"
-                   (ngModelChange)="formSeccion.set($event)"
-                   placeholder="Piso 1, Patio, Terraza…" />
-            <datalist id="secciones-sugeridas">
-              @for (sec of seccionesSugeridas(); track sec) {
-                <option [value]="sec"></option>
+            <!-- La selección va en cada <option> y no en `[value]` del <select>: al abrir el formulario
+                 de una mesa el select se pinta a la vez que sus opciones, y un valor puesto antes de
+                 que existan no elige nada. -->
+            <select (change)="setSeccionForm($any($event.target).value)">
+              <option value="" [selected]="formSeccionId() === null">Sin sección</option>
+              @for (sec of secciones(); track sec.id_seccion) {
+                <option [value]="sec.id_seccion" [selected]="sec.id_seccion === formSeccionId()">{{ sec.nombre }}</option>
               }
-            </datalist>
-            <small>Agrupa las mesas en el salón. Escribe una nueva o elige una que ya exista.</small>
+            </select>
+            @if (secciones().length === 0) {
+              <small>
+                Aún no hay secciones.
+                @if (canAdministracionMesa()) {
+                  <button type="button" class="link-inline" (click)="irACrearSecciones()">Crear la primera</button>
+                }
+              </small>
+            } @else {
+              <small>Agrupa las mesas en el salón (Piso 1, Terraza…). Se administran desde «Secciones».</small>
+            }
           </label>
           <label>
             Puestos
@@ -440,7 +474,7 @@
       </header>
 
       <div class="modal-body-scroll modal-body-scroll-form">
-        @for (grupo of gruposMesas(); track grupo.clave) {
+        @for (grupo of gruposParaEditar(); track grupo.clave) {
           @if (grupo.titulo) {
             <h4 class="editar-seccion">{{ grupo.titulo }}</h4>
           }
@@ -462,6 +496,132 @@
 
       <footer class="modal-actions modal-form-footer">
         <button class="btn-ghost" (click)="cerrarEditarMesas()">Cerrar</button>
+      </footer>
+    </div>
+  </div>
+}
+
+@if (modalSecciones()) {
+  <div class="overlay" (click)="cerrarSecciones()">
+    <div class="modal modal-form" (click)="$event.stopPropagation()">
+      <header class="modal-header">
+        @if (vistaSecciones() === 'asignar') {
+          <div class="modal-header__titulo">
+            <button class="icon-btn" type="button" (click)="volverASecciones()" aria-label="Volver a las secciones">
+              <lucide-icon name="arrow-left" [size]="18" />
+            </button>
+            <h3>Mesas de «{{ seccionAsignando()?.nombre }}»</h3>
+          </div>
+        } @else {
+          <h3>Secciones del salón</h3>
+        }
+        <button class="icon-btn" type="button" (click)="cerrarSecciones()" aria-label="Cerrar">
+          <lucide-icon name="x" [size]="18" />
+        </button>
+      </header>
+
+      <div class="modal-body-scroll modal-body-scroll-form">
+        @if (vistaSecciones() === 'lista') {
+          <div class="seccion-nueva">
+            <input type="text"
+                   maxlength="60"
+                   placeholder="Nueva sección: Piso 1, Terraza, Patio…"
+                   [ngModel]="nuevaSeccion()"
+                   (ngModelChange)="nuevaSeccion.set($event)"
+                   (keydown.enter)="crearSeccionNueva()" />
+            <button type="button" class="btn-primary"
+                    [disabled]="guardandoSecciones() || !nuevaSeccion().trim()"
+                    (click)="crearSeccionNueva()">
+              <lucide-icon name="plus" [size]="16" /> Crear
+            </button>
+          </div>
+
+          @if (secciones().length === 0) {
+            <p class="empty">
+              Aún no tienes secciones. Crea la primera arriba (por ejemplo «Piso 1» o «Terraza») y luego
+              asígnale sus mesas.
+            </p>
+          }
+
+          <ul class="seccion-lista">
+            @for (s of secciones(); track s.id_seccion; let primero = $first; let ultimo = $last) {
+              <li class="seccion-fila">
+                @if (renombrandoId() === s.id_seccion) {
+                  <input class="seccion-fila__nombre-input"
+                         type="text"
+                         maxlength="60"
+                         [ngModel]="renombrandoNombre()"
+                         (ngModelChange)="renombrandoNombre.set($event)"
+                         (keydown.enter)="guardarRenombrar()"
+                         (keydown.escape)="cancelarRenombrar()" />
+                  <div class="seccion-fila__acciones">
+                    <button type="button" class="icon-btn icon-btn--ok" title="Guardar" aria-label="Guardar nombre"
+                            [disabled]="guardandoSecciones() || !renombrandoNombre().trim()" (click)="guardarRenombrar()">
+                      <lucide-icon name="check" [size]="16" />
+                    </button>
+                    <button type="button" class="icon-btn" title="Cancelar" aria-label="Cancelar" (click)="cancelarRenombrar()">
+                      <lucide-icon name="x" [size]="16" />
+                    </button>
+                  </div>
+                } @else {
+                  <div class="seccion-fila__info">
+                    <strong>{{ s.nombre }}</strong>
+                    <span>{{ s.total_mesas }} {{ s.total_mesas === 1 ? 'mesa' : 'mesas' }}</span>
+                  </div>
+                  <div class="seccion-fila__acciones">
+                    <button type="button" class="icon-btn" title="Subir" aria-label="Subir" [disabled]="primero || guardandoSecciones()" (click)="moverSeccion(s, -1)">
+                      <lucide-icon name="chevron-up" [size]="16" />
+                    </button>
+                    <button type="button" class="icon-btn" title="Bajar" aria-label="Bajar" [disabled]="ultimo || guardandoSecciones()" (click)="moverSeccion(s, 1)">
+                      <lucide-icon name="chevron-down" [size]="16" />
+                    </button>
+                    <button type="button" class="btn-ghost btn-mesas-seccion" (click)="abrirAsignar(s)">
+                      <lucide-icon name="mesa" [size]="14" /> Mesas
+                    </button>
+                    <button type="button" class="icon-btn" title="Cambiar nombre" aria-label="Cambiar nombre" (click)="iniciarRenombrar(s)">
+                      <lucide-icon name="pencil" [size]="16" />
+                    </button>
+                    <button type="button" class="icon-btn icon-btn--peligro" title="Eliminar sección" aria-label="Eliminar sección"
+                            [disabled]="guardandoSecciones()" (click)="eliminarSeccion(s)">
+                      <lucide-icon name="trash-2" [size]="16" />
+                    </button>
+                  </div>
+                }
+              </li>
+            }
+          </ul>
+        } @else {
+          <p class="asignar-ayuda">Marca las mesas que van en esta sección.</p>
+          <ul class="asignar-lista">
+            @for (mesa of mesasParaAsignar(); track mesa.id_mesa) {
+              <li>
+                <label class="asignar-fila" [class.marcada]="seleccionAsignacion().has(mesa.id_mesa)">
+                  <input type="checkbox"
+                         [checked]="seleccionAsignacion().has(mesa.id_mesa)"
+                         (change)="alternarMesaAsignada(mesa.id_mesa)" />
+                  <span class="asignar-fila__nombre">{{ mesa.nombre }}</span>
+                  @if (seccionActualDe(mesa, seccionAsignando()); as otra) {
+                    <span class="asignar-fila__nota">hoy en «{{ otra }}» — se moverá</span>
+                  }
+                  @if (mesa.estado === 'I') {
+                    <span class="asignar-fila__nota">deshabilitada</span>
+                  }
+                </label>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+
+      <footer class="modal-actions modal-form-footer">
+        @if (vistaSecciones() === 'asignar') {
+          <button class="btn-ghost" type="button" (click)="volverASecciones()">Volver</button>
+          <button class="btn-primary" type="button" [disabled]="guardandoSecciones()" (click)="guardarAsignacion()">
+            Guardar mesas ({{ seleccionAsignacion().size }})
+          </button>
+        } @else {
+          <button class="btn-ghost" type="button" (click)="cerrarSecciones()">Cerrar</button>
+        }
       </footer>
     </div>
   </div>

@@ -71,6 +71,68 @@
   to { transform: rotate(360deg); }
 }
 
+// Pestañas por sección. Son pestañas de verdad (subrayado), no botones-píldora como los filtros de
+// estado de abajo: así se distingue «DÓNDE estoy» (sección) de «QUÉ estoy viendo» (estado).
+.tabs-seccion {
+  display: flex;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+  gap: 2px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  border-bottom: 1px solid var(--color-border);
+
+  &::-webkit-scrollbar { display: none; }
+}
+
+.tab-seccion {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  margin-bottom: -1px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+
+  &:hover { color: var(--color-text-primary); }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: inset var(--focus-ring);
+    border-radius: var(--radius-sm);
+  }
+
+  &.active {
+    color: var(--color-primary);
+    border-bottom-color: var(--color-primary);
+  }
+}
+
+.tab-seccion__cuenta {
+  min-width: 20px;
+  padding: 1px 7px;
+  border-radius: var(--radius-full);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  text-align: center;
+
+  .tab-seccion.active & {
+    background: color-mix(in srgb, var(--color-primary) 12%, var(--color-surface));
+    color: var(--color-primary);
+  }
+}
+
 // Una sola fila: si no caben todos los filtros se desliza de lado, en vez de partirse en dos o
 // tres renglones y quitarle alto al salón.
 .stats-strip {
@@ -298,19 +360,15 @@
   font-weight: 700;
 }
 
-.mesa-card-header.status-available {
-  background: var(--color-status-available-bg);
-  color: var(--color-status-available-text);
-}
-
-.mesa-card-header.status-occupied {
-  background: var(--color-status-occupied-bg);
-  color: var(--color-status-occupied-text);
-}
-
-.mesa-card-header.status-payment {
-  background: var(--color-status-payment-bg);
-  color: var(--color-status-payment-text);
+// El encabezado NO lleva el color del estado: el estado ya lo dicen el borde de la tarjeta, la mesa
+// dibujada y el badge, y un fondo de color más en cada tarjeta era ruido. Blanco, con el nombre en
+// el texto principal y una línea fina que lo separa del cuerpo.
+.mesa-card-header {
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--font-size-sm);
+  letter-spacing: 0.01em;
 }
 
 .mesa-card.status-disabled {
@@ -318,7 +376,6 @@
 }
 
 .mesa-card-header.status-disabled {
-  background: var(--color-bg-secondary);
   color: var(--color-text-secondary);
 }
 
@@ -650,6 +707,140 @@
 
 .opcional { color: var(--color-text-muted); font-weight: 400; }
 
+// «Secciones»: crear, ordenar y asignarles mesas.
+.seccion-vacia {
+  margin: 0 0 var(--spacing-sm);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.modal-header__titulo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+
+  h3 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+
+.seccion-nueva {
+  display: flex;
+  gap: 8px;
+  margin-bottom: var(--spacing-md);
+
+  input {
+    flex: 1;
+    min-width: 0;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 8px 10px;
+    background: var(--color-bg);
+    color: var(--color-text-primary);
+  }
+}
+
+.seccion-lista,
+.asignar-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.seccion-fila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+
+  &__info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+
+    strong { color: var(--color-text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    span { color: var(--color-text-secondary); font-size: var(--font-size-xs); }
+  }
+
+  &__nombre-input {
+    flex: 1;
+    min-width: 0;
+    border: 1px solid var(--color-primary);
+    border-radius: var(--radius-md);
+    padding: 6px 8px;
+    background: var(--color-surface);
+    color: var(--color-text-primary);
+  }
+
+  &__acciones {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+}
+
+.seccion-fila .icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+
+  &:hover:not(:disabled) { background: var(--color-bg-secondary); color: var(--color-text-primary); }
+  &:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  &--ok { color: var(--color-primary); }
+  &--peligro:hover:not(:disabled) { background: var(--color-error-bg); color: var(--color-error); }
+}
+
+.btn-mesas-seccion {
+  height: 30px;
+  padding: 0 10px;
+  margin: 0 4px;
+  font-size: var(--font-size-xs);
+}
+
+.asignar-ayuda {
+  margin: 0 0 var(--spacing-sm);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.asignar-fila {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  cursor: pointer;
+
+  input { width: 16px; height: 16px; accent-color: var(--color-primary); cursor: pointer; }
+
+  &.marcada {
+    border-color: var(--color-primary);
+    background: color-mix(in srgb, var(--color-primary) 6%, var(--color-surface));
+  }
+
+  &__nombre { flex: 1; min-width: 0; color: var(--color-text-primary); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  &__nota { color: var(--color-text-secondary); font-size: var(--font-size-xs); white-space: nowrap; }
+}
+
+@media (max-width: 560px) {
+  .seccion-fila { flex-wrap: wrap; }
+  .seccion-fila__acciones { width: 100%; justify-content: flex-end; }
+  .asignar-fila__nota { display: none; }
+}
+
 // «Editar mesas»: la lista de todas, por sección.
 .editar-seccion {
   margin: var(--spacing-sm) 0 4px;
@@ -779,18 +970,59 @@
     color: var(--color-text-secondary);
   }
 
-  input {
+  // Los campos del formulario comparten UNA misma caja: el `<select>` de «Sección» venía con la
+  // suya (otra fuente, otro alto, sin ancho completo) y se veía desalineado del resto.
+  input,
+  select {
+    width: 100%;
+    box-sizing: border-box;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     padding: 8px 10px;
     background: var(--color-bg);
     color: var(--color-text-primary);
+    font-family: inherit;
+    font-size: var(--font-size-sm);
+    line-height: 1.3;
+  }
+
+  select {
+    cursor: pointer;
+    // Flecha propia, a la misma distancia del borde que el texto de los `input`.
+    appearance: none;
+    padding-right: 32px;
+    background-image:
+      linear-gradient(45deg, transparent 50%, var(--color-text-secondary) 50%),
+      linear-gradient(135deg, var(--color-text-secondary) 50%, transparent 50%);
+    background-position: calc(100% - 17px) 55%, calc(100% - 12px) 55%;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+  }
+
+  input:focus-visible,
+  select:focus-visible {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: var(--focus-ring);
   }
 
   small {
     color: var(--color-text-secondary);
     font-size: var(--font-size-xs);
     line-height: 1.35;
+  }
+
+  // «Crear la primera»: un enlace dentro del texto de ayuda, no un botón.
+  .link-inline {
+    display: inline;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--color-primary);
+    font: inherit;
+    font-weight: 600;
+    text-decoration: underline;
+    cursor: pointer;
   }
 }
 

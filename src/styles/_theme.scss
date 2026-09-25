@@ -64,48 +64,28 @@
   --color-accent-purple: #7b1fa2;
   --color-accent-purple-rgb: 123, 31, 162;
 
-  // --- Tokens de estado de las mesas ---
-  // Cada estado trae CUATRO tonos: el vivo (íconos, sillas), un fondo pastel, el borde y un texto
-  // OSCURO de la misma familia. Fondo, borde y texto tienen luminosidad FIJA, así el contraste no
-  // depende de qué colores eligió el negocio.
+  // --- Tokens de estado de las mesas: SEMÁNTICOS, independientes de la paleta del negocio ---
+  // La paleta que elige el negocio (Rojo Gastronómico, Verde…) es su MARCA: botones principales,
+  // ítem activo del menú, acentos. Los estados de una mesa son SEMÁNTICOS y valen igual para todos:
+  // libre = verde, ocupada = naranja-rojo, por cobrar = dorado. Con una marca roja, «libre» en rojo
+  // se lee como error; por eso estos tonos son fijos y NINGUNA paleta los toca.
   //
-  // El TONO y la INTENSIDAD sí salen del negocio: `PaletteService` calcula `--mesa-h-*` y
-  // `--mesa-croma` a partir de su color primario (ver `core/theme/tonos-mesas.ts`). Cada estado
-  // conserva su significado —libre azul, ocupada rojo-naranja, por cobrar dorado— y se inclina un
-  // poco hacia la marca. (Girar el tono de la marca 120° y 240°, como se hizo antes, dejaba «libre»
-  // en rojo con una marca roja.) Sin paleta aplicada valen estos tonos de siempre.
-  --color-warning-gold: #d99a00;
-  --mesa-croma: 0.14;
-  --mesa-h-libre: 240;
-  --mesa-h-ocupada: 28;
-  --mesa-h-cobro: 88;
+  // Cada estado trae cuatro tonos: el vivo (íconos, sillas), un fondo pastel, el borde y un texto
+  // oscuro de la misma familia (mezclado con el texto primario para no quedar en marrón).
+  // Son valores hexadecimales a propósito: no derivan de `--color-primary`, `--color-success` ni
+  // `--color-error`, que una paleta sí puede cambiar.
+  --mesa-verde: #2e8b57;
+  --mesa-naranja: #d9622b;
+  --mesa-dorado: #d99a00;
 
-  // Respaldo (navegadores sin `oklch()`: Chrome < 111, Safari < 15.4, Firefox < 113).
-  --color-status-available: #2f6fdb;
-  --color-status-occupied: color-mix(in srgb, var(--color-error) 78%, var(--color-accent-orange));
-  --color-status-payment: var(--color-warning-gold);
+  --color-status-available: var(--mesa-verde);
+  --color-status-occupied: var(--mesa-naranja);
+  --color-status-payment: var(--mesa-dorado);
+  --color-warning-gold: var(--mesa-dorado);
   @each $estado in (available, occupied, payment) {
     --color-status-#{$estado}-bg: color-mix(in srgb, var(--color-status-#{$estado}) 12%, var(--color-surface));
     --color-status-#{$estado}-border: color-mix(in srgb, var(--color-status-#{$estado}) 50%, var(--color-surface));
-    --color-status-#{$estado}-text: color-mix(in srgb, var(--color-status-#{$estado}) 66%, var(--color-text-primary));
-  }
-
-  @supports (color: oklch(0.5 0.1 100)) {
-    // Libre es el más tenue (una mesa vacía no llama la atención); ocupada y por cobrar, más marcados.
-    --color-status-available: #{'oklch(0.62 var(--mesa-croma) var(--mesa-h-libre))'};
-    --color-status-available-bg: #{'oklch(0.975 calc(var(--mesa-croma) * 0.20) var(--mesa-h-libre))'};
-    --color-status-available-border: #{'oklch(0.85 calc(var(--mesa-croma) * 0.65) var(--mesa-h-libre))'};
-    --color-status-available-text: #{'oklch(0.40 calc(var(--mesa-croma) * 0.85) var(--mesa-h-libre))'};
-
-    --color-status-occupied: #{'oklch(0.60 var(--mesa-croma) var(--mesa-h-ocupada))'};
-    --color-status-occupied-bg: #{'oklch(0.945 calc(var(--mesa-croma) * 0.30) var(--mesa-h-ocupada))'};
-    --color-status-occupied-border: #{'oklch(0.72 calc(var(--mesa-croma) * 0.85) var(--mesa-h-ocupada))'};
-    --color-status-occupied-text: #{'oklch(0.38 calc(var(--mesa-croma) * 0.90) var(--mesa-h-ocupada))'};
-
-    --color-status-payment: #{'oklch(0.70 var(--mesa-croma) var(--mesa-h-cobro))'};
-    --color-status-payment-bg: #{'oklch(0.955 calc(var(--mesa-croma) * 0.30) var(--mesa-h-cobro))'};
-    --color-status-payment-border: #{'oklch(0.78 calc(var(--mesa-croma) * 0.85) var(--mesa-h-cobro))'};
-    --color-status-payment-text: #{'oklch(0.40 calc(var(--mesa-croma) * 0.90) var(--mesa-h-cobro))'};
+    --color-status-#{$estado}-text: color-mix(in srgb, var(--color-status-#{$estado}) 62%, var(--color-text-primary));
   }
 
   // El precio del menú es verde SIEMPRE (no sigue el trío de las mesas, que ahora depende de la marca).

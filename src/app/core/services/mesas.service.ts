@@ -39,8 +39,11 @@ export interface MesaDashboard {
   nombre: string;
   numero: number;
   capacidad: number;
-  /** «Piso 1», «Patio»…: texto libre del administrador. `null` = sin sección. */
+  /** La sección del salón a la que pertenece («Piso 1», «Patio»…). `null` = sin sección. */
+  id_seccion?: number | null;
   seccion?: string | null;
+  /** Su lugar en el orden que fijó el administrador (menor primero). */
+  seccion_orden?: number | null;
   estado: 'A' | 'I';
   estado_servicio: 'DISPONIBLE' | 'OCUPADA' | 'POR_COBRAR';
   status: MesaCardStatus;
@@ -53,9 +56,18 @@ export interface MesaBase {
   nombre: string;
   numero: number;
   capacidad: number;
+  id_seccion?: number | null;
   seccion?: string | null;
   estado: 'A' | 'I';
   estado_servicio: 'DISPONIBLE' | 'OCUPADA' | 'POR_COBRAR';
+}
+
+/** Una sección del salón, con cuántas mesas tiene. Se crea una vez y las mesas se le asignan. */
+export interface SeccionMesa {
+  id_seccion: number;
+  nombre: string;
+  orden: number;
+  total_mesas: number;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -68,11 +80,11 @@ export class MesasService {
     );
   }
 
-  crearMesa(payload: { id_negocio: number; nombre: string; numero?: number; capacidad?: number; seccion?: string }): Observable<{ success: boolean; data: MesaBase }> {
+  crearMesa(payload: { id_negocio: number; nombre: string; numero?: number; capacidad?: number; id_seccion?: number | null }): Observable<{ success: boolean; data: MesaBase }> {
     return this.http.post<{ success: boolean; data: MesaBase }>(`${environment.apiUrl}/mesas`, payload);
   }
 
-  editarMesa(idMesa: number, payload: { nombre?: string; numero?: number; capacidad?: number; seccion?: string }): Observable<{ success: boolean; data: MesaBase }> {
+  editarMesa(idMesa: number, payload: { nombre?: string; numero?: number; capacidad?: number; id_seccion?: number | null }): Observable<{ success: boolean; data: MesaBase }> {
     return this.http.put<{ success: boolean; data: MesaBase }>(`${environment.apiUrl}/mesas/${idMesa}`, payload);
   }
 
@@ -86,6 +98,51 @@ export class MesasService {
 
   liberarMesa(idMesa: number): Observable<{ success: boolean; data: MesaBase }> {
     return this.http.patch<{ success: boolean; data: MesaBase }>(`${environment.apiUrl}/mesas/${idMesa}/liberar`, {});
+  }
+
+  // ── Secciones del salón ──
+
+  listarSecciones(idNegocio: number): Observable<{ success: boolean; data: SeccionMesa[] }> {
+    return this.http.get<{ success: boolean; data: SeccionMesa[] }>(
+      `${environment.apiUrl}/mesas/secciones?id_negocio=${idNegocio}`,
+    );
+  }
+
+  crearSeccion(idNegocio: number, nombre: string): Observable<{ success: boolean; data: SeccionMesa }> {
+    return this.http.post<{ success: boolean; data: SeccionMesa }>(`${environment.apiUrl}/mesas/secciones`, {
+      id_negocio: idNegocio,
+      nombre,
+    });
+  }
+
+  renombrarSeccion(idNegocio: number, idSeccion: number, nombre: string): Observable<{ success: boolean }> {
+    return this.http.put<{ success: boolean }>(`${environment.apiUrl}/mesas/secciones/${idSeccion}`, {
+      id_negocio: idNegocio,
+      nombre,
+    });
+  }
+
+  /** Borra la sección; sus mesas NO se borran, quedan sin sección. */
+  eliminarSeccion(idNegocio: number, idSeccion: number): Observable<{ success: boolean; data: { mesas_sin_seccion: number } }> {
+    return this.http.delete<{ success: boolean; data: { mesas_sin_seccion: number } }>(
+      `${environment.apiUrl}/mesas/secciones/${idSeccion}?id_negocio=${idNegocio}`,
+    );
+  }
+
+  /** El orden nuevo de TODAS las secciones (los ids, de primera a última). */
+  reordenarSecciones(idNegocio: number, ids: number[]): Observable<{ success: boolean }> {
+    return this.http.put<{ success: boolean }>(`${environment.apiUrl}/mesas/secciones/orden`, {
+      id_negocio: idNegocio,
+      ids,
+    });
+  }
+
+  /** Fija QUÉ mesas tiene la sección: las de la lista entran y las que ya no van quedan sin sección. */
+  asignarMesas(idNegocio: number, idSeccion: number, idsMesas: number[]): Observable<{ success: boolean }> {
+    return this.http.put<{ success: boolean }>(`${environment.apiUrl}/mesas/secciones/${idSeccion}/mesas`, {
+      id_negocio: idNegocio,
+      ids_mesas: idsMesas,
+    });
   }
 
   /** Cancela el pedido abierto (el mismo endpoint de Despacho). No devuelve la mesa a «libre». */
