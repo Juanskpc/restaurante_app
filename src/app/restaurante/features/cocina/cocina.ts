@@ -18,7 +18,7 @@ import { environment } from '../../../../environments/environment';
 export type EstadoCocina = 'PENDIENTE' | 'EN_PREPARACION' | 'LISTO' | 'ENTREGADO';
 
 interface Exclusion {
-  ingrediente: { id_ingrediente: number; nombre: string };
+  ingrediente?: { id_ingrediente: number; nombre: string } | null;
 }
 
 interface DetalleItem {
@@ -203,7 +203,9 @@ export class CocinaComponent implements OnInit, OnDestroy {
   }
 
   getExclusiones(detalle: DetalleItem): string[] {
-    return detalle.exclusiones.map(e => e.ingrediente.nombre);
+    return (detalle.exclusiones ?? [])
+      .map(e => e.ingrediente?.nombre)
+      .filter((nombre): nombre is string => Boolean(nombre));
   }
 
   // ── Audio ───────────────────────────────────────────────────────────────────

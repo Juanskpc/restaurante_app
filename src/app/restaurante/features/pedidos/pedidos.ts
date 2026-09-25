@@ -180,6 +180,8 @@ interface ItemOrdenCache {
   cantidad: number;
   exclusiones: number[];
   exclusionesNombres?: string[];
+  /** Los nombres quitados tal como los guarda Mesas al cobrar (mismo caché, otro nombre de campo). */
+  sin?: string[];
   nota?: string;
 }
 
@@ -1583,15 +1585,21 @@ export class PedidosComponent implements OnInit, OnDestroy {
   }
 
   getExclusionNames(item: ItemOrden): string {
-    if (item.exclusiones.size === 0) return '';
+    return this.nombresQuitados(item).join(', ');
+  }
+
+  /** Los nombres de lo que se quitó de la línea, o `[]` si va con todo. */
+  private nombresQuitados(item: ItemOrden): string[] {
+    // Los nombres van primero: una línea ya pagada (caché de Mesas) trae lo quitado como texto y
+    // sin ids, y con el atajo de «sin ids → nada» se mostraba como un plato normal.
     if (item.exclusionesNombres && item.exclusionesNombres.length > 0) {
-      return item.exclusionesNombres.join(', ');
+      return item.exclusionesNombres;
     }
+    if (item.exclusiones.size === 0) return [];
 
     return item.ingredientes
       .filter(ing => item.exclusiones.has(ing.id_ingrediente))
-      .map(ing => ing.nombre)
-      .join(', ');
+      .map(ing => ing.nombre);
   }
 
   // ===================== Enviar orden =====================
@@ -2414,7 +2422,9 @@ export class PedidosComponent implements OnInit, OnDestroy {
           cantidad: Math.max(1, Number(item.cantidad ?? 1)),
           ingredientes: [],
           exclusiones: new Set<number>(Array.isArray(item.exclusiones) ? item.exclusiones : []),
-          exclusionesNombres: Array.isArray(item.exclusionesNombres) ? item.exclusionesNombres : undefined,
+          // Mesas guarda lo quitado como `sin` (nombres) y sin ids; sin leerlo, lo ya pagado de una
+          // mesa se veía como un pedido normal en esta pantalla.
+          exclusionesNombres: this.nombresQuitadosDelCache(item),
           nota: item.nota ?? '',
         }));
       }
@@ -2423,6 +2433,13 @@ export class PedidosComponent implements OnInit, OnDestroy {
     } catch {
       this.itemsPagadosPorMesa.set({});
     }
+  }
+
+  private nombresQuitadosDelCache(item: ItemOrdenCache): string[] | undefined {
+    if (Array.isArray(item.exclusionesNombres) && item.exclusionesNombres.length > 0) {
+      return item.exclusionesNombres;
+    }
+    return Array.isArray(item.sin) && item.sin.length > 0 ? item.sin : undefined;
   }
 
   private persistirItemsPagadosMesa(): void {
@@ -2444,7 +2461,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
           precio_unitario: item.precio_unitario,
           cantidad: item.cantidad,
           exclusiones: Array.from(item.exclusiones),
-          exclusionesNombres: item.exclusionesNombres,
+          exclusionesNombres: this.nombresQuitados(item),
           nota: item.nota,
         }));
       }

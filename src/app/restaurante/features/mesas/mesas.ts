@@ -1344,6 +1344,9 @@ export class MesasComponent {
         nombre?: string;
         precio_unitario?: number;
         cantidad?: number;
+        nota?: string | null;
+        sin?: string[];
+        exclusionesNombres?: string[];
       }>>;
 
       const hydrated: Record<number, ItemPagadoMesa[]> = {};
@@ -1354,10 +1357,18 @@ export class MesasComponent {
           continue;
         }
 
+        // El caché lo escriben DOS pantallas con la misma clave: Mesas (`sin`) y Pedidos
+        // (`exclusionesNombres`). Se lee cualquiera de los dos; si aquí solo se copiaban
+        // nombre, precio y cantidad, lo ya pagado perdía «Sin cebolla» y la nota en la
+        // tarjeta, en el modal y en el tiquete apenas se releía el caché.
         hydrated[idMesa] = items.map((item) => ({
           name: item?.nombre ?? 'Producto',
           price: Number(item?.precio_unitario ?? 0),
           cantidad: Math.max(1, Number(item?.cantidad ?? 1)),
+          nota: item?.nota ? item.nota : null,
+          sin: Array.isArray(item?.sin) && item.sin.length > 0
+            ? item.sin
+            : (Array.isArray(item?.exclusionesNombres) ? item.exclusionesNombres : []),
         }));
       }
 
