@@ -5,6 +5,7 @@ import { firstValueFrom } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 import { PaletaColor, PaletaColores } from './palette.model';
+import { tonosDeMesas } from './tonos-mesas';
 
 /**
  * PaletteService — Gestiona la paleta de colores dinámica del negocio.
@@ -99,10 +100,25 @@ export class PaletteService {
       }
     });
 
+    this.aplicarTonosDeMesas(colores['primario'] || colores['color-primary']);
+
     this.activePalette.set(paleta);
 
     // Persistir localmente para carga rápida
     localStorage.setItem(PALETTE_STORAGE_KEY, String(paleta.id_paleta));
+  }
+
+  /**
+   * Los tonos de los estados de las mesas salen del color de la marca (ver `tonos-mesas.ts`): se
+   * calculan aquí, con la marca ya conocida, y el CSS solo los lee (`--mesa-*` en `_theme.scss`).
+   */
+  private aplicarTonosDeMesas(colorMarca: string | undefined): void {
+    const root = this.document.documentElement;
+    const t = tonosDeMesas(colorMarca);
+    root.style.setProperty('--mesa-croma', String(t.croma));
+    root.style.setProperty('--mesa-h-libre', String(t.libre));
+    root.style.setProperty('--mesa-h-ocupada', String(t.ocupada));
+    root.style.setProperty('--mesa-h-cobro', String(t.cobro));
   }
 
   /**
@@ -188,6 +204,9 @@ export class PaletteService {
           root.style.removeProperty(`--${alias}`);
         }
       });
+    }
+    for (const token of ['--mesa-croma', '--mesa-h-libre', '--mesa-h-ocupada', '--mesa-h-cobro']) {
+      root.style.removeProperty(token);
     }
     this.activePalette.set(null);
     localStorage.removeItem(PALETTE_STORAGE_KEY);

@@ -64,46 +64,48 @@
   --color-accent-purple: #7b1fa2;
   --color-accent-purple-rgb: 123, 31, 162;
 
-  // --- Tokens de estado de las mesas: LIGADOS AL COLOR DEL NEGOCIO ---
+  // --- Tokens de estado de las mesas ---
   // Cada estado trae CUATRO tonos: el vivo (íconos, sillas), un fondo pastel, el borde y un texto
-  // OSCURO de la misma familia (fondo, borde y texto tienen luminosidad fija, así el contraste no
-  // depende de qué colores eligió el negocio).
+  // OSCURO de la misma familia. Fondo, borde y texto tienen luminosidad FIJA, así el contraste no
+  // depende de qué colores eligió el negocio.
   //
-  // Nacen del `--color-primary` del negocio —su paleta o el color que eligió—: libre usa su mismo
-  // tono; ocupada y por cobrar lo giran 120° y 240° en OKLCH conservando su intensidad. Es un trío
-  // con tres tonos siempre distintos entre sí, sea cual sea la marca, y que se ve «de la casa».
-  // Antes eran verde/rojo/dorado iguales para todos los negocios.
-  //
-  // El valor de respaldo (navegadores sin color relativo: Chrome < 119, Safari < 16.4, Firefox <
-  // 128) usa los dos colores de la paleta (`primary` y `primary-hover`) y una mezcla de ambos.
+  // El TONO y la INTENSIDAD sí salen del negocio: `PaletteService` calcula `--mesa-h-*` y
+  // `--mesa-croma` a partir de su color primario (ver `core/theme/tonos-mesas.ts`). Cada estado
+  // conserva su significado —libre azul, ocupada rojo-naranja, por cobrar dorado— y se inclina un
+  // poco hacia la marca. (Girar el tono de la marca 120° y 240°, como se hizo antes, dejaba «libre»
+  // en rojo con una marca roja.) Sin paleta aplicada valen estos tonos de siempre.
   --color-warning-gold: #d99a00;
+  --mesa-croma: 0.14;
+  --mesa-h-libre: 240;
+  --mesa-h-ocupada: 28;
+  --mesa-h-cobro: 88;
 
-  --color-status-available: var(--color-primary);
-  --color-status-occupied: var(--color-primary-hover);
-  --color-status-payment: color-mix(in srgb, var(--color-primary) 40%, var(--color-warning-gold));
+  // Respaldo (navegadores sin `oklch()`: Chrome < 111, Safari < 15.4, Firefox < 113).
+  --color-status-available: #2f6fdb;
+  --color-status-occupied: color-mix(in srgb, var(--color-error) 78%, var(--color-accent-orange));
+  --color-status-payment: var(--color-warning-gold);
   @each $estado in (available, occupied, payment) {
     --color-status-#{$estado}-bg: color-mix(in srgb, var(--color-status-#{$estado}) 12%, var(--color-surface));
     --color-status-#{$estado}-border: color-mix(in srgb, var(--color-status-#{$estado}) 50%, var(--color-surface));
     --color-status-#{$estado}-text: color-mix(in srgb, var(--color-status-#{$estado}) 66%, var(--color-text-primary));
   }
 
-  @supports (color: oklch(from red l c h)) {
-    --color-status-available: #{'oklch(from var(--color-primary) 0.62 clamp(0.09, c, 0.19) h)'};
-    --color-status-occupied: #{'oklch(from var(--color-primary) 0.60 clamp(0.10, c, 0.20) calc(h + 120))'};
-    --color-status-payment: #{'oklch(from var(--color-primary) 0.70 clamp(0.10, c, 0.19) calc(h + 240))'};
-
+  @supports (color: oklch(0.5 0.1 100)) {
     // Libre es el más tenue (una mesa vacía no llama la atención); ocupada y por cobrar, más marcados.
-    --color-status-available-bg: #{'oklch(from var(--color-status-available) 0.975 calc(c * 0.20) h)'};
-    --color-status-available-border: #{'oklch(from var(--color-status-available) 0.85 calc(c * 0.65) h)'};
-    --color-status-available-text: #{'oklch(from var(--color-status-available) 0.40 calc(c * 0.85) h)'};
+    --color-status-available: #{'oklch(0.62 var(--mesa-croma) var(--mesa-h-libre))'};
+    --color-status-available-bg: #{'oklch(0.975 calc(var(--mesa-croma) * 0.20) var(--mesa-h-libre))'};
+    --color-status-available-border: #{'oklch(0.85 calc(var(--mesa-croma) * 0.65) var(--mesa-h-libre))'};
+    --color-status-available-text: #{'oklch(0.40 calc(var(--mesa-croma) * 0.85) var(--mesa-h-libre))'};
 
-    --color-status-occupied-bg: #{'oklch(from var(--color-status-occupied) 0.945 calc(c * 0.30) h)'};
-    --color-status-occupied-border: #{'oklch(from var(--color-status-occupied) 0.72 calc(c * 0.85) h)'};
-    --color-status-occupied-text: #{'oklch(from var(--color-status-occupied) 0.38 calc(c * 0.90) h)'};
+    --color-status-occupied: #{'oklch(0.60 var(--mesa-croma) var(--mesa-h-ocupada))'};
+    --color-status-occupied-bg: #{'oklch(0.945 calc(var(--mesa-croma) * 0.30) var(--mesa-h-ocupada))'};
+    --color-status-occupied-border: #{'oklch(0.72 calc(var(--mesa-croma) * 0.85) var(--mesa-h-ocupada))'};
+    --color-status-occupied-text: #{'oklch(0.38 calc(var(--mesa-croma) * 0.90) var(--mesa-h-ocupada))'};
 
-    --color-status-payment-bg: #{'oklch(from var(--color-status-payment) 0.955 calc(c * 0.30) h)'};
-    --color-status-payment-border: #{'oklch(from var(--color-status-payment) 0.78 calc(c * 0.85) h)'};
-    --color-status-payment-text: #{'oklch(from var(--color-status-payment) 0.40 calc(c * 0.90) h)'};
+    --color-status-payment: #{'oklch(0.70 var(--mesa-croma) var(--mesa-h-cobro))'};
+    --color-status-payment-bg: #{'oklch(0.955 calc(var(--mesa-croma) * 0.30) var(--mesa-h-cobro))'};
+    --color-status-payment-border: #{'oklch(0.78 calc(var(--mesa-croma) * 0.85) var(--mesa-h-cobro))'};
+    --color-status-payment-text: #{'oklch(0.40 calc(var(--mesa-croma) * 0.90) var(--mesa-h-cobro))'};
   }
 
   // El precio del menú es verde SIEMPRE (no sigue el trío de las mesas, que ahora depende de la marca).
