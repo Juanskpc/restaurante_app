@@ -118,3 +118,82 @@ describe('MultipagoSelectorComponent — cobro contra la cuenta del cliente', ()
     expect(comp.seleccion().valido).toBe(true);
   });
 });
+
+/**
+ * El negocio de DOS formas de pago, que es el caso corriente (efectivo y transferencia).
+ *
+ * Las dos cosas que se sostienen aquí salieron del mismo sitio: el ORD-0655 de El Callejero,
+ * que el cajero acabó cancelando porque el desglose no se dejaba tocar.
+ *
+ *   1. Al abrir el multipago, las dos formas ya vienen puestas: con solo dos, el reparto no
+ *      tiene más variantes que «algo de una y el resto de la otra».
+ *   2. Se pueden intercambiar. Antes el desplegable escondía la forma usada en la otra fila,
+ *      así que con dos filas llenas cada una solo se ofrecía a sí misma: sin salida.
+ */
+describe('MultipagoSelectorComponent — negocio con solo dos formas de pago', () => {
+  const EFECTIVO = { id_metodo_pago: 1, nombre: 'Efectivo' };
+  const TRANSFERENCIA = { id_metodo_pago: 2, nombre: 'Transferencia' };
+
+  let fixture: ReturnType<typeof TestBed.createComponent<MultipagoSelectorComponent>>;
+  let comp: MultipagoSelectorComponent;
+
+  const interno = () => comp as unknown as {
+    filas: () => Array<{ id_metodo_pago: number | null; valor: number | null }>;
+    onSelectChange: (raw: string) => void;
+    setFilaMetodo: (index: number, raw: string) => void;
+  };
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({ imports: [MultipagoSelectorComponent] });
+    fixture = TestBed.createComponent(MultipagoSelectorComponent);
+    comp = fixture.componentInstance;
+    fixture.componentRef.setInput('metodos', [EFECTIVO, TRANSFERENCIA]);
+    fixture.componentRef.setInput('total', 19000);
+    fixture.componentRef.setInput('permiteMultipago', true);
+    fixture.detectChanges();
+  });
+
+  it('al elegir multipago siembra las dos formas, sin que el cajero las teclee', () => {
+    interno().onSelectChange('__multi__');
+
+    const filas = interno().filas();
+    expect(filas.map((f) => f.id_metodo_pago)).toEqual([1, 2]);
+    // La primera sigue arrancando con el total, para cuadrar con un solo dato.
+    expect(filas[0].valor).toBe(19000);
+    expect(filas[1].valor).toBeNull();
+  });
+
+  it('elegir en una fila la forma que tiene la otra las intercambia', () => {
+    interno().onSelectChange('__multi__');
+    interno().setFilaMetodo(0, '15000'); // ruido: un id que no existe no debe romper nada
+    interno().setFilaMetodo(0, '1');     // vuelve a Efectivo
+    interno().setFilaMetodo(1, '5000');
+    interno().setFilaMetodo(1, '2');
+
+    interno().setFilaMetodo(0, '2'); // el cajero pone Transferencia arriba
+
+    expect(interno().filas().map((f) => f.id_metodo_pago)).toEqual([2, 1]);
+  });
+
+  it('el reparto del dinero no se mueve al intercambiar las formas', () => {
+    interno().onSelectChange('__multi__');
+
+    const antes = interno().filas().map((f) => f.valor);
+    interno().setFilaMetodo(0, '2');
+
+    expect(interno().filas().map((f) => f.valor)).toEqual(antes);
+  });
+
+  it('con una cuenta de cliente entre las dos formas NO se siembra nada', () => {
+    // Sembrar la cuenta abriría «¿de quién es?» de entrada y dejaría el cobro inválido.
+    fixture.componentRef.setInput('metodos', [
+      EFECTIVO,
+      { id_metodo_pago: 9, nombre: 'Fiado', es_cuenta: true },
+    ]);
+    fixture.detectChanges();
+
+    interno().onSelectChange('__multi__');
+
+    expect(interno().filas().map((f) => f.id_metodo_pago)).toEqual([null, null]);
+  });
+});

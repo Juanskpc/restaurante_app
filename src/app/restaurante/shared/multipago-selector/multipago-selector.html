@@ -53,7 +53,10 @@
             (change)="setFilaMetodo($index, $any($event.target).value)"
           >
             <option value="" [selected]="fila.id_metodo_pago == null">Método...</option>
-            @for (mp of metodosDisponibles($index); track mp.id_metodo_pago) {
+            <!-- Se ofrecen TODAS, incluidas las que ya están en otra fila: elegir una de esas
+                 las intercambia (ver `setFilaMetodo`). Esconderlas dejaba sin salida al negocio
+                 que solo tiene dos formas de pago. -->
+            @for (mp of metodos(); track mp.id_metodo_pago) {
               <option [value]="mp.id_metodo_pago" [selected]="fila.id_metodo_pago === mp.id_metodo_pago">
                 {{ mp.nombre }}
               </option>

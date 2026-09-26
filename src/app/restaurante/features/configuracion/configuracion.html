@@ -315,6 +315,19 @@
             </span>
           </label>
 
+          <label class="switch-row" [class.is-disabled]="!canEdit() || guardandoIconosProductos()">
+            <input type="checkbox"
+                   [checked]="muestraIconosProductos()"
+                   [disabled]="!canEdit() || guardandoIconosProductos()"
+                   (change)="toggleIconosProductos($any($event.target).checked)" />
+            <span class="switch-row__text">
+              <strong>Utilizar iconos en la sección Pedidos para listar productos</strong>
+              <small>Encendido, cada producto se lista con su icono en la pantalla de venta y en
+                el pedido. Apagado se lista solo el nombre, que se lee más rápido cuando la carta
+                es larga. No cambia nada de lo que se cobra ni de lo que ve el cliente.</small>
+            </span>
+          </label>
+
           <label class="switch-row" [class.is-disabled]="!canEdit() || guardandoPagoDomicilio()">
             <input type="checkbox"
                    [checked]="permitePagoDomicilio()"

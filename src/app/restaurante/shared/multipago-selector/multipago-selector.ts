@@ -147,6 +147,25 @@ export class MultipagoSelectorComponent {
   /** Ya se aplicó el desglose inicial: no volver a pisar lo que edite el usuario. */
   private sembrado = false;
 
+  /**
+   * Las dos formas con las que abre un multipago recién elegido, o `null` si no procede.
+   *
+   * Cuando el negocio tiene **exactamente dos** formas de pago, un multipago solo puede ser
+   * «una parte con la primera y el resto con la segunda»: hacer que el cajero las eligiera a
+   * mano en cada cobro era pedirle que tecleara el único reparto posible.
+   *
+   * Se queda fuera el negocio que tiene una cuenta de cliente entre sus dos formas: sembrarla
+   * abriría de entrada la pregunta «¿de quién es la cuenta?» y dejaría el cobro inválido hasta
+   * responderla, que es peor que no sembrar nada.
+   *
+   * No es una imposición: son el punto de partida y el cajero las cambia en el desplegable.
+   */
+  private readonly parInicial = computed<[number, number] | null>(() => {
+    const ms = this.metodos();
+    if (ms.length !== 2 || ms.some((m) => m.es_cuenta)) return null;
+    return [ms[0].id_metodo_pago, ms[1].id_metodo_pago];
+  });
+
   protected readonly sumaMulti = computed(() =>
     this.filas().reduce((acc, f) => acc + (Number(f.valor) || 0), 0)
   );
@@ -236,31 +255,18 @@ export class MultipagoSelectorComponent {
     if (raw === MULTI_VALUE) {
       this.modo.set('multi');
       if (this.filas().length < 2) {
-        // Sembrar dos filas; la primera con el total para agilizar el cuadre.
+        // Sembrar dos filas; la primera con el total para agilizar el cuadre, y con las formas
+        // de pago ya puestas cuando el negocio solo tiene dos (ver `parInicial`).
+        const par = this.parInicial();
         this.filas.set([
-          { id_metodo_pago: null, valor: this.total() || null },
-          { id_metodo_pago: null, valor: null },
+          { id_metodo_pago: par?.[0] ?? null, valor: this.total() || null },
+          { id_metodo_pago: par?.[1] ?? null, valor: null },
         ]);
       }
       return;
     }
     this.modo.set('simple');
     this.metodoSimple.set(raw ? Number(raw) : null);
-  }
-
-  /**
-   * Métodos disponibles para la fila `index`: excluye los ya elegidos en las
-   * OTRAS filas (evita duplicar la misma forma de pago). El método propio de la
-   * fila se conserva para que siga visible/seleccionado.
-   */
-  protected metodosDisponibles(index: number): MetodoPagoLite[] {
-    const usadosEnOtras = new Set(
-      this.filas()
-        .filter((_, i) => i !== index)
-        .map((f) => f.id_metodo_pago)
-        .filter((id): id is number => id != null)
-    );
-    return this.metodos().filter((m) => !usadosEnOtras.has(m.id_metodo_pago));
   }
 
   protected agregarFila(): void {
@@ -271,9 +277,29 @@ export class MultipagoSelectorComponent {
     this.filas.update((f) => f.filter((_, i) => i !== index));
   }
 
+  /**
+   * Cambia la forma de pago de una fila, **intercambiándola** con la fila que ya la tuviera.
+   *
+   * La misma forma de pago no puede estar dos veces en un desglose. Antes eso se conseguía
+   * escondiendo del desplegable las que ya se usaban en las otras filas, y con un negocio de
+   * **dos** formas de pago eso dejaba el desplegable sin salida: con Efectivo arriba y
+   * Transferencia abajo, cada uno solo se ofrecía a sí mismo y el cajero no podía cambiar
+   * ninguno de los dos. Es lo que le pasó a El Callejero con el ORD-0655, que acabó cancelado.
+   *
+   * Ahora el desplegable las ofrece todas y elegir una que está en otra fila las cambia de
+   * sitio: la otra fila se queda con la que esta acaba de soltar. El reparto de dinero no se
+   * toca — solo se intercambia con qué se paga cada parte, que es justo lo que se quería.
+   */
   protected setFilaMetodo(index: number, raw: string): void {
     const id = raw ? Number(raw) : null;
-    this.filas.update((f) => f.map((row, i) => (i === index ? { ...row, id_metodo_pago: id } : row)));
+    this.filas.update((f) => {
+      const soltada = f[index]?.id_metodo_pago ?? null;
+      return f.map((row, i) => {
+        if (i === index) return { ...row, id_metodo_pago: id };
+        if (id != null && row.id_metodo_pago === id) return { ...row, id_metodo_pago: soltada };
+        return row;
+      });
+    });
   }
 
   protected setFilaValor(index: number, raw: string): void {

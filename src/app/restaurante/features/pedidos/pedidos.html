@@ -117,7 +117,9 @@
             @if (producto.es_popular) {
               <span class="popular-badge">🔥</span>
             }
-            <span class="product-emoji">{{ producto.icono }}</span>
+            @if (muestraIconos()) {
+              <span class="product-emoji">{{ producto.icono }}</span>
+            }
             <div class="product-name">{{ producto.nombre }}</div>
             <div class="product-desc">{{ producto.descripcion }}</div>
             <div class="product-price">{{ producto.precio | currency:'COP':'symbol-narrow':'1.0-0' }}</div>
@@ -371,7 +373,9 @@
         <div class="paid-section-title">Ya pagados</div>
         @for (item of itemsPagados(); track $index) {
           <div class="order-item paid">
-            <div class="item-emoji">{{ item.icono }}</div>
+            @if (muestraIconos()) {
+              <div class="item-emoji">{{ item.icono }}</div>
+            }
             <div class="item-info">
               <div class="item-name">{{ item.nombre }}</div>
               <div class="item-line-total paid-price">
@@ -402,7 +406,9 @@
 
         @for (item of items(); track $index) {
           <div class="order-item">
-            <div class="item-emoji">{{ item.icono }}</div>
+            @if (muestraIconos()) {
+              <div class="item-emoji">{{ item.icono }}</div>
+            }
             <div class="item-info">
               <div class="item-name">{{ item.nombre }}</div>
               <div class="item-line-total">
@@ -594,7 +600,7 @@
   <div class="modal-overlay">
     <div class="modal-content" (click)="$event.stopPropagation()">
       <div class="modal-header">
-        <h3>{{ editing.icono }} {{ editing.nombre }}</h3>
+        <h3>{{ muestraIconos() ? editing.icono + ' ' : '' }}{{ editing.nombre }}</h3>
         <button class="modal-close" (click)="cerrarPersonalizacion()">
           <lucide-icon name="x" [size]="20" />
         </button>

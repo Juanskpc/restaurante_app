@@ -65,6 +65,7 @@ export interface NegocioRestaurante {
   pregunta_cobro_envio?: boolean;
   permite_cuentas_cliente?: boolean;
   controla_inventario?: boolean;
+  muestra_iconos_productos?: boolean;
   roles: { id_rol: number; descripcion: string }[];
   permisos_vista: PermisoVistaRestaurante[];
   permisos_subnivel: PermisoSubnivelRestaurante[];
@@ -239,6 +240,17 @@ export class AuthService {
    * cargada y al que el aviso de stock solo le estorbaba.
    */
   readonly controlaInventario = computed(() => this.negocio()?.controla_inventario !== false);
+
+  /**
+   * ¿Pedidos lista los productos con su icono?
+   *
+   * Opt-OUT igual que el control de inventario: `undefined` —una sesión abierta antes de que
+   * existiera la columna— se lee como ENCENDIDO, que es lo que el POS enseña hoy. Así nadie se
+   * encuentra la pantalla de venta cambiada por haber entrado antes del despliegue.
+   */
+  readonly muestraIconosProductos = computed(
+    () => this.negocio()?.muestra_iconos_productos !== false,
+  );
 
   /** Rol principal (para mostrar en sidebar). */
   readonly rolPrincipal = computed(() => {

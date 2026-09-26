@@ -155,7 +155,11 @@ export class ConfiguracionComponent {
   // Opt-OUT: viene encendido, así que `undefined` (una configuración recién cargada o un
   // backend sin la columna todavía) tiene que leerse como encendido y no como apagado.
   readonly controlaInventario = computed(() => this.configuracion()?.controla_inventario !== false);
+  readonly muestraIconosProductos = computed(
+    () => this.configuracion()?.muestra_iconos_productos !== false,
+  );
   readonly guardandoInventario = signal(false);
+  readonly guardandoIconosProductos = signal(false);
 
   readonly permiteDomicilioPersonal = computed(() => this.configuracion()?.permite_domicilio_personal === true);
   readonly guardandoDomicilioPersonal = signal(false);
@@ -208,6 +212,7 @@ export class ConfiguracionComponent {
     pregunta_cobro_envio: this.fb.control(false, { nonNullable: true }),
     permite_cuentas_cliente: this.fb.control(false, { nonNullable: true }),
     controla_inventario: this.fb.control(true, { nonNullable: true }),
+    muestra_iconos_productos: this.fb.control(true, { nonNullable: true }),
     permite_domicilio_personal: this.fb.control(false, { nonNullable: true }),
     id_paleta: this.fb.control<number | null>(null),
   });
@@ -346,7 +351,8 @@ export class ConfiguracionComponent {
    */
   private actualizarFlag(
     campo: 'permite_multipago' | 'permite_pago_domicilio' | 'permite_descuento' | 'pregunta_cobro_envio'
-      | 'permite_cuentas_cliente' | 'controla_inventario' | 'permite_domicilio_personal',
+      | 'permite_cuentas_cliente' | 'controla_inventario' | 'permite_domicilio_personal'
+      | 'muestra_iconos_productos',
     activar: boolean,
     textos: {
       guardando: WritableSignal<boolean>; titulo: string; on: string; off: string; error: string;
@@ -459,6 +465,23 @@ export class ConfiguracionComponent {
   }
 
   /**
+   * Iconos de producto en Pedidos.
+   *
+   * Solo cambia cómo se listan los productos en la pantalla de venta: con su icono, o con el
+   * nombre a secas. Nace encendido porque es lo que el POS enseña hoy; se apaga para la carta
+   * larga, donde una rejilla de iconos se lee peor que una lista de nombres.
+   */
+  toggleIconosProductos(activar: boolean): void {
+    this.actualizarFlag('muestra_iconos_productos', activar, {
+      guardando: this.guardandoIconosProductos,
+      titulo: 'Iconos en Pedidos',
+      on: 'Los productos se listan con su icono.',
+      off: 'Los productos se listan solo con su nombre.',
+      error: 'No se pudo actualizar la vista de productos.',
+    });
+  }
+
+  /**
    * Domiciliario = personal del negocio.
    *
    * Encendido, el selector de domiciliario (al tomar un pedido a domicilio) deja de mostrar
@@ -502,6 +525,7 @@ export class ConfiguracionComponent {
             pregunta_cobro_envio: config.pregunta_cobro_envio === true,
             permite_cuentas_cliente: config.permite_cuentas_cliente === true,
             controla_inventario: config.controla_inventario !== false,
+            muestra_iconos_productos: config.muestra_iconos_productos !== false,
             permite_domicilio_personal: config.permite_domicilio_personal === true,
             id_paleta: config.id_paleta ?? null,
           });
@@ -589,6 +613,7 @@ export class ConfiguracionComponent {
         pregunta_cobro_envio: value.pregunta_cobro_envio,
         permite_cuentas_cliente: value.permite_cuentas_cliente,
         controla_inventario: value.controla_inventario,
+        muestra_iconos_productos: value.muestra_iconos_productos,
         permite_domicilio_personal: value.permite_domicilio_personal,
         id_paleta: value.id_paleta,
       })

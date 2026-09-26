@@ -342,6 +342,14 @@ export class PedidosComponent implements OnInit, OnDestroy {
 
   // ── Descuento (opt-in por negocio, ver Configuración → Descuentos) ──
   readonly permiteDescuento = computed(() => this.auth.permiteDescuento());
+  /**
+   * ¿Se listan los productos con su icono? Interruptor del negocio (Configuración → Operación).
+   *
+   * Solo afecta a cómo se ven los PRODUCTOS: la rejilla de venta, las líneas del pedido y el
+   * título de la ventana de personalización. Los iconos de las CATEGORÍAS se quedan, porque son
+   * lo que distingue una pestaña de otra de un vistazo y no son lo que el interruptor nombra.
+   */
+  readonly muestraIconos = computed(() => this.auth.muestraIconosProductos());
   readonly aplicarDescuento = signal(false);
   readonly descuentoInput = signal('');
   /** Valor ya guardado en la orden que se edita, para detectar si cambió. */
