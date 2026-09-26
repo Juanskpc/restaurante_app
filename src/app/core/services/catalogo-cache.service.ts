@@ -69,6 +69,26 @@ export class CatalogoCacheService {
     return this.get(`productos:${idNegocio}`, `${environment.apiUrl}/carta/admin/productos?id_negocio=${idNegocio}`, idNegocio);
   }
 
+  /**
+   * Los mismos productos de `productos()` —misma petición, misma clave de caché— pero con sus
+   * ingredientes. El POS los necesita para un pedido YA guardado: la orden que devuelve el servidor
+   * trae qué se quitó de cada línea pero no qué se PUEDE quitar, y sin eso no hay forma de volver a
+   * editar los ingredientes de un pedido cargado.
+   */
+  productosConIngredientes(idNegocio: number): Observable<
+    Array<{
+      id_producto: number;
+      ingredientes?: Array<{
+        id_producto_ingred: number;
+        id_ingrediente: number;
+        nombre: string;
+        es_removible: boolean;
+      }>;
+    }>
+  > {
+    return this.get(`productos:${idNegocio}`, `${environment.apiUrl}/carta/admin/productos?id_negocio=${idNegocio}`, idNegocio);
+  }
+
   categorias(idNegocio: number): Observable<unknown[]> {
     return this.get(`categorias:${idNegocio}`, `${environment.apiUrl}/carta/categorias?id_negocio=${idNegocio}`, idNegocio);
   }

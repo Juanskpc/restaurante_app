@@ -5,7 +5,6 @@ import { isPlatformBrowser } from '@angular/common';
 import { LucideAngularModule } from 'lucide-angular';
 
 import { AuthService } from '../../core/services/auth.service';
-import { environment } from '../../../environments/environment';
 
 /** Dónde se recuerda que el usuario ya cerró el aviso. */
 const DISMISS_KEY = 'app_plan_aviso_oculto';
@@ -38,9 +37,9 @@ const DISMISS_KEY = 'app_plan_aviso_oculto';
           después se bloqueará el acceso al sistema.
         </p>
 
-        <a class="plan-aviso__cta" [href]="urlPlan" target="_blank" rel="noopener">
-          Actualizar pago
-        </a>
+        <button type="button" class="plan-aviso__cta" (click)="verMiPlan()">
+          Ver mi plan
+        </button>
 
         <button
           type="button"
@@ -77,7 +76,10 @@ const DISMISS_KEY = 'app_plan_aviso_oculto';
       border-radius: var(--radius-full, 999px);
       background: var(--color-warning, #b45309);
       color: #fff;
+      font: inherit;
       font-weight: 600;
+      border: 0;
+      cursor: pointer;
       text-decoration: none;
       white-space: nowrap;
     }
@@ -111,8 +113,10 @@ export class PlanAvisoComponent {
   private readonly auth = inject(AuthService);
   private readonly platformId = inject(PLATFORM_ID);
 
-  /** Consola del SaaS: es donde el negocio consulta su plan y su vencimiento. */
-  readonly urlPlan = `${environment.adminUrl ?? ''}/admin/configuracion`;
+  /** Mis pagos, en la consola del SaaS, con ESTE negocio marcado (pasa por el SSO del admin). */
+  verMiPlan(): void {
+    void this.auth.irAMisPagos();
+  }
 
   private readonly cerrado = signal(this.leerCerrado());
 

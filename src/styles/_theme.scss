@@ -64,20 +64,40 @@
   --color-accent-purple: #7b1fa2;
   --color-accent-purple-rgb: 123, 31, 162;
 
-  // --- Tokens de estados dependientes de paleta ---
-  --color-status-available: color-mix(in srgb, var(--color-primary) 40%, var(--color-success));
-  --color-status-available-bg: color-mix(in srgb, var(--color-status-available) 18%, var(--color-surface));
-  --color-status-available-border: color-mix(in srgb, var(--color-status-available) 54%, var(--color-border));
+  // --- Tokens de estado de las mesas: SEMÁNTICOS, independientes de la paleta del negocio ---
+  // La paleta que elige el negocio (Rojo Gastronómico, Verde…) es su MARCA: botones principales,
+  // ítem activo del menú, acentos. Los estados de una mesa son SEMÁNTICOS y valen igual para todos:
+  // libre = verde, ocupada = naranja-rojo, por cobrar = dorado. Con una marca roja, «libre» en rojo
+  // se lee como error; por eso estos tonos son fijos y NINGUNA paleta los toca.
+  //
+  // Cada estado trae cuatro tonos: el vivo (íconos, sillas), un fondo pastel, el borde y un texto
+  // oscuro de la misma familia (mezclado con el texto primario para no quedar en marrón).
+  // Son valores hexadecimales a propósito: no derivan de `--color-primary`, `--color-success` ni
+  // `--color-error`, que una paleta sí puede cambiar.
+  --mesa-verde: #2e8b57;
+  --mesa-naranja: #d9622b;
+  --mesa-dorado: #d99a00;
 
-  --color-status-occupied: color-mix(in srgb, var(--color-primary) 28%, var(--color-error));
-  --color-status-occupied-bg: color-mix(in srgb, var(--color-status-occupied) 17%, var(--color-surface));
-  --color-status-occupied-border: color-mix(in srgb, var(--color-status-occupied) 56%, var(--color-border));
+  --color-status-available: var(--mesa-verde);
+  --color-status-occupied: var(--mesa-naranja);
+  --color-status-payment: var(--mesa-dorado);
+  --color-warning-gold: var(--mesa-dorado);
+  @each $estado in (available, occupied, payment) {
+    --color-status-#{$estado}-bg: color-mix(in srgb, var(--color-status-#{$estado}) 12%, var(--color-surface));
+    --color-status-#{$estado}-border: color-mix(in srgb, var(--color-status-#{$estado}) 50%, var(--color-surface));
+    --color-status-#{$estado}-text: color-mix(in srgb, var(--color-status-#{$estado}) 62%, var(--color-text-primary));
+  }
 
-  --color-status-payment: color-mix(in srgb, var(--color-primary) 30%, var(--color-warning));
-  --color-status-payment-bg: color-mix(in srgb, var(--color-status-payment) 19%, var(--color-surface));
-  --color-status-payment-border: color-mix(in srgb, var(--color-status-payment) 58%, var(--color-border));
+  // --- Despacho: el tipo de entrega es SEMÁNTICO, igual que las mesas ---
+  // Domicilio = azul, para llevar = verde (`--color-success`). Con una marca roja o azul el
+  // domicilio no puede cambiar de color según el negocio: quien despacha lo reconoce por el tono.
+  --despacho-domicilio: #1f6fb2;
+  --despacho-domicilio-bg: color-mix(in srgb, var(--despacho-domicilio) 12%, var(--color-surface));
+  --despacho-domicilio-border: color-mix(in srgb, var(--despacho-domicilio) 45%, var(--color-surface));
+  --despacho-domicilio-text: color-mix(in srgb, var(--despacho-domicilio) 75%, var(--color-text-primary));
 
-  --color-menu-price: var(--color-status-available);
+  // El precio del menú es verde SIEMPRE (no sigue el trío de las mesas, que ahora depende de la marca).
+  --color-menu-price: var(--color-success);
   --color-menu-icon-bg: color-mix(in srgb, var(--color-primary) 14%, var(--color-bg-secondary));
 
   // --- Focus ---

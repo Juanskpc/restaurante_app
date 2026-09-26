@@ -3,6 +3,11 @@
     <div>
       <h1>Administracion de Usuarios</h1>
       <p>Gestiona usuarios, roles y acceso por modulo para cada perfil del sistema.</p>
+      @if (topeUsuarios(); as tope) {
+        <p class="users-page__cupo" [class.users-page__cupo--lleno]="usuariosActivos() >= tope">
+          {{ usuariosActivos() }} de {{ tope }} {{ tope === 1 ? 'usuario' : 'usuarios' }} de tu plan
+        </p>
+      }
     </div>
   </header>
 
@@ -235,7 +240,9 @@
         <button type="button" class="modal__close" (click)="closeFormModal()" aria-label="Cerrar">x</button>
       </header>
 
-      <form class="modal__body" [formGroup]="userForm" (ngSubmit)="submitUserForm()">
+      <!-- Ninguna de estas casillas debe autocompletarse: el navegador confunde este formulario (correo +
+           contraseña) con un inicio de sesión y precarga las credenciales de quien lo está llenando. -->
+      <form class="modal__body" [formGroup]="userForm" (ngSubmit)="submitUserForm()" autocomplete="off">
         <div class="grid-2">
           <label class="field">
             <span>Primer nombre *</span>
@@ -271,7 +278,8 @@
 
           <label class="field">
             <span>Identificacion *</span>
-            <input type="text" formControlName="num_identificacion" (blur)="markControlAsTouched('num_identificacion')">
+            <input type="text" formControlName="num_identificacion" name="nuevo_num_identificacion"
+                   autocomplete="off" (blur)="markControlAsTouched('num_identificacion')">
             @if (hasControlError('num_identificacion')) {
               <small class="field-error">{{ controlError('num_identificacion') }}</small>
             }
@@ -279,7 +287,8 @@
 
           <label class="field">
             <span>Correo *</span>
-            <input type="email" formControlName="email" (blur)="markControlAsTouched('email')">
+            <input type="email" formControlName="email" name="nuevo_correo_contacto"
+                   autocomplete="off" (blur)="markControlAsTouched('email')">
             @if (hasControlError('email')) {
               <small class="field-error">{{ controlError('email') }}</small>
             }
@@ -292,6 +301,8 @@
               <input
                 [type]="showPassword() ? 'text' : 'password'"
                 formControlName="password"
+                name="nueva_clave_usuario"
+                autocomplete="new-password"
                 placeholder="Minimo 8 caracteres"
                 (blur)="markControlAsTouched('password')"
               >
@@ -310,6 +321,8 @@
               <input
                 [type]="showConfirmPassword() ? 'text' : 'password'"
                 formControlName="confirmPassword"
+                name="nueva_clave_usuario_confirmacion"
+                autocomplete="new-password"
                 (blur)="markControlAsTouched('confirmPassword')"
               >
               <button type="button" class="password-toggle" (click)="toggleConfirmPasswordVisibility()">

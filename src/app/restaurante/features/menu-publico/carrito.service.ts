@@ -1,11 +1,65 @@
 import { Injectable, computed, inject, signal, PLATFORM_ID } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 
+import {
+  CLIENTE_VACIO,
+  CampoCliente,
+  DatosCliente,
+  MAXIMOS,
+  lineasDelBloque,
+  limpiarTelefono,
+  sanear,
+} from './datos-cliente';
+
+/** Un ingrediente que el cliente quitó de un plato («sin cebolla»). */
+export interface IngredienteQuitado {
+  id_ingrediente: number;
+  nombre: string;
+}
+
+/**
+ * Una LÍNEA del carrito: un producto y lo que se le quitó. Dos líneas del mismo producto con
+ * distintas exclusiones son líneas distintas («una sin cebolla» y «una con todo»); se suman solo
+ * las que coinciden en las dos cosas. `claveLinea` es lo que las identifica.
+ */
 export interface ItemCarrito {
   id_producto: number;
   nombre: string;
   precio: number;
   cantidad: number;
+  exclusiones: IngredienteQuitado[];
+}
+
+/** Tope de ingredientes quitados por línea: el mismo que lee el bot (`MAX_EXCLUSIONES`). */
+export const MAX_EXCLUSIONES = 12;
+
+/** Identidad de una línea: producto + ids quitados, ordenados. `4:12.15`, o `4:` sin exclusiones. */
+export function claveLinea(item: Pick<ItemCarrito, 'id_producto' | 'exclusiones'>): string {
+  const ids = [...new Set(item.exclusiones.map((e) => e.id_ingrediente))].sort((a, b) => a - b);
+  return `${item.id_producto}:${ids.join('.')}`;
+}
+
+/** Cuánto se recuerdan nombre, teléfono y dirección de un cliente que repite: 90 días. */
+const VIGENCIA_CLIENTE_MS = 90 * 24 * 60 * 60 * 1000;
+
+/** Más largo que esto el texto legible del mensaje se recorta (la línea `#P…` jamás). */
+const MAX_TEXTO_HUMANO = 1500;
+
+/** Cómo quiere pedir: en el local (mesa), a domicilio o recoger. Son las letras del código (`~m=`). */
+export type Modalidad = 'L' | 'D' | 'R';
+
+/** Barrio elegido para el domicilio. `id_barrio: 0` = «Otro barrio»: el restaurante confirma el valor. */
+export interface BarrioElegido {
+  id_barrio: number;
+  nombre: string;
+  /** `null` en «Otro barrio»: no hay valor que sumar. */
+  valor: number | null;
+}
+
+export interface MesaElegida {
+  id_mesa: number;
+  nombre: string;
+  numero: number;
 }
 
 /**
@@ -52,11 +106,20 @@ const VIGENCIA_MS = 4 * 60 * 60 * 1000;
 
 /** Forma con la que se guarda. La versión permite tirar formatos viejos sin adivinar su edad. */
 interface CarritoGuardado {
-  v: 2;
+  v: 3;
   guardado: number;
   /** Cuándo se abrió WhatsApp con este pedido, o `null` si todavía no. */
   enviadoEn: number | null;
   items: ItemCarrito[];
+}
+
+/** Lo que el cliente eligió sobre cómo pedir. Se guarda aparte del carrito: no es un pedido. */
+interface EleccionGuardada {
+  v: 1;
+  guardado: number;
+  modalidad: Modalidad | null;
+  barrio: BarrioElegido | null;
+  mesa: MesaElegida | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -69,6 +132,30 @@ export class CarritoService {
 
   readonly items = this._items.asReadonly();
 
+  // ── Cómo quiere pedir ─────────────────────────────────────────────────────────────────
+  //
+  // Valor inicial `null` SIEMPRE, en el servidor y en el cliente: lo guardado se lee en
+  // `iniciar` solo en el navegador. Así el primer render coincide con el del servidor.
+  private readonly _modalidad = signal<Modalidad | null>(null);
+  private readonly _barrio = signal<BarrioElegido | null>(null);
+  private readonly _mesa = signal<MesaElegida | null>(null);
+
+  // ── Datos del cliente (nombre, teléfono, dirección, nota) ─────────────────────────────
+  //
+  // Se piden en el panel antes de abrir WhatsApp. Se recuerdan por negocio en el navegador para
+  // quien repite (menos la nota, que es de ESTE pedido). Valor inicial vacío en servidor y cliente.
+  private readonly _cliente = signal<DatosCliente>({ ...CLIENTE_VACIO });
+  readonly cliente = this._cliente.asReadonly();
+
+  readonly modalidad = this._modalidad.asReadonly();
+  readonly barrio = this._barrio.asReadonly();
+  readonly mesa = this._mesa.asReadonly();
+
+  /** Lo que cuesta el domicilio a ese barrio; 0 si no es domicilio, no hay barrio o es «otro». */
+  readonly domicilio = computed(() =>
+    this._modalidad() === 'D' ? (this._barrio()?.valor ?? 0) : 0
+  );
+
   readonly cantidadTotal = computed(() =>
     this._items().reduce((n, i) => n + i.cantidad, 0)
   );
@@ -78,6 +165,9 @@ export class CarritoService {
   );
 
   readonly vacio = computed(() => this._items().length === 0);
+
+  /** El total con el domicilio del barrio elegido. Sigue siendo aproximado. */
+  readonly totalConDomicilio = computed(() => this.total() + this.domicilio());
 
   /**
    * Ata el carrito a un negocio y recupera lo que hubiera guardado.
@@ -89,29 +179,81 @@ export class CarritoService {
     this._idNegocio.set(idNegocio);
     this._enviadoEn.set(null);
     this._items.set(this.leerGuardado(idNegocio));
+    this.restaurarEleccion(idNegocio);
+    this.restaurarCliente(idNegocio);
   }
 
-  agregar(producto: { id_producto: number; nombre: string; precio: number }): void {
-    this._items.update((items) => {
-      const existente = items.find((i) => i.id_producto === producto.id_producto);
-      if (existente) {
-        return items.map((i) =>
-          i.id_producto === producto.id_producto ? { ...i, cantidad: i.cantidad + 1 } : i
-        );
-      }
-      return [...items, { ...producto, cantidad: 1 }];
-    });
+  /** Cambia uno o varios datos del cliente y los recuerda (sin la nota). */
+  guardarCliente(cambios: Partial<DatosCliente>): void {
+    this._cliente.update((c) => ({ ...c, ...cambios }));
+    this.guardarClienteEnNavegador();
+  }
+
+  // ── La elección: cómo lo quiere recibir ───────────────────────────────────────────────
+
+  /** Cambiar la modalidad suelta lo que ya no aplica: un barrio no vale en el local, ni una mesa a domicilio. */
+  elegirModalidad(modalidad: Modalidad | null): void {
+    this._modalidad.set(modalidad);
+    if (modalidad !== 'D') this._barrio.set(null);
+    if (modalidad !== 'L') this._mesa.set(null);
+    this.guardarEleccion();
+  }
+
+  elegirBarrio(barrio: BarrioElegido | null): void {
+    this._barrio.set(barrio);
+    this.guardarEleccion();
+  }
+
+  elegirMesa(mesa: MesaElegida | null): void {
+    this._mesa.set(mesa);
+    this.guardarEleccion();
+  }
+
+  /**
+   * Suma una unidad a la línea de ese producto con esas exclusiones (la crea si no existe).
+   * Sin exclusiones suma a la línea «con todo», como siempre.
+   */
+  agregar(
+    producto: { id_producto: number; nombre: string; precio: number },
+    exclusiones: IngredienteQuitado[] = [],
+  ): void {
+    const limpias = [...new Map(exclusiones.map((e) => [e.id_ingrediente, e])).values()]
+      .sort((a, b) => a.id_ingrediente - b.id_ingrediente)
+      .slice(0, MAX_EXCLUSIONES);
+    const nueva: ItemCarrito = { ...producto, cantidad: 1, exclusiones: limpias };
+    const clave = claveLinea(nueva);
+    this._items.update((items) =>
+      items.some((i) => claveLinea(i) === clave)
+        ? items.map((i) => (claveLinea(i) === clave ? { ...i, cantidad: i.cantidad + 1 } : i))
+        : [...items, nueva]
+    );
     this.guardar();
   }
 
-  /** Baja una unidad, y quita el item si llega a cero. */
-  quitar(idProducto: number): void {
+  /**
+   * Cambia la cantidad de UNA línea (el «− n +» del pre-pedido). Llega a cero → la línea sale.
+   */
+  sumarALinea(clave: string, delta: number): void {
     this._items.update((items) =>
       items
-        .map((i) => (i.id_producto === idProducto ? { ...i, cantidad: i.cantidad - 1 } : i))
+        .map((i) => (claveLinea(i) === clave ? { ...i, cantidad: i.cantidad + delta } : i))
         .filter((i) => i.cantidad > 0)
     );
     this.guardar();
+  }
+
+  /**
+   * Baja una unidad del producto: de la línea MÁS RECIENTE de ese producto (la última que se
+   * añadió). Es el «−» de la tarjeta, que no sabe de líneas; el pre-pedido ajusta cada una.
+   */
+  quitar(idProducto: number): void {
+    const items = this._items();
+    let indice = -1;
+    items.forEach((i, k) => {
+      if (i.id_producto === idProducto) indice = k;
+    });
+    if (indice < 0) return;
+    this.sumarALinea(claveLinea(items[indice]), -1);
   }
 
   eliminar(idProducto: number): void {
@@ -137,8 +279,11 @@ export class CarritoService {
     this.guardar();
   }
 
+  /** El «n» del stepper: la suma de TODAS las líneas de ese producto, con o sin exclusiones. */
   cantidadDe(idProducto: number): number {
-    return this._items().find((i) => i.id_producto === idProducto)?.cantidad ?? 0;
+    return this._items()
+      .filter((i) => i.id_producto === idProducto)
+      .reduce((n, i) => n + i.cantidad, 0);
   }
 
   /**
@@ -149,24 +294,94 @@ export class CarritoService {
    */
   mensajeParaWhatsApp(): string {
     const items = this._items();
-    const lineas = items.map((i) => `• ${i.cantidad} × ${i.nombre}`);
     const codigo = this.codigoCompacto();
 
-    return [
-      'Hola, quiero pedir:',
+    // Sin modalidad elegida el mensaje es idéntico al de siempre.
+    const cuando = this.lineaModalidad();
+    const domicilio = this.domicilio();
+
+    // El bloque de datos del cliente va ANTES de la línea `#P`, con etiquetas fijas que el bot lee
+    // por etiqueta. Solo las que aplican a la modalidad y tienen valor.
+    const bloque = lineasDelBloque(this._modalidad(), this._cliente());
+
+    const cola = [
       '',
-      ...lineas,
+      ...(cuando ? [cuando] : []),
+      ...(domicilio > 0 ? [`Domicilio: ${this.formatearPrecio(domicilio)}`] : []),
+      `Total aproximado: ${this.formatearPrecio(this.totalConDomicilio())}`,
       '',
-      `Total aproximado: ${this.formatearPrecio(this.total())}`,
-      '',
-      codigo,
-    ].join('\n');
+      ...(bloque.length ? [...bloque, ''] : []),
+    ];
+
+    // El texto legible se recorta si se pasa (la URL de wa.me tiene largo práctico); la línea
+    // `#P…` NUNCA: es lo que lee el bot y lleva el pedido completo.
+    const lineas = items.map((i) => this.lineaLegible(i));
+    const largoFijo = ['Hola, quiero pedir:', '', ...cola].join('\n').length + codigo.length + 1;
+    let usado = largoFijo;
+    const visibles: string[] = [];
+    for (const l of lineas) {
+      if (usado + l.length + 1 > MAX_TEXTO_HUMANO + codigo.length) break;
+      visibles.push(l);
+      usado += l.length + 1;
+    }
+    const resto = lineas.length - visibles.length;
+    if (resto > 0) visibles.push(`• … y ${resto} más (van en el código de abajo)`);
+
+    return ['Hola, quiero pedir:', '', ...visibles, ...cola, codigo].join('\n');
   }
 
-  /** `#P<negocio>-<idProducto>x<cantidad>,...` */
+  /** `• 1 × Hamburguesa (sin cebolla, sin tomate)`. */
+  private lineaLegible(i: ItemCarrito): string {
+    const sin = i.exclusiones.length
+      ? ` (${i.exclusiones.map((e) => `sin ${e.nombre}`).join(', ')})`
+      : '';
+    return `• ${i.cantidad} × ${i.nombre}${sin}`;
+  }
+
+  /** La línea legible que dice cómo lo quiere recibir, o `null` si no eligió. */
+  private lineaModalidad(): string | null {
+    switch (this._modalidad()) {
+      case 'D': {
+        const barrio = this._barrio();
+        return barrio ? `A domicilio · ${barrio.id_barrio === 0 ? 'otro barrio' : barrio.nombre}` : 'A domicilio';
+      }
+      case 'R':
+        return 'Para recoger en el local';
+      case 'L': {
+        const mesa = this._mesa();
+        return mesa ? `En el local · ${mesa.nombre}` : 'En el local';
+      }
+      default:
+        return null;
+    }
+  }
+
+  /**
+   * `#P<negocio>-<idProducto>x<cantidad>[-r<ing>.<ing>],...` y, si el cliente ya eligió cómo lo quiere,
+   * modificadores `~m=D|R|L`, `~z=<id barrio>` (0 = otro barrio) y `~t=<id mesa>`.
+   *
+   * ⚠️ Contrato con `admin_ws/intelligence/adapters/restaurante/codigoPedido.js`, que los lee.
+   * Sin elección el código es el de siempre. Ver `docs/asistente-restaurante.md`.
+   */
   codigoCompacto(): string {
-    const partes = this._items().map((i) => `${i.id_producto}x${i.cantidad}`);
-    return `#P${this._idNegocio() ?? 0}-${partes.join(',')}`;
+    // `-r12.15`: los ingredientes que se quitan de ESA línea (ids, ordenados). Sin exclusiones la
+    // línea es `4x1`, como siempre.
+    const partes = this._items().map((i) => {
+      const ids = [...new Set(i.exclusiones.map((e) => e.id_ingrediente))].sort((a, b) => a - b);
+      return `${i.id_producto}x${i.cantidad}${ids.length ? `-r${ids.join('.')}` : ''}`;
+    });
+    return `#P${this._idNegocio() ?? 0}-${partes.join(',')}${this.modificadores()}`;
+  }
+
+  private modificadores(): string {
+    const modalidad = this._modalidad();
+    if (!modalidad) return '';
+    let sufijo = `~m=${modalidad}`;
+    const barrio = this._barrio();
+    if (modalidad === 'D' && barrio) sufijo += `~z=${barrio.id_barrio}`;
+    const mesa = this._mesa();
+    if (modalidad === 'L' && mesa) sufijo += `~t=${mesa.id_mesa}`;
+    return sufijo;
   }
 
   /**
@@ -200,6 +415,119 @@ export class CarritoService {
     }).format(valor);
   }
 
+  // ── Persistencia de los datos del cliente ────────────────────────────────────────────
+  //
+  // Para que quien repite no vuelva a escribirlos. Se guarda sin la nota (es de este pedido) y
+  // con una vigencia larga: es una comodidad, no un pedido en marcha. Solo en el navegador y
+  // dentro de try/catch, como todo lo demás.
+
+  private claveCliente(idNegocio: number): string {
+    return `escalapp.cliente.${idNegocio}`;
+  }
+
+  private guardarClienteEnNavegador(): void {
+    const id = this._idNegocio();
+    if (id === null || !isPlatformBrowser(this.platformId)) return;
+    const { nombre, telefono, direccion } = this._cliente();
+    try {
+      localStorage.setItem(
+        this.claveCliente(id),
+        JSON.stringify({ v: 1, guardado: Date.now(), nombre, telefono, direccion }),
+      );
+    } catch {
+      // Sin almacenamiento los datos duran lo que dure la pestaña.
+    }
+  }
+
+  private restaurarCliente(idNegocio: number): void {
+    this._cliente.set({ ...CLIENTE_VACIO });
+    if (!isPlatformBrowser(this.platformId)) return;
+    try {
+      const crudo = localStorage.getItem(this.claveCliente(idNegocio));
+      if (!crudo) return;
+      const s = JSON.parse(crudo);
+      const vale =
+        s && s.v === 1 && Number.isFinite(s.guardado) && Date.now() - s.guardado <= VIGENCIA_CLIENTE_MS;
+      if (!vale) {
+        localStorage.removeItem(this.claveCliente(idNegocio));
+        return;
+      }
+      const texto = (v: unknown, campo: CampoCliente) =>
+        typeof v === 'string' ? sanear(v, MAXIMOS[campo]) : '';
+      this._cliente.set({
+        nombre: texto(s.nombre, 'nombre'),
+        telefono: limpiarTelefono(texto(s.telefono, 'telefono')),
+        direccion: texto(s.direccion, 'direccion'),
+        nota: '',
+      });
+    } catch {
+      // JSON corrupto o sin acceso: se empieza con el formulario vacío.
+    }
+  }
+
+  // ── Persistencia de la elección ──────────────────────────────────────────────────────
+
+  private claveEleccion(idNegocio: number): string {
+    return `escalapp.pedido.${idNegocio}`;
+  }
+
+  private guardarEleccion(): void {
+    const id = this._idNegocio();
+    if (id === null || !isPlatformBrowser(this.platformId)) return;
+    const sobre: EleccionGuardada = {
+      v: 1,
+      guardado: Date.now(),
+      modalidad: this._modalidad(),
+      barrio: this._barrio(),
+      mesa: this._mesa(),
+    };
+    try {
+      localStorage.setItem(this.claveEleccion(id), JSON.stringify(sobre));
+    } catch {
+      // Sin almacenamiento la elección dura lo que dure la pestaña.
+    }
+  }
+
+  /** Solo en el navegador y con vigencia, como el carrito. Lo inválido se descarta y se borra. */
+  private restaurarEleccion(idNegocio: number): void {
+    this._modalidad.set(null);
+    this._barrio.set(null);
+    this._mesa.set(null);
+    if (!isPlatformBrowser(this.platformId)) return;
+    try {
+      const crudo = localStorage.getItem(this.claveEleccion(idNegocio));
+      if (!crudo) return;
+      const sobre = JSON.parse(crudo);
+      const vale =
+        sobre &&
+        sobre.v === 1 &&
+        Number.isFinite(sobre.guardado) &&
+        Date.now() - sobre.guardado <= VIGENCIA_MS &&
+        (sobre.modalidad === 'L' || sobre.modalidad === 'D' || sobre.modalidad === 'R');
+      if (!vale) {
+        localStorage.removeItem(this.claveEleccion(idNegocio));
+        return;
+      }
+      this._modalidad.set(sobre.modalidad);
+      const b = sobre.barrio;
+      if (
+        sobre.modalidad === 'D' && b && Number.isInteger(b.id_barrio) && b.id_barrio >= 0 &&
+        typeof b.nombre === 'string' && (b.valor === null || Number.isFinite(b.valor))
+      ) {
+        this._barrio.set({ id_barrio: b.id_barrio, nombre: b.nombre, valor: b.valor });
+      }
+      const m = sobre.mesa;
+      if (
+        sobre.modalidad === 'L' && m && Number.isInteger(m.id_mesa) && m.id_mesa > 0 &&
+        typeof m.nombre === 'string' && Number.isInteger(m.numero)
+      ) {
+        this._mesa.set({ id_mesa: m.id_mesa, nombre: m.nombre, numero: m.numero });
+      }
+    } catch {
+      // JSON corrupto o sin acceso: se empieza sin elección.
+    }
+  }
+
   // ── Persistencia ──────────────────────────────────────────────────────────────────────
   //
   // Se guarda para que cerrar la pestaña sin querer no borre veinte minutos de elegir. Todo va
@@ -214,7 +542,7 @@ export class CarritoService {
     const id = this._idNegocio();
     if (id === null || !isPlatformBrowser(this.platformId)) return;
     const sobre: CarritoGuardado = {
-      v: 2,
+      v: 3,
       guardado: Date.now(),
       enviadoEn: this._enviadoEn(),
       items: this._items(),
@@ -253,7 +581,10 @@ export class CarritoService {
       if (!crudo) return [];
       const sobre = JSON.parse(crudo);
 
-      if (!sobre || sobre.v !== 2 || !Number.isFinite(sobre.guardado)) return descartar();
+      // La v2 (sin exclusiones) se sigue leyendo: un carrito a medias no se pierde por un cambio de formato.
+      if (!sobre || (sobre.v !== 3 && sobre.v !== 2) || !Number.isFinite(sobre.guardado)) {
+        return descartar();
+      }
       if (Date.now() - sobre.guardado > VIGENCIA_MS) return descartar();
       if (sobre.enviadoEn !== null && sobre.enviadoEn !== undefined) return descartar();
 
@@ -276,6 +607,18 @@ export class CarritoService {
           nombre: i.nombre,
           precio: i.precio,
           cantidad: i.cantidad,
+          exclusiones: Array.isArray(i.exclusiones)
+            ? i.exclusiones
+                .filter(
+                  (e: { id_ingrediente?: unknown; nombre?: unknown }) =>
+                    e && Number.isInteger(e.id_ingrediente) && typeof e.nombre === 'string'
+                )
+                .slice(0, MAX_EXCLUSIONES)
+                .map((e: IngredienteQuitado) => ({
+                  id_ingrediente: e.id_ingrediente,
+                  nombre: e.nombre,
+                }))
+            : [],
         }));
     } catch {
       // JSON corrupto: no hay nada que rescatar, y dejarlo repetiría el fallo en cada carga.

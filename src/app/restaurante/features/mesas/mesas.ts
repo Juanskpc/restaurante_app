@@ -2,12 +2,13 @@ import { Component, ChangeDetectionStrategy, DestroyRef, computed, effect, injec
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { Observable, Subject, of } from 'rxjs';
 import { catchError, debounceTime, map, switchMap, tap } from 'rxjs/operators';
 import { LucideAngularModule } from 'lucide-angular';
 
 import { AuthService } from '../../../core/services/auth.service';
-import { MesasService, MesaDashboard, MesaCardStatus } from '../../../core/services/mesas.service';
+import { MesasService, MesaDashboard, MesaCardStatus, SeccionMesa } from '../../../core/services/mesas.service';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 import { VistaTarjetasService } from '../../../core/services/vista-tarjetas.service';
 import { RealtimeService } from '../../../core/services/realtime.service';
@@ -18,6 +19,18 @@ import {
   MultipagoSelectorComponent,
   PagoSeleccion,
 } from '../../shared/multipago-selector/multipago-selector';
+import { AccionMesa, accionPrincipalDe } from './mesa-accion';
+import { TAB_TODAS, TabSeccion, agruparPorSeccion, armarTabs, filtrarPorTab } from './mesa-secciones';
+import {
+  ALERTA_MINUTOS,
+  FormaMesa,
+  Silla,
+  formaDeMesa,
+  minutosDeEtiqueta,
+  puestos,
+  sillasDeMesa,
+  superaAlerta,
+} from './mesa-geometria';
 
 type FiltroEstado = 'all' | 'available' | 'occupied' | 'payment' | 'disabled';
 
@@ -29,6 +42,7 @@ interface ItemPagadoMesa {
   price: number;
   cantidad: number;
   nota?: string | null;
+  sin?: string[];
 }
 
 @Component({
@@ -45,6 +59,7 @@ export class MesasComponent {
   private readonly vista = inject(VistaTarjetasService);
   private readonly realtime = inject(RealtimeService);
   private readonly clientesApi = inject(ClientesService);
+  private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly platformId = inject(PLATFORM_ID);
   private readonly isBrowser = isPlatformBrowser(this.platformId);
@@ -54,7 +69,6 @@ export class MesasComponent {
   /** Solo la primera carga, cuando no hay nada que enseñar todavía. */
   readonly cargando = signal(false);
   /** Hay una consulta en vuelo sobre datos que ya están en pantalla: no tapa nada. */
-  readonly refrescando = signal(false);
   readonly guardando = signal(false);
   readonly filtro = signal<FiltroEstado>('all');
   readonly mesaActivaId = signal<number | null>(null);
@@ -62,6 +76,35 @@ export class MesasComponent {
   readonly modalNuevaMesa = signal(false);
   readonly editandoMesaId = signal<number | null>(null);
   readonly formNombre = signal('');
+  readonly formCapacidad = signal(4);
+  /**
+   * La pestaña de sección activa: `todas` (la vista de siempre, agrupada), `__sin__` o `s<id>`. Se
+   * recuerda por equipo y por negocio: quien atiende la terraza no quiere volver a elegirla cada vez.
+   */
+  readonly tabSeccion = signal<string>(TAB_TODAS);
+  /** Hasta que llegaron las mesas y las secciones no se puede saber si una pestaña guardada sigue. */
+  private readonly mesasLlegaron = signal(false);
+  private readonly seccionesLlegaron = signal(false);
+
+  /** La sección elegida en el formulario de la mesa (`null` = sin sección). */
+  readonly formSeccionId = signal<number | null>(null);
+  /** Las secciones del salón (también las que aún no tienen mesas). */
+  readonly secciones = signal<SeccionMesa[]>([]);
+
+  // ── Administrar secciones: crear, renombrar, ordenar, borrar y asignarles mesas ──
+  readonly modalSecciones = signal(false);
+  readonly vistaSecciones = signal<'lista' | 'asignar'>('lista');
+  readonly nuevaSeccion = signal('');
+  readonly renombrandoId = signal<number | null>(null);
+  readonly renombrandoNombre = signal('');
+  readonly seccionAsignando = signal<SeccionMesa | null>(null);
+  readonly seleccionAsignacion = signal<ReadonlySet<number>>(new Set());
+  readonly guardandoSecciones = signal(false);
+  /** La lista de mesas para editarlas (botón «Editar mesas» del encabezado). */
+  readonly modalEditarMesas = signal(false);
+  readonly capacidadMin = 1;
+  readonly capacidadMax = 20;
+  readonly alertaMinutos = ALERTA_MINUTOS;
   readonly efectivoRecibidoInput = signal('');
   readonly cobroError = signal('');
   readonly itemsPagadosPorMesa = signal<Record<number, ItemPagadoMesa[]>>({});
@@ -125,11 +168,57 @@ export class MesasComponent {
     maximumFractionDigits: 0,
   });
 
+  /** Las pestañas del salón; sin ninguna sección no hay (el salón no está dividido). */
+  readonly tabs = computed<TabSeccion[]>(() => armarTabs(this.mesas(), this.secciones()));
+
+  /** Las mesas de la pestaña activa. Sobre ellas trabajan el filtro de estado y sus contadores. */
+  readonly mesasEnTab = computed(() =>
+    this.tabs().length > 0 ? filtrarPorTab(this.mesas(), this.tabSeccion()) : this.mesas(),
+  );
+
   readonly mesasFiltradas = computed(() => {
     const f = this.filtro();
-    if (f === 'all') return this.mesas();
-    return this.mesas().filter((m) => m.status === f);
+    if (f === 'all') return this.mesasEnTab();
+    return this.mesasEnTab().filter((m) => m.status === f);
   });
+
+  /**
+   * Las mesas por sección; sin ninguna sección en uso queda un solo grupo sin título. Con el filtro
+   * «Todas» también salen las secciones vacías (una recién creada tiene que verse aunque aún no
+   * tenga mesas); con otro filtro, una sección vacía sería ruido.
+   */
+  readonly gruposMesas = computed(() => {
+    // Dentro de UNA sección no hace falta título ni agrupar: la pestaña ya lo dice.
+    if (this.tabs().length > 0 && this.tabSeccion() !== TAB_TODAS) {
+      const mesas = this.mesasFiltradas();
+      return mesas.length > 0 ? [{ clave: this.tabSeccion(), titulo: null, mesas }] : [];
+    }
+    return agruparPorSeccion(this.mesasFiltradas(), this.filtro() === 'all' ? this.secciones() : []);
+  });
+
+  /** Lo que se dice cuando no hay tarjetas que enseñar: no es lo mismo «filtro» que «sección vacía». */
+  readonly mensajeVacio = computed(() => {
+    const tab = this.tabs().find((t) => t.clave === this.tabSeccion());
+    return tab && tab.total === 0
+      ? `«${tab.etiqueta}» aún no tiene mesas. Asígnalas desde «Secciones».`
+      : 'No hay mesas para este filtro.';
+  });
+
+  /** Para «Editar mesas»: todas las mesas por sección, sin importar el filtro del tablero. */
+  readonly gruposParaEditar = computed(() => agruparPorSeccion(this.mesas()));
+
+  /** Todas las mesas, por número, para elegir cuáles van en una sección. */
+  readonly mesasParaAsignar = computed(() =>
+    [...this.mesas()].sort((a, b) => a.numero - b.numero || a.nombre.localeCompare(b.nombre, 'es', { numeric: true })),
+  );
+
+  /**
+   * Cancelar un pedido exige el mismo permiso que en Despacho (`despacho_cancelar_no_pagado`): el
+   * servidor lo vuelve a comprobar, esto solo evita ofrecer un botón que acabaría en un 403.
+   */
+  readonly canCancelarPedido = computed(
+    () => this.auth.canAccessSubnivel('despacho_cancelar_no_pagado') && this.canAccionesPedido(),
+  );
 
   readonly mesaActiva = computed(() => {
     const id = this.mesaActivaId();
@@ -137,9 +226,9 @@ export class MesasComponent {
     return this.mesas().find((m) => m.id_mesa === id) ?? null;
   });
 
-  readonly countAvailable = computed(() => this.mesas().filter((m) => m.status === 'available').length);
-  readonly countOccupied = computed(() => this.mesas().filter((m) => m.status === 'occupied').length);
-  readonly countPayment = computed(() => this.mesas().filter((m) => m.status === 'payment').length);
+  readonly countAvailable = computed(() => this.mesasEnTab().filter((m) => m.status === 'available').length);
+  readonly countOccupied = computed(() => this.mesasEnTab().filter((m) => m.status === 'occupied').length);
+  readonly countPayment = computed(() => this.mesasEnTab().filter((m) => m.status === 'payment').length);
   readonly efectivoRecibido = computed(() => this.parseMonto(this.efectivoRecibidoInput()));
   readonly faltanteCobro = computed(() => {
     const mesa = this.mesaActiva();
@@ -173,9 +262,15 @@ export class MesasComponent {
     this.realtime.alCambiar(['mesas', 'pedidos'], () => this.loadMesas()),
   );
 
+  /** Otro equipo creó, renombró, ordenó o asignó una sección: se relee la lista. */
+  private readonly escuchaSecciones = this.destroyRef.onDestroy(
+    this.realtime.alCambiar(['mesas'], () => this.loadSecciones()),
+  );
+
   private readonly negocioEffect = effect(() => {
     const id = this.negocioId();
     if (id) {
+      this.loadSecciones();
       this.loadMesas();
       this.loadMetodosPago(id);
       this.loadCuentasCliente(id);
@@ -189,6 +284,19 @@ export class MesasComponent {
       takeUntilDestroyed(),
     )
     .subscribe();
+
+  loadSecciones(): void {
+    const id = this.negocioId();
+    if (!id) return;
+    this.mesasApi.listarSecciones(id).subscribe({
+      next: (res) => {
+        this.secciones.set(res?.data ?? []);
+        this.seccionesLlegaron.set(true);
+      },
+      // Sin la lista el salón se ve igual (cada mesa trae su sección); solo no se ven las vacías.
+      error: () => { /* se conserva la que ya estaba */ },
+    });
+  }
 
   private loadCuentasCliente(idNegocio: number): void {
     // Ver `pedidos.ts`: sin el interruptor encendido no hay a quién preguntar.
@@ -226,26 +334,19 @@ export class MesasComponent {
 
     const esPrimeraCarga = this.mesas().length === 0;
     if (esPrimeraCarga) this.cargando.set(true);
-    this.refrescando.set(true);
 
     this.mesasApi.getMesasDashboard(id).subscribe({
       next: (res) => {
         aplicarLista(this.mesas, res?.data ?? [], (m) => m.id_mesa);
         this.cargando.set(false);
-        this.refrescando.set(false);
+        this.mesasLlegaron.set(true);
       },
       // Un refresco que falla deja lo que ya estaba: borrar el tablero por un corte de red es
       // peor que enseñarlo con unos segundos de retraso.
       error: () => {
         this.cargando.set(false);
-        this.refrescando.set(false);
       },
     });
-  }
-
-  actualizarMesas(): void {
-    if (this.refrescando()) return;
-    this.loadMesas();
   }
 
   rotarDensidad(): void {
@@ -378,6 +479,8 @@ export class MesasComponent {
 
     this.editandoMesaId.set(null);
     this.formNombre.set('');
+    this.formCapacidad.set(4);
+    this.formSeccionId.set(null);
     this.modalNuevaMesa.set(true);
   }
 
@@ -386,6 +489,8 @@ export class MesasComponent {
 
     this.editandoMesaId.set(mesa.id_mesa);
     this.formNombre.set(mesa.nombre);
+    this.formCapacidad.set(puestos(mesa.capacidad));
+    this.formSeccionId.set(mesa.id_seccion ?? null);
     this.modalNuevaMesa.set(true);
   }
 
@@ -400,15 +505,21 @@ export class MesasComponent {
 
     if (!nombre) return;
     if (!editingId && !idNegocio) return;
+    const capacidad = this.capacidadValida();
+    if (capacidad === null) return;
+    // Al editar, `null` = quitarle la sección; al crear solo se manda si se eligió una.
+    const idSeccion = this.formSeccionId();
 
     this.guardando.set(true);
 
     const req = editingId
-      ? this.mesasApi.editarMesa(editingId, { nombre })
+      ? this.mesasApi.editarMesa(editingId, { nombre, capacidad, id_seccion: idSeccion })
       : this.mesasApi.crearMesa({
           id_negocio: idNegocio!,
           nombre,
           numero: this.nextNumero(),
+          capacidad,
+          ...(idSeccion ? { id_seccion: idSeccion } : {}),
         });
 
     req.subscribe({
@@ -427,6 +538,67 @@ export class MesasComponent {
         this.uiFeedback.error('No fue posible guardar la mesa.');
       },
     });
+  }
+
+  /** Puestos del formulario, o `null` si no es un entero entre el mínimo y el máximo. */
+  capacidadValida(): number | null {
+    const n = Number(this.formCapacidad());
+    return Number.isInteger(n) && n >= this.capacidadMin && n <= this.capacidadMax ? n : null;
+  }
+
+  setCapacidad(valor: number | string | null): void {
+    this.formCapacidad.set(valor === null || valor === '' ? NaN : Number(valor));
+  }
+
+  // ── Tarjeta: la mesa vista desde arriba ──
+
+  formaMesa(mesa: MesaDashboard): FormaMesa {
+    return formaDeMesa(mesa.capacidad);
+  }
+
+  sillasMesa(mesa: MesaDashboard): Silla[] {
+    return sillasDeMesa(mesa.capacidad);
+  }
+
+  puestosMesa(mesa: MesaDashboard): number {
+    return puestos(mesa.capacidad);
+  }
+
+  /** Solo una mesa con cuenta abierta tiene monto y tiempo que mostrar. */
+  tieneCuenta(mesa: MesaDashboard): boolean {
+    return mesa.status === 'occupied' || mesa.status === 'payment';
+  }
+
+  /** Ocupada y pasada de tiempo: la única que se marca en alerta (la que espera cuenta no). */
+  enAlerta(mesa: MesaDashboard): boolean {
+    return mesa.status === 'occupied' && superaAlerta(minutosDeEtiqueta(mesa.time));
+  }
+
+  /** El POS es donde se toma y se edita un pedido: hace falta el permiso de acciones y la ruta. */
+  private puedeIrAPedidos(): boolean {
+    return this.canAccionesPedido() && this.auth.canAccessRoute('/pedidos');
+  }
+
+  /** El botón principal de la tarjeta (ver `mesa-accion.ts`), o `null` si no hay nada que ofrecer. */
+  accionPrincipal(mesa: MesaDashboard): AccionMesa | null {
+    return accionPrincipalDe(mesa.status, this.puedeIrAPedidos());
+  }
+
+  /**
+   * Tomar o editar el pedido lleva al POS con la mesa elegida (si ya tiene pedido, Pedidos
+   * pregunta antes de cargarlo); «ver» abre el detalle. El clic no sube: la tarjeta entera abre
+   * el detalle, y aquí no debe abrirse por debajo.
+   */
+  ejecutarAccionPrincipal(mesa: MesaDashboard, event: Event): void {
+    event.stopPropagation();
+    const accion = this.accionPrincipal(mesa);
+    if (!accion) return;
+
+    if (accion.tipo === 'ver') {
+      this.openMesa(mesa);
+      return;
+    }
+    void this.router.navigate(['/pedidos'], { queryParams: { mesa: mesa.id_mesa } });
   }
 
   abrirMesa(): void {
@@ -537,6 +709,311 @@ export class MesasComponent {
         this.uiFeedback.error(err?.error?.message || 'No fue posible confirmar el cobro de la mesa.');
       },
     });
+  }
+
+  /** Cancelar el pedido tiene sentido cuando ya hay productos en él, y solo con el permiso. */
+  puedeCancelar(mesa: MesaDashboard): boolean {
+    return (mesa.status === 'occupied' || mesa.status === 'payment')
+      && !!mesa.order.id_orden
+      && mesa.order.items.length > 0
+      && this.canCancelarPedido();
+  }
+
+  cancelarDesdeCard(mesa: MesaDashboard, event: Event): void {
+    event.stopPropagation();
+    void this.cancelarPedidoMesa(mesa);
+  }
+
+  /**
+   * Cancela el pedido abierto de la mesa. Cancelar la orden no toca la mesa, y una mesa «por cobrar»
+   * o «ocupada» sin pedido no tiene sentido, así que después se le devuelve su estado: «libre»,
+   * salvo que ya se hubiera cobrado parte de la cuenta (esos clientes siguen sentados: queda
+   * «ocupada» y se libera a mano cuando se vayan).
+   */
+  async cancelarPedidoMesa(mesa: MesaDashboard): Promise<void> {
+    if (!this.puedeCancelar(mesa) || this.guardando()) return;
+    const idOrden = mesa.order.id_orden!;
+    const yaPagaronAlgo = (this.itemsPagadosPorMesa()[mesa.id_mesa] ?? []).length > 0;
+
+    const confirmado = await this.uiFeedback.confirm({
+      title: 'Cancelar pedido',
+      message: `Se cancelará el pedido de ${mesa.nombre} (${this.formatMoney(mesa.order.total)}). Esta acción no se puede deshacer.`,
+      confirmText: 'Cancelar pedido',
+      cancelText: 'Volver',
+      tone: 'warning',
+    });
+    if (!confirmado) return;
+
+    this.guardando.set(true);
+    this.mesasApi.cancelarPedido(idOrden).subscribe({
+      next: () => {
+        const paso$ = yaPagaronAlgo
+          ? this.mesasApi.cambiarEstadoServicio(mesa.id_mesa, 'OCUPADA')
+          : this.mesasApi.liberarMesa(mesa.id_mesa);
+        paso$.subscribe({
+          next: () => this.terminarCancelacion(mesa, yaPagaronAlgo),
+          // El pedido ya se canceló: si la mesa no volvió a su estado, se avisa y se deja que
+          // el tablero se refresque para que la mesa se libere a mano.
+          error: () => {
+            this.terminarCancelacion(mesa, yaPagaronAlgo);
+            this.uiFeedback.error('El pedido se canceló, pero no se pudo actualizar el estado de la mesa.');
+          },
+        });
+      },
+      error: (err: { error?: { message?: string } }) => {
+        this.guardando.set(false);
+        this.uiFeedback.error(err?.error?.message || 'No fue posible cancelar el pedido.');
+      },
+    });
+  }
+
+  private terminarCancelacion(mesa: MesaDashboard, yaPagaronAlgo: boolean): void {
+    this.guardando.set(false);
+    if (!yaPagaronAlgo) this.limpiarItemsPagadosMesaCache(mesa.id_mesa);
+    if (this.mesaActivaId() === mesa.id_mesa) this.closeMesa();
+    this.uiFeedback.success(`El pedido de ${mesa.nombre} fue cancelado.`, 'Pedido cancelado');
+    this.loadMesas();
+  }
+
+  // ── Secciones del salón ──
+
+  private claveTabGuardada(): string | null {
+    const id = this.negocioId();
+    return this.isBrowser && id ? `mesas_tab_seccion_v1:${id}` : null;
+  }
+
+  seleccionarTab(clave: string): void {
+    this.tabSeccion.set(clave);
+    const key = this.claveTabGuardada();
+    if (!key) return;
+    try {
+      localStorage.setItem(key, clave);
+    } catch {
+      // Modo privado o almacenamiento lleno: la pestaña solo dura la sesión.
+    }
+  }
+
+  /** Al conocer el negocio se recupera la pestaña que se tenía en este equipo. */
+  private readonly recuperaTab = effect(() => {
+    const key = this.claveTabGuardada();
+    if (!key) return;
+    try {
+      const guardada = localStorage.getItem(key);
+      if (guardada) this.tabSeccion.set(guardada);
+    } catch {
+      // Sin almacenamiento: se queda en «Todas».
+    }
+  });
+
+  /**
+   * Una pestaña guardada puede dejar de existir (la sección se borró, o la borró otro equipo): se
+   * vuelve a «Todas» en vez de dejar el salón vacío sin pestaña que lo explique. Solo cuando ya
+   * llegaron mesas Y secciones — antes de eso «no existe» significa «todavía no sé».
+   */
+  private readonly pestañaVigente = effect(() => {
+    if (!this.mesasLlegaron() || !this.seccionesLlegaron()) return;
+    const actual = this.tabSeccion();
+    if (actual !== TAB_TODAS && !this.tabs().some((t) => t.clave === actual)) {
+      this.tabSeccion.set(TAB_TODAS);
+    }
+  });
+
+  /** El elemento `<select>` manda texto: vacío = «sin sección». */
+  setSeccionForm(valor: string): void {
+    this.formSeccionId.set(valor ? Number(valor) : null);
+  }
+
+  abrirSecciones(): void {
+    if (!this.canAdministracionMesa()) return;
+    this.vistaSecciones.set('lista');
+    this.nuevaSeccion.set('');
+    this.renombrandoId.set(null);
+    this.modalSecciones.set(true);
+  }
+
+  cerrarSecciones(): void {
+    this.modalSecciones.set(false);
+    this.renombrandoId.set(null);
+    this.seccionAsignando.set(null);
+  }
+
+  /** Desde el formulario de una mesa sin secciones: cierra el formulario y abre el administrador. */
+  irACrearSecciones(): void {
+    this.closeNuevaMesa();
+    this.abrirSecciones();
+  }
+
+  private mensajeDe(err: unknown, porDefecto: string): string {
+    return (err as { error?: { message?: string } })?.error?.message || porDefecto;
+  }
+
+  crearSeccionNueva(): void {
+    const id = this.negocioId();
+    const nombre = this.nuevaSeccion().trim();
+    if (!id || !nombre || this.guardandoSecciones()) return;
+
+    this.guardandoSecciones.set(true);
+    this.mesasApi.crearSeccion(id, nombre).subscribe({
+      next: () => {
+        this.guardandoSecciones.set(false);
+        this.nuevaSeccion.set('');
+        this.uiFeedback.created(`La sección «${nombre}» fue creada.`);
+        this.loadSecciones();
+      },
+      error: (err) => {
+        this.guardandoSecciones.set(false);
+        this.uiFeedback.error(this.mensajeDe(err, 'No fue posible crear la sección.'));
+      },
+    });
+  }
+
+  iniciarRenombrar(seccion: SeccionMesa): void {
+    this.renombrandoId.set(seccion.id_seccion);
+    this.renombrandoNombre.set(seccion.nombre);
+  }
+
+  cancelarRenombrar(): void {
+    this.renombrandoId.set(null);
+  }
+
+  guardarRenombrar(): void {
+    const id = this.negocioId();
+    const idSeccion = this.renombrandoId();
+    const nombre = this.renombrandoNombre().trim();
+    if (!id || idSeccion === null || !nombre || this.guardandoSecciones()) return;
+
+    this.guardandoSecciones.set(true);
+    this.mesasApi.renombrarSeccion(id, idSeccion, nombre).subscribe({
+      next: () => {
+        this.guardandoSecciones.set(false);
+        this.renombrandoId.set(null);
+        this.uiFeedback.updated('El nombre de la sección fue actualizado.');
+        // El nombre también viaja con cada mesa del tablero.
+        this.loadSecciones();
+        this.loadMesas();
+      },
+      error: (err) => {
+        this.guardandoSecciones.set(false);
+        this.uiFeedback.error(this.mensajeDe(err, 'No fue posible cambiar el nombre.'));
+      },
+    });
+  }
+
+  /** Sube (`-1`) o baja (`+1`) una sección en el orden del salón. */
+  moverSeccion(seccion: SeccionMesa, delta: -1 | 1): void {
+    const id = this.negocioId();
+    const lista = [...this.secciones()];
+    const desde = lista.findIndex((s) => s.id_seccion === seccion.id_seccion);
+    const hasta = desde + delta;
+    if (!id || desde < 0 || hasta < 0 || hasta >= lista.length || this.guardandoSecciones()) return;
+
+    [lista[desde], lista[hasta]] = [lista[hasta], lista[desde]];
+    // Se ve al instante; si el servidor la rechaza se vuelve a leer la lista de verdad.
+    this.secciones.set(lista.map((s, i) => ({ ...s, orden: i })));
+
+    this.mesasApi.reordenarSecciones(id, lista.map((s) => s.id_seccion)).subscribe({
+      next: () => this.loadMesas(),
+      error: (err) => {
+        this.loadSecciones();
+        this.uiFeedback.error(this.mensajeDe(err, 'No fue posible cambiar el orden.'));
+      },
+    });
+  }
+
+  async eliminarSeccion(seccion: SeccionMesa): Promise<void> {
+    const id = this.negocioId();
+    if (!id || this.guardandoSecciones()) return;
+
+    const conMesas = seccion.total_mesas > 0;
+    const confirmado = await this.uiFeedback.confirm({
+      title: 'Eliminar sección',
+      message: conMesas
+        ? `Se eliminará «${seccion.nombre}». Sus ${seccion.total_mesas} ${seccion.total_mesas === 1 ? 'mesa' : 'mesas'} `
+          + 'NO se borran: quedan sin sección.'
+        : `Se eliminará la sección «${seccion.nombre}».`,
+      confirmText: 'Eliminar',
+      cancelText: 'Cancelar',
+      tone: 'warning',
+    });
+    if (!confirmado) return;
+
+    this.guardandoSecciones.set(true);
+    this.mesasApi.eliminarSeccion(id, seccion.id_seccion).subscribe({
+      next: () => {
+        this.guardandoSecciones.set(false);
+        this.uiFeedback.success(`La sección «${seccion.nombre}» fue eliminada.`, 'Sección eliminada');
+        this.loadSecciones();
+        this.loadMesas();
+      },
+      error: (err) => {
+        this.guardandoSecciones.set(false);
+        this.uiFeedback.error(this.mensajeDe(err, 'No fue posible eliminar la sección.'));
+      },
+    });
+  }
+
+  abrirAsignar(seccion: SeccionMesa): void {
+    this.seccionAsignando.set(seccion);
+    this.seleccionAsignacion.set(
+      new Set(this.mesas().filter((m) => m.id_seccion === seccion.id_seccion).map((m) => m.id_mesa)),
+    );
+    this.vistaSecciones.set('asignar');
+  }
+
+  volverASecciones(): void {
+    this.vistaSecciones.set('lista');
+    this.seccionAsignando.set(null);
+  }
+
+  alternarMesaAsignada(idMesa: number): void {
+    this.seleccionAsignacion.update((actual) => {
+      const nueva = new Set(actual);
+      if (!nueva.delete(idMesa)) nueva.add(idMesa);
+      return nueva;
+    });
+  }
+
+  /** A qué OTRA sección pertenece hoy una mesa (para avisar que se moverá), o `null`. */
+  seccionActualDe(mesa: MesaDashboard, aquella: SeccionMesa | null): string | null {
+    return mesa.id_seccion != null && mesa.id_seccion !== aquella?.id_seccion ? (mesa.seccion ?? null) : null;
+  }
+
+  guardarAsignacion(): void {
+    const id = this.negocioId();
+    const seccion = this.seccionAsignando();
+    if (!id || !seccion || this.guardandoSecciones()) return;
+
+    this.guardandoSecciones.set(true);
+    this.mesasApi.asignarMesas(id, seccion.id_seccion, [...this.seleccionAsignacion()]).subscribe({
+      next: () => {
+        this.guardandoSecciones.set(false);
+        this.uiFeedback.updated(`Las mesas de «${seccion.nombre}» fueron actualizadas.`);
+        this.volverASecciones();
+        this.loadSecciones();
+        this.loadMesas();
+      },
+      error: (err) => {
+        this.guardandoSecciones.set(false);
+        this.uiFeedback.error(this.mensajeDe(err, 'No fue posible asignar las mesas.'));
+      },
+    });
+  }
+
+  // ── Editar mesas (lista con todas, desde el encabezado) ──
+
+  abrirEditarMesas(): void {
+    if (!this.canAdministracionMesa()) return;
+    this.modalEditarMesas.set(true);
+  }
+
+  cerrarEditarMesas(): void {
+    this.modalEditarMesas.set(false);
+  }
+
+  /** Del listado al formulario de esa mesa. */
+  editarDesdeLista(mesa: MesaDashboard): void {
+    this.cerrarEditarMesas();
+    this.openEditarMesa(mesa);
   }
 
   liberarMesaDesdeCard(mesa: MesaDashboard, event: Event): void {
@@ -665,40 +1142,39 @@ export class MesasComponent {
 
   statusIcon(status: MesaCardStatus): string {
     if (status === 'available') return 'check-circle';
-    if (status === 'occupied') return 'clipboard-list';
+    if (status === 'occupied') return 'utensils';
     if (status === 'payment') return 'receipt';
-    return 'x-circle';
+    return 'lock';
   }
 
-  modalActions(status: MesaCardStatus): Array<{ key: string; label: string; style: 'primary' | 'warning' | 'ghost'; icon: string }> {
+  /**
+   * Las acciones del pie del modal de la mesa, la principal primero. «Liberar mesa» solo se ofrece
+   * cuando NO hay pedido (con uno abierto el servidor la rechazaría); con productos pendientes lo
+   * que corresponde es cobrarlo o cancelarlo.
+   */
+  modalActions(mesa: MesaDashboard): Array<{ key: string; label: string; style: 'primary' | 'warning' | 'danger' | 'ghost'; icon: string }> {
+    type Accion = { key: string; label: string; style: 'primary' | 'warning' | 'danger' | 'ghost'; icon: string };
+    const status = mesa.status;
+
     if (status === 'available') {
       if (!this.canAccionesPedido()) return [];
       return [{ key: 'abrir', label: 'Reservar mesa', style: 'primary', icon: 'circle-plus' }];
     }
 
-    if (status === 'occupied') {
-      const actions: Array<{ key: string; label: string; style: 'primary' | 'warning' | 'ghost'; icon: string }> = [];
+    if (status === 'occupied' || status === 'payment') {
+      const actions: Accion[] = [];
       if (this.canAccionesPedido()) {
-        actions.push({ key: 'cuenta', label: 'Marcar por cobrar', style: 'warning', icon: 'receipt' });
+        actions.push(status === 'payment'
+          ? { key: 'cobrar', label: 'Cobrar', style: 'primary', icon: 'banknote' }
+          : { key: 'cuenta', label: 'Marcar por cobrar', style: 'warning', icon: 'receipt' });
       }
       if (this.canImprimirPedido()) {
         actions.push({ key: 'imprimir', label: 'Imprimir', style: 'ghost', icon: 'printer' });
       }
-      if (this.canAccionesPedido()) {
-        actions.push({ key: 'liberar', label: 'Liberar mesa', style: 'ghost', icon: 'door-open' });
+      if (this.puedeCancelar(mesa)) {
+        actions.push({ key: 'cancelar', label: 'Cancelar pedido', style: 'danger', icon: 'x' });
       }
-      return actions;
-    }
-
-    if (status === 'payment') {
-      const actions: Array<{ key: string; label: string; style: 'primary' | 'warning' | 'ghost'; icon: string }> = [];
-      if (this.canAccionesPedido()) {
-        actions.push({ key: 'cobrar', label: 'Cobro', style: 'ghost', icon: 'credit-card' });
-      }
-      if (this.canImprimirPedido()) {
-        actions.push({ key: 'imprimir', label: 'Imprimir', style: 'ghost', icon: 'printer' });
-      }
-      if (this.canAccionesPedido()) {
+      if (this.canAccionesPedido() && this.puedeLiberarMesa(mesa)) {
         actions.push({ key: 'liberar', label: 'Liberar mesa', style: 'ghost', icon: 'door-open' });
       }
       return actions;
@@ -720,6 +1196,10 @@ export class MesasComponent {
     if (action === 'cuenta') this.pedirCuenta();
     if (action === 'cobrar') this.confirmarCobro();
     if (action === 'liberar') this.liberarMesaActual();
+    if (action === 'cancelar') {
+      const mesa = this.mesaActiva();
+      if (mesa) void this.cancelarPedidoMesa(mesa);
+    }
   }
 
   formatMoney(value: number): string {
@@ -730,6 +1210,15 @@ export class MesasComponent {
     return `$ ${this.moneyFormatter.format(numericValue)}`;
   }
 
+  /** «$ 125 k» / «$ 1,2 M»: para la tarjeta más chica, donde «$ 125.000» no cabe. */
+  formatMoneyCompact(value: number): string {
+    const n = Number(value);
+    if (!Number.isFinite(n) || n <= 0) return '$ 0';
+    if (n >= 1_000_000) return `$ ${(n / 1_000_000).toFixed(1).replace('.', ',').replace(/,0$/, '')} M`;
+    if (n >= 1_000) return `$ ${Math.round(n / 1_000)} k`;
+    return `$ ${Math.round(n)}`;
+  }
+
   getMesaTimeLabel(mesa: MesaDashboard): string {
     if (mesa.time) return mesa.time;
     if (mesa.status === 'occupied' || mesa.status === 'payment') return '0 min';
@@ -737,7 +1226,7 @@ export class MesasComponent {
   }
 
   puedeVerBloquesAccionMesa(mesa: MesaDashboard): boolean {
-    return this.modalActions(mesa.status).length > 0
+    return this.modalActions(mesa).length > 0
       || (this.canAdministracionMesa() && (mesa.status === 'available' || mesa.status === 'disabled'));
   }
 
@@ -834,6 +1323,10 @@ export class MesasComponent {
         const notaItemHtml = notaItem
           ? `<tr><td></td><td colspan="3" class="item-meta">Nota: ${notaItem}</td></tr>`
           : '';
+        const sin = (item.sin ?? []).map((n) => this.escapeHtml(n)).join(', ');
+        const sinHtml = sin
+          ? `<tr><td></td><td colspan="3" class="item-meta">Sin: ${sin}</td></tr>`
+          : '';
 
         return `
           <tr>
@@ -842,6 +1335,7 @@ export class MesasComponent {
             <td>${this.formatCurrency(item.price)}</td>
             <td class="text-right">${this.formatCurrency(totalLinea)}</td>
           </tr>
+          ${sinHtml}
           ${notaItemHtml}
         `;
       })
@@ -1092,7 +1586,7 @@ export class MesasComponent {
     return Number(digits);
   }
 
-  private persistirItemsPagadosMesaCache(idMesa: number, items: Array<{ name: string; price: number; cantidad: number; nota?: string | null }>): void {
+  private persistirItemsPagadosMesaCache(idMesa: number, items: Array<{ name: string; price: number; cantidad: number; nota?: string | null; sin?: string[] }>): void {
     if (typeof window === 'undefined') return;
 
     try {
@@ -1107,6 +1601,7 @@ export class MesasComponent {
         cantidad: Math.max(1, Number(item.cantidad ?? 1)),
         exclusiones: [],
         exclusionesNombres: [],
+        sin: item.sin ?? [],
         nota: item.nota ?? '',
       }));
 
@@ -1147,6 +1642,9 @@ export class MesasComponent {
         nombre?: string;
         precio_unitario?: number;
         cantidad?: number;
+        nota?: string | null;
+        sin?: string[];
+        exclusionesNombres?: string[];
       }>>;
 
       const hydrated: Record<number, ItemPagadoMesa[]> = {};
@@ -1157,10 +1655,18 @@ export class MesasComponent {
           continue;
         }
 
+        // El caché lo escriben DOS pantallas con la misma clave: Mesas (`sin`) y Pedidos
+        // (`exclusionesNombres`). Se lee cualquiera de los dos; si aquí solo se copiaban
+        // nombre, precio y cantidad, lo ya pagado perdía «Sin cebolla» y la nota en la
+        // tarjeta, en el modal y en el tiquete apenas se releía el caché.
         hydrated[idMesa] = items.map((item) => ({
           name: item?.nombre ?? 'Producto',
           price: Number(item?.precio_unitario ?? 0),
           cantidad: Math.max(1, Number(item?.cantidad ?? 1)),
+          nota: item?.nota ? item.nota : null,
+          sin: Array.isArray(item?.sin) && item.sin.length > 0
+            ? item.sin
+            : (Array.isArray(item?.exclusionesNombres) ? item.exclusionesNombres : []),
         }));
       }
 

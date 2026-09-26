@@ -11,6 +11,7 @@ import { authInterceptor } from './core/interceptors/auth.interceptor';
 registerLocaleData(localeEsCO);
 
 // Lucide icons — registro global para standalone components
+import { Mesa } from './core/icons/mesa-icon';
 import { LUCIDE_ICONS, LucideIconProvider } from 'lucide-angular';
 import {
   ChefHat, LayoutDashboard, ClipboardList, UtensilsCrossed, Armchair,
@@ -27,7 +28,7 @@ import {
   Utensils, Coffee, FolderX, Globe, Mail, ArrowRight, ImagePlus, Crop,
   LayoutGrid, Grid3x3, List, SquarePen,
   PanelLeft, PanelLeftClose, PanelTop, Percent, Tag, Filter, Check, Info, Monitor, Smartphone,
-  RotateCcw, Palette, CircleAlert, Ban
+  RotateCcw, Palette, CircleAlert, Ban, Salad, ChevronUp, Layers
 } from 'lucide-angular';
 
 const icons = {
@@ -45,7 +46,7 @@ const icons = {
   Utensils, Coffee, FolderX, Globe, Mail, ArrowRight, ImagePlus, Crop,
   LayoutGrid, Grid3x3, List, SquarePen,
   PanelLeft, PanelLeftClose, PanelTop, Percent, Tag, Filter, Check, Info, Monitor, Smartphone,
-  RotateCcw, Palette, CircleAlert, Ban
+  RotateCcw, Palette, CircleAlert, Ban, Salad, Mesa, ChevronUp, Layers
 };
 
 export const appConfig: ApplicationConfig = {

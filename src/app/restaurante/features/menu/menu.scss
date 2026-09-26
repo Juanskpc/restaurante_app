@@ -421,8 +421,8 @@
 }
 
 .badge-popular    { background: rgba(21,101,192,0.15); color: var(--color-primary); }
-.badge-available  { background: var(--color-status-available-bg); color: var(--color-status-available); }
-.badge-unavailable{ background: var(--color-status-occupied-bg);   color: var(--color-status-occupied); }
+.badge-available  { background: var(--color-success-bg); color: var(--color-success); }
+.badge-unavailable{ background: var(--color-error-bg);   color: var(--color-error); }
 
 .product-info {
   padding: var(--spacing-md);
@@ -511,8 +511,8 @@
   cursor: pointer;
   transition: all var(--transition-fast);
 
-  &.action-toggle-on  { background: var(--color-status-available-bg); color: var(--color-status-available); }
-  &.action-toggle-off { background: var(--color-status-occupied-bg);   color: var(--color-status-occupied); }
+  &.action-toggle-on  { background: var(--color-success-bg); color: var(--color-success); }
+  &.action-toggle-off { background: var(--color-error-bg);   color: var(--color-error); }
 }
 
 .action-btns {

@@ -462,6 +462,17 @@ export class AuthService {
     window.location.href = `${adminUrl}${destino}`;
   }
 
+  /**
+   * Lleva al admin, a «Mis pagos», con el negocio actual marcado (`?negocio=<id>`): con varios
+   * negocios, Mis pagos abría siempre el primero. Es UNA sola puerta para todos los botones de
+   * «ver / gestionar mi plan» de esta app.
+   */
+  async irAMisPagos(): Promise<void> {
+    const idNegocio = this.negocio()?.id_negocio;
+    const destino = idNegocio ? `/admin/mis-pagos?negocio=${idNegocio}` : '/admin/mis-pagos';
+    await this.irAlInicio(destino);
+  }
+
   canAccessRoute(routePath: string): boolean {
     const session = this.session();
     if (!session) return false;

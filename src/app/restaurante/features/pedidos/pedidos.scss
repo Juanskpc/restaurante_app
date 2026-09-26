@@ -9,14 +9,34 @@
 // deslizables, panel de pedido como slide-over (FAB) y scroll en la página
 // (`.content`, con header fijo global). Sólo a partir de 992px se activa el
 // layout de 3 columnas acotado (card) con scroll interno por panel.
+// Alto de los botones de acción del pedido: uno solo para que todos queden iguales.
+$pos-btn-h: 38px;
+
+// El host se acota al alto de `.content` también en móvil: así cada columna (categorías,
+// productos, pedido) tiene su propio scroll y la página no se mueve como un todo.
 :host {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+// Móvil: la vista llega hasta el borde de la pantalla. `.content` le deja un marco gris de
+// `--spacing-md`; aquí se compensa solo para esta vista (el fondo blanco ya trae su propio
+// relleno, así que el contenido no queda pegado al borde).
+@media (max-width: 767px) {
+  :host {
+    margin: calc(-1 * var(--spacing-md));
+    height: calc(100% + 2 * var(--spacing-md));
+  }
 }
 
 // ─── Layout general ─────────────────────────────────────────
 .pos-layout {
   display: flex;
-  height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
   overflow: hidden;
   // Fondo unificado (tono claro) para todas las columnas, también < 992px
   // donde no aplica el "card" de escritorio.
@@ -237,6 +257,18 @@
   // FAB / bottom-nav no tapen las últimas tarjetas.
   @media (max-width: 991px) {
     padding-bottom: calc(var(--spacing-lg) + 76px + env(safe-area-inset-bottom, 0px));
+    // Scroll propio: las categorías (columna izquierda) quedan fijas y solo se mueven el
+    // buscador y los productos. Cada columna hace scroll por su cuenta si lo necesita.
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+
+    // ⚠️ Ninguna sección se encoge: el panel es una columna con scroll propio, y un hijo con
+    // `overflow` (la tira de categorías lo tiene, por su scroll horizontal) tiene alto mínimo 0, así
+    // que al haber muchos productos el navegador lo aplastaba hasta hacerlo desaparecer. Se veía al
+    // volver a poner las categorías arriba: la tira estaba, pero con alto cero.
+    > * { flex-shrink: 0; }
   }
 
   // ≥ 992px: el panel NO scrollea como un todo; la cabecera (buscador +
@@ -318,11 +350,50 @@
   }
 }
 
+.products-section-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+}
+
 .products-section-title {
+  flex: 1 1 auto;
+  min-width: 0;
   font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--color-text-secondary);
   padding: var(--spacing-xs) 0;
+}
+
+.btn-editar-pedido {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 5px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font-family: var(--font-family);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast),
+              color var(--transition-fast);
+
+  lucide-icon { color: var(--color-text-secondary); }
+
+  &:hover:not(:disabled) {
+    border-color: var(--color-primary);
+    background: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface));
+    lucide-icon { color: var(--color-primary); }
+  }
+
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 
 // ─── Grid de productos ──────────────────────────────────────
@@ -605,7 +676,7 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
-  padding: var(--spacing-md);
+  padding: 6px var(--spacing-md);
   border-bottom: 1px solid var(--color-border);
 }
 
@@ -708,6 +779,18 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    line-height: 1.25;
+  }
+
+  // El ícono es un elemento en línea: dentro de un flex conserva el hueco de la línea de texto
+  // (donde se posan las letras) y se veía más arriba que su etiqueta. Como caja flex sin altura de
+  // línea propia queda centrado con el texto, y no encoge.
+  lucide-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    line-height: 0;
   }
 
   &:hover {
@@ -720,11 +803,10 @@
     color: var(--color-text-primary);
   }
 
-  // Mobile: icono arriba / texto abajo para que quepan los 3 en una fila
+  // Mobile: icono y texto en UNA línea (menos alto), más compactos para que quepan los 3
   @media (max-width: 560px) {
-    flex-direction: column;
-    gap: 3px;
-    padding: 8px 4px;
+    gap: 4px;
+    padding: 7px 4px;
     font-size: var(--font-size-xs);
     line-height: 1.1;
 
@@ -853,7 +935,7 @@
   display: flex;
   align-items: flex-start;
   gap: var(--spacing-sm);
-  padding: var(--spacing-sm);
+  padding: 6px var(--spacing-sm);
   border-radius: var(--radius-md);
   background: var(--color-bg);
   transition: background var(--transition-fast);
@@ -917,11 +999,14 @@
   line-height: 1.3;
 }
 
+// Una sola fila: [ingredientes] [−] n [+]. El botón de ingredientes va a la izquierda, en la
+// misma línea que la cantidad, para que un producto con ingredientes removibles no sea más alto
+// que uno sin ellos.
 .item-actions {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
   flex-shrink: 0;
 }
 
@@ -930,7 +1015,9 @@
   border: 1px solid var(--color-border);
   color: var(--color-text-secondary);
   border-radius: var(--radius-sm);
-  padding: 4px;
+  width: 26px;
+  height: 26px;
+  padding: 0;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -985,7 +1072,7 @@
   // Compacta: menos alto para aprovechar el espacio del panel, manteniendo
   // separación de la lista de items (arriba) y del borde del panel (abajo).
   padding: 6px var(--spacing-md);
-  margin: var(--spacing-sm) var(--spacing-md);
+  margin: var(--spacing-sm) var(--spacing-md) 0;
   border: 1px dashed var(--color-border);
   border-radius: var(--radius-md);
   cursor: text;
@@ -1011,10 +1098,11 @@
 
 // ─── Totales ────────────────────────────────────────────────
 .order-totals {
-  padding: var(--spacing-md);
+  // Poco relleno arriba: el total va casi pegado a la nota.
+  padding: 6px var(--spacing-md) var(--spacing-sm);
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-xs);
+  gap: 2px;
 }
 
 .total-row {
@@ -1033,8 +1121,8 @@
     font-weight: 700;
     color: var(--color-text-primary);
     border-top: 1px solid var(--color-border);
-    padding-top: var(--spacing-sm);
-    margin-top: var(--spacing-xs);
+    padding-top: var(--spacing-xs);
+    margin-top: 2px;
   }
 }
 
@@ -1052,13 +1140,44 @@
   color: var(--color-success);
 }
 
+// ─── Pie del pedido: nota + totales + botones ───────────────
+// Los tres juntos y al fondo del panel. Antes la nota y los totales iban pegados a la lista y solo
+// los botones bajaban (`margin-top: auto`), y en móvil quedaba un hueco entre unos y otros.
+.order-footer {
+  // Con pocos productos se va al fondo; con muchos, se queda a la vista (`sticky`) mientras la
+  // lista se desplaza por detrás, así el total y los botones nunca se pierden abajo.
+  margin-top: auto;
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+
+  // Un pie más alto que la pantalla (teléfono en horizontal) taparía la lista entera: ahí va en
+  // el flujo, detrás de los productos.
+  @media (max-height: 640px) { position: static; }
+}
+
 // ─── Botones de acción ──────────────────────────────────────
 .action-btns {
-  padding: var(--spacing-md);
+  // Van dentro de `.order-footer`, que es quien los lleva al fondo.
+  padding: var(--spacing-sm) var(--spacing-md);
   display: flex;
   flex-direction: column;
   gap: var(--spacing-sm);
   border-top: 1px solid var(--color-border);
+
+  // Todos los botones con el mismo alto; el ancho lo decide cada uno.
+  .btn-cash,
+  .btn-kitchen,
+  .btn-secondary,
+  .btn-secondary.inline-clean {
+    height: $pos-btn-h;
+    min-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
 }
 
 .primary-action-row {
@@ -1275,7 +1394,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
+  // 28px = mitad del alto: un círculo con 56px de ancho, y una píldora cuando se alarga.
+  border-radius: 28px;
   border: none;
   background: var(--color-primary);
   color: var(--color-on-primary);
@@ -1308,6 +1428,27 @@
     padding: var(--spacing-sm) var(--spacing-md);
     padding-bottom: calc(var(--spacing-sm) + env(safe-area-inset-bottom, 0px));
   }
+}
+
+// El botón se alarga con un mensaje unos segundos (pedido cargado) y se recoge solo.
+.fab-order--aviso {
+  width: auto;
+  max-width: calc(100vw - 40px);
+  padding: 0 22px 0 18px;
+  gap: 10px;
+}
+
+.fab-aviso {
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  animation: fabAviso 0.28s ease both;
+}
+
+@keyframes fabAviso {
+  from { max-width: 0; opacity: 0; }
+  to   { max-width: 260px; opacity: 1; }
 }
 
 .fab-badge {
@@ -1564,7 +1705,8 @@
   grid-template-columns: 1fr 1fr;
   gap: .5rem;
   width: 100%;
-  margin-top: .5rem;
+  // Sin margen propio: el `gap` de `.mesa-field` ya separa esta fila de los botones de tipo
+  // (antes se sumaban los dos y quedaba el doble).
 
   .mesa-select,
   .domicilio-btn,
@@ -1786,4 +1928,99 @@
 .order-panel__caja {
   padding: 10px 14px;
   border-bottom: 1px solid var(--color-border);
+}
+
+// ─── Modal «Editar pedido» ──────────────────────────────────
+.editar-modal {
+  max-width: 480px;
+
+  .modal-header h3 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+}
+
+.editar-tipos { margin-bottom: var(--spacing-md); }
+
+.editar-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 120px;
+  max-height: 48vh;
+  overflow-y: auto;
+  margin-bottom: var(--spacing-md);
+  overscroll-behavior: contain;
+}
+
+.editar-estado {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 1;
+  padding: var(--spacing-lg) var(--spacing-md);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  text-align: center;
+
+  p { margin: 0; line-height: 1.4; }
+  lucide-icon { opacity: 0.6; }
+}
+
+.editar-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  padding: 9px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  font-family: var(--font-family);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+
+  &:hover { border-color: var(--color-primary); }
+
+  &.active {
+    border-color: var(--color-primary);
+    background: color-mix(in srgb, var(--color-primary) 12%, var(--color-surface));
+  }
+
+  &__main {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  &__titulo {
+    font-size: var(--font-size-sm);
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__sub {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__total {
+    flex: 0 0 auto;
+    font-size: var(--font-size-sm);
+    font-weight: 700;
+    color: var(--color-primary);
+  }
 }

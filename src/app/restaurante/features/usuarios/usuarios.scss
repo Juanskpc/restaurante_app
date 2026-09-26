@@ -25,6 +25,16 @@
   color: var(--color-error);
 }
 
+/* «X de N usuarios»: sobrio; se pone de aviso cuando ya no cabe nadie más. */
+.users-page__cupo {
+  margin: .25rem 0 0;
+  font-size: .8125rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+
+  &--lleno { color: var(--color-warning, #b45309); }
+}
+
 .tabs {
   display: inline-flex;
   gap: var(--spacing-xs);

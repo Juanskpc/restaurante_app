@@ -1,11 +1,19 @@
 :host {
   display: block;
+  height: 100%;
 }
 
+// Viewport fijo: la vista mide lo que mide el shell (`.content` ya es el único scroll de la app) y
+// reparte ese alto entre el encabezado y el cuerpo. Quien hace scroll cuando hay muchos insumos es
+// la tabla, no la página. En pantallas angostas (una sola columna) se vuelve al flujo normal: ver
+// el @media de 1100 px, más abajo.
 .inventory-layout {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-md);
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
   padding: var(--spacing-md);
   background: var(--color-bg);
   min-width: 0;
@@ -37,11 +45,73 @@
   }
 }
 
+.title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+// Control de inventario apagado: un aviso pequeño, no un banner. No es un error sino un estado
+// elegido (ámbar, no rojo); la explicación completa está en el tooltip.
+.badge-aviso {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+  border: 1px solid color-mix(in srgb, var(--color-warning) 40%, transparent);
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  cursor: help;
+  white-space: nowrap;
+
+  &:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+}
+
+.header-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex: 1 1 320px;
+  justify-content: flex-end;
+  min-width: 0;
+
+  @media (max-width: 560px) {
+    flex-basis: 100%;
+  }
+}
+
+.btn-nuevo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+
+  &:hover { background: var(--color-primary-hover); border-color: var(--color-primary-hover); }
+  &:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+}
+
 .header-search {
   position: relative;
   min-width: 0;
-  max-width: 420px;
-  width: 100%;
+  max-width: 340px;
+  flex: 1 1 200px;
 }
 
 .search-icon {
@@ -81,35 +151,41 @@
     color: var(--color-error);
   }
 
-  // El control de inventario está apagado. No es un error, es un estado elegido:
-  // ámbar y no rojo, y con sitio para la frase que dice dónde se vuelve a encender.
-  &.aviso {
-    display: flex;
-    align-items: flex-start;
-    gap: .55rem;
-    border-color: color-mix(in srgb, var(--color-warning, #f59e0b) 45%, transparent);
-    background: var(--color-warning-bg, color-mix(in srgb, #f59e0b 12%, transparent));
-    color: var(--color-text-primary);
-    line-height: 1.45;
-
-    lucide-icon { color: var(--color-warning, #b45309); flex-shrink: 0; margin-top: .1rem; }
-  }
 }
 
 .inventory-main {
   display: grid;
   grid-template-columns: 2fr 1fr;
+  // Una sola fila que ocupa TODO el alto que queda: las dos columnas miden exactamente lo mismo y
+  // ninguna puede empujar a la otra ni a la página.
+  grid-template-rows: minmax(0, 1fr);
+  flex: 1 1 auto;
   gap: var(--spacing-md);
   min-width: 0;
+  min-height: 0;
 
   @media (max-width: 1100px) {
     grid-template-columns: 1fr;
+    grid-template-rows: auto;
+    flex: 0 0 auto;
   }
 }
 
 .left-col,
 .right-col {
   min-width: 0;
+  min-height: 0;
+}
+
+// Columna izquierda: KPIs arriba (tamaño propio) y la tabla ocupa el resto.
+.left-col {
+  display: flex;
+  flex-direction: column;
+}
+
+// En una columna el alto lo da el contenido y es la página la que se desplaza, como siempre.
+@media (max-width: 1100px) {
+  .inventory-layout { height: auto; }
 }
 
 .kpi-grid {
@@ -118,6 +194,7 @@
   gap: var(--spacing-sm);
   margin-bottom: var(--spacing-sm);
   width: 100%;
+  flex: 0 0 auto;
 
   @media (max-width: 700px) {
     grid-template-columns: 1fr;
@@ -125,121 +202,75 @@
 }
 
 .kpi-card {
+  // Borde neutro y fondo pastel del tono de la tarjeta: rojo suave = agotados, dorado = stock bajo.
+  --kpi-tono: var(--color-text-secondary);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
-  padding: 12px;
+  padding: 12px 14px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
   min-width: 0;
   width: 100%;
   box-sizing: border-box;
 
-  span {
+  > div > span {
     display: block;
     font-size: var(--font-size-xs);
+    font-weight: 600;
     color: var(--color-text-secondary);
-    margin-bottom: 4px;
+    margin-bottom: 2px;
   }
 
   strong {
     font-size: var(--font-size-xl);
+    line-height: 1.1;
     color: var(--color-text-primary);
+  }
+
+  .kpi-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 38px;
+    height: 38px;
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--kpi-tono) 14%, var(--color-surface));
+    color: var(--kpi-tono);
   }
 
   &.warn {
-    border-color: color-mix(in srgb, var(--color-warning) 55%, var(--color-border));
+    --kpi-tono: color-mix(in srgb, var(--color-warning-gold) 75%, var(--color-text-primary));
+    background: color-mix(in srgb, var(--color-warning-gold) 10%, var(--color-surface));
   }
 
   &.crit {
-    border-color: color-mix(in srgb, var(--color-error) 55%, var(--color-border));
+    --kpi-tono: var(--color-error);
+    background: color-mix(in srgb, var(--color-error) 7%, var(--color-surface));
   }
 }
 
-.create-insumo-card {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-  padding: 12px;
-  margin-bottom: var(--spacing-sm);
-}
-
-.create-insumo-head {
-  margin-bottom: 10px;
-
-  h3 {
-    margin: 0;
-    font-size: var(--font-size-base);
-    color: var(--color-text-primary);
-  }
-
-  p {
-    margin: 4px 0 0;
-    font-size: var(--font-size-xs);
-    color: var(--color-text-secondary);
-  }
-}
-
-.create-insumo-form {
-  display: grid;
-  grid-template-columns: 1fr 88px auto;
-  gap: 8px;
-
-  @media (max-width: 760px) {
-    grid-template-columns: 1fr;
-  }
-}
-
-.create-insumo-input,
-.create-insumo-select {
-  width: 100%;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-bg);
-  color: var(--color-text-primary);
-  padding: 8px 10px;
-  font-size: var(--font-size-sm);
-
-  &:focus {
-    outline: none;
-    border-color: var(--color-primary);
-    box-shadow: var(--focus-ring);
-  }
-}
-
-.create-insumo-btn {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-elevated);
-  color: var(--color-text-primary);
-  padding: 8px 12px;
-  font-size: var(--font-size-sm);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  cursor: pointer;
-
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-
-  &:hover:not(:disabled) {
-    border-color: var(--color-primary);
-    color: var(--color-primary);
-  }
-}
-
+// La tarjeta llena el alto que queda en la columna, así su borde inferior queda alineado con el del
+// panel de recetas. El cuerpo de la tabla (`.table-wrap`) crece hasta el pie de paginación y, cuando
+// hay más filas de las que caben, se desplaza por dentro. En una columna (< 1100 px) vuelve a medir
+// lo que miden sus filas.
 .table-card {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
   min-width: 0;
+  min-height: 0;
   overflow: hidden;
+
+  @media (max-width: 1100px) {
+    flex: 0 0 auto;
+  }
 }
 
 .table-header {
@@ -310,12 +341,23 @@
   to { transform: rotate(360deg); }
 }
 
+// El scroll de la tabla (vertical y horizontal) vive aquí, no en la página. Con `min-height: 0` el
+// contenedor puede encogerse por debajo de su contenido y es entonces cuando aparece la barra.
+// El `<thead>` es `sticky` (ver `.inventory-table th`) y se queda visible mientras se desplazan las filas.
 .table-wrap {
-  max-height: none;
-  overflow-x: auto;
-  overflow-y: visible;
-  overscroll-behavior: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+
+  // En una columna no hay alto que repartir: se acota para que la tabla no alargue la página.
+  @media (max-width: 1100px) {
+    max-height: 60vh;
+  }
 }
+
+.table-header,
+.table-pagination { flex: 0 0 auto; }
 
 .table-pagination {
   border-top: 1px solid var(--color-border);
@@ -409,12 +451,20 @@
     z-index: 1;
   }
 
+  // Agotado: fondo rosado suave y una franja roja a la izquierda, para verlo aunque no se lea
+  // ninguna columna. Stock bajo: lo mismo, en dorado.
   tr.status-crit {
-    background: color-mix(in srgb, var(--color-error) 7%, var(--color-surface));
+    background: color-mix(in srgb, var(--color-error) 9%, var(--color-surface));
+
+    td:first-child { box-shadow: inset 4px 0 0 var(--color-error); }
+    .stock-bar-fill { background: var(--color-error); }
   }
 
   tr.status-warn {
-    background: color-mix(in srgb, var(--color-warning) 12%, var(--color-surface));
+    background: color-mix(in srgb, var(--color-warning-gold) 11%, var(--color-surface));
+
+    td:first-child { box-shadow: inset 4px 0 0 var(--color-warning-gold); }
+    .stock-bar-fill { background: var(--color-warning-gold); }
   }
 }
 
@@ -448,17 +498,22 @@
   }
 }
 
+// El nivel de stock de un vistazo. El relleno toma el color del estado de su fila (verde normal,
+// dorado bajo, rojo agotado) y el carril es neutro, para que se vea también con la barra vacía.
 .stock-bar-bg {
   margin-top: 6px;
   height: 6px;
   border-radius: var(--radius-full);
-  background: var(--color-surface-elevated);
+  background: color-mix(in srgb, var(--color-text-primary) 12%, var(--color-surface));
   overflow: hidden;
 }
 
 .stock-bar-fill {
   height: 100%;
+  min-width: 0;
+  border-radius: var(--radius-full);
   background: var(--color-success);
+  transition: width 240ms ease;
 }
 
 .state-badge {
@@ -479,9 +534,10 @@
     background: color-mix(in srgb, var(--color-warning) 20%, var(--color-surface));
   }
 
+  // Agotado: rojo pleno con texto blanco, legible sobre la fila rosada.
   &.status-crit {
-    color: var(--color-error);
-    background: var(--color-error-bg);
+    color: #fff;
+    background: var(--color-error);
   }
 }
 
@@ -489,28 +545,92 @@
   text-align: right;
 }
 
+// «Acciones» son dos íconos: la columna mide lo que ellos y no reparte el ancho que sobra (en móvil
+// `.col-actions` pide 140 px por el ajuste rápido, y aquí eso era un hueco a la derecha de los botones).
+.col-gestion {
+  width: 1%;
+  min-width: 0;
+  white-space: nowrap;
+}
+
 .stock-adjuster {
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 4px;
+  gap: 6px;
+
+  .icon-btn { margin-left: 0; }
 }
 
-.adjust-qty-input {
-  width: 64px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-bg);
-  color: var(--color-text-primary);
-  padding: 5px 6px;
-  text-align: center;
-  font-size: var(--font-size-xs);
+// Ajuste rápido: restar · cantidad · sumar como UN solo control (comparten borde), y aparte el
+// botón de restablecer, que es otra cosa y no debe parecer parte del contador.
+.stepper {
+  display: inline-flex;
+  align-items: stretch;
+  overflow: hidden;
+  border: 1px solid var(--color-border-strong, var(--color-border));
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 
-  &:focus {
-    outline: none;
+  &:focus-within {
     border-color: var(--color-primary);
     box-shadow: var(--focus-ring);
   }
+
+  &.disabled { opacity: 0.6; }
+}
+
+.stepper-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  background: color-mix(in srgb, var(--color-text-primary) 4%, var(--color-surface));
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--color-primary) 12%, var(--color-surface));
+    color: var(--color-primary);
+  }
+
+  &:focus-visible { outline: none; background: color-mix(in srgb, var(--color-primary) 16%, var(--color-surface)); }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+}
+
+// «Restablecer a 0»: el cuarto botón del grupo, con su propia línea divisoria.
+.stepper-reset {
+  border-left: 1px solid var(--color-border);
+}
+
+.stepper-input {
+  width: 52px;
+  height: 30px;
+  padding: 0 4px;
+  border: 0;
+  border-left: 1px solid var(--color-border);
+  border-right: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-primary);
+  text-align: center;
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  -moz-appearance: textfield;
+  appearance: textfield;
+
+  &::-webkit-inner-spin-button,
+  &::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  &:focus { outline: none; }
 }
 
 .icon-btn {
@@ -553,7 +673,7 @@
 }
 
 @media (max-width: 760px) {
-  .col-actions {
+  .col-actions:not(.col-gestion) {
     min-width: 140px;
   }
 
@@ -567,33 +687,80 @@
   color: var(--color-text-secondary);
 }
 
+// Recetas: un panel con cabecera propia, lista con scroll interno y el detalle de la receta debajo.
 .panel-card {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
   height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 12px;
+  padding: 14px;
+  // Si la lista y la receta no caben en el alto de la columna, se desplaza el panel, no la página.
+  overflow-y: auto;
+
+  @media (max-width: 1100px) {
+    height: auto;
+    overflow-y: visible;
+  }
 
   h3 {
     margin: 0;
     font-size: var(--font-size-base);
     color: var(--color-text-primary);
   }
+}
+
+.panel-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-border);
 
   p {
-    margin: 4px 0 12px;
-    font-size: var(--font-size-sm);
+    margin: 2px 0 0;
+    font-size: var(--font-size-xs);
+    line-height: 1.35;
     color: var(--color-text-secondary);
   }
 }
 
+.panel-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-primary) 12%, var(--color-surface));
+  color: var(--color-primary);
+}
+
+// La lista se estira y se queda con todo el alto que sobra; la receta activa va anclada abajo.
 .product-list {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  flex: 1 1 0;
+  min-height: 120px;
+  overflow-y: auto;
+  margin-bottom: 14px;
+  padding: 2px 4px 2px 2px;
+
+  // En una columna no hay alto que repartir: la lista se acota para que no alargue la página.
+  @media (max-width: 1100px) {
+    flex: 0 0 auto;
+    max-height: 340px;
+  }
 }
+
+.panel-head,
+.recipe-box { flex: 0 0 auto; }
 
 @media (max-width: 700px) {
   .table-header {
@@ -630,15 +797,25 @@
   border: 1px solid var(--color-border);
   background: var(--color-surface);
   border-radius: var(--radius-md);
-  padding: 8px 10px;
+  padding: 8px 12px 8px 8px;
   display: grid;
   grid-template-columns: auto 1fr auto;
-  gap: 8px;
+  gap: 10px;
   align-items: center;
+  font-family: var(--font-family);
   cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
 
   .emoji {
-    font-size: 1.2rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-secondary);
+    font-size: 1.15rem;
+    line-height: 1;
   }
 
   .name {
@@ -653,35 +830,66 @@
     font-weight: 700;
   }
 
+  &:hover:not(.active) {
+    background: var(--color-bg-secondary);
+    border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-border));
+  }
+
+  &:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+  // El seleccionado, con la paleta activa del negocio: fondo suave, borde y franja izquierda.
   &.active {
     border-color: var(--color-primary);
     background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface));
+    box-shadow: inset 3px 0 0 var(--color-primary);
+
+    .emoji { background: color-mix(in srgb, var(--color-primary) 16%, var(--color-surface)); }
+    .name { font-weight: 700; color: var(--color-primary); }
+    .price { color: var(--color-primary); }
   }
 }
 
+// La receta activa: anclada al fondo del panel y con un alto acotado (30 % de la pantalla, entre 170 y
+// 260 px). Da igual que la receta tenga 3 o 15 insumos: el recuadro mantiene su proporción y no
+// aplasta la lista de productos de arriba. La cabecera queda fija; solo la lista de insumos se desplaza.
 .recipe-box {
-  margin-top: 12px;
-  border-top: 1px solid var(--color-border);
-  padding-top: 10px;
+  margin-top: auto;
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  min-height: 0;
+  max-height: clamp(170px, 30vh, 260px);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-primary) 4%, var(--color-surface));
 }
 
 .recipe-head {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface));
 
   h4 {
     margin: 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-size: var(--font-size-base);
     color: var(--color-text-primary);
   }
 }
 
 .pill {
+  flex: 0 0 auto;
   font-size: var(--font-size-xs);
+  font-weight: 600;
   border-radius: var(--radius-full);
   padding: 3px 8px;
   background: var(--color-success-bg);
@@ -693,40 +901,69 @@
   }
 }
 
+// Insumos en una sola línea, separados por una línea fina (sin recuadro por insumo).
+.recipe-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0 12px;
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .recipe-row {
   display: flex;
+  align-items: baseline;
   justify-content: space-between;
-  gap: 8px;
-  border: 1px dashed var(--color-border);
-  border-radius: var(--radius-md);
-  padding: 8px;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--font-size-sm);
+
+  &:last-child { border-bottom: 0; }
+}
+
+.recipe-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 
   strong {
-    display: block;
     color: var(--color-text-primary);
-    font-size: var(--font-size-sm);
-  }
-
-  small {
-    color: var(--color-text-secondary);
-    font-size: var(--font-size-xs);
+    font-weight: 700;
   }
 }
 
-.recipe-right {
-  text-align: right;
+// El stock, sutil y en gris; en rojo solo cuando no queda nada, que es cuando importa.
+.recipe-stock {
+  margin-left: 4px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
 
-  span {
-    display: block;
-    font-size: var(--font-size-sm);
-    color: var(--color-text-primary);
-    font-weight: 700;
+  &.sin-stock { color: var(--color-error); }
+}
+
+// Lo que pide la receta: es el dato principal de la fila, va a la derecha y en negrita.
+.recipe-need {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  color: var(--color-text-primary);
+  font-weight: 700;
+
+  small {
+    margin-left: 6px;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    font-weight: 400;
   }
 }
 
 .recipe-empty {
   border: 1px dashed var(--color-border);
   border-radius: var(--radius-md);
+  margin: 12px;
   padding: 10px;
   color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
@@ -833,5 +1070,47 @@
     color: var(--color-text-primary);
 
     &:hover:not(:disabled) { background: var(--color-bg-secondary); }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Móvil (misma frontera que el shell: 767 px)
+// ═══════════════════════════════════════════════════════════
+@media (max-width: 767px) {
+  // El `.content` del shell ya trae su margen (1 rem) y la vista sumaba otro igual: 32 px por lado,
+  // que dejaban las tarjetas y la tabla muy angostas. Como en Caja: se le devuelve casi todo y queda
+  // un margen de 10 px, lo justo para no pegarse al borde.
+  .inventory-layout {
+    height: auto;
+    margin: calc(-1 * var(--spacing-md) + 10px);
+    padding: 0;
+    gap: var(--spacing-sm);
+  }
+
+  // Ningún scroll vertical interno: el desplazamiento es el de la página, y una caja que se
+  // desplaza dentro de otra que también lo hace es donde el dedo se queda atrapado. Las tarjetas
+  // miden lo que mide su contenido. (Queda el scroll de LADO de la tabla, que es otra cosa.)
+  .table-wrap {
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  .panel-card {
+    overflow: visible;
+  }
+
+  .product-list {
+    max-height: none;
+    overflow: visible;
+    min-height: 0;
+  }
+
+  .recipe-box {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .recipe-list {
+    overflow: visible;
   }
 }

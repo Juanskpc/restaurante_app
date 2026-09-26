@@ -1,9 +1,10 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, effect, inject, signal } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
 
 import { AuthService } from '../../../core/services/auth.service';
+import { RealtimeService } from '../../../core/services/realtime.service';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 import { environment } from '../../../../environments/environment';
 
@@ -58,8 +59,12 @@ type InventarioStockFilter = 'all' | 'agotado' | 'normal';
   styleUrl: './inventario.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class InventarioComponent {
+export class InventarioComponent implements OnInit, OnDestroy {
   private readonly http = inject(HttpClient);
+  private readonly realtime = inject(RealtimeService);
+  private dejarDeEscuchar: (() => void) | null = null;
+  /** Número de la última petición del resumen: una respuesta vieja que llega tarde no pisa a la nueva. */
+  private peticionResumen = 0;
   private readonly auth = inject(AuthService);
   private readonly uiFeedback = inject(UiFeedbackService);
 
@@ -87,12 +92,16 @@ export class InventarioComponent {
   readonly stockFilter = signal<InventarioStockFilter>('all');
   readonly productoActivoId = signal<number | null>(null);
   readonly currentPage = signal(1);
-  readonly pageSize = signal(15);
+  // 25 filas por página: la tabla ocupa el alto que le da la pantalla y, si hay más filas de las que
+  // caben, se desplaza por dentro. Con menos filas por página quedaría un hueco en pantallas altas.
+  readonly pageSize = signal(25);
   readonly cantidadesAjuste = signal<Record<number, number>>({});
 
   readonly nuevoInsumoNombre = signal('');
   readonly nuevaUnidadInsumo = signal('g');
   readonly creandoInsumo = signal(false);
+  /** El formulario de «Nuevo insumo» vive en un modal: no ocupa sitio en la vista principal. */
+  readonly nuevoInsumoAbierto = signal(false);
 
   readonly unidades = ['g', 'kg', 'ml', 'l', 'und', 'oz', 'taza', 'cdta', 'cda'];
 
@@ -101,7 +110,8 @@ export class InventarioComponent {
   readonly canAjusteRapido = computed(() => this.auth.canAccessSubnivel('inventario_ajuste_rapido'));
   readonly canGestionarInsumo = computed(() => this.auth.canAccessSubnivel('inventario_gestionar_insumo'));
   readonly tableColspan = computed(() => {
-    let base = 5;
+    // Insumo, Categoría, Stock y Estado. «Mínimo» está comentada en el HTML: si vuelve, base = 5.
+    let base = 4;
     if (this.canAjusteRapido()) base += 1;
     if (this.canGestionarInsumo()) base += 1;
     return base;
@@ -163,6 +173,46 @@ export class InventarioComponent {
     return this.productos().find((p) => p.id_producto === activeId) ?? this.productos()[0] ?? null;
   });
 
+  /**
+   * La receta enseña el stock de los MISMOS insumos que la tabla, tomado de `insumos()`, y no la
+   * copia que la respuesta trae dentro de cada receta.
+   *
+   * El servidor manda el stock dos veces —en la lista de insumos y dentro de cada receta— y con
+   * ellas dos copias basta un solo refresco a medias para que una diga «1 und» y la otra «0 und».
+   * Con una sola fuente de verdad en pantalla no pueden discrepar: el stock sale de `insumos()`,
+   * y el «alcanza para» se recalcula con él.
+   */
+  readonly productoActivoVista = computed(() => {
+    const producto = this.productoActivo();
+    if (!producto) return null;
+
+    const insumoPorId = new Map(this.insumos().map((i) => [i.id_ingrediente, i]));
+    return {
+      ...producto,
+      receta: producto.receta.map((r) => {
+        const stock = insumoPorId.get(r.id_ingrediente)?.stock_actual ?? r.stock_actual;
+        return {
+          ...r,
+          stock_actual: stock,
+          alcanza_para: r.porcion > 0 ? Math.floor(stock / r.porcion) : null,
+        };
+      }),
+    };
+  });
+
+  ngOnInit(): void {
+    // Los pedidos descuentan insumos: al entrar uno (aquí o desde otro equipo) el stock cambió y
+    // la pantalla lo tiene que reflejar sin que nadie recargue. En silencio, sin «Cargando…».
+    this.dejarDeEscuchar = this.realtime.alCambiar(['pedidos'], () => {
+      const id = this.negocioId();
+      if (id) this.loadInventario(id, { silencioso: true });
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.dejarDeEscuchar?.();
+  }
+
   private readonly negocioEffect = effect(() => {
     const id = this.negocioId();
     if (id) this.loadInventario(id);
@@ -182,14 +232,18 @@ export class InventarioComponent {
     }
   });
 
-  private loadInventario(idNegocio: number): void {
-    this.cargando.set(true);
-    this.error.set('');
+  private loadInventario(idNegocio: number, { silencioso = false } = {}): void {
+    const peticion = ++this.peticionResumen;
+    if (!silencioso) {
+      this.cargando.set(true);
+      this.error.set('');
+    }
 
     this.http.get<{ success: boolean; data: InventarioResumen }>(
       `${environment.apiUrl}/inventario/resumen?id_negocio=${idNegocio}`
     ).subscribe({
       next: (res) => {
+        if (peticion !== this.peticionResumen) return; // llegó una más nueva mientras tanto
         const data = res?.data;
         this.kpis.set(data?.kpis ?? { total_insumos: 0, stock_bajo: 0, agotados: 0 });
         this.insumos.set(data?.insumos ?? []);
@@ -197,10 +251,13 @@ export class InventarioComponent {
         if (!this.productoActivoId() && (data?.productos?.length ?? 0) > 0) {
           this.productoActivoId.set(data!.productos[0].id_producto);
         }
+        this.error.set('');
         this.cargando.set(false);
       },
       error: () => {
-        this.error.set('No se pudo cargar el inventario.');
+        if (peticion !== this.peticionResumen) return;
+        // Un refresco en silencio que falla no borra lo que ya se ve: el siguiente lo arregla.
+        if (!silencioso) this.error.set('No se pudo cargar el inventario.');
         this.cargando.set(false);
       },
     });
@@ -216,7 +273,7 @@ export class InventarioComponent {
   }
 
   setPageSize(value: number): void {
-    const next = Number.isFinite(value) ? Math.max(5, Math.floor(value)) : 15;
+    const next = Number.isFinite(value) ? Math.max(5, Math.floor(value)) : 25;
     this.pageSize.set(next);
     this.currentPage.set(1);
   }
@@ -268,6 +325,41 @@ export class InventarioComponent {
       error: () => {
         this.guardando.set(null);
         this.uiFeedback.error('No fue posible ajustar el stock del insumo.');
+      },
+    });
+  }
+
+  /**
+   * Deja el stock en 0 como un ajuste con historia (el backend lo registra con usuario y motivo
+   * «Restablecido a 0»). Pide confirmación con el diálogo de la app, no con `window.confirm`.
+   */
+  async restablecerACero(insumo: InventarioInsumo): Promise<void> {
+    if (!this.canAjusteRapido()) return;
+    const idNegocio = this.negocioId();
+    if (!idNegocio || this.guardando() || insumo.stock_actual === 0) return;
+
+    const confirmado = await this.uiFeedback.confirm({
+      title: 'Restablecer a 0',
+      message: `El stock de "${insumo.nombre}" (${insumo.stock_actual} ${insumo.unidad_medida}) quedará en 0 y el cambio se guardará en el historial. ¿Deseas continuar?`,
+      confirmText: 'Restablecer',
+      cancelText: 'Cancelar',
+      tone: 'warning',
+    });
+    if (!confirmado) return;
+
+    this.guardando.set(insumo.id_ingrediente);
+    this.http.post(
+      `${environment.apiUrl}/inventario/ingredientes/${insumo.id_ingrediente}/restablecer`,
+      { id_negocio: idNegocio }
+    ).subscribe({
+      next: () => {
+        this.guardando.set(null);
+        this.uiFeedback.updated('El stock quedó en 0.');
+        this.loadInventario(idNegocio);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.guardando.set(null);
+        this.uiFeedback.error(this.getHttpErrorMessage(err) || 'No fue posible restablecer el stock.');
       },
     });
   }
@@ -344,6 +436,29 @@ export class InventarioComponent {
     });
   }
 
+  abrirNuevoInsumo(): void {
+    if (!this.canAgregarInsumo()) return;
+    this.nuevoInsumoNombre.set('');
+    this.nuevaUnidadInsumo.set('g');
+    this.nuevoInsumoAbierto.set(true);
+    // El modal se pinta en el siguiente ciclo: el foco se pide después, para poder escribir ya.
+    if (typeof document !== 'undefined') {
+      setTimeout(() => document.getElementById('nuevo-insumo-nombre')?.focus());
+    }
+  }
+
+  cerrarNuevoInsumo(): void {
+    if (this.creandoInsumo()) return;
+    this.nuevoInsumoAbierto.set(false);
+  }
+
+  /** El relleno de la barra de stock: nunca pasa del 100 % ni baja de 0, venga lo que venga. */
+  porcentajeBarra(insumo: InventarioInsumo): number {
+    const valor = Number(insumo.porcentaje_stock);
+    if (!Number.isFinite(valor)) return 0;
+    return Math.min(100, Math.max(0, valor));
+  }
+
   crearInsumo(): void {
     if (!this.canAgregarInsumo()) return;
 
@@ -364,6 +479,7 @@ export class InventarioComponent {
       next: () => {
         this.creandoInsumo.set(false);
         this.nuevoInsumoNombre.set('');
+        this.nuevoInsumoAbierto.set(false);
         this.uiFeedback.created('El insumo fue creado correctamente.');
         this.loadInventario(idNegocio);
       },

@@ -1,5 +1,5 @@
 import {
-  Component, ChangeDetectionStrategy, DestroyRef, OnInit, effect, inject, signal, computed, PLATFORM_ID,
+  Component, ChangeDetectionStrategy, DestroyRef, LOCALE_ID, OnInit, effect, inject, signal, computed, PLATFORM_ID,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
@@ -18,6 +18,7 @@ import { ClientesService, CuentaCliente } from '../../../core/services/clientes.
 import { CatalogoCacheService } from '../../../core/services/catalogo-cache.service';
 import { VistaTarjetasService } from '../../../core/services/vista-tarjetas.service';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
+import { etiquetaFecha } from './etiqueta-fecha';
 import { environment } from '../../../../environments/environment';
 import {
   FilaPago,
@@ -34,10 +35,13 @@ type TipoPedido = 'MESA' | 'LLEVAR' | 'DOMICILIO';
  * además para llevar o a domicilio, y aparece en los dos sitios. No son pestañas excluyentes que
  * repartan la lista: son tres maneras de mirar la misma.
  */
-type FiltroTipo = 'TODOS' | 'LLEVAR' | 'DOMICILIO' | 'WHATSAPP';
+type FiltroTipo = 'TODOS' | 'LLEVAR' | 'DOMICILIO' | 'WHATSAPP' | 'CANCELADOS';
 
 /** Espera tras la última tecla antes de guardar domicilio o descuento. */
 const AUTOGUARDADO_MS = 500;
+
+/** Dónde se recuerda qué cancelados ya se «finalizaron» (se quitaron de la pantalla) en este equipo. */
+const CANCELADOS_FINALIZADOS_KEY = 'despacho_cancelados_finalizados_v1';
 
 interface DetalleDespacho {
   id_producto: number;
@@ -45,6 +49,8 @@ interface DetalleDespacho {
   precio_unitario: number;
   nota?: string | null;
   producto?: { nombre: string };
+  /** Los ingredientes que el cliente pidió quitar: cada uno trae su nombre. */
+  exclusiones?: Array<{ id_ingrediente: number; ingrediente?: { nombre: string } | null }>;
 }
 
 export interface PedidoDespacho {
@@ -155,16 +161,27 @@ export class DespachoComponent implements OnInit {
   private readonly isBrowser = isPlatformBrowser(this.platformId);
 
   readonly pedidos = signal<PedidoDespacho[]>([]);
+  /** «cebolla, tomate»: lo que el cliente pidió quitar de una línea, o `''` si no pidió quitar nada. */
+  textoSin(d: DetalleDespacho): string {
+    return (d.exclusiones ?? [])
+      .map((e) => e.ingrediente?.nombre)
+      .filter((n): n is string => Boolean(n))
+      .join(', ');
+  }
+
   /** Solo la primera carga. Los refrescos del tiempo real no tapan el listado. */
   readonly cargando = signal(false);
   readonly refrescando = signal(false);
   /**
-   * Los cancelados de HOY, aparte de `pedidos`: son una alerta de lo que acaba de pasar en el
-   * turno, no pedidos activos, y mezclarlos en la misma tarjeta que se cobra o se edita
-   * confundiría las dos cosas.
+   * Los cancelados de HOY. Viven aparte de `pedidos` (son otro endpoint y no se pueden cobrar ni
+   * editar), pero se pintan en la misma cuadrícula como una tarjeta más, marcada «Cancelado».
    */
   readonly canceladosRecientes = signal<PedidoCancelado[]>([]);
-  readonly mostrarCancelados = signal(false);
+  /**
+   * Cancelados que el usuario ya «finalizó» (quitó de la pantalla). Se guarda en el equipo: el
+   * servidor solo devuelve los de hoy, así que al cambiar el día se vacía solo.
+   */
+  private readonly canceladosFinalizados = signal<ReadonlySet<number>>(new Set());
   readonly filtro = signal<FiltroTipo>('TODOS');
   readonly pedidoActivo = signal<PedidoDespacho | null>(null);
   readonly cobrandoId = signal<number | null>(null);
@@ -207,10 +224,25 @@ export class DespachoComponent implements OnInit {
   readonly puedeVerTodos = computed(() => this.auth.canAccessSubnivel('despacho_ver_todos'));
   readonly puedeCancelarNoPagados = computed(() => this.auth.canAccessSubnivel('despacho_cancelar_no_pagado'));
   readonly puedeUsarDomicilio = computed(() => this.auth.canAccessSubnivel('pedidos_domicilio'));
+  /**
+   * ¿Quien mira es un repartidor y nada más? Sus tarjetas son solo domicilios asignados a él, así
+   * que ni los «Para llevar» ni el botón de imprimir (el tiquete lo saca el local) le sirven.
+   */
+  readonly esDomiciliario = computed(() => {
+    const roles = [
+      ...(this.auth.negocio()?.roles ?? []),
+      ...(this.auth.session()?.roles_globales ?? []),
+    ];
+    return roles.length > 0 && roles.every((r) => String(r.descripcion).toUpperCase() === 'DOMICILIARIO');
+  });
+  /** Sin «ver todos» o siendo repartidor no hay pedidos para llevar que mostrar. */
+  readonly muestraLlevar = computed(() => this.puedeVerTodos() && !this.esDomiciliario());
   readonly puedeEditarPedido = computed(() => this.auth.canAccessRoute('/pedidos'));
 
   // ── Preferencias de vista (por dispositivo, ver VistaTarjetasService) ──
-  readonly densidad = this.vista.densidad('despacho');
+  // En el teléfono arranca en «mediana» (2 por fila) si el usuario aún no eligió tamaño; lo que
+  // elija se guarda y manda sobre este valor.
+  readonly densidad = this.vista.densidad('despacho', 'compacta');
   readonly verProductos = this.vista.verProductos('despacho');
   readonly densidadIcono = computed(() => {
     const d = this.densidad();
@@ -228,17 +260,52 @@ export class DespachoComponent implements OnInit {
     const f = this.filtro();
     const lista = this.pedidos();
     if (f === 'TODOS') return lista;
+    // «Cancelados» solo enseña los cancelados: los pedidos vivos no entran.
+    if (f === 'CANCELADOS') return [];
     if (f === 'WHATSAPP') return lista.filter((p) => p.de_whatsapp);
     return lista.filter((p) => p.tipo_pedido === f);
   });
 
+  /** Cancelados de hoy que siguen en pantalla (no finalizados). */
+  readonly canceladosVisibles = computed(() => {
+    const finalizados = this.canceladosFinalizados();
+    return this.canceladosRecientes().filter(
+      (c) => !finalizados.has(c.id_orden) && (c.tipo_pedido !== 'DOMICILIO' || this.puedeUsarDomicilio()),
+    );
+  });
+
+  /** Los cancelados que corresponden al filtro activo. Los de WhatsApp no se distinguen aquí. */
+  readonly canceladosFiltrados = computed(() => {
+    const f = this.filtro();
+    const lista = this.canceladosVisibles();
+    if (f === 'TODOS' || f === 'CANCELADOS') return lista;
+    if (f === 'WHATSAPP') return [];
+    return lista.filter((c) => c.tipo_pedido === f);
+  });
+
+  // Los contadores de los filtros cuentan también los cancelados visibles: si no, la tarjeta
+  // «Cancelado» aparecería en la lista con un número que no la incluye.
+  readonly countTodos = computed(() => this.pedidos().length + this.canceladosVisibles().length);
   readonly countLlevar = computed(() =>
-    this.pedidos().filter((p) => p.tipo_pedido === 'LLEVAR').length,
+    this.pedidos().filter((p) => p.tipo_pedido === 'LLEVAR').length
+    + this.canceladosVisibles().filter((c) => c.tipo_pedido === 'LLEVAR').length,
   );
   readonly countDomicilio = computed(() =>
-    this.pedidos().filter((p) => p.tipo_pedido === 'DOMICILIO').length,
+    this.pedidos().filter((p) => p.tipo_pedido === 'DOMICILIO').length
+    + this.canceladosVisibles().filter((c) => c.tipo_pedido === 'DOMICILIO').length,
   );
   readonly countWhatsapp = computed(() => this.pedidos().filter((p) => p.de_whatsapp).length);
+  readonly countCancelados = computed(() => this.canceladosVisibles().length);
+
+  /**
+   * El chip de «Cancelados» se esconde cuando no queda ninguno (todos finalizados, o cambió el
+   * día), y el filtro no puede sobrevivirle: se quedaría la pantalla vacía sin chip para salir.
+   */
+  private readonly filtroCanceladosEffect = effect(() => {
+    if (this.countCancelados() === 0 && this.filtro() === 'CANCELADOS') {
+      this.filtro.set('TODOS');
+    }
+  });
 
   /** Si el negocio apaga Domicilios, el filtro activo no puede quedarse ahí colgado. */
   private readonly filtroPermisoEffect = effect(() => {
@@ -260,6 +327,7 @@ export class DespachoComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    this.canceladosFinalizados.set(this.leerCanceladosFinalizados());
     this.cargar();
     this.loadMetodosPago();
     this.loadDomiciliarios();
@@ -371,7 +439,11 @@ export class DespachoComponent implements OnInit {
 
     const url = `${environment.apiUrl}/despacho/cancelados?id_negocio=${id}`;
     this.http.get<{ success: boolean; data: PedidoCancelado[] }>(url).subscribe({
-      next: (res) => aplicarLista(this.canceladosRecientes, res?.data ?? [], (p) => p.id_orden),
+      next: (res) => {
+        const lista = res?.data ?? [];
+        aplicarLista(this.canceladosRecientes, lista, (p) => p.id_orden);
+        this.podarCanceladosFinalizados(lista);
+      },
       // Silencioso a propósito: es información extra, no la pantalla principal. Si falla,
       // Despacho sigue funcionando igual que antes de que esto existiera — y se queda con lo
       // que ya tenía, que es mejor que vaciar el panel por un error de red.
@@ -383,8 +455,41 @@ export class DespachoComponent implements OnInit {
     this.filtro.set(f);
   }
 
-  alternarCancelados(): void {
-    this.mostrarCancelados.update((v) => !v);
+  /** «Finalizar» en una tarjeta cancelada: la quita de la pantalla. No toca el pedido en el servidor. */
+  finalizarCancelado(c: PedidoCancelado, event: Event): void {
+    event.stopPropagation();
+    this.canceladosFinalizados.update((s) => new Set(s).add(c.id_orden));
+    this.guardarCanceladosFinalizados();
+  }
+
+  private leerCanceladosFinalizados(): ReadonlySet<number> {
+    if (!this.isBrowser) return new Set();
+    try {
+      const crudo = JSON.parse(localStorage.getItem(CANCELADOS_FINALIZADOS_KEY) ?? '[]');
+      return new Set(Array.isArray(crudo) ? crudo.filter((n): n is number => Number.isInteger(n)) : []);
+    } catch {
+      return new Set();
+    }
+  }
+
+  private guardarCanceladosFinalizados(): void {
+    if (!this.isBrowser) return;
+    try {
+      localStorage.setItem(CANCELADOS_FINALIZADOS_KEY, JSON.stringify([...this.canceladosFinalizados()]));
+    } catch {
+      // Modo privado o almacenamiento lleno: se recuerda solo mientras la pestaña siga abierta.
+    }
+  }
+
+  /** Olvida los finalizados que el servidor ya no devuelve (de otro día): la lista no crece sin fin. */
+  private podarCanceladosFinalizados(vigentes: PedidoCancelado[]): void {
+    const actuales = this.canceladosFinalizados();
+    if (actuales.size === 0) return;
+    const ids = new Set(vigentes.map((c) => c.id_orden));
+    const restantes = [...actuales].filter((id) => ids.has(id));
+    if (restantes.length === actuales.size) return;
+    this.canceladosFinalizados.set(new Set(restantes));
+    this.guardarCanceladosFinalizados();
   }
 
   /** Quién lo canceló, en una palabra que el negocio entienda. */
@@ -530,6 +635,16 @@ export class DespachoComponent implements OnInit {
    */
   puedeAvisarListo(p: PedidoDespacho): boolean {
     return Boolean(p.puede_avisar_listo);
+  }
+
+  /**
+   * La acción que ocupa el botón de ancho completo de la tarjeta. Solo una, para que todas las
+   * tarjetas terminen igual: avisar al cliente (si el backend lo permite) → cobrar (abre el detalle,
+   * donde se elige la forma de pago) → finalizar un pedido ya cobrado.
+   */
+  accionPrincipal(p: PedidoDespacho): 'avisar' | 'cobrar' | 'finalizar' {
+    if (this.puedeAvisarListo(p)) return 'avisar';
+    return this.esPendientePago(p) ? 'cobrar' : 'finalizar';
   }
 
   /** El texto del botón cambia según qué le está pasando al cliente, no solo si puede avisarse. */
@@ -747,6 +862,16 @@ export class DespachoComponent implements OnInit {
     }))
   );
 
+  private readonly locale = inject(LOCALE_ID);
+
+  /**
+   * Cuándo se hizo el pedido: «8:02 p. m.» si es de hoy, «ayer 8:02 p. m.» si es de ayer y solo la
+   * fecha («03 abr») desde hace dos días. Ver `etiquetaFecha`.
+   */
+  fechaPedido(valor: string | Date | null | undefined): string {
+    return etiquetaFecha(valor, this.locale);
+  }
+
   /** Devuelve un href tel: limpio (solo dígitos y +). */
   telHref(numero: string | null | undefined): string | null {
     if (!numero) return null;
@@ -802,14 +927,41 @@ export class DespachoComponent implements OnInit {
     return (p.estado_pago ?? 'pendiente_pago') === 'pendiente_pago';
   }
 
+  /**
+   * Quita de la pantalla los cancelados dados. No toca nada en el servidor: es lo mismo que
+   * pulsar «Finalizar» en cada una de sus tarjetas.
+   */
+  private descartarCancelados(ids: number[]): void {
+    if (ids.length === 0) return;
+    this.canceladosFinalizados.update((s) => new Set([...s, ...ids]));
+    this.guardarCanceladosFinalizados();
+  }
+
+  /**
+   * «Finalizar todo»: cierra lo cobrado, cancela lo que no se cobró (si el rol puede) y quita de
+   * la pantalla los cancelados.
+   *
+   * Antes solo miraba `pedidosFiltrados()`. Los cancelados se añadieron después como una lista
+   * aparte (`canceladosFiltrados()`) y este botón nunca se enteró: con solo cancelados en pantalla
+   * quedaba deshabilitado, y con pedidos mezclados los dejaba ahí. Y los que el propio botón
+   * cancelaba reaparecían un instante después como «Cancelado», con lo que la pantalla acababa
+   * con MÁS tarjetas que al principio.
+   */
   async finalizarTodo(): Promise<void> {
     const lista = this.pedidosFiltrados();
-    if (lista.length === 0) {
+    const cancelados = this.canceladosFiltrados();
+    if (lista.length === 0 && cancelados.length === 0) {
       await this.uiFeedback.alert({
         title: 'Sin pedidos',
         message: 'No hay pedidos activos para finalizar.',
         tone: 'info',
       });
+      return;
+    }
+
+    // Solo hay cancelados: no hay nada que cobrar ni cancelar, y quitarlos de la vista no pierde nada.
+    if (lista.length === 0) {
+      this.descartarCancelados(cancelados.map((c) => c.id_orden));
       return;
     }
 
@@ -832,6 +984,8 @@ export class DespachoComponent implements OnInit {
         procesarNoCobrados = noCobrados;
       } else {
         if (cobrados.length === 0) {
+          // No hay nada que cerrar ni permiso para cancelar, pero los cancelados sí se pueden quitar.
+          this.descartarCancelados(cancelados.map((c) => c.id_orden));
           await this.uiFeedback.alert({
             title: 'Sin pedidos cobrados',
             message: 'No hay pedidos cobrados para finalizar y no tienes permiso para eliminar los no cobrados.',
@@ -859,11 +1013,16 @@ export class DespachoComponent implements OnInit {
       if (!confirmar) return;
     }
 
+    // Ya confirmó: los cancelados que ya estaban en pantalla se van con el resto.
+    this.descartarCancelados(cancelados.map((c) => c.id_orden));
+
+    const aCerrar = procesarCobrados;
+    const aCancelar = procesarNoCobrados;
     const requests$ = [
-      ...procesarCobrados.map(p =>
+      ...aCerrar.map(p =>
         this.http.patch(`${environment.apiUrl}/pedidos/${p.id_orden}/cerrar`, {}).pipe(catchError(() => of(null)))
       ),
-      ...procesarNoCobrados.map(p =>
+      ...aCancelar.map(p =>
         this.http.patch(`${environment.apiUrl}/pedidos/${p.id_orden}/cancelar`, {}).pipe(catchError(() => of(null)))
       ),
     ];
@@ -871,13 +1030,30 @@ export class DespachoComponent implements OnInit {
     if (requests$.length === 0) return;
 
     forkJoin(requests$).subscribe({
-      next: () => {
-        const ids = new Set([...procesarCobrados, ...procesarNoCobrados].map(p => p.id_orden));
+      next: (resultados) => {
+        // Una petición que falló devuelve `null` (catchError): esa tarjeta se queda, no se
+        // esconde como si hubiera salido bien.
+        const todos = [...aCerrar, ...aCancelar];
+        const hechos = todos.filter((_, i) => resultados[i] !== null);
+        const fallidos = todos.length - hechos.length;
+        const ids = new Set(hechos.map(p => p.id_orden));
+
         this.pedidos.update(l => l.filter(p => !ids.has(p.id_orden)));
         if (this.pedidoActivo() && ids.has(this.pedidoActivo()!.id_orden)) {
           this.pedidoActivo.set(null);
         }
-        this.uiFeedback.success('Pedidos procesados correctamente.', 'Finalizar todo');
+
+        // Los que este mismo botón acaba de cancelar no vuelven como tarjeta «Cancelado».
+        const canceladosAhora = aCancelar.filter(p => ids.has(p.id_orden)).map(p => p.id_orden);
+        this.descartarCancelados(canceladosAhora);
+        this.cargarCancelados();
+
+        if (fallidos > 0) {
+          this.cargar();
+          this.uiFeedback.error(`No se pudieron procesar ${fallidos} pedido(s). Se recargó la lista.`);
+        } else {
+          this.uiFeedback.success('Pedidos procesados correctamente.', 'Finalizar todo');
+        }
       },
       error: () => {
         this.cargar();
@@ -915,23 +1091,23 @@ export class DespachoComponent implements OnInit {
     });
   }
 
-  async eliminarPedido(p: PedidoDespacho, event: Event): Promise<void> {
+  async cancelarPedido(p: PedidoDespacho, event: Event): Promise<void> {
     event.stopPropagation();
 
     if (!this.puedeCancelarNoPagados()) {
       await this.uiFeedback.alert({
         title: 'Acceso restringido',
-        message: 'Tu rol no tiene permiso para eliminar pedidos pendientes de pago.',
+        message: 'Tu rol no tiene permiso para cancelar pedidos pendientes de pago.',
         tone: 'warning',
       });
       return;
     }
 
     const confirmar = await this.uiFeedback.confirm({
-      title: 'Eliminar pedido',
+      title: 'Cancelar pedido',
       message: `Se cancelará el pedido ${p.numero_orden}. Esta acción no se puede deshacer.`,
-      confirmText: 'Eliminar',
-      cancelText: 'Cancelar',
+      confirmText: 'Cancelar pedido',
+      cancelText: 'Volver',
       tone: 'warning',
     });
     if (!confirmar) return;
@@ -943,21 +1119,68 @@ export class DespachoComponent implements OnInit {
         if (res?.success) {
           this.pedidos.update(lista => lista.filter(ord => ord.id_orden !== p.id_orden));
           if (this.pedidoActivo()?.id_orden === p.id_orden) this.pedidoActivo.set(null);
-          this.uiFeedback.success('Pedido eliminado correctamente.', 'Eliminado');
+          this.cargarCancelados();
+          this.uiFeedback.success('El pedido fue cancelado.', 'Pedido cancelado');
         }
       },
       error: (err) => {
         const msg = err?.error?.message;
-        this.uiFeedback.error(msg || 'No se pudo eliminar el pedido.');
+        this.uiFeedback.error(msg || 'No se pudo cancelar el pedido.');
       },
     });
   }
 
-  async cobrar(p: PedidoDespacho, event: Event): Promise<void> {
+  /**
+   * La forma de pago con la que el pedido ya llegó, lista para cobrar sin abrir el detalle; o
+   * `null` si no trae ninguna, o trae una que hay que revisar antes de cobrar.
+   *
+   * Un pedido llega a Despacho con la forma de pago elegida (al tomarlo) o sin ella. Si ya viene,
+   * pedirla otra vez en el modal es un paso que sobra. Se abre el modal —y no se cobra— cuando:
+   *  - no hay forma de pago (hay que elegirla);
+   *  - un multipago ya no suma el total (se editó el pedido después): cobrar así lo rechazaría;
+   *  - la forma es «Cuenta / Tiquetera» y el pedido no dice de quién es: el servidor exige la
+   *    cuenta y no la adivina, para no descontarle el almuerzo a otra persona.
+   */
+  private seleccionGuardada(p: PedidoDespacho): PagoSeleccion | null {
+    const idCuenta = p.id_cuenta ?? null;
+    const esCuenta = (idMetodo: number | null) =>
+      this.metodosPago().some((m) => m.id_metodo_pago === idMetodo && m.es_cuenta);
+
+    const filas = (p.pagos ?? []).map((f) => ({
+      id_metodo_pago: f.id_metodo_pago,
+      valor: Number(f.valor ?? 0),
+    }));
+    if (filas.length > 0) {
+      const suma = filas.reduce((t, f) => t + f.valor, 0);
+      const cuadra = Math.abs(suma - Number(p.total)) < 0.5;
+      if (!cuadra || (filas.some((f) => esCuenta(f.id_metodo_pago)) && !idCuenta)) return null;
+      return { modo: 'multi', idMetodoPago: null, pagos: filas, filas, valido: true, idCuenta };
+    }
+
+    const idMetodoPago = p.id_metodo_pago ?? null;
+    if (!idMetodoPago || (esCuenta(idMetodoPago) && !idCuenta)) return null;
+    return { modo: 'simple', idMetodoPago, pagos: [], filas: [], valido: true, idCuenta };
+  }
+
+  /**
+   * «Cobrar» en la tarjeta: si el pedido ya trae su forma de pago cobra enseguida; si no, abre el
+   * detalle para elegirla. Desde el modal se sigue usando `cobrar` con lo que ahí se eligió.
+   */
+  cobrarDesdeTarjeta(p: PedidoDespacho, event: Event): void {
+    event.stopPropagation();
+    const seleccion = this.seleccionGuardada(p);
+    if (!seleccion) {
+      this.abrirPedido(p);
+      return;
+    }
+    void this.cobrar(p, event, seleccion);
+  }
+
+  async cobrar(p: PedidoDespacho, event: Event, seleccionDirecta?: PagoSeleccion): Promise<void> {
     event.stopPropagation();
     if (this.cobrandoId() !== null) return;
 
-    const seleccion = this.pagoSeleccion();
+    const seleccion = seleccionDirecta ?? this.pagoSeleccion();
     const esMulti = seleccion?.modo === 'multi';
 
     // Construir el cuerpo del cobro: pago simple o multipago.
@@ -1170,6 +1393,10 @@ export class DespachoComponent implements OnInit {
 
     const filasItems = (p.detalles ?? []).map(d => {
       const nombre = this.escapeHtml(d.producto?.nombre ?? '(Producto)');
+      const sin = this.escapeHtml(this.textoSin(d));
+      const sinHtml = sin
+        ? `<tr><td></td><td colspan="3" class="item-meta">Sin: ${sin}</td></tr>`
+        : '';
       const lineTotal = d.cantidad * d.precio_unitario;
       const notaItem = d.nota ? this.escapeHtml(String(d.nota)) : '';
       const notaItemHtml = notaItem
@@ -1182,6 +1409,7 @@ export class DespachoComponent implements OnInit {
           <td>${this.formatCurrency(d.precio_unitario)}</td>
           <td class="text-right">${this.formatCurrency(lineTotal)}</td>
         </tr>
+        ${sinHtml}
         ${notaItemHtml}`;
     }).join('');
 

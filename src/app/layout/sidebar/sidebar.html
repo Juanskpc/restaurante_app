@@ -32,7 +32,11 @@
   <!-- Navegación principal.
        El `title` va siempre: plegado es lo único que dice a dónde lleva cada icono. -->
   <nav class="sidebar-nav">
-    <span class="nav-section-label">Principal</span>
+    <!-- El título de cada sección solo sale si el usuario tiene alguna vista en ella: un rol con pocos
+         permisos no debe ver «Gestión» encima de nada. -->
+    @if (mainItems().length > 0) {
+      <span class="nav-section-label">Principal</span>
+    }
     @for (item of mainItems(); track item.route) {
       <a class="nav-item"
          [routerLink]="item.route"
@@ -47,7 +51,9 @@
       </a>
     }
 
-    <span class="nav-section-label">Gestión</span>
+    @if (secondaryItems().length > 0) {
+      <span class="nav-section-label">Gestión</span>
+    }
     @for (item of secondaryItems(); track item.route) {
       <a class="nav-item"
          [routerLink]="item.route"

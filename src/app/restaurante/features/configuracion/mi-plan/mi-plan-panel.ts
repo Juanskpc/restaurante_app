@@ -107,6 +107,6 @@ export class MiPlanPanelComponent implements OnInit {
   }
 
   protected gestionar(): void {
-    void this.auth.irAlInicio('/admin/mis-pagos');
+    void this.auth.irAMisPagos();
   }
 }

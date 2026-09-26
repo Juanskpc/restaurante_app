@@ -403,14 +403,22 @@
           
           <div class="form-group form-group-category">
             <label class="form-label">Categoría <span class="required">*</span></label>
+            <!-- La opción marcada se declara en CADA <option> ([selected]) y no con
+                 [value] en el <select>: al abrir el modal en modo edición el <select>
+                 recibía su valor ANTES de que el @for creara las opciones, no encontraba
+                 ninguna que coincidiera y se quedaba en «Seleccionar categoría...». -->
             <select
               class="form-select"
-              [value]="prodForm().id_categoria ?? ''"
               (change)="updateProdField('id_categoria', +$any($event.target).value || null)"
             >
-              <option value="">Seleccionar categoría...</option>
+              <option value="" [selected]="!prodForm().id_categoria">Seleccionar categoría...</option>
               @for (cat of categorias(); track cat.id_categoria) {
-                <option [value]="cat.id_categoria">{{ cat.icono }} {{ cat.nombre }}</option>
+                <option
+                  [value]="cat.id_categoria"
+                  [selected]="cat.id_categoria === +(prodForm().id_categoria ?? 0)"
+                >
+                  {{ cat.icono }} {{ cat.nombre }}
+                </option>
               }
             </select>
           </div>

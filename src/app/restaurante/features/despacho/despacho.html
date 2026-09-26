@@ -30,17 +30,10 @@
       </label>
       <button class="btn-finalizar-todo"
               (click)="finalizarTodo()"
-              [disabled]="refrescando() || pedidosFiltrados().length === 0"
-              title="Finalizar todos los pedidos cobrados">
+              [disabled]="refrescando() || (pedidosFiltrados().length === 0 && canceladosFiltrados().length === 0)"
+              title="Finalizar los pedidos cobrados y quitar los cancelados de la pantalla">
         <lucide-icon name="check-square" [size]="16" />
         <span class="btn-label">Finalizar todo</span>
-      </button>
-      <button class="btn-ghost btn-refresh"
-              (click)="cargar()"
-              [disabled]="refrescando()"
-              title="Actualizar">
-        <lucide-icon name="rotate-cw" [size]="16" [class.spin]="refrescando()" />
-        <span class="btn-label">Actualizar</span>
       </button>
     </div>
   </header>
@@ -48,13 +41,15 @@
   <div class="stats-strip">
     <button class="chip" [class.active]="filtro() === 'TODOS'"
             (click)="seleccionarFiltro('TODOS')">
-      Todos ({{ pedidos().length }})
+      Todos ({{ countTodos() }})
     </button>
-    <button class="chip" [class.active]="filtro() === 'LLEVAR'"
-            (click)="seleccionarFiltro('LLEVAR')">
-      <lucide-icon name="shopping-bag" [size]="13" />
-      Para llevar ({{ countLlevar() }})
-    </button>
+    @if (muestraLlevar()) {
+      <button class="chip" [class.active]="filtro() === 'LLEVAR'"
+              (click)="seleccionarFiltro('LLEVAR')">
+        <lucide-icon name="shopping-bag" [size]="13" />
+        Para llevar ({{ countLlevar() }})
+      </button>
+    }
     @if (puedeUsarDomicilio()) {
       <button class="chip" [class.active]="filtro() === 'DOMICILIO'"
               (click)="seleccionarFiltro('DOMICILIO')">
@@ -73,43 +68,22 @@
         WhatsApp ({{ countWhatsapp() }})
       </button>
     }
-    <!--
-      Igual que el chip de WhatsApp: solo aparece si hay alguno. No filtra la lista de arriba
-      —los cancelados no son un pedido activo más, son una alerta aparte—, solo abre o cierra
-      el panel de abajo.
-    -->
-    @if (canceladosRecientes().length > 0) {
-      <button class="chip chip-cancelado" [class.active]="mostrarCancelados()"
-              (click)="alternarCancelados()"
-              [title]="mostrarCancelados() ? 'Ocultar cancelados de hoy' : 'Ver cancelados de hoy'">
+    <!-- Los cancelados también salen en «Todos»; este chip deja verlos SOLOS. Como el de WhatsApp,
+         solo aparece si hay alguno. -->
+    @if (countCancelados() > 0) {
+      <button class="chip chip-cancelados" [class.active]="filtro() === 'CANCELADOS'"
+              (click)="seleccionarFiltro('CANCELADOS')">
         <lucide-icon name="ban" [size]="13" />
-        Cancelados hoy ({{ canceladosRecientes().length }})
+        Cancelados ({{ countCancelados() }})
       </button>
     }
   </div>
-
-  @if (mostrarCancelados() && canceladosRecientes().length > 0) {
-    <div class="cancelados-panel">
-      @for (c of canceladosRecientes(); track c.id_orden) {
-        <div class="cancelado-item">
-          <span class="numero">#{{ ordenCorto(c.numero_orden) }}</span>
-          <span class="cliente">{{ c.contacto_nombre || 'Sin nombre' }}</span>
-          <span class="tipo">{{ tipoLabel(c.tipo_pedido) }}</span>
-          <span class="total">{{ c.total | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
-          <span class="quien" [class.por-cliente]="c.cancelado_por === 'cliente'">
-            {{ canceladoPorLabel(c) }}
-          </span>
-          <span class="hora">{{ c.fecha_cierre | date:'HH:mm' }}</span>
-        </div>
-      }
-    </div>
-  }
 
   @if (cargando()) {
     <div class="state">Cargando pedidos...</div>
   }
 
-  @if (!cargando() && pedidosFiltrados().length === 0) {
+  @if (!cargando() && pedidosFiltrados().length === 0 && canceladosFiltrados().length === 0) {
     <div class="state empty">
       <lucide-icon name="bike" [size]="32" />
       <p>No hay pedidos de despacho activos.</p>
@@ -120,14 +94,47 @@
   }
 
   <!-- Sin `cargando` en la condición: el listado sigue en pantalla mientras se refresca. -->
-  @if (pedidosFiltrados().length > 0) {
+  @if (pedidosFiltrados().length > 0 || canceladosFiltrados().length > 0) {
     <div [class]="'grid densidad-' + densidad()">
       @for (p of pedidosFiltrados(); track p.id_orden) {
         <article class="despacho-card" [class]="'tipo-' + p.tipo_pedido"
                  (click)="abrirPedido(p)">
+          <!-- Encabezado: el número manda; debajo, de dónde viene y cómo se entrega. -->
           <header class="card-top">
-            <span class="orden-num" [title]="p.numero_orden">{{ ordenCorto(p.numero_orden) }}</span>
-            <div class="card-top-right">
+            <span class="orden-num" [title]="p.numero_orden">#{{ ordenCorto(p.numero_orden) }}</span>
+            <div class="card-acciones">
+              @if (puedeEditar(p)) {
+                <button type="button" class="card-action"
+                        title="Editar pedido"
+                        aria-label="Editar pedido"
+                        (click)="editarPedido(p, $event)">
+                  <lucide-icon name="square-pen" [size]="16" />
+                </button>
+              }
+              @if (esPendientePago(p)) {
+                @if (puedeCancelarNoPagados()) {
+                  <button type="button" class="card-action danger"
+                          title="Cancelar pedido"
+                          aria-label="Cancelar pedido"
+                          (click)="cancelarPedido(p, $event)">
+                    <lucide-icon name="x-circle" [size]="16" />
+                  </button>
+                } @else {
+                  <span class="card-action blocked" title="Sin permiso para cancelar pendientes de pago">
+                    <lucide-icon name="lock" [size]="16" />
+                  </span>
+                }
+              } @else if (accionPrincipal(p) !== 'finalizar') {
+                <!-- Cuando «Finalizar» ya es el botón de abajo, aquí sería el mismo dos veces. -->
+                <button type="button" class="card-action"
+                        title="Finalizar y limpiar pedido"
+                        aria-label="Finalizar y limpiar pedido"
+                        (click)="limpiarPedido(p, $event)">
+                  <lucide-icon name="trash-2" [size]="16" />
+                </button>
+              }
+            </div>
+            <div class="card-badges">
               <span class="tipo-tag" [class]="'tipo-' + p.tipo_pedido">
                 @if (p.tipo_pedido === 'DOMICILIO') {
                   <lucide-icon name="bike" [size]="12" />
@@ -143,52 +150,37 @@
                   WhatsApp
                 </span>
               }
-              @if (puedeEditar(p)) {
-                <button type="button" class="card-action"
-                        title="Editar pedido"
-                        (click)="editarPedido(p, $event)">
-                  <lucide-icon name="square-pen" [size]="16" />
-                </button>
-              }
-              @if (esPendientePago(p)) {
-                @if (puedeCancelarNoPagados()) {
-                  <button type="button" class="card-action danger"
-                          title="Eliminar pedido"
-                          (click)="eliminarPedido(p, $event)">
-                    <lucide-icon name="x-circle" [size]="16" />
-                  </button>
-                } @else {
-                  <span class="card-action blocked" title="Sin permiso para eliminar pendientes de pago">
-                    <lucide-icon name="lock" [size]="16" />
-                  </span>
-                }
-              } @else {
-                <button type="button" class="card-action"
-                        title="Finalizar y limpiar pedido"
-                        (click)="limpiarPedido(p, $event)">
-                  <lucide-icon name="trash-2" [size]="16" />
-                </button>
-              }
             </div>
           </header>
 
           <div class="card-body">
-            @if (p.contacto_nombre) {
-              <div class="row">
-                <lucide-icon name="user" [size]="13" />
-                <span class="ellipsis">{{ p.contacto_nombre }}</span>
+            <!-- En un domicilio la dirección es el dato que no puede fallar: va primero y en negrita. -->
+            @if (p.tipo_pedido === 'DOMICILIO') {
+              <div class="destino" [class.sin-dato]="!p.direccion_domicilio"
+                   [title]="p.direccion_domicilio || ''">
+                <lucide-icon name="map-pin" [size]="15" />
+                <span class="destino-texto">{{ p.direccion_domicilio || 'Sin dirección' }}</span>
               </div>
             }
-            @if (p.tipo_pedido === 'DOMICILIO' && p.direccion_domicilio) {
-              <div class="row muted">
-                <lucide-icon name="map-pin" [size]="13" />
-                <span class="ellipsis">{{ p.direccion_domicilio }}</span>
+            @if (p.contacto_nombre || p.contacto_telefono) {
+              <div class="cliente">
+                @if (p.contacto_nombre) {
+                  <span class="cliente-nombre">
+                    <lucide-icon name="user" [size]="13" />
+                    <span class="ellipsis">{{ p.contacto_nombre }}</span>
+                  </span>
+                }
+                @if (p.contacto_telefono) {
+                  <span class="cliente-tel">
+                    <lucide-icon name="phone" [size]="13" />
+                    <span class="ellipsis">{{ p.contacto_telefono }}</span>
+                  </span>
+                }
               </div>
             }
-            <div class="row muted">
-              <lucide-icon name="clock-3" [size]="13" />
-              <span>{{ p.fecha_creacion | date:'shortTime' }}</span>
-              <span class="dot">·</span>
+
+            <!-- Detalle operativo: cuánto y a qué hora, en una sola línea. -->
+            <div class="row muted resumen">
               @if (densidad() === 'normal') {
                 <span>{{ itemsResumen(p) }}</span>
               } @else {
@@ -197,7 +189,17 @@
                   {{ unidadesItems(p) }}
                 </span>
               }
+              <span class="dot">•</span>
+              <span>{{ fechaPedido(p.fecha_creacion) }}</span>
             </div>
+
+            @if (puedeVerTodos() && p.tipo_pedido === 'DOMICILIO') {
+              <div class="row dom-name" [class.sin-asignar]="!p.domiciliario"
+                   [title]="'Domiciliario: ' + domiciliarioNombre(p)">
+                <lucide-icon name="bike" [size]="13" />
+                <span class="ellipsis">{{ domiciliarioNombre(p) }}</span>
+              </div>
+            }
 
             <!-- Quién tomó el pedido: para saber a quién preguntarle si algo no cuadra. -->
             @if (p.usuario) {
@@ -213,62 +215,141 @@
                 @for (d of p.detalles ?? []; track $index) {
                   <li>
                     <span class="qty">{{ d.cantidad }}×</span>
-                    <span class="ellipsis">{{ d.producto?.nombre || '(Producto)' }}</span>
+                    <span class="ellipsis">{{ d.producto?.nombre || '(Producto)' }}@if (textoSin(d); as sin) { <em class="sin">· sin {{ sin }}</em> }</span>
                   </li>
                 }
               </ul>
             }
           </div>
 
-          <footer class="card-bottom">
-            <span class="total">{{ p.total | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
-            <span class="pago-badge" [class.pagado]="!esPendientePago(p)">
-              @if (esPendientePago(p)) {
-                <lucide-icon name="clock-3" [size]="11" />
-                Pendiente
-              } @else {
-                <lucide-icon name="check-circle" [size]="11" />
-                Pagado
-              }
-            </span>
-            <button type="button" class="card-action" title="Imprimir tiquete"
-                    (click)="imprimirTicket(p, $event)">
-              <lucide-icon name="printer" [size]="14" />
-            </button>
-          </footer>
-          @if (puedeVerTodos() && p.domiciliario) {
-            <div class="dom-name" [title]="'Domiciliario: ' + domiciliarioNombre(p)">
-              <lucide-icon name="bike" [size]="12" />
-              {{ domiciliarioNombre(p) }}
-            </div>
-          }
+          <!-- Pie: total y estado de pago, y la acción principal SIEMPRE pegada al borde inferior. -->
+          <div class="card-pie">
+            <footer class="card-bottom">
+              <span class="total">{{ p.total | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+              <span class="pago-badge" [class.pagado]="!esPendientePago(p)">
+                @if (esPendientePago(p)) {
+                  <lucide-icon name="clock-3" [size]="11" />
+                  Pendiente
+                } @else {
+                  <lucide-icon name="check-circle" [size]="11" />
+                  Pagado
+                }
+              </span>
+            </footer>
 
-          <!--
-            Botón propio y con texto, no un icono más en la fila de acciones: esto le manda un
-            mensaje de WhatsApp a una persona y se lo cobra al negocio. No puede parecerse a
-            imprimir un tiquete.
-          -->
-          @if (puedeAvisarListo(p)) {
+            @if (avisoHecho(p)) {
+              <div class="aviso-hecho"
+                   [title]="p.aviso_listo_estado === 'pendiente' ? 'En cola de envío' : 'Se le avisó por WhatsApp'">
+                <lucide-icon [name]="p.aviso_listo_estado === 'pendiente' ? 'clock-3' : 'check-circle'"
+                             [size]="12" />
+                {{ p.aviso_listo_estado === 'pendiente' ? 'Enviando…' : 'Avisado' }}
+                {{ fechaPedido(p.aviso_listo_en) }}
+              </div>
+            }
+
             <!--
-              Cuando el envío anterior murió, el botón vuelve — y lo dice. Callarlo sería lo
-              peor de los dos mundos: el negocio creyendo que avisó y el cliente esperando.
+              Un solo botón principal por tarjeta, de ancho completo. «Avisar» le manda un mensaje
+              de WhatsApp a una persona y se lo cobra al negocio: por eso lleva texto, y cuando el
+              envío anterior murió, vuelve — y lo dice. Callarlo sería lo peor de los dos mundos: el
+              negocio creyendo que avisó y el cliente esperando.
             -->
-            <button type="button" class="btn-avisar" [class.reintento]="avisoFallido(p)"
-                    [disabled]="avisandoId() !== null"
-                    (click)="avisarListo(p, $event)">
-              <lucide-icon [name]="avisandoId() === p.id_orden ? 'loader' : 'send'" [size]="14"
-                           [class.spin]="avisandoId() === p.id_orden" />
-              {{ avisoFallido(p) ? 'No salió — reintentar' : etiquetaAvisar(p) }}
-            </button>
-          } @else if (avisoHecho(p)) {
-            <div class="aviso-hecho"
-                 [title]="p.aviso_listo_estado === 'pendiente' ? 'En cola de envío' : 'Se le avisó por WhatsApp'">
-              <lucide-icon [name]="p.aviso_listo_estado === 'pendiente' ? 'clock-3' : 'check-circle'"
-                           [size]="12" />
-              {{ p.aviso_listo_estado === 'pendiente' ? 'Enviando…' : 'Avisado' }}
-              {{ p.aviso_listo_en | date:'shortTime' }}
+            <div class="card-accion">
+            @switch (accionPrincipal(p)) {
+              @case ('avisar') {
+                <button type="button" class="btn-principal" [class.reintento]="avisoFallido(p)"
+                        [disabled]="avisandoId() !== null"
+                        (click)="avisarListo(p, $event)">
+                  <lucide-icon [name]="avisandoId() === p.id_orden ? 'loader' : 'send'" [size]="15"
+                               [class.spin]="avisandoId() === p.id_orden" />
+                  {{ avisoFallido(p) ? 'No salió — reintentar' : etiquetaAvisar(p) }}
+                </button>
+              }
+              @case ('cobrar') {
+                <button type="button" class="btn-principal"
+                        [disabled]="cobrandoId() !== null"
+                        (click)="cobrarDesdeTarjeta(p, $event)">
+                  <lucide-icon [name]="cobrandoId() === p.id_orden ? 'loader' : 'banknote'" [size]="15"
+                               [class.spin]="cobrandoId() === p.id_orden" />
+                  {{ cobrandoId() === p.id_orden ? 'Cobrando…' : 'Cobrar' }}
+                </button>
+              }
+              @default {
+                <button type="button" class="btn-principal"
+                        (click)="limpiarPedido(p, $event)">
+                  <lucide-icon name="check" [size]="15" />
+                  Finalizar
+                </button>
+              }
+            }
+              <!-- Cuadrado y con borde propio: es un botón de uso frecuente, no un adorno del total. -->
+              @if (!esDomiciliario()) {
+                <button type="button" class="btn-imprimir"
+                        title="Imprimir tiquete"
+                        aria-label="Imprimir tiquete"
+                        (click)="imprimirTicket(p, $event)">
+                  <lucide-icon name="printer" [size]="18" />
+                </button>
+              }
             </div>
-          }
+          </div>
+        </article>
+      }
+
+      <!--
+        Los cancelados de hoy, como una tarjeta más pero marcada «Cancelado». No se cobran, no se
+        editan ni se abren: lo único que se puede hacer es «Finalizar», que la quita de la pantalla.
+      -->
+      @for (c of canceladosFiltrados(); track c.id_orden) {
+        <article class="despacho-card card-cancelado">
+          <header class="card-top">
+            <span class="orden-num" [title]="c.numero_orden">#{{ ordenCorto(c.numero_orden) }}</span>
+            <div class="card-badges">
+              <span class="tipo-tag tag-cancelado">
+                <lucide-icon name="ban" [size]="12" />
+                Cancelado
+              </span>
+              <span class="tipo-tag" [class]="'tipo-' + c.tipo_pedido">
+                @if (c.tipo_pedido === 'DOMICILIO') {
+                  <lucide-icon name="bike" [size]="12" />
+                } @else {
+                  <lucide-icon name="shopping-bag" [size]="12" />
+                }
+                {{ tipoLabel(c.tipo_pedido) }}
+              </span>
+            </div>
+          </header>
+
+          <div class="card-body">
+            @if (c.contacto_nombre) {
+              <div class="cliente">
+                <span class="cliente-nombre">
+                  <lucide-icon name="user" [size]="13" />
+                  <span class="ellipsis">{{ c.contacto_nombre }}</span>
+                </span>
+              </div>
+            }
+            <div class="row muted resumen">
+              <span>{{ c.fecha_cierre | date:'shortTime' }}</span>
+              <span class="dot">•</span>
+              <span class="quien" [class.por-cliente]="c.cancelado_por === 'cliente'">
+                {{ canceladoPorLabel(c) }}
+              </span>
+            </div>
+          </div>
+
+          <div class="card-pie">
+            <footer class="card-bottom">
+              <span class="total total-cancelado">{{ c.total | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+            </footer>
+            <div class="card-accion">
+              <button type="button" class="btn-principal btn-cancelado"
+                      title="Quitar este pedido cancelado de la pantalla"
+                      (click)="finalizarCancelado(c, $event)">
+                <lucide-icon name="check" [size]="15" />
+                Finalizar
+              </button>
+            </div>
+          </div>
         </article>
       }
     </div>
@@ -514,7 +595,12 @@
               @for (d of p.detalles ?? []; track $index) {
                 <li>
                   <span class="qty">{{ d.cantidad }}×</span>
-                  <span class="nombre">{{ d.producto?.nombre || '(Producto)' }}</span>
+                  <span class="nombre">
+                    {{ d.producto?.nombre || '(Producto)' }}
+                    @if (textoSin(d); as sin) {
+                      <small class="sin">Sin {{ sin }}</small>
+                    }
+                  </span>
                   <span class="line-total">
                     {{ d.cantidad * d.precio_unitario | currency:'COP':'symbol-narrow':'1.0-0' }}
                   </span>
@@ -562,9 +648,9 @@
             {{ cobrandoId() === p.id_orden ? 'Cobrando...' : 'Cobrar' }}
           </button>
           @if (puedeCancelarNoPagados()) {
-            <button class="btn-danger" (click)="eliminarPedido(p, $event)">
+            <button class="btn-danger" (click)="cancelarPedido(p, $event)">
               <lucide-icon name="x-circle" [size]="16" />
-              Eliminar
+              Cancelar
             </button>
           }
         } @else {
@@ -573,10 +659,12 @@
             Finalizar
           </button>
         }
-        <button class="btn-secondary" (click)="imprimirTicket(p, $event)" title="Imprimir tiquete">
-          <lucide-icon name="printer" [size]="16" />
-          Imprimir
-        </button>
+        @if (!esDomiciliario()) {
+          <button class="btn-secondary" (click)="imprimirTicket(p, $event)" title="Imprimir tiquete">
+            <lucide-icon name="printer" [size]="16" />
+            Imprimir
+          </button>
+        }
         @if (telHref(p.contacto_telefono); as href) {
           <a class="btn-call" [href]="href">
             <lucide-icon name="phone-call" [size]="16" />

@@ -76,16 +76,28 @@
       }
     </div>
 
-    <!-- Título de sección -->
-    @if (categorias().length > 0) {
-      @for (cat of categorias(); track cat.id_categoria) {
-        @if (cat.id_categoria === categoriaActiva()) {
-          <div class="products-section-title">
-            {{ cat.icono }} {{ cat.nombre }} — {{ cat.total_productos }} productos
-          </div>
+    <!-- Título de sección + acceso a editar un pedido ya tomado -->
+    <div class="products-section-row">
+      @if (categorias().length > 0) {
+        @for (cat of categorias(); track cat.id_categoria) {
+          @if (cat.id_categoria === categoriaActiva()) {
+            <div class="products-section-title">
+              {{ cat.icono }} {{ cat.nombre }} — {{ cat.total_productos }} productos
+            </div>
+          }
         }
       }
-    }
+      @if (tiposPedidoDisponibles().length > 0) {
+        <button type="button"
+                class="btn-editar-pedido"
+                [disabled]="cajaCerrada()"
+                [title]="cajaCerrada() ? 'Abre la caja para editar pedidos' : 'Buscar un pedido ya tomado para editarlo'"
+                (click)="abrirModalEditar()">
+          <lucide-icon name="pencil" [size]="14" />
+          Editar pedido
+        </button>
+      }
+    </div>
 
     <!-- Grid de productos -->
     <div class="products-grid">
@@ -174,7 +186,7 @@
         <button class="type-btn"
                 [class.active]="tipoPedido() === 'MESA'"
                 (click)="seleccionarTipoPedido('MESA')">
-          <lucide-icon name="armchair" [size]="16" />
+          <lucide-icon name="mesa" [size]="16" />
           <span class="type-btn-label">En mesa</span>
         </button>
         }
@@ -202,11 +214,13 @@
           <div class="mesa-pago-row mesa-pago-row--mesa">
             <select class="mesa-select"
                     [class.error]="mesaRequeridaError()"
-                    [value]="mesaId() ?? ''"
                     (change)="seleccionarMesa($any($event.target).value)">
-              <option value="">{{ isMobileViewport() ? '🪑 Mesa...' : '🪑 Seleccionar mesa...' }}</option>
+              <!-- La selección va en cada <option> y no en `[value]` del <select>: al llegar desde
+                   Mesas el selector se pinta a la vez que sus opciones, y un `value` aplicado
+                   antes de que existan no elige nada (la mesa estaba cargada pero se veía vacía). -->
+              <option value="" [selected]="!mesaId()">{{ isMobileViewport() ? '🪑 Mesa...' : '🪑 Seleccionar mesa...' }}</option>
               @for (m of mesas(); track m.id_mesa) {
-                <option [value]="m.id_mesa">🪑 {{ m.nombre }}</option>
+                <option [value]="m.id_mesa" [selected]="m.id_mesa === mesaId()">🪑 {{ m.nombre }}</option>
               }
             </select>
 
@@ -242,7 +256,7 @@
                  value="Cargando mesas..." />
         } @else {
           <div class="mesa-empty-state">
-            <lucide-icon name="armchair" [size]="14" />
+            <lucide-icon name="mesa" [size]="14" />
             No hay mesas configuradas. Crea una mesa para continuar.
           </div>
 
@@ -267,20 +281,6 @@
           />
         </div>
 
-        @if (cargandoPedidosDespacho()) {
-          <select class="mesa-select" disabled>
-            <option>Cargando pedidos...</option>
-          </select>
-        } @else if (pedidosDespacho().length > 0) {
-          <select class="mesa-select"
-                  [value]="pedidoDespachoSeleccionado()?.id_orden ?? ''"
-                  (change)="seleccionarPedidoDespachoSelect($any($event.target).value)">
-            <option value="">📦 Seleccionar pedido pendiente...</option>
-            @for (p of pedidosDespacho(); track p.id_orden) {
-              <option [value]="p.id_orden">📦 {{ p.numero_orden }} — {{ p.contacto_nombre || 'Sin nombre' }} ({{ p.total | currency:'COP':'symbol-narrow':'1.0-0' }})</option>
-            }
-          </select>
-        }
       } @else {
         <div class="mesa-pago-row">
           <button type="button" class="domicilio-btn"
@@ -307,20 +307,6 @@
           />
         </div>
 
-        @if (cargandoPedidosDespacho()) {
-          <select class="mesa-select" disabled>
-            <option>Cargando pedidos...</option>
-          </select>
-        } @else if (pedidosDespacho().length > 0) {
-          <select class="mesa-select"
-                  [value]="pedidoDespachoSeleccionado()?.id_orden ?? ''"
-                  (change)="seleccionarPedidoDespachoSelect($any($event.target).value)">
-            <option value="">📦 Seleccionar pedido pendiente...</option>
-            @for (p of pedidosDespacho(); track p.id_orden) {
-              <option [value]="p.id_orden">📦 {{ p.numero_orden }} — {{ p.contacto_nombre || 'Sin nombre' }} ({{ p.total | currency:'COP':'symbol-narrow':'1.0-0' }})</option>
-            }
-          </select>
-        }
       }
 
       <!-- Cobro del domicilio (visible solo si el negocio lo activó en Configuración) -->
@@ -388,7 +374,6 @@
             <div class="item-emoji">{{ item.icono }}</div>
             <div class="item-info">
               <div class="item-name">{{ item.nombre }}</div>
-              <div class="item-price paid-price">{{ item.precio_unitario | currency:'COP':'symbol-narrow':'1.0-0' }} c/u</div>
               <div class="item-line-total paid-price">
                 x{{ item.cantidad }} = {{ item.precio_unitario * item.cantidad | currency:'COP':'symbol-narrow':'1.0-0' }}
               </div>
@@ -420,7 +405,6 @@
             <div class="item-emoji">{{ item.icono }}</div>
             <div class="item-info">
               <div class="item-name">{{ item.nombre }}</div>
-              <div class="item-price">{{ item.precio_unitario | currency:'COP':'symbol-narrow':'1.0-0' }} c/u</div>
               <div class="item-line-total">
                 x{{ item.cantidad }} = {{ item.precio_unitario * item.cantidad | currency:'COP':'symbol-narrow':'1.0-0' }}
               </div>
@@ -436,7 +420,7 @@
                 <button class="action-btn customize-btn"
                         title="Personalizar ingredientes"
                         (click)="abrirPersonalizacion(item)">
-                  <lucide-icon name="settings" [size]="14" />
+                  <lucide-icon name="salad" [size]="14" />
                 </button>
               }
               <div class="item-qty">
@@ -454,134 +438,138 @@
       }
     </div>
 
-    <!-- Nota de la orden -->
-    <div class="note-box" (click)="notaInput.focus()">
-      <lucide-icon name="notebook-pen" [size]="16" />
-      <input #notaInput
-             class="note-input"
-             type="text"
-             placeholder="Nota especial..."
-             [value]="notaOrden()"
-             (input)="notaOrden.set($any($event.target).value)" />
-    </div>
-
-    <!-- Totales -->
-    @if (items().length > 0) {
-      <div class="order-totals">
-        @if (itemsPagados().length > 0) {
-          <div class="total-row paid">
-            <span>Ya pagado</span>
-            <span class="paid-value">{{ totalPagado() | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
-          </div>
-        }
-        @if (valorDomicilio() > 0 || descuento() > 0) {
-          <div class="total-row">
-            <span>Productos</span>
-            <span>{{ totalProductos() | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
-          </div>
-        }
-        @if (valorDomicilio() > 0) {
-          <div class="total-row">
-            <span>Domicilio</span>
-            <span>{{ valorDomicilio() | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
-          </div>
-        }
-        @if (descuento() > 0) {
-          <div class="total-row discount">
-            <span>Descuento</span>
-            <span>-{{ descuento() | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
-          </div>
-        }
-        <div class="total-row final">
-          <span>{{ itemsPagados().length > 0 ? 'TOTAL ADICIONAL' : 'TOTAL' }}</span>
-          <span class="total-value">{{ total() | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
-        </div>
+    <!-- Pie del pedido: nota, totales y botones JUNTOS y al fondo del panel (con pocos productos se
+         van abajo; con muchos se quedan a la vista mientras la lista se desplaza por detrás). -->
+    <div class="order-footer">
+      <!-- Nota de la orden -->
+      <div class="note-box" (click)="notaInput.focus()">
+        <lucide-icon name="notebook-pen" [size]="16" />
+        <input #notaInput
+               class="note-input"
+               type="text"
+               placeholder="Nota especial..."
+               [value]="notaOrden()"
+               (input)="notaOrden.set($any($event.target).value)" />
       </div>
 
-      <!-- Botones de acción -->
-      <div class="action-btns">
-        <div class="cash-box">
-          <input id="pedido-efectivo-input"
-                 class="cash-input"
-                 type="text"
-                 inputmode="numeric"
-                 aria-label="Efectivo recibido (opcional)"
-                 placeholder="Efectivo recibido (opcional)"
-                 [value]="efectivoRecibidoInput()"
-                 (input)="setEfectivoRecibido($any($event.target).value)" />
-
-          @if (efectivoRecibido() !== null) {
-            @if (faltanteCobro()! > 0) {
-              <div class="cash-feedback error">
-                Faltan {{ faltanteCobro() | currency:'COP':'symbol-narrow':'1.0-0' }} para completar el pago.
-              </div>
-            } @else {
-              <div class="cash-feedback success">
-                Vuelta: {{ vueltaCobro() | currency:'COP':'symbol-narrow':'1.0-0' }}
-              </div>
-            }
+      <!-- Totales -->
+      @if (items().length > 0) {
+        <div class="order-totals">
+          @if (itemsPagados().length > 0) {
+            <div class="total-row paid">
+              <span>Ya pagado</span>
+              <span class="paid-value">{{ totalPagado() | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+            </div>
           }
+          @if (valorDomicilio() > 0 || descuento() > 0) {
+            <div class="total-row">
+              <span>Productos</span>
+              <span>{{ totalProductos() | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+            </div>
+          }
+          @if (valorDomicilio() > 0) {
+            <div class="total-row">
+              <span>Domicilio</span>
+              <span>{{ valorDomicilio() | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+            </div>
+          }
+          @if (descuento() > 0) {
+            <div class="total-row discount">
+              <span>Descuento</span>
+              <span>-{{ descuento() | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+            </div>
+          }
+          <div class="total-row final">
+            <span>{{ itemsPagados().length > 0 ? 'TOTAL ADICIONAL' : 'TOTAL' }}</span>
+            <span class="total-value">{{ total() | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+          </div>
         </div>
 
-        <div class="primary-action-row">
-          @if (tipoPedido() === 'MESA') {
-            <button class="btn-cash"
+        <!-- Botones de acción -->
+        <div class="action-btns">
+          <div class="cash-box">
+            <input id="pedido-efectivo-input"
+                   class="cash-input"
+                   type="text"
+                   inputmode="numeric"
+                   aria-label="Efectivo recibido (opcional)"
+                   placeholder="Efectivo recibido (opcional)"
+                   [value]="efectivoRecibidoInput()"
+                   (input)="setEfectivoRecibido($any($event.target).value)" />
+
+            @if (efectivoRecibido() !== null) {
+              @if (faltanteCobro()! > 0) {
+                <div class="cash-feedback error">
+                  Faltan {{ faltanteCobro() | currency:'COP':'symbol-narrow':'1.0-0' }} para completar el pago.
+                </div>
+              } @else {
+                <div class="cash-feedback success">
+                  Vuelta: {{ vueltaCobro() | currency:'COP':'symbol-narrow':'1.0-0' }}
+                </div>
+              }
+            }
+          </div>
+
+          <div class="primary-action-row">
+            @if (tipoPedido() === 'MESA') {
+              <button class="btn-cash"
+                      [disabled]="enviando() || items().length === 0"
+                      title="Enviar pedido a caja"
+                      (click)="enviarACaja()">
+                <lucide-icon name="credit-card" [size]="20" />
+                {{ enviando() && destinoEnvio() === 'CAJA' ? 'Enviando...' : 'Enviar a caja' }}
+              </button>
+            } @else {
+              <button class="btn-cash"
+                      [disabled]="enviando() || items().length === 0 || (tipoPedido() === 'DOMICILIO' && !domicilioListo())"
+                      [title]="tipoPedido() === 'DOMICILIO' && !domicilioListo() ? 'Completa los datos de domicilio' : 'Enviar pedido a despacho'"
+                      (click)="enviarADespacho()">
+                <lucide-icon name="bike" [size]="20" />
+                {{ enviando() && destinoEnvio() === 'DESPACHO' ? 'Enviando...' : 'Enviar a despacho' }}
+              </button>
+            }
+            @if (canEnviarCocina()) {
+              <button class="btn-kitchen"
+                      [disabled]="enviando() || items().length === 0"
+                      (click)="enviarACocina()">
+                <lucide-icon name="flame" [size]="20" />
+                {{ enviando() && destinoEnvio() === 'COCINA' ? 'Enviando...' : 'Enviar a cocina' }}
+              </button>
+            }
+            @if (!canCobrarPedido() && !canImprimirPedido()) {
+              <button class="btn-secondary danger inline-clean" (click)="limpiarOrden()">
+                <lucide-icon name="trash-2" [size]="16" />
+                Limpiar
+              </button>
+            }
+          </div>
+          @if (canCobrarPedido() || canImprimirPedido()) {
+          <div class="btn-row">
+            @if (canCobrarPedido()) {
+            <button class="btn-secondary"
                     [disabled]="enviando() || items().length === 0"
-                    title="Enviar pedido a caja"
-                    (click)="enviarACaja()">
-              <lucide-icon name="credit-card" [size]="20" />
-              {{ enviando() && destinoEnvio() === 'CAJA' ? 'ENVIANDO...' : 'ENVIAR A CAJA' }}
+                    (click)="cobrarPedido()">
+              <lucide-icon name="banknote" [size]="16" />
+              {{ enviando() && destinoEnvio() === 'COBRAR' ? 'Cobrando...' : 'Cobrar' }}
             </button>
-          } @else {
-            <button class="btn-cash"
-                    [disabled]="enviando() || items().length === 0 || (tipoPedido() === 'DOMICILIO' && !domicilioListo())"
-                    [title]="tipoPedido() === 'DOMICILIO' && !domicilioListo() ? 'Completa los datos de domicilio' : 'Enviar pedido a despacho'"
-                    (click)="enviarADespacho()">
-              <lucide-icon name="bike" [size]="20" />
-              {{ enviando() && destinoEnvio() === 'DESPACHO' ? 'ENVIANDO...' : 'ENVIAR A DESPACHO' }}
+            }
+            @if (canImprimirPedido() && pedidoRegistrado()) {
+            <button class="btn-secondary"
+                    [disabled]="items().length === 0 || enviando()"
+                    (click)="imprimirTicket()">
+              <lucide-icon name="printer" [size]="16" />
+              Imprimir
             </button>
-          }
-          @if (canEnviarCocina()) {
-            <button class="btn-kitchen"
-                    [disabled]="enviando() || items().length === 0"
-                    (click)="enviarACocina()">
-              <lucide-icon name="flame" [size]="20" />
-              {{ enviando() && destinoEnvio() === 'COCINA' ? 'ENVIANDO...' : 'ENVIAR A COCINA' }}
-            </button>
-          }
-          @if (!canCobrarPedido() && !canImprimirPedido()) {
-            <button class="btn-secondary danger inline-clean" (click)="limpiarOrden()">
+            }
+            <button class="btn-secondary danger" (click)="limpiarOrden()">
               <lucide-icon name="trash-2" [size]="16" />
               Limpiar
             </button>
+          </div>
           }
         </div>
-        @if (canCobrarPedido() || canImprimirPedido()) {
-        <div class="btn-row">
-          @if (canCobrarPedido()) {
-          <button class="btn-secondary"
-                  [disabled]="enviando() || items().length === 0"
-                  (click)="cobrarPedido()">
-            <lucide-icon name="banknote" [size]="16" />
-            {{ enviando() && destinoEnvio() === 'COBRAR' ? 'COBRANDO...' : 'Cobrar' }}
-          </button>
-          }
-          @if (canImprimirPedido() && pedidoRegistrado()) {
-          <button class="btn-secondary"
-                  [disabled]="items().length === 0 || enviando()"
-                  (click)="imprimirTicket()">
-            <lucide-icon name="printer" [size]="16" />
-            Imprimir
-          </button>
-          }
-          <button class="btn-secondary danger" (click)="limpiarOrden()">
-            <lucide-icon name="trash-2" [size]="16" />
-            Limpiar
-          </button>
-        </div>
-        }
-      </div>
-    }
+      }
+    </div>
     }
   </aside>
   }
@@ -590,8 +578,13 @@
 
 <!-- ═══════ FAB: Ver orden en móvil ═══════ -->
 @if (totalItems() > 0) {
-  <button class="fab-order" (click)="toggleOrdenPanel()">
+  <button class="fab-order"
+          [class.fab-order--aviso]="avisoFab() !== null"
+          (click)="toggleOrdenPanel()">
     <lucide-icon name="clipboard-list" [size]="22" />
+    @if (avisoFab(); as aviso) {
+      <span class="fab-aviso" role="status">{{ aviso }}</span>
+    }
     <span class="fab-badge">{{ totalItems() }}</span>
   </button>
 }
@@ -632,6 +625,90 @@
       <button class="modal-done" (click)="confirmarPersonalizacion()">
         Listo
       </button>
+    </div>
+  </div>
+}
+
+<!-- ═══════ MODAL: Editar pedido ═══════ -->
+@if (modalEditarAbierto()) {
+  <div class="modal-overlay modal-overlay-top" (click)="cerrarModalEditar()">
+    <div class="modal-content editar-modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>
+          <lucide-icon name="pencil" [size]="18" />
+          Editar pedido
+        </h3>
+        <button class="modal-close" (click)="cerrarModalEditar()" aria-label="Cerrar">
+          <lucide-icon name="x" [size]="20" />
+        </button>
+      </div>
+
+      <div class="order-type-switch editar-tipos" role="tablist" aria-label="Tipo de pedido">
+        @if (canUsarEnMesa()) {
+          <button class="type-btn" role="tab"
+                  [class.active]="editarTipo() === 'MESA'"
+                  (click)="cambiarTipoEditar('MESA')">
+            <lucide-icon name="mesa" [size]="16" />
+            <span class="type-btn-label">En mesa</span>
+          </button>
+        }
+        @if (canUsarParaLlevar()) {
+          <button class="type-btn" role="tab"
+                  [class.active]="editarTipo() === 'LLEVAR'"
+                  (click)="cambiarTipoEditar('LLEVAR')">
+            <lucide-icon name="shopping-bag" [size]="16" />
+            <span class="type-btn-label">Para llevar</span>
+          </button>
+        }
+        @if (canUsarDomicilio()) {
+          <button class="type-btn" role="tab"
+                  [class.active]="editarTipo() === 'DOMICILIO'"
+                  (click)="cambiarTipoEditar('DOMICILIO')">
+            <lucide-icon name="bike" [size]="16" />
+            <span class="type-btn-label">Domicilio</span>
+          </button>
+        }
+      </div>
+
+      <div class="editar-lista">
+        @if (editarCargando()) {
+          <div class="editar-estado">Cargando pedidos…</div>
+        } @else if (editarLista().length === 0) {
+          <div class="editar-estado editar-estado--vacio">
+            <lucide-icon name="folder-x" [size]="26" />
+            <p>
+              Actualmente no hay registros para este tipo de pedido:
+              {{ editarTipo() === 'MESA' ? 'en mesa' : editarTipo() === 'LLEVAR' ? 'para llevar' : 'a domicilio' }}.
+            </p>
+          </div>
+        } @else {
+          @for (p of editarLista(); track p.id_orden) {
+            <button type="button" class="editar-item"
+                    [class.active]="editarSeleccion() === p.id_orden"
+                    [attr.aria-pressed]="editarSeleccion() === p.id_orden"
+                    (click)="seleccionarPedidoEditar(p.id_orden)">
+              <span class="editar-item__main">
+                <span class="editar-item__titulo">{{ p.titulo }}</span>
+                <span class="editar-item__sub">
+                  {{ p.numero_orden }}@if (p.subtitulo) { · {{ p.subtitulo }} }
+                </span>
+              </span>
+              <span class="editar-item__total">{{ p.total | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+            </button>
+          }
+        }
+      </div>
+
+      <div class="dom-actions">
+        <button type="button" class="btn-secondary" [disabled]="editarAplicando()" (click)="cerrarModalEditar()">
+          Cancelar
+        </button>
+        <button type="button" class="modal-done"
+                [disabled]="editarSeleccion() === null || editarAplicando()"
+                (click)="editarPedidoSeleccionado()">
+          {{ editarAplicando() ? 'Cargando…' : 'Editar' }}
+        </button>
+      </div>
     </div>
   </div>
 }

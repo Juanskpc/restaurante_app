@@ -16,12 +16,12 @@ export interface DatosInvitacion {
   nombre: string;
   /** Nombre del negocio al que se le da la bienvenida. */
   negocio: string;
-  /** Con qué entra. */
+  /** Con qué entra: su número de identificación (el correo NO es el usuario de ingreso). */
   usuario: string;
   /**
-   * Cómo se llama ese dato en la pantalla de acceso. Cambia entre verticales —el
-   * restaurante entra con el correo y la agenda con el documento— y si el mensaje
-   * dice solo «Usuario» la persona prueba con el que no es y cree que está bloqueada.
+   * Cómo se llama ese dato en la pantalla de acceso. En todo EscalApp se entra con el número de
+   * identificación; si el mensaje dice solo «Usuario» la persona prueba con su correo y cree que
+   * está bloqueada.
    */
   etiquetaUsuario?: string;
   /** La que escribió el administrador en el formulario. */
