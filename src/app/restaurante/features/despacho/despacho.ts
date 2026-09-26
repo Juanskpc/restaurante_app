@@ -349,6 +349,7 @@ export class DespachoComponent implements OnInit {
     this.http.get<{ success: boolean; data: PedidoDespacho[] }>(url).subscribe({
       next: (res) => {
         aplicarLista(this.pedidos, res?.data ?? [], (p) => p.id_orden);
+        this.sincronizarPedidoActivo();
         this.cargando.set(false);
         this.refrescando.set(false);
       },
@@ -449,6 +450,28 @@ export class DespachoComponent implements OnInit {
     this.domicilioInput.set(valor > 0 ? String(valor) : '');
     const rebaja = this.descuento(p);
     this.descuentoInput.set(rebaja > 0 ? String(rebaja) : '');
+  }
+
+  /**
+   * Vuelve a apuntar el detalle abierto a la versión recién traída del servidor.
+   *
+   * `pedidoActivo` es una COPIA que se tomó al abrir el modal, y el refresco en vivo solo
+   * tocaba la lista: el detalle se quedaba congelado en el estado que tenía al abrirse. Con
+   * dos equipos cobrando a la vez eso costó plata de verdad — el ORD-0555 de El Callejero
+   * (2026-09-24) entró dos veces a caja porque en la segunda pantalla el pedido seguía
+   * pintándose como pendiente de pago tres minutos después de haberse cobrado.
+   *
+   * Si el pedido ya no está en la lista (se finalizó o se canceló en otro equipo) el detalle
+   * se cierra: no tiene sentido seguir operando sobre algo que ya no está.
+   *
+   * `aplicarLista` conserva el objeto de los pedidos que no cambiaron, así que en el caso
+   * normal esto reasigna exactamente la misma referencia y no repinta nada.
+   */
+  private sincronizarPedidoActivo(): void {
+    const activo = this.pedidoActivo();
+    if (!activo) return;
+    const vigente = this.pedidos().find((p) => p.id_orden === activo.id_orden) ?? null;
+    if (vigente !== activo) this.pedidoActivo.set(vigente);
   }
 
   cerrarPedido(): void {
@@ -1015,7 +1038,17 @@ export class DespachoComponent implements OnInit {
       },
       error: (err: HttpErrorResponse) => {
         const codigo = err?.error?.errors?.code || err?.error?.code;
-        if (codigo === 'CAJA_CERRADA') {
+        if (codigo === 'ORDEN_YA_COBRADA' || codigo === 'ORDEN_ANULADA') {
+          // Esta pantalla venía vieja: el pedido lo cobró (o lo anuló) otro equipo. Se recarga
+          // para que el botón desaparezca solo y no se insista.
+          this.cargar();
+          void this.uiFeedback.alert({
+            title: codigo === 'ORDEN_YA_COBRADA' ? 'El pedido ya fue cobrado' : 'Pedido anulado',
+            message: err?.error?.message
+              || 'Otro equipo ya registró este cobro. La lista se acaba de actualizar.',
+            tone: 'info',
+          });
+        } else if (codigo === 'CAJA_CERRADA') {
           const idNeg = this.negocioId();
           if (idNeg) void this.cajaSvc.verificar(idNeg);
           void this.uiFeedback.alert({
