@@ -34,6 +34,13 @@
   .subtitle { margin: .25rem 0 0; color: var(--color-text-secondary); font-size: .9rem; }
 
   .header-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+
+  // En el teléfono los botones ocupan todo el ancho: los de cada fila se reparten el espacio, y
+  // uno que queda solo («Cerrar caja», «Abrir caja») se estira en vez de dejar un hueco al lado.
+  @media (max-width: 767px) {
+    .header-actions { width: 100%; }
+    .header-actions .btn { flex: 1 1 auto; justify-content: center; }
+  }
 }
 
 .btn {
@@ -207,6 +214,11 @@
  */
 @mixin tabla-movimientos {
   .movimientos__table {
+    // La tabla es más ancha que la pantalla en el teléfono y este contenedor es el que hace el
+    // scroll de lado. Se declara contenedor para que el detalle de un pedido pueda medir el ancho
+    // que se VE (`cqw`) y no el de la tabla entera: ver `.detalle-pedido`.
+    container-type: inline-size;
+
     // Sin alto máximo: la tabla crece y quien hace scroll vertical es la vista
     // completa (`.content` del layout), no una caja interna. Solo se conserva el
     // scroll horizontal, que la tabla necesita por su min-width en pantallas angostas.
@@ -227,7 +239,7 @@
       border-bottom: 1px solid var(--color-border);
       white-space: nowrap;
     }
-    th { font-weight: 600; color: var(--color-text-secondary); font-size: .75rem; text-transform: uppercase; }
+    th { font-weight: 700; color: var(--color-text-secondary); font-size: .75rem; text-transform: uppercase; }
     td.num, th.num { text-align: right; }
     .ref { color: var(--color-text-secondary); }
 
@@ -371,8 +383,14 @@
     // Con la tabla más ancha que la pantalla, el detalle se queda pegado a la izquierda y con el
     // ancho visible, en vez de estirarse hasta el final de la fila.
     position: sticky;
-    left: 0;
+    left: .35rem;
     width: min(100%, calc(100vw - 1.5rem));
+    // Con `cqw` la tarjeta mide exactamente la parte visible de la tabla: se lee entera sin desplazarse
+    // (el `100vw` de arriba no descontaba los márgenes de la página y la cortaba por la derecha), y
+    // como es `sticky`, se queda quieta mientras la fila de arriba se desliza de lado.
+    @supports (width: 1cqw) {
+      width: calc(100cqw - .7rem);
+    }
     box-sizing: border-box;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md, .5rem);

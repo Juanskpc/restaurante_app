@@ -6,6 +6,8 @@ export type DensidadTarjeta = 'normal' | 'compacta' | 'mini';
 
 const CICLO: DensidadTarjeta[] = ['normal', 'compacta', 'mini'];
 const STORAGE_PREFIX = 'vista_tarjetas_v1';
+/** Ancho (px) hasta el que se considera «móvil»: el mismo corte que usan las hojas de estilo. */
+const ANCHO_MOVIL = 560;
 
 interface VistaGuardada {
   densidad?: DensidadTarjeta;
@@ -28,10 +30,21 @@ export class VistaTarjetasService {
 
   private readonly densidades = new Map<string, WritableSignal<DensidadTarjeta>>();
   private readonly productos = new Map<string, WritableSignal<boolean>>();
+  /**
+   * Módulos cuyo tamaño lo eligió el usuario con el botón. Solo esos se guardan: un tamaño que
+   * es el de por defecto no es una elección, y guardarlo tapaba el cambio de por defecto —p. ej.
+   * quien solo marcó «Ver productos» quedaba con «normal» escrito como si lo hubiera pedido.
+   */
+  private readonly densidadElegida = new Set<string>();
 
-  /** Tamaño actual de las tarjetas del módulo. */
-  densidad(modulo: string): Signal<DensidadTarjeta> {
-    return this.densidadSignal(modulo).asReadonly();
+  /**
+   * Tamaño actual de las tarjetas del módulo.
+   *
+   * `porDefectoMovil` es el tamaño con el que arranca en un teléfono cuando el usuario aún no ha
+   * elegido ninguno. Lo que el usuario elija siempre manda: se guarda y se respeta al recargar.
+   */
+  densidad(modulo: string, porDefectoMovil?: DensidadTarjeta): Signal<DensidadTarjeta> {
+    return this.densidadSignal(modulo, porDefectoMovil).asReadonly();
   }
 
   /** ¿Se muestran los productos dentro de la tarjeta? */
@@ -44,6 +57,7 @@ export class VistaTarjetasService {
     const actual = this.densidadSignal(modulo);
     const siguiente = CICLO[(CICLO.indexOf(actual()) + 1) % CICLO.length];
     actual.set(siguiente);
+    this.densidadElegida.add(modulo);
     this.persistir(modulo);
   }
 
@@ -54,8 +68,8 @@ export class VistaTarjetasService {
 
   // ── Interno ──
 
-  private densidadSignal(modulo: string): WritableSignal<DensidadTarjeta> {
-    this.hidratar(modulo);
+  private densidadSignal(modulo: string, porDefectoMovil?: DensidadTarjeta): WritableSignal<DensidadTarjeta> {
+    this.hidratar(modulo, porDefectoMovil);
     return this.densidades.get(modulo)!;
   }
 
@@ -65,17 +79,20 @@ export class VistaTarjetasService {
   }
 
   /** Crea las señales del módulo la primera vez, leyendo lo que haya guardado. */
-  private hidratar(modulo: string): void {
+  private hidratar(modulo: string, porDefectoMovil?: DensidadTarjeta): void {
     if (this.densidades.has(modulo)) return;
 
     const guardado = this.leer(modulo);
-    this.densidades.set(
-      modulo,
-      signal<DensidadTarjeta>(
-        guardado?.densidad && CICLO.includes(guardado.densidad) ? guardado.densidad : 'normal'
-      )
-    );
+    const elegida = guardado?.densidad && CICLO.includes(guardado.densidad) ? guardado.densidad : null;
+    if (elegida) this.densidadElegida.add(modulo);
+    const inicial = elegida ?? (porDefectoMovil && this.esMovil() ? porDefectoMovil : 'normal');
+    this.densidades.set(modulo, signal<DensidadTarjeta>(inicial));
     this.productos.set(modulo, signal<boolean>(guardado?.verProductos === true));
+  }
+
+  private esMovil(): boolean {
+    if (!this.isBrowser || typeof window.matchMedia !== 'function') return false;
+    return window.matchMedia(`(max-width: ${ANCHO_MOVIL}px)`).matches;
   }
 
   private clave(modulo: string): string {
@@ -98,7 +115,7 @@ export class VistaTarjetasService {
       localStorage.setItem(
         this.clave(modulo),
         JSON.stringify({
-          densidad: this.densidades.get(modulo)?.(),
+          densidad: this.densidadElegida.has(modulo) ? this.densidades.get(modulo)?.() : undefined,
           verProductos: this.productos.get(modulo)?.(),
         } satisfies VistaGuardada)
       );

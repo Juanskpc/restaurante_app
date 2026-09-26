@@ -44,22 +44,6 @@
   gap: var(--spacing-sm);
 }
 
-.btn-refresh {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  color: var(--color-text-primary);
-  font-size: var(--font-size-sm);
-  cursor: pointer;
-
-  &:hover { background: var(--color-bg-secondary); }
-  &:disabled { opacity: .5; cursor: not-allowed; }
-}
-
 .spin { animation: spin 0.9s linear infinite; }
 @keyframes spin { from { transform: rotate(0deg);} to { transform: rotate(360deg);} }
 
@@ -143,22 +127,34 @@
 .despacho-card {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 10px 12px;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 14px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-surface);
   box-shadow: var(--shadow-sm);
   cursor: pointer;
-  transition: transform var(--transition-fast), border-color var(--transition-fast);
+  transition: transform 200ms ease, box-shadow 200ms ease;
 
+  // Al pasar el cursor la tarjeta solo flota: sube un poco y gana sombra. El borde NO cambia de
+  // color, para que el acento del tipo de entrega (azul/verde) siga siendo lo que se lee.
   &:hover {
-    transform: translateY(-2px);
-    border-color: var(--color-primary);
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-lg);
   }
 
-  &.tipo-DOMICILIO { border-left: 3px solid color-mix(in srgb, var(--color-primary) 65%, var(--color-border)); }
-  &.tipo-LLEVAR    { border-left: 3px solid color-mix(in srgb, var(--color-success) 65%, var(--color-border)); }
+  // El tipo de entrega tiñe el borde izquierdo y un velo apenas visible: azul = domicilio,
+  // verde = para llevar. Son tonos semánticos fijos (`--despacho-domicilio`, `--color-success`),
+  // no la marca del negocio; la marca queda para botones e interacción.
+  &.tipo-DOMICILIO {
+    border-left: 4px solid var(--despacho-domicilio-border);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--despacho-domicilio) 5%, var(--color-surface)), var(--color-surface) 45%);
+  }
+  &.tipo-LLEVAR {
+    border-left: 4px solid color-mix(in srgb, var(--color-success) 45%, var(--color-surface));
+    background: linear-gradient(180deg, color-mix(in srgb, var(--color-success) 5%, var(--color-surface)), var(--color-surface) 45%);
+  }
 
   // Pedido cancelado de hoy: mismo tamaño que las demás, con el color de estado (error) y sin
   // interacción de tarjeta — solo se puede «Finalizar».
@@ -168,33 +164,26 @@
     border-left: 3px solid var(--color-error);
     background: color-mix(in srgb, var(--color-error) 5%, var(--color-surface));
 
-    &:hover {
-      transform: none;
-      border-color: color-mix(in srgb, var(--color-error) 35%, var(--color-border));
-    }
+    // Sin regla de :hover propia: flota igual que las demás (sube y gana sombra). La tarjeta no se
+    // abre al pulsarla, pero el efecto es el mismo para que toda la cuadrícula se sienta igual.
 
     .quien.por-cliente { color: var(--color-error); font-weight: 600; }
+
+    // El botón mide y pesa igual que el principal de las demás tarjetas (antes era una
+    // pastilla suelta de 11 px), pero de contorno rojo: quitar un cancelado no es la acción
+    // «buena» de la pantalla y no debe competir con «Cobrar».
+    .btn-cancelado {
+      background: var(--color-surface);
+      border-color: color-mix(in srgb, var(--color-error) 55%, var(--color-border));
+      color: var(--color-error);
+
+      &:hover:not(:disabled) {
+        background: var(--color-error-bg);
+        border-color: var(--color-error);
+      }
+    }
     .total-cancelado { text-decoration: line-through; opacity: 0.7; }
   }
-}
-
-.btn-finalizar-cancelado {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: auto;
-  padding: 4px 10px;
-  border: 1px solid color-mix(in srgb, var(--color-error) 45%, var(--color-border));
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  color: var(--color-error);
-  font-family: var(--font-family);
-  font-size: var(--font-size-xs);
-  font-weight: 600;
-  cursor: pointer;
-  transition: background var(--transition-fast);
-
-  &:hover { background: var(--color-error-bg); }
 }
 
 .card-top {
@@ -204,31 +193,27 @@
   gap: 6px;
 }
 
-.card-top-right {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
 .card-action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   padding: 0;
-  border: 1px solid var(--color-border);
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
-  background: var(--color-surface);
+  background: transparent;
   color: var(--color-text-secondary);
   cursor: pointer;
   transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
 
   &:hover {
-    background: var(--color-bg-secondary);
-    border-color: var(--color-primary);
+    background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface));
+    border-color: color-mix(in srgb, var(--color-primary) 35%, transparent);
     color: var(--color-primary);
   }
+
+  &:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
   &.danger:hover {
     background: var(--color-error-bg);
@@ -244,10 +229,11 @@
 }
 
 .orden-num {
-  font-size: var(--font-size-sm);
-  font-weight: 700;
+  font-size: var(--font-size-lg);
+  font-weight: 800;
+  line-height: 1.1;
   color: var(--color-text-primary);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
 }
 
 .tipo-tag {
@@ -262,12 +248,14 @@
   letter-spacing: 0.05em;
 
   &.tipo-DOMICILIO {
-    background: color-mix(in srgb, var(--color-primary) 12%, var(--color-surface));
-    color: var(--color-primary);
+    background: var(--despacho-domicilio-bg);
+    color: var(--despacho-domicilio-text);
+    border: 1px solid var(--despacho-domicilio-border);
   }
   &.tipo-LLEVAR {
     background: var(--color-success-bg);
     color: var(--color-success);
+    border: 1px solid color-mix(in srgb, var(--color-success) 35%, transparent);
   }
 
   // Convive con el tag del tipo: un pedido del bot es ADEMÁS para llevar o a domicilio, así que
@@ -278,10 +266,14 @@
     border: 1px solid color-mix(in srgb, var(--color-error) 35%, transparent);
   }
 
+  // El canal es informativo, no un tipo de entrega: neutro, y solo el ícono en verde, para que no
+  // se confunda con el badge verde de «Llevar».
   &.tag-whatsapp {
-    background: color-mix(in srgb, var(--color-success) 14%, var(--color-surface));
-    color: var(--color-success);
-    border: 1px solid color-mix(in srgb, var(--color-success) 35%, transparent);
+    background: var(--color-bg-secondary);
+    color: var(--color-text-secondary);
+    border: 1px solid var(--color-border);
+
+    lucide-icon { color: var(--color-success); }
   }
 }
 
@@ -290,25 +282,31 @@
 // Verde del canal y ancho completo. Es el único botón de esta pantalla que le manda algo a una
 // persona de fuera y se lo cobra al negocio: tiene que verse distinto de los que solo mueven
 // datos por dentro, y tiene que costar acertarle sin querer.
-.btn-avisar {
+.btn-avisar,
+.btn-principal {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
   width: 100%;
   margin-top: 6px;
-  padding: 7px 10px;
-  border: 1px solid color-mix(in srgb, var(--color-success) 40%, transparent);
+  padding: 9px 10px;
+  border: 1px solid var(--color-primary);
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--color-success) 12%, var(--color-surface));
-  color: var(--color-success);
-  font-size: var(--font-size-xs);
-  font-weight: 600;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
   cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
 
   &:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--color-success) 20%, var(--color-surface));
+    background: var(--color-primary-hover);
+    border-color: var(--color-primary-hover);
   }
+
+  &:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
   &:disabled {
     opacity: 0.6;
@@ -330,8 +328,44 @@
 
     &:hover:not(:disabled) {
       background: color-mix(in srgb, var(--color-error) 18%, var(--color-surface));
+      border-color: color-mix(in srgb, var(--color-error) 45%, transparent);
     }
   }
+}
+
+// Fila de acción: el botón principal ocupa el ancho que sobra y el de imprimir queda a su lado,
+// cuadrado y con borde propio para que sea cómodo de pulsar.
+.card-accion {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  margin-top: 6px;
+
+  .btn-principal {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+    margin-top: 0;
+  }
+}
+
+.btn-imprimir {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  aspect-ratio: 1;
+  min-width: 38px;
+  padding: 0;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+
+  &:hover { background: color-mix(in srgb, var(--color-text-primary) 8%, var(--color-bg-secondary)); }
+  &:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 }
 
 // Ya avisado: se dice a qué hora. La primera pregunta de quien mira un pedido que nadie recogió
@@ -348,9 +382,80 @@
 
 .card-body {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
+  min-width: 0;
   font-size: var(--font-size-xs);
+}
+
+// ── Jerarquía del cuerpo ────────────────────────────────────────────────────────────────────
+// Dirección (lo crítico) → cliente y teléfono → resumen → domiciliario → quién lo tomó.
+.destino {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  line-height: 1.3;
+
+  lucide-icon { flex: 0 0 auto; margin-top: 1px; color: var(--despacho-domicilio-text); }
+
+  // Hasta dos líneas: una dirección cortada a media calle es peor que una tarjeta un poco más alta.
+  .destino-texto {
+    min-width: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+  }
+
+  &.sin-dato {
+    color: var(--color-warning);
+    lucide-icon { color: var(--color-warning); }
+  }
+}
+
+.cliente {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  color: var(--color-text-primary);
+
+  .cliente-nombre,
+  .cliente-tel {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+  }
+
+  .cliente-nombre { font-weight: 600; }
+  .cliente-tel { color: var(--color-text-secondary); }
+
+  lucide-icon { flex: 0 0 auto; color: var(--color-text-secondary); }
+
+  .ellipsis {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.resumen { margin-top: 2px; }
+
+// El pie: total + pago, y debajo la acción principal. El cuerpo crece (`flex: 1`), así que el pie
+// siempre queda pegado al borde inferior y alineado con el de las tarjetas vecinas.
+.card-pie {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .row {
@@ -430,16 +535,20 @@
 }
 
 .dom-name {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
   font-size: 11px;
-  font-weight: 600;
-  color: var(--color-text-secondary);
-  max-width: 80%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--despacho-domicilio-text);
+
+  lucide-icon { flex: 0 0 auto; }
+
+  // Un domicilio sin repartidor es lo que hay que resolver: se marca, no se esconde.
+  &.sin-asignar {
+    color: var(--color-warning);
+    font-weight: 600;
+    text-transform: none;
+  }
 }
 
 /**
@@ -907,7 +1016,6 @@
 // Acotado al encabezado para no tocar los botones de los modales.
 .despacho-header .header-right {
   .btn-densidad,
-  .btn-refresh,
   .btn-finalizar-todo,
   .toggle-productos {
     display: inline-flex;
@@ -935,13 +1043,24 @@
 
 .card-top {
   flex-wrap: wrap;
-  row-gap: 4px;
+  row-gap: 6px;
 }
 
-.card-top-right {
-  flex-wrap: wrap;
-  row-gap: 4px;
+.card-acciones {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
   margin-left: auto;
+  flex: 0 0 auto;
+}
+
+// Los badges ocupan su propia fila bajo el número: caben el tipo y el canal sin apretarse.
+.card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex: 1 0 100%;
+  order: 3;
 }
 
 .orden-num {
@@ -988,17 +1107,18 @@
   grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
 
   .taker-row     { font-size: 10px; }
-  .despacho-card { padding: 8px 9px; gap: 4px; }
-  .orden-num     { font-size: var(--font-size-sm); }
+  .despacho-card { padding: 9px 10px; gap: 6px; }
+  .orden-num     { font-size: var(--font-size-base); }
+  .btn-principal { padding: 7px 8px; font-size: var(--font-size-xs); }
   .total         { font-size: var(--font-size-sm); }
-  .card-action   { width: 22px; height: 22px; }
+  .card-action   { width: 24px; height: 24px; }
 }
 
 .grid.densidad-mini {
   grid-template-columns: repeat(auto-fill, minmax(136px, 1fr));
 
   .despacho-card { padding: 6px 7px; gap: 3px; }
-  .orden-num     { font-size: var(--font-size-xs); }
+  .orden-num     { font-size: var(--font-size-sm); }
   .total         { font-size: var(--font-size-xs); }
   .card-body     { font-size: 10px; }
   .card-action   { width: 20px; height: 20px; }
@@ -1013,24 +1133,20 @@
     lucide-icon { display: none; }
   }
 
-  // A este ancho el encabezado queda justo en el límite y unas tarjetas
-  // envolvían y otras no. Apilarlo siempre las deja todas iguales.
-  .card-top {
-    flex-direction: column;
-    align-items: flex-start;
-  }
+  // El botón ya es angosto: sin ícono cabe la palabra entera («Finalizar» se cortaba). El ícono
+  // de «enviando» se queda, porque es lo único que dice que el aviso está saliendo.
+  .btn-principal lucide-icon:not(.spin) { display: none; }
 
-  .card-top-right {
-    width: 100%;
-    margin-left: 0;
-    gap: 4px;
-  }
+  // Número y acciones en la primera fila, badges siempre en la segunda: todas iguales.
+  .card-badges { gap: 3px; }
+  .destino { font-size: var(--font-size-xs); }
+  .btn-principal { padding: 6px; font-size: var(--font-size-xs); }
 }
 
-// Con la tarjeta ya angosta, el ícono de la etiqueta solo roba ancho.
+// Con la tarjeta ya angosta, el ícono del estado de pago solo roba ancho. El de los badges de tipo
+// se queda: ahora tienen su propia fila y el ícono es lo que los distingue de un vistazo.
 .grid.densidad-compacta,
 .grid.densidad-mini {
-  .tipo-tag lucide-icon,
   .pago-badge lucide-icon { display: none; }
 }
 
@@ -1046,23 +1162,41 @@
 
   .despacho-header { justify-content: flex-start; }
 
-  // Sin wrap, "Actualizar" quedaba cortado fuera de la pantalla.
+  // Una sola fila que ocupa todo el ancho: el botón de tamaño conserva el suyo y «Ver productos» y
+  // «Finalizar todo» se reparten el resto a partes iguales.
   .header-right {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     width: 100%;
     gap: 6px;
   }
 
-  // Refrescar pasa a ser solo el ícono para que la fila quepa completa.
   .despacho-header .header-right {
-    .btn-refresh {
-      padding: 0 11px;
-
-      .btn-label { display: none; }
-    }
+    .btn-densidad { flex: 0 0 auto; }
 
     .btn-finalizar-todo,
-    .toggle-productos { padding: 0 11px; }
+    .toggle-productos {
+      flex: 1 1 0;
+      min-width: 0;
+      padding: 0 8px;
+    }
+  }
+
+  // Los filtros van en una sola fila con scroll horizontal: si «Cancelados» aparece, no baja de
+  // línea ni empuja las tarjetas; se llega a él deslizando. Sin barra visible, como en el móvil.
+  .stats-strip {
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar { display: none; }
+
+    .chip {
+      flex: 0 0 auto;
+      white-space: nowrap;
+    }
   }
 
   // Cuántas tarjetas por fila da cada paso del botón de tamaño.

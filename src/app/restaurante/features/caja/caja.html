@@ -27,12 +27,6 @@
         <lucide-icon name="clock-3" size="18" />
         Historial
       </button>
-      @if (caja()) {
-        <button class="btn btn-outline" (click)="refrescarCaja()" [disabled]="cargando()">
-          <lucide-icon name="rotate-cw" size="18" />
-          {{ cargando() ? 'Actualizando...' : 'Actualizar' }}
-        </button>
-      }
       @if (caja() && puedeMovimiento()) {
         <button class="btn btn-outline" (click)="abrirModal('movimiento')">
           <lucide-icon name="plus-circle" size="18" />

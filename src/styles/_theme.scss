@@ -88,6 +88,14 @@
     --color-status-#{$estado}-text: color-mix(in srgb, var(--color-status-#{$estado}) 62%, var(--color-text-primary));
   }
 
+  // --- Despacho: el tipo de entrega es SEMÁNTICO, igual que las mesas ---
+  // Domicilio = azul, para llevar = verde (`--color-success`). Con una marca roja o azul el
+  // domicilio no puede cambiar de color según el negocio: quien despacha lo reconoce por el tono.
+  --despacho-domicilio: #1f6fb2;
+  --despacho-domicilio-bg: color-mix(in srgb, var(--despacho-domicilio) 12%, var(--color-surface));
+  --despacho-domicilio-border: color-mix(in srgb, var(--despacho-domicilio) 45%, var(--color-surface));
+  --despacho-domicilio-text: color-mix(in srgb, var(--despacho-domicilio) 75%, var(--color-text-primary));
+
   // El precio del menú es verde SIEMPRE (no sigue el trío de las mesas, que ahora depende de la marca).
   --color-menu-price: var(--color-success);
   --color-menu-icon-bg: color-mix(in srgb, var(--color-primary) 14%, var(--color-bg-secondary));
