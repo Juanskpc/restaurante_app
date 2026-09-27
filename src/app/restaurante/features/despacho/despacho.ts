@@ -647,9 +647,14 @@ export class DespachoComponent implements OnInit {
     return this.esPendientePago(p) ? 'cobrar' : 'finalizar';
   }
 
-  /** El texto del botón cambia según qué le está pasando al cliente, no solo si puede avisarse. */
+  /**
+   * El texto del botón cambia según qué le está pasando al cliente, no solo si puede avisarse.
+   *
+   * El de domicilio se acorta a «Va en camino»: con el texto largo el botón no cabía en una
+   * fila en móvil y se partía en dos líneas o se desbordaba de la tarjeta.
+   */
   etiquetaAvisar(p: PedidoDespacho): string {
-    return p.tipo_pedido === 'DOMICILIO' ? 'Avisar que va en camino' : 'Avisar que está listo';
+    return p.tipo_pedido === 'DOMICILIO' ? 'Va en camino' : 'Avisar que está listo';
   }
 
   /**

@@ -348,7 +348,7 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
-  overscroll-behavior: contain;
+  // overscroll-behavior: contain;
 
   // En una columna no hay alto que repartir: se acota para que la tabla no alargue la página.
   @media (max-width: 1100px) {
@@ -1090,9 +1090,23 @@
   // Ningún scroll vertical interno: el desplazamiento es el de la página, y una caja que se
   // desplaza dentro de otra que también lo hace es donde el dedo se queda atrapado. Las tarjetas
   // miden lo que mide su contenido. (Queda el scroll de LADO de la tabla, que es otra cosa.)
+  //
+  // `overflow-y: hidden` y no `visible`: mezclar `overflow-x: auto` (heredado, para el scroll de
+  // lado) con `overflow-y: visible` hace que el navegador recompute el `visible` como `auto` —regla
+  // de CSS al mezclar ejes—, así que la caja seguía siendo contenedor de scroll vertical aunque no
+  // le sobrara nada que desplazar. Con `hidden` deja de ser scroller en Y sin clipear nada, porque
+  // de todos modos no hay overflow vertical con `max-height: none`.
+  //
+  // ⚠️ NO añadir `touch-action: pan-x` aquí, aunque parezca la corrección obvia para el scroll de
+  // lado: se probó y empeora justo lo que esto arregla. `pan-x` no es «entrégale el vertical al
+  // padre», es «el único gesto por defecto permitido aquí es el horizontal» — el vertical no se
+  // delega, se descarta, así que la página se congela igual en cuanto el dedo toca la tabla. Con
+  // `touch-action: auto` (el valor por omisión, no tocar) el navegador SÍ resuelve cada eje por
+  // separado contra el contenedor que de verdad lo puede mover: `pan-x` lo atiende esta caja (tiene
+  // overflow-x real) y `pan-y` sube solo hasta `.content`, que es el único con overflow-y aquí.
   .table-wrap {
     max-height: none;
-    overflow-y: visible;
+    overflow-y: hidden;
   }
 
   .panel-card {

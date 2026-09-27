@@ -366,6 +366,14 @@
     }
   }
 
+  // Toda la fila abre el detalle, no solo el icono: es más fácil de acertar que apuntarle a la
+  // flecha, que igual se queda ahí como referencia visual de que la fila se puede desplegar.
+  .fila--clicable {
+    cursor: pointer;
+
+    &:hover > td { background: color-mix(in srgb, var(--color-text-primary) 4%, transparent); }
+  }
+
   // La fila con su detalle abierto se lee como un bloque: se resalta la cabecera
   // y se le quita la línea de abajo para que no corte contra el desplegable.
   .fila--abierta > td {
