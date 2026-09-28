@@ -174,7 +174,11 @@ export interface HistorialCajas {
 // `admin_ws/docs/...`); el backend lo revalida y responde 403 si no lo tiene.
 
 export type EstadoSeguimiento = 'ABIERTA' | 'CERRADA' | 'CANCELADA' | 'ANULADA';
-export type TipoEventoSeguimiento = 'tomado' | 'cobrado' | 'cancelado' | 'anulado';
+export type TipoEventoSeguimiento =
+  | 'tomado' | 'cobrado' | 'cancelado' | 'anulado'
+  // 'confirmado' y 'avisado' (2026-09-29) solo aparecen en pedidos que tomó el asistente de
+  // WhatsApp: dar por visto el pedido, y avisar «ya está listo». Ver `seguimientoPedidoService.js`.
+  | 'confirmado' | 'avisado';
 
 /** Un paso de la línea de tiempo de un pedido: quién lo hizo y cuándo. */
 export interface EventoSeguimiento {

@@ -5,13 +5,17 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   LUCIDE_ICONS, LucideIconProvider,
   X, Search, CircleAlert, ChevronUp, ChevronDown, NotebookPen, DollarSign, XCircle, RotateCcw,
+  CheckCircle, Send,
 } from 'lucide-angular';
 
 import { SeguimientoPedidosComponent } from './seguimiento-pedidos';
 import { Caja, CajaService, PedidoSeguimiento, SeguimientoPedidos } from '../../../../core/services/caja.service';
 
 /** Solo los que usa esta plantilla: sin esto, `LucideAngularComponent` revienta en runtime. */
-const ICONOS_DE_LA_PLANTILLA = { X, Search, CircleAlert, ChevronUp, ChevronDown, NotebookPen, DollarSign, XCircle, RotateCcw };
+const ICONOS_DE_LA_PLANTILLA = {
+  X, Search, CircleAlert, ChevronUp, ChevronDown, NotebookPen, DollarSign, XCircle, RotateCcw,
+  CheckCircle, Send,
+};
 
 /**
  * Sección «Movimientos»: el flujo mesero → caja.

@@ -28,10 +28,13 @@ const ESTADOS: Record<EstadoSeguimiento, { etiqueta: string; clase: string }> = 
 
 /** Icono y texto de cada paso de la línea de tiempo. */
 const EVENTOS: Record<TipoEventoSeguimiento, { icono: string; texto: string }> = {
-  tomado:    { icono: 'notebook-pen', texto: 'Tomó el pedido' },
-  cobrado:   { icono: 'dollar-sign',  texto: 'Cobró' },
-  cancelado: { icono: 'x-circle',     texto: 'Canceló sin cobrar' },
-  anulado:   { icono: 'rotate-ccw',   texto: 'Anuló el cobro' },
+  tomado:     { icono: 'notebook-pen', texto: 'Tomó el pedido' },
+  // Solo aparecen en pedidos que tomó el asistente de WhatsApp (ver `EventoSeguimiento`).
+  confirmado: { icono: 'check-circle', texto: 'Confirmó el pedido' },
+  avisado:    { icono: 'send',         texto: 'Avisó que estaba listo' },
+  cobrado:    { icono: 'dollar-sign',  texto: 'Cobró' },
+  cancelado:  { icono: 'x-circle',     texto: 'Canceló sin cobrar' },
+  anulado:    { icono: 'rotate-ccw',   texto: 'Anuló el cobro' },
 };
 
 /**
@@ -58,8 +61,12 @@ const EVENTOS: Record<TipoEventoSeguimiento, { icono: string; texto: string }> =
 })
 export class SeguimientoPedidosComponent implements OnInit {
   @Input({ required: true }) idNegocio!: number;
-  /** El turno abierto. `null` = no hay caja abierta y no hay pedidos de turno que enseñar. */
-  @Input() caja: Caja | null = null;
+  /**
+   * De qué caja se traen los pedidos: el turno abierto, o un turno cerrado del historial (sus
+   * botones de acción no aplican aquí, así que solo hace falta el id y la fecha de apertura para
+   * la cabecera). `null` = no hay caja de la que traer nada.
+   */
+  @Input() caja: Pick<Caja, 'id_caja' | 'fecha_apertura'> | null = null;
   @Output() cerrar = new EventEmitter<void>();
 
   private readonly cajaSvc = inject(CajaService);

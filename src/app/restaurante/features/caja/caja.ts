@@ -108,6 +108,19 @@ export class CajaComponent implements OnInit, OnDestroy {
     }
   }
 
+  /**
+   * De qué caja se abre «Movimientos»: la del turno en curso, o —dentro del detalle de un turno
+   * pasado— la de ESE turno. `SeguimientoPedidosComponent` solo necesita el id y la fecha de
+   * apertura, así que un `CajaHistorial` sirve sin convertirlo al tipo completo.
+   */
+  readonly cajaParaSeguimiento = computed<Pick<Caja, 'id_caja' | 'fecha_apertura'> | null>(() => {
+    if (this.pestana() === 'historial') {
+      const sel = this.cajaHistSel();
+      return sel ? { id_caja: sel.id_caja, fecha_apertura: sel.fecha_apertura } : null;
+    }
+    return this.caja();
+  });
+
   // ── Acordeón de productos por fila ──
   // Qué filas están abiertas se guarda por `id_movimiento` (es la fila), y lo que
   // se trae del servidor se cachea por `id_orden` (es el pedido): el cobro y el

@@ -160,4 +160,38 @@ describe('CajaComponent — resumen, formas de pago y pestañas', () => {
       expect(getHistorial).not.toHaveBeenCalled();
     });
   });
+
+  describe('cajaParaSeguimiento', () => {
+    it('en el turno actual es la caja abierta', () => {
+      comp.caja.set({ id_caja: 1, fecha_apertura: '2026-09-29T08:00:00' } as Caja);
+      expect(comp.cajaParaSeguimiento()).toEqual(
+        expect.objectContaining({ id_caja: 1, fecha_apertura: '2026-09-29T08:00:00' }),
+      );
+    });
+
+    it('en la LISTA del historial (sin detalle abierto) no hay caja de la que traer nada', () => {
+      comp.cambiarPestana('historial');
+      expect(comp.cajaHistSel()).toBeNull();
+      expect(comp.cajaParaSeguimiento()).toBeNull();
+    });
+
+    it('en el DETALLE de un turno pasado es la de ESE turno, no la que esté abierta ahora', () => {
+      comp.caja.set({ id_caja: 1, fecha_apertura: '2026-09-29T08:00:00' } as Caja);
+      comp.cambiarPestana('historial');
+      comp.cajaHistSel.set({ id_caja: 55, fecha_apertura: '2026-09-20T12:00:00' } as Caja);
+
+      expect(comp.cajaParaSeguimiento()).toEqual({ id_caja: 55, fecha_apertura: '2026-09-20T12:00:00' });
+    });
+
+    it('al volver a Turno actual, vuelve a ser la caja abierta', () => {
+      comp.caja.set({ id_caja: 1, fecha_apertura: '2026-09-29T08:00:00' } as Caja);
+      comp.cambiarPestana('historial');
+      comp.cajaHistSel.set({ id_caja: 55, fecha_apertura: '2026-09-20T12:00:00' } as Caja);
+      comp.cambiarPestana('turno');
+
+      expect(comp.cajaParaSeguimiento()).toEqual(
+        expect.objectContaining({ id_caja: 1 }),
+      );
+    });
+  });
 });

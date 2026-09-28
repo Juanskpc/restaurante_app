@@ -1,56 +1,7 @@
 <section class="caja-page">
-  <header class="caja-header">
-    <div>
-      <!-- Sin título: el nombre de la vista ya está en el encabezado de la app. -->
-      <p class="subtitle">Control del turno operativo: apertura, movimientos y cierre.</p>
-      <!-- Solo aparece si el usuario maneja más de una caja (rubro). -->
-      <div class="caja-header__selector">
-        <app-caja-selector (cambio)="alCambiarCaja()" />
-      </div>
-    </div>
-    <!-- Con la caja cerrada el botón de «Abrir caja» vive en la tarjeta del turno, como en Reserva. -->
-    @if (caja()) {
-      <div class="header-actions">
-        @if (puedeMovimiento() && puedeVerDomiciliarios()) {
-          <button class="btn btn-outline" (click)="abrirModal('domiciliarios')">
-            <lucide-icon name="truck" size="18" />
-            Domiciliarios
-          </button>
-        }
-        <!-- Apagado por defecto para todos los roles (Usuarios → Roles y permisos):
-             es una pantalla de control, no una que deba ofrecerse a todo el mundo. -->
-        @if (puedeVerMovimientos()) {
-          <button class="btn btn-outline" (click)="abrirModal('seguimiento')">
-            <lucide-icon name="layers" size="18" />
-            Movimientos
-          </button>
-        }
-        @if (puedeMovimiento()) {
-          <button class="btn btn-outline" (click)="abrirModal('movimiento')">
-            <lucide-icon name="plus-circle" size="18" />
-            Movimiento
-          </button>
-        }
-        @if (puedeCerrar()) {
-          <button class="btn btn-primary" (click)="abrirModal('cierre')">
-            <lucide-icon name="dollar-sign" size="18" />
-            Cerrar caja
-          </button>
-        }
-      </div>
-    } @else if (puedeVerMovimientos()) {
-      <!-- «Movimientos» se abre aunque no haya caja: el modal lo explica. -->
-      <div class="header-actions">
-        <button class="btn btn-outline" (click)="abrirModal('seguimiento')">
-          <lucide-icon name="layers" size="18" />
-          Movimientos
-        </button>
-      </div>
-    }
-  </header>
-
-  <!-- El historial ya no es un modal: es una pestaña, como en Reserva. Consultar turnos pasados no
-       depende de que haya uno en curso, así que las pestañas se ven con o sin caja abierta. -->
+  <!-- Las pestañas van AL PRINCIPIO de la página: son lo primero que se decide, y de ellas cuelgan
+       los botones que siguen — cada pestaña ofrece solo los suyos, no los de la otra. El historial
+       ya no es un modal, así que se ven con o sin caja abierta. -->
   <div class="tabs" role="tablist">
     <button type="button" role="tab" class="tab" [class.tab--on]="pestana() === 'turno'"
             [attr.aria-selected]="pestana() === 'turno'" (click)="cambiarPestana('turno')">
@@ -61,6 +12,76 @@
       Historial
     </button>
   </div>
+
+  <header class="caja-header">
+    <div>
+      <!-- Sin título: el nombre de la vista ya está en el encabezado de la app. -->
+      <p class="subtitle">Control del turno operativo: apertura, movimientos y cierre.</p>
+      <!-- Solo aparece si el usuario maneja más de una caja (rubro). -->
+      <div class="caja-header__selector">
+        <app-caja-selector (cambio)="alCambiarCaja()" />
+      </div>
+    </div>
+
+    @if (pestana() === 'turno') {
+      <!-- Con la caja cerrada el botón de «Abrir caja» vive en la tarjeta del turno, como en Reserva. -->
+      @if (caja()) {
+        <div class="header-actions">
+          @if (puedeMovimiento() && puedeVerDomiciliarios()) {
+            <button class="btn btn-outline" (click)="abrirModal('domiciliarios')">
+              <lucide-icon name="truck" size="18" />
+              Domiciliarios
+            </button>
+          }
+          <!-- Apagado por defecto para todos los roles (Usuarios → Roles y permisos):
+               es una pantalla de control, no una que deba ofrecerse a todo el mundo. -->
+          @if (puedeVerMovimientos()) {
+            <button class="btn btn-outline" (click)="abrirModal('seguimiento')">
+              <lucide-icon name="layers" size="18" />
+              Movimientos
+            </button>
+          }
+          @if (puedeMovimiento()) {
+            <button class="btn btn-outline" (click)="abrirModal('movimiento')">
+              <lucide-icon name="plus-circle" size="18" />
+              Movimiento
+            </button>
+          }
+          @if (puedeCerrar()) {
+            <button class="btn btn-primary" (click)="abrirModal('cierre')">
+              <lucide-icon name="dollar-sign" size="18" />
+              Cerrar caja
+            </button>
+          }
+        </div>
+      } @else if (puedeVerMovimientos()) {
+        <!-- «Movimientos» se abre aunque no haya caja: el modal lo explica. -->
+        <div class="header-actions">
+          <button class="btn btn-outline" (click)="abrirModal('seguimiento')">
+            <lucide-icon name="layers" size="18" />
+            Movimientos
+          </button>
+        </div>
+      }
+    } @else if (cajaHistSel()) {
+      <!-- Solo dentro del DETALLE de un turno pasado: mirar quién anda con pedidos en posesión y el
+           mismo detalle de movimientos que el turno en curso, ahora acotado a ESE turno. -->
+      <div class="header-actions">
+        @if (puedeMovimiento() && puedeVerDomiciliarios()) {
+          <button class="btn btn-outline" (click)="abrirModal('domiciliarios')">
+            <lucide-icon name="truck" size="18" />
+            Domiciliarios
+          </button>
+        }
+        @if (puedeVerMovimientos()) {
+          <button class="btn btn-outline" (click)="abrirModal('seguimiento')">
+            <lucide-icon name="layers" size="18" />
+            Movimientos
+          </button>
+        }
+      </div>
+    }
+  </header>
 
   @if (pestana() === 'turno') {
     <!-- Con un turno ya en pantalla no se vuelve a «Cargando…»: el arqueo se queda donde está
@@ -92,7 +113,7 @@
       <ng-container
         *ngTemplateOutlet="resumenCaja; context: { $implicit: caja(), movs: movimientos(), detalle: false }" />
 
-      <section class="panel">
+      <section class="panel panel--movimientos">
         <header class="panel__head">
           <div>
             <h2>Movimientos del turno</h2>
@@ -256,22 +277,27 @@
   @if (pestana() === 'historial') {
     @if (cajaHistSel(); as sel) {
       <div class="hist-detalle-head">
-        <button type="button" class="btn btn-outline btn-sm" (click)="volverAListaHistorial()">
+        <!-- Va SOLO, arriba de todo lo demás y con el color de marca: antes se perdía en la misma
+             fila que el título, con el mismo tono apagado que cualquier botón secundario. -->
+        <button type="button" class="btn btn-primary btn-sm hist-detalle-head__volver"
+                (click)="volverAListaHistorial()">
           <lucide-icon name="arrow-left" size="15" />
-          Volver
+          Volver al historial
         </button>
-        <h2>Caja #{{ sel.id_caja }}</h2>
+        <div class="hist-detalle-head__fila">
+          <h2>Caja #{{ sel.id_caja }}</h2>
 
-        <!-- El servidor rechaza la exportación sin `caja_ver_ingresos`, así que
-             sin el permiso el botón ni se ofrece: el archivo ES las cifras. -->
-        @if (puedeVerIngresos()) {
-          <button type="button" class="btn btn-outline btn-sm hist-detalle-head__excel"
-                  [disabled]="exportandoCaja()"
-                  (click)="exportarCajaHistorial()">
-            <lucide-icon name="download" size="15" />
-            {{ exportandoCaja() ? 'Generando…' : 'Excel' }}
-          </button>
-        }
+          <!-- El servidor rechaza la exportación sin `caja_ver_ingresos`, así que
+               sin el permiso el botón ni se ofrece: el archivo ES las cifras. -->
+          @if (puedeVerIngresos()) {
+            <button type="button" class="btn btn-outline btn-sm hist-detalle-head__excel"
+                    [disabled]="exportandoCaja()"
+                    (click)="exportarCajaHistorial()">
+              <lucide-icon name="download" size="15" />
+              {{ exportandoCaja() ? 'Generando…' : 'Excel' }}
+            </button>
+          }
+        </div>
       </div>
 
       <div class="hist-fechas">
@@ -292,7 +318,7 @@
       <ng-container
         *ngTemplateOutlet="resumenCaja; context: { $implicit: sel, movs: movimientosHist(), detalle: true }" />
 
-      <section class="panel">
+      <section class="panel panel--movimientos">
         <header class="panel__head">
           <div>
             <h2>Movimientos del turno</h2>
@@ -399,16 +425,26 @@
           Hasta
           <input class="input" type="date" [ngModel]="histHasta()" (ngModelChange)="histHasta.set($event)" />
         </label>
-        <button type="button" class="btn btn-primary btn-sm"
-                (click)="aplicarFiltroHistorial()" [disabled]="cargandoHistorial()">
-          <lucide-icon name="search" size="15" />
-          Filtrar
-        </button>
-        @if (histDesde() || histHasta()) {
-          <button type="button" class="btn btn-ghost btn-sm"
-                  (click)="limpiarFiltroHistorial()" [disabled]="cargandoHistorial()">
-            Limpiar
+        <!-- El botón no tiene una etiqueta encima como los campos de fecha: sin este espaciador
+             invisible (mismo texto, mismo tamaño, oculto) `align-items: flex-end` lo deja más abajo,
+             porque alinea el borde INFERIOR de cada elemento y el botón por sí solo es más bajo
+             que la columna «etiqueta + campo» de al lado. -->
+        <div class="hist-filtros__btn">
+          <span class="hist-filtros__btn-spacer" aria-hidden="true">Filtrar</span>
+          <button type="button" class="btn btn-primary btn-sm"
+                  (click)="aplicarFiltroHistorial()" [disabled]="cargandoHistorial()">
+            <lucide-icon name="search" size="15" />
+            Filtrar
           </button>
+        </div>
+        @if (histDesde() || histHasta()) {
+          <div class="hist-filtros__btn">
+            <span class="hist-filtros__btn-spacer" aria-hidden="true">Limpiar</span>
+            <button type="button" class="btn btn-ghost btn-sm"
+                    (click)="limpiarFiltroHistorial()" [disabled]="cargandoHistorial()">
+              Limpiar
+            </button>
+          </div>
         }
       </div>
 
@@ -438,12 +474,13 @@
                     <th class="num">Esperado</th>
                     <th class="num">Diferencia</th>
                   }
-                  <th class="acc"><span class="sr-only">Detalle</span></th>
+                  <th class="col-chevron"><span class="sr-only">Detalle</span></th>
                 </tr>
               </thead>
               <tbody>
                 @for (c of historial(); track c.id_caja) {
-                  <tr class="tabla__fila-clic" (click)="verDetalleHistorial(c)">
+                  <tr class="tabla__fila-clic" [class.tabla__fila-clic--cargando]="cargandoDetalleHist()"
+                      (click)="verDetalleHistorial(c)">
                     <td>
                       <span class="celda-turno">
                         <strong>{{ c.fecha_apertura | date:'d MMM yyyy':undefined:'es-CO' }}</strong>
@@ -473,13 +510,8 @@
                         }
                       </td>
                     }
-                    <td class="acc">
-                      <button type="button" class="btn btn-outline btn-sm"
-                              [disabled]="cargandoDetalleHist()"
-                              (click)="verDetalleHistorial(c); $event.stopPropagation()">
-                        <lucide-icon name="eye" size="15" />
-                        Ver detalle
-                      </button>
+                    <td class="col-chevron">
+                      <lucide-icon name="chevron-right" size="16" class="tabla__chevron" aria-hidden="true" />
                     </td>
                   </tr>
                 }
@@ -744,18 +776,22 @@
   }
 
   <!-- ── Modal: seguimiento de pedidos («Movimientos») ──
-       Muestra los pedidos de la caja EN CURSO, sin fechas. Sin caja abierta el modal se abre igual
-       y lo dice: quien tiene el permiso no debe encontrarse el botón muerto. -->
+       Muestra los pedidos de LA CAJA a la que está atado el botón: la del turno en curso desde
+       «Turno actual», o la del historial cuando se abre desde dentro de un detalle — ver
+       `cajaParaSeguimiento`. Sin ninguna de las dos el modal se abre igual y lo dice: quien tiene
+       el permiso no debe encontrarse el botón muerto. -->
   @if (modal() === 'seguimiento' && idNegocio()) {
     <div class="modal" (click)="cerrarModal()">
       <div class="modal__panel modal__panel--wide" (click)="$event.stopPropagation()">
-        <app-seguimiento-pedidos [idNegocio]="idNegocio()!" [caja]="caja()" (cerrar)="cerrarModal()" />
+        <app-seguimiento-pedidos [idNegocio]="idNegocio()!" [caja]="cajaParaSeguimiento()" (cerrar)="cerrarModal()" />
       </div>
     </div>
   }
 
   <!-- ── Modal: domiciliarios ── -->
-  @if (modal() === 'domiciliarios' && caja()) {
+  <!-- No exige `caja()`: el resumen es del negocio, no del turno en curso, así que también se
+       abre desde el detalle de una caja del historial (sin turno abierto). -->
+  @if (modal() === 'domiciliarios' && idNegocio()) {
     <div class="modal" (click)="cerrarModal()">
       <div class="modal__panel modal__panel--wide" (click)="$event.stopPropagation()">
         <h2>Pedidos de domicilio</h2>

@@ -8,6 +8,14 @@
   max-width: 1280px;
   margin: 0 auto;
   width: 100%;
+  // Cerrojo del scroll horizontal: la tabla del historial (`.tabla`) tiene un `min-width` mayor
+  // que la pantalla en el teléfono a propósito, y `.tabla-wrap` es quien debe abrir su PROPIO
+  // scroll de lado para eso. Sin este tope, cualquier descuido en esa cadena de contenedores (uno
+  // sin `min-width: 0`, un hijo que mide más de lo que cabe) deja de scrollear solo la tabla y
+  // arrastra la PÁGINA entera de lado —incluida la barra de arriba—, que es justo el «se buguea»
+  // reportado. `overflow-x: hidden` aquí no le quita el scroll a `.tabla-wrap`: son contenedores
+  // de scroll independientes, uno dentro del otro.
+  overflow-x: hidden;
 }
 
 // Móvil: el `.content` del layout ya trae su margen (1 rem); aquí no se suma otro. Se le devuelve casi
@@ -451,7 +459,13 @@
   // El listado de turnos del historial va sin relleno: la tabla llega hasta el borde de la tarjeta.
   &--tabla { padding: 0; overflow: hidden; }
 
-  @include tabla-movimientos;
+  // El mixin va SOLO en el modificador que de verdad tiene una `.movimientos__table` dentro (las
+  // dos secciones «Movimientos del turno»), no en `.panel` a secas. Vivió ahí antes por error: el
+  // mixin define un `table { }` y un `.badge { }` sueltos —pensados para quedar bajo
+  // `.movimientos__table`—, y colgados de `.panel` se colaban en CUALQUIER panel con una tabla o
+  // una clase `.badge`, incluida la lista de turnos del historial (`.panel--tabla`), pisándole
+  // el padding de celda sin que hubiera ninguna `.movimientos__table` de por medio.
+  &--movimientos { @include tabla-movimientos; }
 }
 
 // ── Pestañas (como en Reserva) ──
@@ -566,7 +580,19 @@
 }
 
 // ── Historial (pestaña) ──
-.tabla-wrap { overflow-x: auto; }
+.tabla-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  // Es hijo directo de `.panel` (`display: flex; flex-direction: column`), así que por defecto es
+  // un ítem flex con `min-width: auto` — su propio ancho de contenido (la tabla de 820px) puede
+  // ganarle al ancho disponible en vez de dejar que `overflow-x: auto` haga el scroll. `min-width:
+  // 0` lo deja encogerse al ancho real de la tarjeta, y `container-type` (mismo truco que ya usa
+  // `.movimientos__table` de al lado) fuerza además que su ancho intrínseco no cuente el de la
+  // tabla que contiene — es contención real, no solo una corazonada de que alcanza con encoger.
+  min-width: 0;
+  max-width: 100%;
+  container-type: inline-size;
+}
 .tabla {
   width: 100%; border-collapse: collapse; font-size: .84rem; min-width: 820px;
 
@@ -578,10 +604,15 @@
   td { color: var(--color-text-secondary); white-space: nowrap; }
   .num { text-align: right; font-variant-numeric: tabular-nums; }
   .destacado { color: var(--color-text-primary); font-weight: 700; }
-  .acc { text-align: right; width: 1%; }
   tbody tr:hover { background: var(--color-surface-hover); }
   tbody tr:last-child td { border-bottom: 0; }
+
+  // Toda la fila abre el detalle (sin botón «Ver detalle»): la flecha es solo la pista visual de
+  // que se puede, igual que `.btn-expandir` en la tabla de movimientos.
   .tabla__fila-clic { cursor: pointer; }
+  .tabla__fila-clic--cargando { cursor: wait; opacity: .7; }
+  .col-chevron { width: 1%; padding-left: 0; }
+  .tabla__chevron { color: var(--color-text-muted); }
 }
 
 // Un <td> con display:flex rompe los bordes de celda; el layout va en un span interno.
@@ -599,10 +630,20 @@
   &--na    { color: var(--color-text-muted); font-weight: 500; }
 }
 
+// «Volver» va en su PROPIA fila, arriba del título: antes compartía renglón con «Caja #N» y con
+// el mismo tono apagado (`btn-outline`) que cualquier botón secundario, así que se perdía entre
+// el resto — sobre todo en móvil, donde el título ocupaba casi todo el ancho. Ahora es la primera
+// fila, sola, y con el color de marca (`btn-primary`) para que se note que ES la salida del detalle.
 .hist-detalle-head {
-  display: flex; align-items: center; gap: .6rem;
-  h2 { margin: 0; font-size: 1.1rem; }
-  // El botón de Excel se va al extremo opuesto de «Volver».
+  display: flex; flex-direction: column; align-items: flex-start; gap: .6rem;
+
+  &__volver { align-self: flex-start; }
+
+  &__fila {
+    display: flex; align-items: center; gap: .6rem; width: 100%;
+    h2 { margin: 0; font-size: 1.1rem; }
+  }
+  // El botón de Excel se va al extremo opuesto del título, dentro de su misma fila.
   &__excel { margin-left: auto; flex: 0 0 auto; }
 }
 
@@ -619,6 +660,20 @@
     display: flex; flex-direction: column; gap: .3rem; flex: 0 1 180px; min-width: 0;
     font-size: .78rem; font-weight: 600; color: var(--color-text-secondary);
   }
+
+  // Mismas dos filas que un campo (etiqueta + control), para que `align-items: flex-end` alinee
+  // el botón CONTRA EL CAMPO y no contra la columna entera «Desde»/«Hasta» (etiqueta incluida).
+  // El espaciador es invisible pero ocupa el mismo alto que la etiqueta: sin él el botón, al no
+  // tener nada encima, quedaba con el borde de ABAJO alineado pero el de ARRIBA varios píxeles
+  // más abajo que el del campo de fecha — que es justo el desalineado que se veía.
+  &__btn {
+    display: flex; flex-direction: column; gap: .3rem; flex: 0 0 auto;
+  }
+  &__btn-spacer {
+    font-size: .78rem; font-weight: 600; line-height: 1;
+    visibility: hidden;
+  }
+
   .btn { flex: 0 0 auto; }
 }
 
@@ -948,7 +1003,9 @@
   }
 
   .hist-filtros label { flex: 1 1 140px; }
-  .hist-detalle-head { flex-wrap: wrap; }
+  // El título y el botón de Excel, no «Volver» (que ya tiene su propia fila): en una pantalla
+  // angosta con `caja_ver_ingresos` el título más «Excel» no siempre caben en una sola línea.
+  .hist-detalle-head__fila { flex-wrap: wrap; }
 }
 
 @media (max-width: 720px) {
