@@ -82,6 +82,15 @@
     }
   }
 
+  // Hay pedidos del bot sin confirmar: un punto que late, para que se note aun con otro filtro puesto.
+  .chip-punto {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--despacho-alerta);
+    animation: pendiente-latido 1.6s ease-in-out infinite;
+  }
+
   // Cancelados: del rojo de error, el mismo con que se marca la tarjeta cancelada.
   &.chip-cancelados {
     color: var(--color-error);
@@ -156,6 +165,17 @@
     background: linear-gradient(180deg, color-mix(in srgb, var(--color-success) 5%, var(--color-surface)), var(--color-surface) 45%);
   }
 
+  // Pedido del bot que nadie ha confirmado: el borde se enciende en ámbar y late. Tenue para no
+  // gritar —puede haber varias a la vez— y brillante para que se distinga sin buscarla. Es un tono
+  // semántico fijo (el dorado de «requiere atención», el mismo de Mesas), no la marca del negocio.
+  // La animación pisa al `:hover`, y está bien: una tarjeta pendiente no debe dejar de latir por
+  // pasarle el cursor encima.
+  &.card-pendiente {
+    border-color: var(--despacho-alerta);
+    border-left-width: 4px;
+    animation: pendiente-brillo 1.8s ease-in-out infinite;
+  }
+
   // Pedido cancelado de hoy: mismo tamaño que las demás, con el color de estado (error) y sin
   // interacción de tarjeta — solo se puede «Finalizar».
   &.card-cancelado {
@@ -184,6 +204,40 @@
     }
     .total-cancelado { text-decoration: line-through; opacity: 0.7; }
   }
+}
+
+.despacho-layout, .despacho-card {
+  --despacho-alerta: var(--color-warning-gold, #d99a00);
+}
+
+@keyframes pendiente-brillo {
+  0%, 100% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--despacho-alerta) 55%, transparent),
+      0 0 6px 0 color-mix(in srgb, var(--despacho-alerta) 30%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--despacho-alerta) 85%, transparent),
+      0 0 16px 3px color-mix(in srgb, var(--despacho-alerta) 50%, transparent);
+  }
+}
+
+@keyframes pendiente-latido {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.5); opacity: 0.55; }
+}
+
+// Sin animación para quien la pidió apagada: el borde y el brillo se quedan fijos, que sigue
+// diciendo «pendiente» sin moverse.
+@media (prefers-reduced-motion: reduce) {
+  .despacho-card.card-pendiente {
+    animation: none;
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--despacho-alerta) 70%, transparent),
+      0 0 12px 2px color-mix(in srgb, var(--despacho-alerta) 40%, transparent);
+  }
+  .chip .chip-punto { animation: none; }
 }
 
 .card-top {
@@ -266,6 +320,13 @@
     border: 1px solid color-mix(in srgb, var(--color-error) 35%, transparent);
   }
 
+  // Pendiente de confirmar: en el ámbar de atención, lleno para que se lea junto al resto de tags.
+  &.tag-pendiente {
+    background: color-mix(in srgb, var(--despacho-alerta) 18%, var(--color-surface));
+    color: var(--color-warning);
+    border: 1px solid color-mix(in srgb, var(--despacho-alerta) 60%, transparent);
+  }
+
   // El canal es informativo, no un tipo de entrega: neutro, y solo el ícono en verde, para que no
   // se confunda con el badge verde de «Llevar».
   &.tag-whatsapp {
@@ -331,6 +392,46 @@
       border-color: color-mix(in srgb, var(--color-error) 45%, transparent);
     }
   }
+}
+
+// «Confirmar» es la acción que destraba el pedido: se pinta en el ámbar de la alerta y no en el de la
+// marca, para que la tarjeta entera diga lo mismo (borde, etiqueta y botón).
+.btn-principal.btn-confirmar {
+  border-color: var(--despacho-alerta);
+  background: var(--despacho-alerta);
+  color: #1f1500;
+
+  &:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--despacho-alerta) 85%, #000);
+    background: color-mix(in srgb, var(--despacho-alerta) 85%, #000);
+  }
+
+  // Móvil: la palabra corta. PC: «Confirmar pedido».
+  .lbl-largo { display: none; }
+  @media (min-width: 768px) {
+    .lbl-corto { display: none; }
+    .lbl-largo { display: inline; }
+  }
+}
+
+.btn-confirmar-modal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 14px;
+  border: 1px solid var(--despacho-alerta);
+  border-radius: var(--radius-md);
+  background: var(--despacho-alerta);
+  color: #1f1500;
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  cursor: pointer;
+
+  &:hover:not(:disabled) { background: color-mix(in srgb, var(--despacho-alerta) 85%, #000); }
+  &:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+  &:disabled { opacity: 0.6; cursor: default; }
 }
 
 // Fila de acción: el botón principal ocupa el ancho que sobra y el de imprimir queda a su lado,

@@ -86,6 +86,14 @@ export interface PedidoDespacho {
    */
   de_whatsapp?: boolean;
   /**
+   * Lo tomó el asistente y nadie del negocio lo ha confirmado todavía.
+   *
+   * Lo calcula el backend (`de_whatsapp` y sin `confirmado_en`) y aquí solo se pinta. «Confirmar»
+   * es dar por visto, no mandar a cocina ni cambiar el pago: ver
+   * `pedidoService.confirmarPedidoAsistente`. Puede faltar con un backend anterior: se lee como falso.
+   */
+  pendiente_confirmar?: boolean;
+  /**
    * ¿Se le puede ofrecer el aviso de «ya está listo»?
    *
    * Lo decide el **backend**, y por eso aquí no se recalcula. Son cuatro condiciones y una de
@@ -201,6 +209,8 @@ export class DespachoComponent implements OnInit {
 
   /** El pedido cuyo aviso está en vuelo. Bloquea el botón mientras tanto. */
   readonly avisandoId = signal<number | null>(null);
+  /** El pedido que se está confirmando. Bloquea el botón: dos clics no deben ser dos peticiones. */
+  readonly confirmandoId = signal<number | null>(null);
 
   // ── Descuento desde despacho (mismo criterio que el domicilio) ──
   readonly descuentoInput = signal('');
@@ -295,6 +305,10 @@ export class DespachoComponent implements OnInit {
     + this.canceladosVisibles().filter((c) => c.tipo_pedido === 'DOMICILIO').length,
   );
   readonly countWhatsapp = computed(() => this.pedidos().filter((p) => p.de_whatsapp).length);
+  /** Los del bot que nadie ha confirmado: lo que el chip de WhatsApp señala con un punto. */
+  readonly countPorConfirmar = computed(
+    () => this.pedidos().filter((p) => p.pendiente_confirmar).length,
+  );
   readonly countCancelados = computed(() => this.canceladosVisibles().length);
 
   /**
@@ -642,7 +656,10 @@ export class DespachoComponent implements OnInit {
    * tarjetas terminen igual: avisar al cliente (si el backend lo permite) → cobrar (abre el detalle,
    * donde se elige la forma de pago) → finalizar un pedido ya cobrado.
    */
-  accionPrincipal(p: PedidoDespacho): 'avisar' | 'cobrar' | 'finalizar' {
+  accionPrincipal(p: PedidoDespacho): 'confirmar' | 'avisar' | 'cobrar' | 'finalizar' {
+    // Lo primero es que alguien del negocio sepa que el pedido existe: nadie lo tomó, lo tomó el
+    // bot. Hasta entonces no se ofrece cobrar ni avisar «ya está listo» de algo que nadie ha visto.
+    if (p.pendiente_confirmar) return 'confirmar';
     if (this.puedeAvisarListo(p)) return 'avisar';
     return this.esPendientePago(p) ? 'cobrar' : 'finalizar';
   }
@@ -672,6 +689,60 @@ export class DespachoComponent implements OnInit {
   /** Se avisó y el mensaje sigue vivo (entregado, o en cola). */
   avisoHecho(p: PedidoDespacho): boolean {
     return Boolean(p.aviso_listo_en) && p.aviso_listo_estado !== 'fallido';
+  }
+
+  /**
+   * El negocio da por visto un pedido que tomó el asistente.
+   *
+   * Primero se confirma en el servidor y DESPUÉS se pregunta por la comanda: así el estado del
+   * pedido no depende de cómo se cierre la pregunta (un clic fuera, Esc). Las dos respuestas
+   * —imprimir u omitir— dejan el pedido confirmado; el botón de la impresora sigue en la tarjeta
+   * para imprimir cuando se quiera.
+   */
+  confirmarPedido(p: PedidoDespacho, ev?: Event): void {
+    ev?.stopPropagation();
+    if (!p.pendiente_confirmar || this.confirmandoId() !== null) return;
+
+    this.confirmandoId.set(p.id_orden);
+    this.http.post<{ success: boolean }>(
+      `${environment.apiUrl}/despacho/${p.id_orden}/confirmar`,
+      { id_negocio: this.negocioId() }
+    ).subscribe({
+      next: () => {
+        const apply = (ord: PedidoDespacho): PedidoDespacho =>
+          ord.id_orden === p.id_orden ? { ...ord, pendiente_confirmar: false } : ord;
+
+        this.pedidos.update((lista) => lista.map(apply));
+        const activo = this.pedidoActivo();
+        if (activo?.id_orden === p.id_orden) this.pedidoActivo.set(apply(activo));
+
+        this.confirmandoId.set(null);
+        void this.preguntarImprimirComanda(p);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.confirmandoId.set(null);
+        // Otro equipo pudo confirmarlo, cancelarlo o cobrarlo primero: se recarga para que la
+        // tarjeta refleje lo que de verdad pasó en vez de insistir sobre una pantalla vieja.
+        this.cargar();
+        this.uiFeedback.error(err?.error?.message || 'No se pudo confirmar el pedido.');
+      },
+    });
+  }
+
+  private async preguntarImprimirComanda(p: PedidoDespacho): Promise<void> {
+    // El repartidor no imprime: el tiquete lo saca el local (mismo criterio que el botón).
+    if (this.esDomiciliario()) {
+      this.uiFeedback.success('Pedido confirmado.', 'Confirmado');
+      return;
+    }
+    const imprimir = await this.uiFeedback.confirm({
+      title: 'Pedido confirmado',
+      message: `El pedido ${p.numero_orden} quedó confirmado. ¿Quieres imprimir la comanda?`,
+      confirmText: 'Imprimir comanda',
+      cancelText: 'Omitir',
+      tone: 'info',
+    });
+    if (imprimir) this.imprimirTicket(p);
   }
 
   avisarListo(p: PedidoDespacho, ev?: Event): void {
@@ -1294,8 +1365,8 @@ export class DespachoComponent implements OnInit {
 
   // ── Impresión ──
 
-  imprimirTicket(p: PedidoDespacho, event: Event): void {
-    event.stopPropagation();
+  imprimirTicket(p: PedidoDespacho, event?: Event): void {
+    event?.stopPropagation();
     if (!this.isBrowser) return;
 
     const html = this.buildTicketHtml(p, new Date());

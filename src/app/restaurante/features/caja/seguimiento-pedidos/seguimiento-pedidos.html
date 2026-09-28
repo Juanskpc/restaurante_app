@@ -2,31 +2,31 @@
   <header class="seg__head">
     <div>
       <h2>Movimientos</h2>
-      <p class="seg__subtitulo">Quién tomó cada pedido, quién lo cobró o lo canceló, y con qué.</p>
+      <p class="seg__subtitulo">
+        Quién tomó cada pedido, quién lo cobró o lo canceló, y con qué.
+        @if (caja) {
+          Caja abierta el {{ caja.fecha_apertura | date:'d MMM, h:mm a' }}.
+        }
+      </p>
     </div>
     <button type="button" class="btn btn-ghost seg__cerrar" (click)="cerrar.emit()" aria-label="Cerrar">
       <lucide-icon name="x" size="18" />
     </button>
   </header>
 
+  @if (!caja) {
+    <p class="estado">
+      No hay una caja abierta. Abre la caja para ver aquí los pedidos del turno.
+    </p>
+  } @else {
+  <!-- Sin botón: se busca solo, al escribir. Sin fechas: son los pedidos de la caja en curso. -->
   <div class="seg__filtros">
-    <label>
-      <span>Desde</span>
-      <input class="input" type="date" [ngModel]="desde()" (ngModelChange)="desde.set($event)" />
-    </label>
-    <label>
-      <span>Hasta</span>
-      <input class="input" type="date" [ngModel]="hasta()" (ngModelChange)="hasta.set($event)" />
-    </label>
     <label class="seg__buscar">
       <span>Buscar</span>
-      <input class="input" type="text" placeholder="Número de orden o mesero"
-             [ngModel]="q()" (ngModelChange)="q.set($event)" (keyup.enter)="buscar(true)" />
+      <input class="input" type="search" placeholder="Número de orden o mesero"
+             autocomplete="off"
+             [ngModel]="q()" (ngModelChange)="alEscribir($event)" />
     </label>
-    <button type="button" class="btn btn-outline" [disabled]="cargando()" (click)="buscar(true)">
-      <lucide-icon name="search" size="15" />
-      Buscar
-    </button>
   </div>
 
   <nav class="seg__chips">
@@ -67,7 +67,9 @@
   } @else if (cargando() && filas().length === 0) {
     <p class="estado">Cargando…</p>
   } @else if (filas().length === 0) {
-    <p class="estado">Ningún pedido en este rango.</p>
+    <p class="estado">
+      {{ q().trim() || estado() ? 'Ningún pedido coincide con la búsqueda.' : 'Esta caja todavía no tiene pedidos.' }}
+    </p>
   } @else {
     <ul class="seg__lista">
       @for (p of filas(); track p.id_orden) {
@@ -115,5 +117,6 @@
       </button>
     }
     <p class="seg__conteo">Mostrando {{ filas().length }} de {{ total() }} pedidos.</p>
+  }
   }
 </div>

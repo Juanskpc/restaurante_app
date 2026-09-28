@@ -143,3 +143,88 @@ describe('RealtimeService — reparto de recargas', () => {
     expect(sana).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('RealtimeService — avisos al instante (alAvisar)', () => {
+  let rt: RealtimeService;
+  const procesar = (bloque: string) =>
+    (rt as unknown as { procesar(b: string): void }).procesar(bloque);
+  const aviso = (...temas: string[]) =>
+    `event: cambio
+data: ${JSON.stringify({ temas, en: '2026-09-28T20:00:00Z' })}`;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    TestBed.configureTestingModule({
+      providers: [
+        {
+          provide: AuthService,
+          useValue: { isAuthenticated: signal(false), negocio: signal(null), getAccessToken: () => null },
+        },
+      ],
+    });
+    rt = TestBed.inject(RealtimeService);
+  });
+
+  afterEach(() => vi.useRealTimers());
+
+  it('avisa en el acto, sin esperar la agrupación de las recargas', () => {
+    const suena = vi.fn();
+    rt.alAvisar('whatsapp', suena);
+
+    procesar(aviso('pedidos', 'whatsapp'));
+
+    expect(suena).toHaveBeenCalledTimes(1);
+  });
+
+  it('cada pedido es un aviso: dos seguidos suenan dos veces', () => {
+    // A diferencia de recargar una lista, aquí no se juntan ráfagas: son dos pedidos distintos.
+    const suena = vi.fn();
+    rt.alAvisar('whatsapp', suena);
+
+    procesar(aviso('whatsapp'));
+    procesar(aviso('whatsapp'));
+
+    expect(suena).toHaveBeenCalledTimes(2);
+  });
+
+  it('con la pestaña de fondo también avisa (es cuando nadie está mirando)', () => {
+    const suena = vi.fn();
+    rt.alAvisar('whatsapp', suena);
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(true);
+
+    procesar(aviso('whatsapp'));
+
+    expect(suena).toHaveBeenCalledTimes(1);
+  });
+
+  it('solo avisa del tema al que se apuntó', () => {
+    const suena = vi.fn();
+    rt.alAvisar('whatsapp', suena);
+
+    procesar(aviso('pedidos', 'caja'));
+
+    expect(suena).not.toHaveBeenCalled();
+  });
+
+  it('darse de baja deja de recibir', () => {
+    const suena = vi.fn();
+    const baja = rt.alAvisar('whatsapp', suena);
+    baja();
+
+    procesar(aviso('whatsapp'));
+
+    expect(suena).not.toHaveBeenCalled();
+  });
+
+  it('un oyente que falla no deja sin aviso a los demás', () => {
+    const rota = vi.fn(() => {
+      throw new Error('se rompió sonando');
+    });
+    const sana = vi.fn();
+    rt.alAvisar('whatsapp', rota);
+    rt.alAvisar('whatsapp', sana);
+
+    expect(() => procesar(aviso('whatsapp'))).not.toThrow();
+    expect(sana).toHaveBeenCalledTimes(1);
+  });
+});

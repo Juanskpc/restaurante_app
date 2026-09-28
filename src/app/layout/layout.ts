@@ -10,6 +10,9 @@ import { NavProgressComponent } from './nav-progress/nav-progress';
 import { PlanAvisoComponent } from './plan-aviso/plan-aviso';
 import { AuthService } from '../core/services/auth.service';
 import { SidebarService } from '../core/services/sidebar.service';
+import { RealtimeService } from '../core/services/realtime.service';
+import { SonidoAlertaService } from '../core/services/sonido-alerta.service';
+import { UiFeedbackService } from '../core/ui-feedback/ui-feedback.service';
 
 /** Rutas de sistema: existen precisamente para quien no tiene permisos. */
 const RUTAS_SIEMPRE_PERMITIDAS = new Set(['/sin-acceso', '/sin-plan']);
@@ -47,6 +50,9 @@ export class LayoutComponent {
   private readonly auth = inject(AuthService);
   private readonly platformId = inject(PLATFORM_ID);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly realtime = inject(RealtimeService);
+  private readonly sonido = inject(SonidoAlertaService);
+  private readonly ui = inject(UiFeedbackService);
 
   /** Lo decide el botón del sidebar; aquí solo se usa para correr el contenido. */
   readonly sidebarColapsado = inject(SidebarService).colapsado;
@@ -74,6 +80,28 @@ export class LayoutComponent {
     this.destroyRef.onDestroy(() =>
       document.removeEventListener('visibilitychange', this.alVolverALaPestana),
     );
+
+    // Vive aquí y no en Despacho porque el aviso hace falta justo cuando NO se está mirando
+    // Despacho: el cajero está en Caja, el mesero en Mesas. El pedido lo tomó un bot, así que
+    // nadie del negocio sabe que existe hasta que suene.
+    this.destroyRef.onDestroy(
+      this.realtime.alAvisar('whatsapp', () => this.alLlegarPedidoDeWhatsapp()),
+    );
+  }
+
+  /**
+   * Suena y avisa, pero solo a quien de verdad va a atender ese pedido: el repartidor —que ve
+   * únicamente lo asignado a él— o un cocinero no tienen nada que confirmar, y una alerta que no
+   * les toca se aprende a ignorar.
+   */
+  private alLlegarPedidoDeWhatsapp(): void {
+    if (!this.auth.canAccessRoute('/despacho') || !this.auth.canAccessSubnivel('despacho_ver_todos')) return;
+
+    this.sonido.sonarNuevoPedido();
+    // Dentro de Despacho la tarjeta ya se enciende sola: el aviso solo estorbaría.
+    if (!this.router.url.startsWith('/despacho')) {
+      this.ui.info('Llegó un pedido por WhatsApp. Confírmalo en Despacho.', 'Nuevo pedido');
+    }
   }
 
   private readonly alVolverALaPestana = (): void => {

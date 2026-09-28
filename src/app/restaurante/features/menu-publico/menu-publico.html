@@ -165,6 +165,12 @@
         <span class="eleccion-chip__texto">{{ resumenEleccion() }}</span>
         <span class="eleccion-chip__cambiar">Cambiar</span>
       </button>
+      <!-- En el local no se arma pedido: el aviso dice por qué no hay botones y cómo pedir igual. -->
+      @if (soloMirar()) {
+        <p class="eleccion-nota">
+          Un mesero tomará tu pedido. Si prefieres pedir por WhatsApp, cambia a domicilio o para recoger.
+        </p>
+      }
     </div>
   }
 
@@ -262,7 +268,7 @@
                           <!-- El control vive en su propia fila (alto fijo) debajo del precio: al
                                pasar de «+» a «− n +» el precio no se mueve. Con `order` en CSS
                                sube justo bajo el precio; en las composiciones de texto queda al final. -->
-                          @if (pedidosHabilitados() && prod.disponible !== false) {
+                          @if (puedeArmarPedido() && prod.disponible !== false) {
                             <div class="fila-accion">
                               <ng-container *ngTemplateOutlet="controlPedido; context: { $implicit: prod }" />
                             </div>
@@ -307,7 +313,7 @@
   <!-- ═══════════ Pie de EscalApp ═══════════
        Una sola línea, como en el portal de reservas: la invitación a crear un menú propio y la
        nota legal. El pie de la carta de otro negocio es su cierre, no nuestro escaparate. -->
-  <footer class="pie" [class.pie--con-boton]="pedidosHabilitados() && !carrito.vacio()">
+  <footer class="pie" [class.pie--con-boton]="puedeArmarPedido() && !carrito.vacio()">
     <div class="pie__interior">
       <a class="pie__cta" [href]="appSiteUrl" target="_blank" rel="noopener">
         <span>Crea tu propio menú digital</span>
@@ -354,7 +360,7 @@
         <h3 class="product-name">{{ prod.nombre }}</h3>
         <div class="product-precio-col">
           <span class="product-price">{{ formatPrice(prod.precio) }}</span>
-          @if (pedidosHabilitados() && prod.disponible !== false) {
+          @if (puedeArmarPedido() && prod.disponible !== false) {
             <div class="fila-accion">
               <ng-container *ngTemplateOutlet="controlPedido; context: { $implicit: prod }" />
             </div>
@@ -381,8 +387,6 @@
     <div class="product-qty">
       <button
         type="button"
-        [disabled]="!atendiendoAhora()"
-        [attr.title]="atendiendoAhora() ? null : textoFueraDeHorario"
         class="qty-btn"
         (click)="quitarDelCarrito(prod.id_producto)"
         [attr.aria-label]="'Quitar uno de ' + prod.nombre"
@@ -394,9 +398,10 @@
       </span>
       <button
         type="button"
-        [disabled]="!atendiendoAhora()"
+        [attr.aria-disabled]="atendiendoAhora() ? null : true"
         [attr.title]="atendiendoAhora() ? null : textoFueraDeHorario"
         class="qty-btn"
+        [class.pedir-cerrado]="!atendiendoAhora()"
         (click)="agregarAlCarrito(prod)"
         [attr.aria-label]="'Agregar otro ' + prod.nombre"
       >
@@ -406,9 +411,10 @@
   } @else {
     <button
       type="button"
-      [disabled]="!atendiendoAhora()"
+      [attr.aria-disabled]="atendiendoAhora() ? null : true"
       [attr.title]="atendiendoAhora() ? null : textoFueraDeHorario"
       class="add-btn"
+      [class.pedir-cerrado]="!atendiendoAhora()"
       (click)="agregarAlCarrito(prod)"
       [attr.aria-label]="'Agregar ' + prod.nombre + ' al pedido'"
     >
@@ -494,7 +500,7 @@
               <button type="button" class="eleccion-tarjeta" (click)="elegirModalidad('L')">
                 <lucide-icon name="armchair" [size]="28" />
                 <span class="eleccion-tarjeta__titulo">En el local</span>
-                <span class="eleccion-tarjeta__sub">Estoy sentado en una mesa</span>
+                <span class="eleccion-tarjeta__sub">Un mesero tomará tu pedido</span>
               </button>
             }
             <button type="button" class="eleccion-tarjeta" (click)="elegirModalidad('D')">
@@ -528,19 +534,6 @@
             <lucide-icon name="arrow-left" [size]="16" /> Volver
           </button>
         }
-        @case ('mesa') {
-          <h2 id="eleccion-titulo" class="eleccion__titulo">¿En qué mesa estás?</h2>
-          <div class="eleccion__mesas">
-            @for (m of mesas(); track m.id_mesa) {
-              <button type="button" class="eleccion-mesa" (click)="elegirMesa(m)">
-                {{ m.nombre }}
-              </button>
-            }
-          </div>
-          <button type="button" class="btn btn--outline eleccion__volver" (click)="cambiarEleccion()">
-            <lucide-icon name="arrow-left" [size]="16" /> Volver
-          </button>
-        }
       }
     </div>
   </div>
@@ -552,11 +545,12 @@
      pedidos desde la carta. Sin eso, el menú sigue siendo un menú perfectamente útil: se mira,
      y no se ofrece un botón que no lleva a ningún sitio.
 -->
-@if (pedidosHabilitados() && !carrito.vacio()) {
+@if (puedeArmarPedido() && !carrito.vacio()) {
   <button
     type="button"
     class="fab-pedido"
-    [disabled]="!atendiendoAhora()"
+    [class.pedir-cerrado]="!atendiendoAhora()"
+    [attr.aria-disabled]="atendiendoAhora() ? null : true"
     [attr.title]="atendiendoAhora() ? null : textoFueraDeHorario"
     (click)="abrirPrePedido()"
     [attr.aria-label]="'Ver mi pedido (' + carrito.cantidadTotal() + ' productos)'"
@@ -566,6 +560,23 @@
     <span class="fab-texto" aria-hidden="true">Pedir aquí</span>
     <span class="fab-badge" aria-hidden="true">{{ carrito.cantidadTotal() }}</span>
   </button>
+}
+
+<!-- ═══════ AVISO: NEGOCIO FUERA DE HORARIO ═══════
+
+     Sale cuando el cliente TOCA un botón de pedir y el negocio no está atendiendo. Los botones se
+     ven apagados pero siguen recibiendo el toque, precisamente para poder decir por qué no pasa
+     nada: un `disabled` no lo recibe y en el móvil no hay `title` que leer. Es `role="status"`
+     (educado, no interrumpe) porque no es un error del cliente.
+-->
+@if (avisoCerradoVisible()) {
+  <div class="aviso-cerrado" role="status" aria-live="polite">
+    <lucide-icon name="clock" [size]="20" aria-hidden="true" />
+    <p class="aviso-cerrado__texto">{{ mensajeCerrado() }}</p>
+    <button type="button" class="aviso-cerrado__cerrar" (click)="cerrarAvisoCerrado()" aria-label="Cerrar aviso">
+      <lucide-icon name="x" [size]="16" />
+    </button>
+  </div>
 }
 
 @if (prePedidoAbierto()) {

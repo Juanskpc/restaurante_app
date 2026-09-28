@@ -22,7 +22,20 @@ import { aplicarLista } from '../../../core/utils/refresco-vivo';
 import { CajaSelectorComponent } from '../../shared/caja-selector/caja-selector';
 import { SeguimientoPedidosComponent } from './seguimiento-pedidos/seguimiento-pedidos';
 
-type ModalActivo = null | 'apertura' | 'cierre' | 'movimiento' | 'domiciliarios' | 'historial' | 'seguimiento';
+type ModalActivo = null | 'apertura' | 'cierre' | 'movimiento' | 'domiciliarios' | 'seguimiento';
+
+/** Las dos pestañas de la pantalla. El historial ya no es un modal (2026-09-29). */
+type PestanaCaja = 'turno' | 'historial';
+
+/** Una forma de pago del resumen, lista para pintar su barra. */
+interface FilaMetodo {
+  nombre: string;
+  /** Neto: los egresos restan. Puede ser negativo. */
+  total: number;
+  movimientos: number;
+  /** Ancho de la barra, 0–100, contra la forma de pago que más movió. */
+  pct: number;
+}
 
 /** Un filtro de la barra de formas de pago, con lo que trae el turno por esa vía. */
 interface FiltroMetodo {
@@ -35,6 +48,10 @@ interface FiltroMetodo {
 
 /** Clave del filtro para las filas sin forma de pago atribuida. */
 const SIN_METODO = 'sin';
+
+/** Las columnas por las que se puede ordenar la tabla de movimientos. */
+type CampoOrden = 'fecha' | 'tipo' | 'tipoPedido' | 'concepto' | 'formaPago' | 'usuario' | 'monto';
+type DireccionOrden = 'asc' | 'desc';
 
 @Component({
   selector: 'app-caja',
@@ -71,6 +88,25 @@ export class CajaComponent implements OnInit, OnDestroy {
 
   readonly modal = signal<ModalActivo>(null);
   readonly enviando = signal(false);
+
+  readonly pestana = signal<PestanaCaja>('turno');
+
+  /**
+   * Cambia de pestaña. Al entrar al historial siempre se arranca en la lista de turnos (no en el
+   * detalle que se dejó abierto) y se vuelve a leer, porque entre visita y visita se pudo cerrar
+   * una caja. Las filas desplegadas se cierran al cambiar de listado: son de otra tabla.
+   */
+  cambiarPestana(destino: PestanaCaja): void {
+    if (this.pestana() === destino) return;
+    this.pestana.set(destino);
+    this.cerrarTodasLasFilas();
+    if (destino === 'historial') {
+      this.cajaHistSel.set(null);
+      this.movimientosHist.set([]);
+      this.errorHistorial.set('');
+      this.cargarHistorial(true);
+    }
+  }
 
   // ── Acordeón de productos por fila ──
   // Qué filas están abiertas se guarda por `id_movimiento` (es la fila), y lo que
@@ -131,11 +167,78 @@ export class CajaComponent implements OnInit, OnDestroy {
    */
   readonly movimientosFiltrados = computed(() => {
     const ocultos = this.metodosOcultos();
-    if (ocultos.size === 0) return this.movimientos();
-    return this.movimientos().filter(
-      (m) => this.clavesMetodo(m).some((clave) => !ocultos.has(clave)),
-    );
+    const visibles = ocultos.size === 0
+      ? this.movimientos()
+      : this.movimientos().filter(
+          (m) => this.clavesMetodo(m).some((clave) => !ocultos.has(clave)),
+        );
+    return this.ordenar(visibles);
   });
+
+  /** Los movimientos del turno abierto en el historial, con el mismo orden que elija el usuario. */
+  readonly movimientosHistOrdenados = computed(() => this.ordenar(this.movimientosHist()));
+
+  // ── Orden de la tabla ──
+  // `null` = como llegan del servidor (el orden de siempre). Cada clic en un encabezado avanza
+  // ascendente → descendente → sin orden, así siempre hay un camino de vuelta al original sin
+  // un botón aparte. Un solo estado sirve a las dos tablas —la del turno y la del historial—:
+  // tienen las mismas columnas y quien ordena una espera ver lo mismo en la otra.
+  readonly orden = signal<{ campo: CampoOrden; direccion: DireccionOrden } | null>(null);
+
+  alternarOrden(campo: CampoOrden): void {
+    const actual = this.orden();
+    if (actual?.campo !== campo) this.orden.set({ campo, direccion: 'asc' });
+    else if (actual.direccion === 'asc') this.orden.set({ campo, direccion: 'desc' });
+    else this.orden.set(null);
+  }
+
+  /** Para `aria-sort` del encabezado. */
+  ariaOrden(campo: CampoOrden): 'ascending' | 'descending' | 'none' {
+    const actual = this.orden();
+    if (actual?.campo !== campo) return 'none';
+    return actual.direccion === 'asc' ? 'ascending' : 'descending';
+  }
+
+  iconoOrden(campo: CampoOrden): string {
+    const actual = this.orden();
+    if (actual?.campo !== campo) return 'arrow-up-down';
+    return actual.direccion === 'asc' ? 'arrow-up' : 'arrow-down';
+  }
+
+  private ordenar(lista: MovimientoCaja[]): MovimientoCaja[] {
+    const actual = this.orden();
+    if (!actual) return lista;
+
+    const signo = actual.direccion === 'asc' ? 1 : -1;
+    // `sort` es estable: a igual valor se conserva el orden del servidor, no se baraja.
+    return [...lista].sort((a, b) => signo * this.compararPor(actual.campo, a, b));
+  }
+
+  private compararPor(campo: CampoOrden, a: MovimientoCaja, b: MovimientoCaja): number {
+    switch (campo) {
+      case 'fecha':
+        return new Date(a.fecha).getTime() - new Date(b.fecha).getTime();
+      case 'monto':
+        return (Number(a.monto) || 0) - (Number(b.monto) || 0);
+      default: {
+        // `numeric` para que «ORD-0009» quede antes que «ORD-0010» y no después de «ORD-0099».
+        const texto = (m: MovimientoCaja) => this.textoDeColumna(campo, m);
+        return texto(a).localeCompare(texto(b), 'es', { numeric: true, sensitivity: 'base' });
+      }
+    }
+  }
+
+  /** Lo que se ve en la celda: se ordena por lo mismo que lee el usuario, no por el dato crudo. */
+  private textoDeColumna(campo: CampoOrden, m: MovimientoCaja): string {
+    switch (campo) {
+      case 'tipo': return this.etiquetaTipo(m);
+      case 'tipoPedido': return this.tipoPedidoMovimiento(m);
+      case 'concepto': return this.conceptoCorto(m);
+      case 'formaPago': return this.formasPagoTexto(m);
+      case 'usuario': return `${m.usuario?.primer_nombre ?? ''} ${m.usuario?.primer_apellido ?? ''}`.trim();
+      default: return '';
+    }
+  }
 
   readonly hayFiltroMetodo = computed(() => this.metodosOcultos().size > 0);
 
@@ -478,13 +581,6 @@ export class CajaComponent implements OnInit, OnDestroy {
       this.errorDomiciliarios.set('');
       this.cargarResumenDomiciliarios();
     }
-    if (modal === 'historial') {
-      this.cajaHistSel.set(null);
-      this.movimientosHist.set([]);
-      this.errorHistorial.set('');
-      this.cerrarTodasLasFilas();
-      this.cargarHistorial(true);
-    }
     this.modal.set(modal);
     this.toggleBodyScroll(true);
   }
@@ -816,9 +912,43 @@ export class CajaComponent implements OnInit, OnDestroy {
 
   /** Etiqueta de la columna Tipo, que además distingue las anulaciones. */
   etiquetaTipo(m: MovimientoCaja): string {
-    if (m.es_anulacion) return 'ELIMINADO';
-    if (m.anulado) return `${m.tipo} · ANULADO`;
-    return m.tipo;
+    if (m.es_anulacion) return 'Eliminado';
+    const tipo = m.tipo === 'INGRESO' ? 'Ingreso' : 'Egreso';
+    return m.anulado ? `${tipo} · Anulado` : tipo;
+  }
+
+  /** Cuántos ingresos VIGENTES trae la lista: los anulados y sus reversas no cuentan como venta. */
+  conteoIngresos(movs: MovimientoCaja[]): number {
+    return movs.filter((m) => m.tipo === 'INGRESO' && !m.anulado && !m.es_anulacion).length;
+  }
+
+  /**
+   * El desglose por forma de pago de un turno, con cuántos movimientos tocó cada una y el ancho de su
+   * barra. El total sale del backend (neto: los egresos restan); el conteo, de los movimientos que
+   * ya están en pantalla, con las mismas claves que usan los filtros de la tabla.
+   */
+  filasMetodo(c: Caja | null | undefined, movs: MovimientoCaja[]): FilaMetodo[] {
+    const lista = c?.ingresos_por_metodo ?? [];
+    if (lista.length === 0) return [];
+
+    const conteo = new Map<string, number>();
+    for (const m of movs) {
+      for (const clave of this.clavesMetodo(m)) conteo.set(clave, (conteo.get(clave) ?? 0) + 1);
+    }
+    // Contra el mayor positivo: una forma de pago en negativo (salió más de lo que entró) no
+    // tiene barra, y el máximo mínimo de 1 evita dividir por cero con un turno sin ingresos.
+    const maximo = Math.max(1, ...lista.map((i) => Math.max(0, Number(i.total) || 0)));
+
+    return lista.map((i) => {
+      const total = Number(i.total) || 0;
+      const clave = i.id_metodo_pago == null ? SIN_METODO : String(i.id_metodo_pago);
+      return {
+        nombre: i.nombre,
+        total,
+        movimientos: conteo.get(clave) ?? 0,
+        pct: (Math.max(0, total) / maximo) * 100,
+      };
+    });
   }
 
   /**

@@ -66,6 +66,11 @@
               (click)="seleccionarFiltro('WHATSAPP')">
         <lucide-icon name="message-circle" [size]="13" />
         WhatsApp ({{ countWhatsapp() }})
+        @if (countPorConfirmar() > 0) {
+          <span class="chip-punto"
+                [title]="countPorConfirmar() + ' por confirmar'"
+                aria-hidden="true"></span>
+        }
       </button>
     }
     <!-- Los cancelados también salen en «Todos»; este chip deja verlos SOLOS. Como el de WhatsApp,
@@ -98,6 +103,7 @@
     <div [class]="'grid densidad-' + densidad()">
       @for (p of pedidosFiltrados(); track p.id_orden) {
         <article class="despacho-card" [class]="'tipo-' + p.tipo_pedido"
+                 [class.card-pendiente]="p.pendiente_confirmar"
                  (click)="abrirPedido(p)">
           <!-- Encabezado: el número manda; debajo, de dónde viene y cómo se entrega. -->
           <header class="card-top">
@@ -148,6 +154,12 @@
                 <span class="tipo-tag tag-whatsapp" title="Pedido tomado por el asistente de WhatsApp">
                   <lucide-icon name="message-circle" [size]="12" />
                   WhatsApp
+                </span>
+              }
+              @if (p.pendiente_confirmar) {
+                <span class="tipo-tag tag-pendiente" title="Nadie del negocio ha confirmado este pedido todavía">
+                  <lucide-icon name="clock-3" [size]="12" />
+                  Pendiente
                 </span>
               }
             </div>
@@ -255,6 +267,17 @@
             -->
             <div class="card-accion">
             @switch (accionPrincipal(p)) {
+              @case ('confirmar') {
+                <button type="button" class="btn-principal btn-confirmar"
+                        [disabled]="confirmandoId() !== null"
+                        (click)="confirmarPedido(p, $event)">
+                  <lucide-icon [name]="confirmandoId() === p.id_orden ? 'loader' : 'check-circle'" [size]="15"
+                               [class.spin]="confirmandoId() === p.id_orden" />
+                  <!-- «Confirmar» en el móvil, donde el botón es angosto; «Confirmar pedido» en el PC. -->
+                  <span class="lbl-corto">Confirmar</span>
+                  <span class="lbl-largo">Confirmar pedido</span>
+                </button>
+              }
               @case ('avisar') {
                 <button type="button" class="btn-principal" [class.reintento]="avisoFallido(p)"
                         [disabled]="avisandoId() !== null"
@@ -375,6 +398,12 @@
             <span class="tipo-tag tag-whatsapp">
               <lucide-icon name="message-circle" [size]="12" />
               WhatsApp
+            </span>
+          }
+          @if (p.pendiente_confirmar) {
+            <span class="tipo-tag tag-pendiente">
+              <lucide-icon name="clock-3" [size]="12" />
+              Pendiente
             </span>
           }
         </div>
@@ -634,6 +663,15 @@
       </div>
 
       <footer class="modal-actions">
+        @if (p.pendiente_confirmar) {
+          <button class="btn-confirmar-modal"
+                  [disabled]="confirmandoId() !== null"
+                  (click)="confirmarPedido(p, $event)">
+            <lucide-icon [name]="confirmandoId() === p.id_orden ? 'loader' : 'check-circle'" [size]="16"
+                         [class.spin]="confirmandoId() === p.id_orden" />
+            Confirmar pedido
+          </button>
+        }
         @if (puedeEditar(p)) {
           <button class="btn-secondary" (click)="editarPedido(p, $event)">
             <lucide-icon name="square-pen" [size]="16" />

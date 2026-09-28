@@ -28,7 +28,8 @@ import {
   Utensils, Coffee, FolderX, Globe, Mail, ArrowRight, ImagePlus, Crop,
   LayoutGrid, Grid3x3, List, SquarePen,
   PanelLeft, PanelLeftClose, PanelTop, Percent, Tag, Filter, Check, Info, Monitor, Smartphone,
-  RotateCcw, Palette, CircleAlert, Ban, Salad, ChevronUp, Layers
+  RotateCcw, Palette, CircleAlert, Ban, Salad, ChevronUp, Layers,
+  ArrowUp, ArrowDown, ArrowUpDown
 } from 'lucide-angular';
 
 const icons = {
@@ -46,7 +47,8 @@ const icons = {
   Utensils, Coffee, FolderX, Globe, Mail, ArrowRight, ImagePlus, Crop,
   LayoutGrid, Grid3x3, List, SquarePen,
   PanelLeft, PanelLeftClose, PanelTop, Percent, Tag, Filter, Check, Info, Monitor, Smartphone,
-  RotateCcw, Palette, CircleAlert, Ban, Salad, Mesa, ChevronUp, Layers
+  RotateCcw, Palette, CircleAlert, Ban, Salad, Mesa, ChevronUp, Layers,
+  ArrowUp, ArrowDown, ArrowUpDown
 };
 
 export const appConfig: ApplicationConfig = {

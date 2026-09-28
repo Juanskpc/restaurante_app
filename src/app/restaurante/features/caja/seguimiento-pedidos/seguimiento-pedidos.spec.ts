@@ -1,14 +1,14 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpErrorResponse } from '@angular/common/http';
-import { of, throwError } from 'rxjs';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { Subject, of, throwError } from 'rxjs';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   LUCIDE_ICONS, LucideIconProvider,
   X, Search, CircleAlert, ChevronUp, ChevronDown, NotebookPen, DollarSign, XCircle, RotateCcw,
 } from 'lucide-angular';
 
 import { SeguimientoPedidosComponent } from './seguimiento-pedidos';
-import { CajaService, PedidoSeguimiento, SeguimientoPedidos } from '../../../../core/services/caja.service';
+import { Caja, CajaService, PedidoSeguimiento, SeguimientoPedidos } from '../../../../core/services/caja.service';
 
 /** Solo los que usa esta plantilla: sin esto, `LucideAngularComponent` revienta en runtime. */
 const ICONOS_DE_LA_PLANTILLA = { X, Search, CircleAlert, ChevronUp, ChevronDown, NotebookPen, DollarSign, XCircle, RotateCcw };
@@ -48,7 +48,8 @@ describe('SeguimientoPedidosComponent', () => {
     data: {
       rows, total, limite: 30, offset: 0,
       resumen: { abiertas: 0, cobradas: rows.length, canceladas: 0, anuladas: 0, monto_cobrado: 20000 * rows.length, monto_no_cobrado: 0 },
-      rango: { desde: '2026-09-28', hasta: '2026-09-28' },
+      rango: null,
+      id_caja: 55,
     },
   });
 
@@ -64,14 +65,18 @@ describe('SeguimientoPedidosComponent', () => {
     fixture = TestBed.createComponent(SeguimientoPedidosComponent);
     comp = fixture.componentInstance;
     fixture.componentRef.setInput('idNegocio', 7);
+    fixture.componentRef.setInput('caja', { id_caja: 55, fecha_apertura: '2026-09-28T08:00:00' } as Caja);
   });
 
-  it('al iniciar, pide el rango de hoy y pinta lo que llega', () => {
+  it('al iniciar, pide los pedidos de la caja en curso (sin fechas) y pinta lo que llega', () => {
     fixture.detectChanges(); // ngOnInit
 
     expect(getSeguimiento).toHaveBeenCalledTimes(1);
     const [idNegocio, opciones] = getSeguimiento.mock.calls[0];
     expect(idNegocio).toBe(7);
+    expect(opciones.idCaja).toBe(55);
+    expect(opciones.desde).toBeUndefined();
+    expect(opciones.hasta).toBeUndefined();
     expect(opciones.offset).toBe(0);
     expect(comp.filas()).toHaveLength(1);
     expect(comp.total()).toBe(1);
@@ -146,5 +151,82 @@ describe('SeguimientoPedidosComponent', () => {
 
     const [, opciones] = getSeguimiento.mock.calls.at(-1)!;
     expect(opciones.q).toBe('ORD-9999');
+  });
+
+  it('sin caja abierta no consulta nada y lo dice', () => {
+    fixture.componentRef.setInput('caja', null);
+    fixture.detectChanges();
+
+    expect(getSeguimiento).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain('No hay una caja abierta');
+    expect(fixture.nativeElement.querySelector('input[type="date"]')).toBeNull();
+  });
+
+  it('ya no hay fechas ni botón de buscar: solo el campo', () => {
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('input[type="date"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.seg__filtros button')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.seg__filtros input')).not.toBeNull();
+  });
+
+  describe('búsqueda al escribir', () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    it('busca sola al escribir, con una pequeña espera y sin pulsar nada', () => {
+      fixture.detectChanges();
+      getSeguimiento.mockClear();
+
+      comp.alEscribir('ORD-12');
+      expect(getSeguimiento).not.toHaveBeenCalled(); // todavía esperando a que pare de escribir
+
+      vi.advanceTimersByTime(300);
+      expect(getSeguimiento).toHaveBeenCalledTimes(1);
+      const [, opciones] = getSeguimiento.mock.calls[0];
+      expect(opciones.q).toBe('ORD-12');
+      expect(opciones.offset).toBe(0);
+      expect(opciones.idCaja).toBe(55);
+    });
+
+    it('varias teclas seguidas hacen UNA sola consulta, con lo último escrito', () => {
+      fixture.detectChanges();
+      getSeguimiento.mockClear();
+
+      for (const t of ['O', 'OR', 'ORD', 'ORD-', 'ORD-1']) {
+        comp.alEscribir(t);
+        vi.advanceTimersByTime(100);
+      }
+      vi.advanceTimersByTime(300);
+
+      expect(getSeguimiento).toHaveBeenCalledTimes(1);
+      expect(getSeguimiento.mock.calls[0][1].q).toBe('ORD-1');
+    });
+
+    it('borrar lo escrito vuelve a traer todos los pedidos de la caja', () => {
+      fixture.detectChanges();
+      comp.alEscribir('ORD-12');
+      vi.advanceTimersByTime(300);
+      getSeguimiento.mockClear();
+
+      comp.alEscribir('');
+      vi.advanceTimersByTime(300);
+
+      expect(getSeguimiento.mock.calls[0][1].q).toBeNull();
+    });
+
+    it('una búsqueda nueva reemplaza a la que sigue en vuelo, y la vieja no pisa el resultado', () => {
+      const lenta = new Subject<ReturnType<typeof respuesta>>();
+      getSeguimiento.mockReturnValueOnce(lenta); // la de ngOnInit se queda «cargando»
+      fixture.detectChanges();
+      expect(comp.cargando()).toBe(true);
+
+      getSeguimiento.mockReturnValue(of(respuesta([pedido(9)], 1)));
+      comp.alEscribir('9');
+      vi.advanceTimersByTime(300);
+
+      expect(comp.filas().map((f) => f.id_orden)).toEqual([9]);
+      lenta.next(respuesta([pedido(1)], 1)); // llega tarde: ya no es lo que se pidió
+      expect(comp.filas().map((f) => f.id_orden)).toEqual([9]);
+    });
   });
 });

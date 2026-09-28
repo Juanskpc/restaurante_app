@@ -1,16 +1,22 @@
 import {
-  ChangeDetectionStrategy, Component, EventEmitter, Input, OnInit, Output, computed, inject, signal,
+  ChangeDetectionStrategy, Component, DestroyRef, EventEmitter, Input, OnInit, Output, computed,
+  inject, signal,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { LucideAngularModule } from 'lucide-angular';
+import { Subject, Subscription, debounceTime } from 'rxjs';
 
 import {
-  CajaService, EstadoSeguimiento, PedidoSeguimiento, ResumenSeguimiento, TipoEventoSeguimiento,
+  Caja, CajaService, EstadoSeguimiento, PedidoSeguimiento, ResumenSeguimiento, TipoEventoSeguimiento,
 } from '../../../../core/services/caja.service';
 
 const PAGINA = 30;
+
+/** Espera tras la última tecla antes de buscar: lo justo para no pedir una consulta por letra. */
+const ESPERA_BUSQUEDA_MS = 300;
 
 /** Etiqueta y color de cada estado, para el badge de la tabla. */
 const ESTADOS: Record<EstadoSeguimiento, { etiqueta: string; clase: string }> = {
@@ -33,6 +39,12 @@ const EVENTOS: Record<TipoEventoSeguimiento, { icono: string; texto: string }> =
  * tomó, quién lo cobró o lo canceló, y con qué—, para que cancelar un pedido
  * nunca sea algo que solo vea quien lo canceló.
  *
+ * ## Va ligada a UNA caja, no a un rango de fechas (2026-09-29)
+ *
+ * Muestra los pedidos del turno en curso, así que no hay fechas que elegir: se entra y ya hay
+ * resultados. Sin caja abierta no hay nada que mostrar y se dice así. El buscador filtra solo al
+ * escribir (con una pequeña espera), sin botón.
+ *
  * Modal hijo de `CajaComponent`; solo se monta si `puedeVerMovimientos()`, y el
  * backend vuelve a exigir el permiso por su cuenta (`caja_ver_movimientos`).
  */
@@ -46,16 +58,18 @@ const EVENTOS: Record<TipoEventoSeguimiento, { icono: string; texto: string }> =
 })
 export class SeguimientoPedidosComponent implements OnInit {
   @Input({ required: true }) idNegocio!: number;
+  /** El turno abierto. `null` = no hay caja abierta y no hay pedidos de turno que enseñar. */
+  @Input() caja: Caja | null = null;
   @Output() cerrar = new EventEmitter<void>();
 
   private readonly cajaSvc = inject(CajaService);
+  private readonly destroyRef = inject(DestroyRef);
 
-  private hoyISO(): string {
-    return new Date().toISOString().slice(0, 10);
-  }
+  /** Lo que se escribe en el buscador; cada cambio programa una búsqueda. */
+  private readonly escritura$ = new Subject<void>();
+  /** La petición en vuelo: una búsqueda nueva reemplaza a la anterior, no espera a que termine. */
+  private peticion: Subscription | null = null;
 
-  readonly desde = signal(this.hoyISO());
-  readonly hasta = signal(this.hoyISO());
   readonly estado = signal<EstadoSeguimiento | null>(null);
   readonly q = signal('');
 
@@ -77,7 +91,17 @@ export class SeguimientoPedidosComponent implements OnInit {
   ];
 
   ngOnInit(): void {
+    this.escritura$
+      .pipe(debounceTime(ESPERA_BUSQUEDA_MS), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.buscar(true));
+
     this.buscar(true);
+  }
+
+  /** Cada tecla programa la búsqueda; el `debounceTime` espera a que pare de escribir. */
+  alEscribir(valor: string): void {
+    this.q.set(valor);
+    this.escritura$.next();
   }
 
   cambiarFiltro(estado: EstadoSeguimiento | null): void {
@@ -87,13 +111,18 @@ export class SeguimientoPedidosComponent implements OnInit {
 
   /** `reiniciar` vuelve a la primera página; si no, añade la siguiente. */
   buscar(reiniciar = false): void {
-    if (this.cargando()) return;
+    // Sin caja abierta no hay turno del que traer pedidos.
+    if (!this.caja) return;
+    // «Cargar más» no se apila; una búsqueda nueva SÍ reemplaza a la que estuviera en vuelo —si
+    // no, lo escrito mientras carga se perdería y quedaría en pantalla el resultado viejo.
+    if (!reiniciar && this.cargando()) return;
+    this.peticion?.unsubscribe();
+
     const offset = reiniciar ? 0 : this.filas().length;
     this.cargando.set(true);
 
-    this.cajaSvc.getSeguimiento(this.idNegocio, {
-      desde: this.desde() || null,
-      hasta: this.hasta() || null,
+    this.peticion = this.cajaSvc.getSeguimiento(this.idNegocio, {
+      idCaja: this.caja.id_caja,
       estado: this.estado(),
       q: this.q().trim() || null,
       limite: PAGINA,

@@ -245,10 +245,10 @@ describe('MenuPublicoComponent — cómo quieres pedir', () => {
     comp.elegirModalidad('R');
     expect(carrito.codigoCompacto()).toBe('#P12-4x1~m=R');
 
+    // En el local ya no se pregunta la mesa: lo pide un mesero, no el cliente.
     comp.elegirModalidad('L');
-    expect(comp.pasoEleccion()).toBe('mesa');
-    comp.elegirMesa(MESAS[1]);
     expect(comp.pasoEleccion()).toBeNull();
+    carrito.elegirMesa(MESAS[1]); // solo llega por el QR de la mesa
     expect(carrito.codigoCompacto()).toBe('#P12-4x1~m=L~t=4');
   });
 

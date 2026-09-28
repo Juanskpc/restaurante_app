@@ -5,7 +5,7 @@ import { environment } from '../../../environments/environment';
 import { AuthService } from './auth.service';
 
 /** Áreas de datos que el servidor puede anunciar. Coinciden con `avisoService.js`. */
-export type TemaRealtime = 'pedidos' | 'mesas' | 'cocina' | 'caja' | 'clientes';
+export type TemaRealtime = 'pedidos' | 'mesas' | 'cocina' | 'caja' | 'clientes' | 'whatsapp';
 
 /** Espera antes de recargar, para juntar varios avisos seguidos en una sola consulta. */
 const AGRUPAR_MS = 250;
@@ -106,6 +106,7 @@ export class RealtimeService {
   readonly enVivo = computed(() => this._conectado());
 
   private readonly suscripciones = new Set<Suscripcion>();
+  private readonly oyentesAlInstante = new Set<{ tema: TemaRealtime; accion: () => void }>();
   private readonly pendientes = new Set<TemaRealtime>();
   private readonly ultimaRecarga = new Map<TemaRealtime, number>();
 
@@ -158,6 +159,23 @@ export class RealtimeService {
     const suscripcion: Suscripcion = { temas, accion };
     this.suscripciones.add(suscripcion);
     return () => this.suscripciones.delete(suscripcion);
+  }
+
+  /**
+   * Apunta una función a UN tema para reaccionar en el instante en que llega el aviso.
+   *
+   * No es `alCambiar` con otro nombre, y la diferencia importa: `alCambiar` es para RECARGAR una
+   * pantalla, y por eso junta ráfagas, respeta un mínimo entre recargas y espera a que la pestaña
+   * esté a la vista. Un aviso como «llegó un pedido por WhatsApp» es lo contrario: hay que sonar
+   * ya, una vez por pedido, y sobre todo con la pestaña de fondo —que es justo cuando nadie
+   * está mirando y el aviso hace falta.
+   *
+   * @returns la función para darse de baja.
+   */
+  alAvisar(tema: TemaRealtime, accion: () => void): () => void {
+    const oyente = { tema, accion };
+    this.oyentesAlInstante.add(oyente);
+    return () => this.oyentesAlInstante.delete(oyente);
   }
 
   /** Fuerza la recarga de unos temas, como si el servidor los hubiera anunciado. */
@@ -268,7 +286,17 @@ export class RealtimeService {
 
   private procesar(bloque: string): void {
     const temas = parsearAvisoSse(bloque);
-    if (temas) this.refrescar(temas);
+    if (!temas) return;
+
+    for (const oyente of [...this.oyentesAlInstante]) {
+      if (!temas.includes(oyente.tema)) continue;
+      try {
+        oyente.accion();
+      } catch {
+        // Un oyente que falla no puede dejar sin aviso a los demás ni tumbar la lectura del flujo.
+      }
+    }
+    this.refrescar(temas);
   }
 
   private alConectar(): void {

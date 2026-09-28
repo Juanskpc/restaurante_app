@@ -217,7 +217,9 @@ export interface SeguimientoPedidos {
   limite: number;
   offset: number;
   resumen: ResumenSeguimiento;
-  rango: { desde: string; hasta: string };
+  /** Solo cuando se pidió por rango de fechas; con `id_caja` viene `null`. */
+  rango?: { desde: string; hasta: string } | null;
+  id_caja?: number | null;
 }
 
 /**
@@ -639,6 +641,8 @@ export class CajaService {
       estado?: EstadoSeguimiento | null;
       q?: string | null;
       idPuntoCaja?: number | null;
+      /** Los pedidos de UN turno. Manda sobre `desde`/`hasta`. */
+      idCaja?: number | null;
       limite?: number;
       offset?: number;
     } = {},
@@ -649,6 +653,7 @@ export class CajaService {
     if (opciones.estado) params = params.set('estado', opciones.estado);
     if (opciones.q) params = params.set('q', opciones.q);
     if (opciones.idPuntoCaja) params = params.set('id_punto_caja', String(opciones.idPuntoCaja));
+    if (opciones.idCaja) params = params.set('id_caja', String(opciones.idCaja));
     if (opciones.limite != null) params = params.set('limite', String(opciones.limite));
     if (opciones.offset != null) params = params.set('offset', String(opciones.offset));
 

@@ -8,268 +8,596 @@
         <app-caja-selector (cambio)="alCambiarCaja()" />
       </div>
     </div>
-    <div class="header-actions">
-      @if (!caja() && puedeAbrir()) {
-        <button class="btn btn-primary" (click)="abrirModal('apertura')">
-          <lucide-icon name="play" size="18" />
-          Abrir caja
-        </button>
-      }
-      @if (caja() && puedeMovimiento() && puedeVerDomiciliarios()) {
-        <button class="btn btn-outline" (click)="abrirModal('domiciliarios')">
-          <lucide-icon name="truck" size="18" />
-          Domiciliarios
-        </button>
-      }
-      <!-- Disponible con o sin caja abierta: consultar turnos pasados no depende
-           de que haya uno en curso. -->
-      <button class="btn btn-outline" (click)="abrirModal('historial')">
-        <lucide-icon name="clock-3" size="18" />
-        Historial
-      </button>
-      <!-- Apagado por defecto para todos los roles (Usuarios → Roles y permisos):
-           es una pantalla de control, no una que deba ofrecerse a todo el mundo. -->
-      @if (puedeVerMovimientos()) {
+    <!-- Con la caja cerrada el botón de «Abrir caja» vive en la tarjeta del turno, como en Reserva. -->
+    @if (caja()) {
+      <div class="header-actions">
+        @if (puedeMovimiento() && puedeVerDomiciliarios()) {
+          <button class="btn btn-outline" (click)="abrirModal('domiciliarios')">
+            <lucide-icon name="truck" size="18" />
+            Domiciliarios
+          </button>
+        }
+        <!-- Apagado por defecto para todos los roles (Usuarios → Roles y permisos):
+             es una pantalla de control, no una que deba ofrecerse a todo el mundo. -->
+        @if (puedeVerMovimientos()) {
+          <button class="btn btn-outline" (click)="abrirModal('seguimiento')">
+            <lucide-icon name="layers" size="18" />
+            Movimientos
+          </button>
+        }
+        @if (puedeMovimiento()) {
+          <button class="btn btn-outline" (click)="abrirModal('movimiento')">
+            <lucide-icon name="plus-circle" size="18" />
+            Movimiento
+          </button>
+        }
+        @if (puedeCerrar()) {
+          <button class="btn btn-primary" (click)="abrirModal('cierre')">
+            <lucide-icon name="dollar-sign" size="18" />
+            Cerrar caja
+          </button>
+        }
+      </div>
+    } @else if (puedeVerMovimientos()) {
+      <!-- «Movimientos» se abre aunque no haya caja: el modal lo explica. -->
+      <div class="header-actions">
         <button class="btn btn-outline" (click)="abrirModal('seguimiento')">
           <lucide-icon name="layers" size="18" />
           Movimientos
         </button>
-      }
-      @if (caja() && puedeMovimiento()) {
-        <button class="btn btn-outline" (click)="abrirModal('movimiento')">
-          <lucide-icon name="plus-circle" size="18" />
-          Movimiento
-        </button>
-      }
-      @if (caja() && puedeCerrar()) {
-        <button class="btn btn-brand" (click)="abrirModal('cierre')">
-          <lucide-icon name="dollar-sign" size="18" />
-          Cerrar caja
-        </button>
-      }
-    </div>
+      </div>
+    }
   </header>
 
-  <!-- Con un turno ya en pantalla no se vuelve a «Cargando…»: el arqueo se queda donde está
-       y solo cambian los números que cambiaron. -->
-  @if (cargando() && !caja()) {
-    <div class="estado">Cargando…</div>
-  } @else if (!caja()) {
-    <div class="caja-vacia">
-      <lucide-icon name="wallet" size="48" />
-      @if (variasCajas() && puntoActivo(); as p) {
-        <h2>No hay caja abierta en {{ p.nombre }}</h2>
-      } @else {
-        <h2>No hay caja abierta</h2>
-      }
-      <p>Para tomar pedidos y cobrar, primero abre la caja del turno.</p>
-    </div>
-  } @else {
-    <article class="caja-card">
-      <div class="caja-card__row">
-        <div>
-          <span class="label">Usuario</span>
-          <strong>{{ caja()!.usuario?.primer_nombre }} {{ caja()!.usuario?.primer_apellido }}</strong>
-        </div>
-        <div>
-          <span class="label">Apertura</span>
-          <strong>{{ caja()!.fecha_apertura | date:'dd/MM/yyyy hh:mm a':undefined:'en-US' }}</strong>
-        </div>
-        @if (puedeVerIngresos()) {
+  <!-- El historial ya no es un modal: es una pestaña, como en Reserva. Consultar turnos pasados no
+       depende de que haya uno en curso, así que las pestañas se ven con o sin caja abierta. -->
+  <div class="tabs" role="tablist">
+    <button type="button" role="tab" class="tab" [class.tab--on]="pestana() === 'turno'"
+            [attr.aria-selected]="pestana() === 'turno'" (click)="cambiarPestana('turno')">
+      Turno actual
+    </button>
+    <button type="button" role="tab" class="tab" [class.tab--on]="pestana() === 'historial'"
+            [attr.aria-selected]="pestana() === 'historial'" (click)="cambiarPestana('historial')">
+      Historial
+    </button>
+  </div>
+
+  @if (pestana() === 'turno') {
+    <!-- Con un turno ya en pantalla no se vuelve a «Cargando…»: el arqueo se queda donde está
+         y solo cambian los números que cambiaron. -->
+    @if (cargando() && !caja()) {
+      <div class="estado">Cargando…</div>
+    } @else if (!caja()) {
+      <div class="panel cerrada">
+        <span class="cerrada__icon"><lucide-icon name="wallet" size="30" /></span>
+        @if (variasCajas() && puntoActivo(); as p) {
+          <strong>No hay caja abierta en {{ p.nombre }}</strong>
+        } @else {
+          <strong>No hay caja abierta</strong>
+        }
+        <p>Para tomar pedidos y cobrar, primero abre la caja del turno.</p>
+        @if (puedeAbrir()) {
+          <button type="button" class="btn btn-primary" (click)="abrirModal('apertura')">
+            <lucide-icon name="play" size="16" />
+            Abrir caja
+          </button>
+        } @else {
+          <p class="cerrada__aviso">
+            <lucide-icon name="ban" size="15" />
+            Tu rol no puede abrir la caja. Pídeselo al administrador del negocio.
+          </p>
+        }
+      </div>
+    } @else {
+      <ng-container
+        *ngTemplateOutlet="resumenCaja; context: { $implicit: caja(), movs: movimientos(), detalle: false }" />
+
+      <section class="panel">
+        <header class="panel__head">
           <div>
-            <span class="label">Monto apertura</span>
-            <strong>{{ caja()!.monto_apertura | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+            <h2>Movimientos del turno</h2>
+            <p>Toca un encabezado para ordenar y una fila para ver los productos del pedido.</p>
           </div>
+        </header>
+
+        <!-- Filtros por forma de pago: salen de los movimientos del turno, así que un
+             negocio con Efectivo y Transferencia ve exactamente esos dos. -->
+        @if (filtrosMetodo().length > 1) {
+          <div class="filtros-metodo">
+            <span class="filtros-metodo__label">
+              <lucide-icon name="filter" size="14" />
+              Forma de pago
+            </span>
+            @for (f of filtrosMetodo(); track f.clave) {
+              <button type="button"
+                      class="chip-metodo"
+                      [class.chip-metodo--activo]="f.activo"
+                      [attr.aria-pressed]="f.activo"
+                      (click)="alternarMetodo(f.clave)">
+                <lucide-icon [name]="f.activo ? 'check' : 'plus'" size="13" />
+                {{ f.nombre }}
+                <span class="chip-metodo__conteo">{{ f.movimientos }}</span>
+              </button>
+            }
+            @if (hayFiltroMetodo()) {
+              <button type="button" class="filtros-metodo__limpiar" (click)="limpiarFiltroMetodo()">
+                Ver todas
+              </button>
+            }
+          </div>
+        }
+
+        @if (cargandoMovimientos() && movimientos().length === 0) {
+          <p class="estado">Cargando…</p>
+        } @else if (movimientos().length === 0) {
+          <p class="estado">Sin movimientos registrados aún.</p>
+        } @else if (movimientosFiltrados().length === 0) {
+          <p class="estado">
+            Ninguna forma de pago está marcada.
+            <button type="button" class="link-inline" (click)="limpiarFiltroMetodo()">Ver todas</button>
+          </p>
+        } @else {
+          <div class="movimientos__table">
+            <table>
+              <thead>
+                <tr>
+                  <th class="col-expandir"><span class="sr-only">Productos</span></th>
+                  <th [attr.aria-sort]="ariaOrden('fecha')">
+                    <ng-container *ngTemplateOutlet="btnOrden; context: { campo: 'fecha', texto: 'Fecha' }" />
+                  </th>
+                  <th [attr.aria-sort]="ariaOrden('tipo')">
+                    <ng-container *ngTemplateOutlet="btnOrden; context: { campo: 'tipo', texto: 'Tipo' }" />
+                  </th>
+                  <th [attr.aria-sort]="ariaOrden('tipoPedido')">
+                    <ng-container *ngTemplateOutlet="btnOrden; context: { campo: 'tipoPedido', texto: 'Tipo pedido' }" />
+                  </th>
+                  <th [attr.aria-sort]="ariaOrden('concepto')">
+                    <ng-container *ngTemplateOutlet="btnOrden; context: { campo: 'concepto', texto: 'Concepto' }" />
+                  </th>
+                  <th [attr.aria-sort]="ariaOrden('formaPago')">
+                    <ng-container *ngTemplateOutlet="btnOrden; context: { campo: 'formaPago', texto: 'Forma de pago' }" />
+                  </th>
+                  <th [attr.aria-sort]="ariaOrden('usuario')">
+                    <ng-container *ngTemplateOutlet="btnOrden; context: { campo: 'usuario', texto: 'Usuario' }" />
+                  </th>
+                  @if (puedeVerIngresos()) {
+                    <th class="num" [attr.aria-sort]="ariaOrden('monto')">
+                      <ng-container *ngTemplateOutlet="btnOrden; context: { campo: 'monto', texto: 'Monto' }" />
+                    </th>
+                  }
+                  @if (puedeEliminarPedido()) {
+                    <th class="acciones"><span class="sr-only">Eliminar</span></th>
+                  }
+                </tr>
+              </thead>
+              <tbody>
+                @for (m of movimientosFiltrados(); track m.id_movimiento) {
+                  <tr [class.fila--anulada]="m.anulado"
+                      [class.fila--anulacion]="m.es_anulacion"
+                      [class.fila--abierta]="estaAbierta(m)"
+                      [class.fila--clicable]="tieneDetalle(m)"
+                      (click)="alternarDetalle(m)">
+                    <td class="col-expandir">
+                      @if (tieneDetalle(m)) {
+                        <button type="button"
+                                class="btn-expandir"
+                                [class.btn-expandir--abierto]="estaAbierta(m)"
+                                [attr.aria-expanded]="estaAbierta(m)"
+                                [title]="estaAbierta(m) ? 'Ocultar productos' : 'Ver productos del pedido'"
+                                (click)="alternarDetalle(m); $event.stopPropagation()">
+                          <lucide-icon name="chevron-right" [size]="15" />
+                        </button>
+                      }
+                    </td>
+                    <td class="col-fecha">
+                      <span class="f-larga">{{ m.fecha | date:'dd/MM/yyyy hh:mm a':undefined:'en-US' }}</span>
+                      <span class="f-corta">{{ m.fecha | date:'dd/MM/yy hh:mm a':undefined:'en-US' }}</span>
+                    </td>
+                    <td>
+                      <span class="badge"
+                            [class.badge--in]="m.tipo === 'INGRESO' && !m.es_anulacion && !m.anulado"
+                            [class.badge--out]="m.tipo === 'EGRESO' && !m.es_anulacion && !m.anulado"
+                            [class.badge--anulado]="m.anulado || m.es_anulacion">
+                        @if (!m.anulado && !m.es_anulacion) {
+                          <lucide-icon [name]="m.tipo === 'INGRESO' ? 'plus' : 'minus'" [size]="12" />
+                        }
+                        {{ etiquetaTipo(m) }}
+                      </span>
+                    </td>
+                    <td>{{ tipoPedidoMovimiento(m) }}</td>
+                    <td>{{ conceptoCorto(m) }}</td>
+                    <td class="col-metodo">{{ formasPagoTexto(m) }}</td>
+                    <td>{{ m.usuario?.primer_nombre }} {{ m.usuario?.primer_apellido }}</td>
+                    @if (puedeVerIngresos()) {
+                      <td class="num">
+                        <strong [class.pos]="m.tipo === 'INGRESO'" [class.neg]="m.tipo === 'EGRESO'">
+                          {{ m.tipo === 'EGRESO' ? '−' : '+' }}{{ m.monto | currency:'COP':'symbol-narrow':'1.0-0' }}
+                        </strong>
+                      </td>
+                    }
+                    @if (puedeEliminarPedido()) {
+                      <td class="acciones">
+                        @if (puedeAnular(m)) {
+                          <button type="button"
+                                  class="btn-eliminar"
+                                  [disabled]="anulandoOrdenId() !== null"
+                                  [title]="m.tipo === 'INGRESO' ? 'Eliminar el pedido de la caja' : 'Devolver este egreso a la caja'"
+                                  (click)="anularPedido(m); $event.stopPropagation()">
+                            <lucide-icon name="trash-2" [size]="14" />
+                          </button>
+                        } @else if (m.anulado) {
+                          <span class="marca-anulado">Eliminado</span>
+                        } @else {
+                          <span class="marca-anulado">—</span>
+                        }
+                      </td>
+                    }
+                  </tr>
+                  @if (estaAbierta(m)) {
+                    <tr class="fila-detalle">
+                      <td [attr.colspan]="colspanMovimientos()">
+                        <ng-container
+                          *ngTemplateOutlet="detalleProductos; context: { $implicit: m }" />
+                      </td>
+                    </tr>
+                  }
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </section>
+    }
+  }
+
+  <!-- ───────── Historial (pestaña) ─────────
+       Dos vistas en la misma pestaña: la lista de turnos cerrados y, al elegir uno, su detalle con
+       los mismos resúmenes y la misma tabla que el turno actual. `cajaHistSel()` decide cuál. -->
+  @if (pestana() === 'historial') {
+    @if (cajaHistSel(); as sel) {
+      <div class="hist-detalle-head">
+        <button type="button" class="btn btn-outline btn-sm" (click)="volverAListaHistorial()">
+          <lucide-icon name="arrow-left" size="15" />
+          Volver
+        </button>
+        <h2>Caja #{{ sel.id_caja }}</h2>
+
+        <!-- El servidor rechaza la exportación sin `caja_ver_ingresos`, así que
+             sin el permiso el botón ni se ofrece: el archivo ES las cifras. -->
+        @if (puedeVerIngresos()) {
+          <button type="button" class="btn btn-outline btn-sm hist-detalle-head__excel"
+                  [disabled]="exportandoCaja()"
+                  (click)="exportarCajaHistorial()">
+            <lucide-icon name="download" size="15" />
+            {{ exportandoCaja() ? 'Generando…' : 'Excel' }}
+          </button>
         }
       </div>
 
-      @if (puedeVerIngresos()) {
-        <div class="totales">
-          <div class="total total--ingresos">
-            <lucide-icon name="trending-up" size="18" />
-            <div>
-              <span class="label">Ingresos</span>
-              <strong>{{ (caja()!.ingresos || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
-            </div>
+      <div class="hist-fechas">
+        <span>
+          <lucide-icon name="play" size="13" />
+          {{ sel.fecha_apertura | date:'dd/MM/yyyy hh:mm a':undefined:'en-US' }}
+        </span>
+        <span>
+          <lucide-icon name="square" size="13" />
+          {{ sel.fecha_cierre ? (sel.fecha_cierre | date:'dd/MM/yyyy hh:mm a':undefined:'en-US') : 'Sin cerrar' }}
+        </span>
+        <span>
+          <lucide-icon name="user" size="13" />
+          {{ sel.usuario?.primer_nombre }} {{ sel.usuario?.primer_apellido }}
+        </span>
+      </div>
+
+      <ng-container
+        *ngTemplateOutlet="resumenCaja; context: { $implicit: sel, movs: movimientosHist(), detalle: true }" />
+
+      <section class="panel">
+        <header class="panel__head">
+          <div>
+            <h2>Movimientos del turno</h2>
+            <p>Toca un encabezado para ordenar y una fila para ver los productos del pedido.</p>
           </div>
-          <div class="total total--egresos">
-            <lucide-icon name="trending-down" size="18" />
-            <div>
-              <span class="label">Egresos</span>
-              <strong>{{ (caja()!.egresos || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
-            </div>
-          </div>
-          <div class="total total--esperado">
-            <lucide-icon name="banknote" size="18" />
-            <div>
-              <span class="label">Esperado en caja</span>
-              <strong>{{ (caja()!.monto_esperado || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
-            </div>
-          </div>
-        </div>
-      } @else {
-        <p class="sin-importes">
-          <lucide-icon name="lock" size="14" />
-          Tu rol no tiene permiso para ver los valores de la caja. Abajo quedan los
-          movimientos del turno, sin montos.
-        </p>
-      }
-
-      @if (puedeVerIngresos() && (caja()!.ingresos_por_metodo || []).length > 0) {
-        <div class="desglose-metodos">
-          <h3 class="desglose-metodos__titulo">
-            <lucide-icon name="credit-card" size="14" />
-            Dinero por forma de pago
-            <small>Los egresos restan de la forma de pago con la que salió la plata.</small>
-          </h3>
-          <div class="desglose-metodos__lista">
-            @for (item of (caja()!.ingresos_por_metodo || []); track (item.id_metodo_pago ?? 'manual')) {
-              <div class="desglose-metodos__item">
-                <span>{{ item.nombre }}</span>
-                <strong [class.negativo]="item.total < 0">
-                  {{ item.total | currency:'COP':'symbol-narrow':'1.0-0' }}
-                </strong>
-              </div>
-            }
-          </div>
-        </div>
-      }
-
-      @if (caja()!.observaciones) {
-        <p class="obs">{{ caja()!.observaciones }}</p>
-      }
-    </article>
-
-    <section class="movimientos">
-      <h2>Movimientos del turno</h2>
-
-      <!-- Filtros por forma de pago: salen de los movimientos del turno, así que un
-           negocio con Efectivo y Transferencia ve exactamente esos dos. -->
-      @if (filtrosMetodo().length > 1) {
-        <div class="filtros-metodo">
-          <span class="filtros-metodo__label">
-            <lucide-icon name="filter" size="14" />
-            Forma de pago
-          </span>
-          @for (f of filtrosMetodo(); track f.clave) {
-            <button type="button"
-                    class="chip-metodo"
-                    [class.chip-metodo--activo]="f.activo"
-                    [attr.aria-pressed]="f.activo"
-                    (click)="alternarMetodo(f.clave)">
-              <lucide-icon [name]="f.activo ? 'check' : 'plus'" size="13" />
-              {{ f.nombre }}
-              <span class="chip-metodo__conteo">{{ f.movimientos }}</span>
-            </button>
-          }
-          @if (hayFiltroMetodo()) {
-            <button type="button" class="filtros-metodo__limpiar" (click)="limpiarFiltroMetodo()">
-              Ver todas
-            </button>
-          }
-        </div>
-      }
-
-      @if (cargandoMovimientos() && movimientos().length === 0) {
-        <p class="estado">Cargando…</p>
-      } @else if (movimientos().length === 0) {
-        <p class="estado">Sin movimientos registrados aún.</p>
-      } @else if (movimientosFiltrados().length === 0) {
-        <p class="estado">
-          Ninguna forma de pago está marcada.
-          <button type="button" class="link-inline" (click)="limpiarFiltroMetodo()">Ver todas</button>
-        </p>
-      } @else {
-        <div class="movimientos__table">
-          <table>
-            <thead>
-              <tr>
-                <th class="col-expandir"><span class="sr-only">Productos</span></th>
-                <th>Fecha</th>
-                <th>Tipo</th>
-                <th>Tipo pedido</th>
-                <th>Concepto</th>
-                <th>Forma de pago</th>
-                <th>Usuario</th>
-                @if (puedeVerIngresos()) {
-                  <th class="num">Monto</th>
-                }
-                @if (puedeEliminarPedido()) {
-                  <th class="acciones">Eliminar</th>
-                }
-              </tr>
-            </thead>
-            <tbody>
-              @for (m of movimientosFiltrados(); track m.id_movimiento) {
-                <tr [class.fila--anulada]="m.anulado"
-                    [class.fila--anulacion]="m.es_anulacion"
-                    [class.fila--abierta]="estaAbierta(m)"
-                    [class.fila--clicable]="tieneDetalle(m)"
-                    (click)="alternarDetalle(m)">
-                  <td class="col-expandir">
-                    @if (tieneDetalle(m)) {
-                      <button type="button"
-                              class="btn-expandir"
-                              [class.btn-expandir--abierto]="estaAbierta(m)"
-                              [attr.aria-expanded]="estaAbierta(m)"
-                              [title]="estaAbierta(m) ? 'Ocultar productos' : 'Ver productos del pedido'"
-                              (click)="alternarDetalle(m); $event.stopPropagation()">
-                        <lucide-icon name="chevron-right" [size]="15" />
-                      </button>
-                    }
-                  </td>
-                  <td class="col-fecha">
-                    <span class="f-larga">{{ m.fecha | date:'dd/MM/yyyy hh:mm a':undefined:'en-US' }}</span>
-                    <span class="f-corta">{{ m.fecha | date:'dd/MM/yy hh:mm a':undefined:'en-US' }}</span>
-                  </td>
-                  <td>
-                    <span class="badge"
-                          [class.badge--in]="m.tipo === 'INGRESO' && !m.es_anulacion && !m.anulado"
-                          [class.badge--out]="m.tipo === 'EGRESO' && !m.es_anulacion && !m.anulado"
-                          [class.badge--anulado]="m.anulado || m.es_anulacion">
-                      {{ etiquetaTipo(m) }}
-                    </span>
-                  </td>
-                  <td>{{ tipoPedidoMovimiento(m) }}</td>
-                  <td>{{ conceptoCorto(m) }}</td>
-                  <td class="col-metodo">{{ formasPagoTexto(m) }}</td>
-                  <td>{{ m.usuario?.primer_nombre }} {{ m.usuario?.primer_apellido }}</td>
+        </header>
+        @if (movimientosHist().length === 0) {
+          <p class="estado">Este turno no registró movimientos.</p>
+        } @else {
+          <div class="movimientos__table">
+            <table>
+              <thead>
+                <tr>
+                  <th class="col-expandir"><span class="sr-only">Productos</span></th>
+                  <th [attr.aria-sort]="ariaOrden('fecha')">
+                    <ng-container *ngTemplateOutlet="btnOrden; context: { campo: 'fecha', texto: 'Fecha' }" />
+                  </th>
+                  <th [attr.aria-sort]="ariaOrden('tipo')">
+                    <ng-container *ngTemplateOutlet="btnOrden; context: { campo: 'tipo', texto: 'Tipo' }" />
+                  </th>
+                  <th [attr.aria-sort]="ariaOrden('tipoPedido')">
+                    <ng-container *ngTemplateOutlet="btnOrden; context: { campo: 'tipoPedido', texto: 'Tipo pedido' }" />
+                  </th>
+                  <th [attr.aria-sort]="ariaOrden('concepto')">
+                    <ng-container *ngTemplateOutlet="btnOrden; context: { campo: 'concepto', texto: 'Concepto' }" />
+                  </th>
+                  <th [attr.aria-sort]="ariaOrden('usuario')">
+                    <ng-container *ngTemplateOutlet="btnOrden; context: { campo: 'usuario', texto: 'Usuario' }" />
+                  </th>
                   @if (puedeVerIngresos()) {
-                    <td class="num">{{ m.monto | currency:'COP':'symbol-narrow':'1.0-0' }}</td>
-                  }
-                  @if (puedeEliminarPedido()) {
-                    <td class="acciones">
-                      @if (puedeAnular(m)) {
-                        <button type="button"
-                                class="btn-eliminar"
-                                [disabled]="anulandoOrdenId() !== null"
-                                [title]="m.tipo === 'INGRESO' ? 'Eliminar el pedido de la caja' : 'Devolver este egreso a la caja'"
-                                (click)="anularPedido(m); $event.stopPropagation()">
-                          <lucide-icon name="trash-2" [size]="14" />
-                        </button>
-                      } @else if (m.anulado) {
-                        <span class="marca-anulado">Eliminado</span>
-                      } @else {
-                        <span class="marca-anulado">—</span>
-                      }
-                    </td>
+                    <th class="num" [attr.aria-sort]="ariaOrden('monto')">
+                      <ng-container *ngTemplateOutlet="btnOrden; context: { campo: 'monto', texto: 'Monto' }" />
+                    </th>
                   }
                 </tr>
-                @if (estaAbierta(m)) {
-                  <tr class="fila-detalle">
-                    <td [attr.colspan]="colspanMovimientos()">
-                      <ng-container
-                        *ngTemplateOutlet="detalleProductos; context: { $implicit: m }" />
+              </thead>
+              <tbody>
+                @for (m of movimientosHistOrdenados(); track m.id_movimiento) {
+                  <tr [class.fila--anulada]="m.anulado"
+                      [class.fila--anulacion]="m.es_anulacion"
+                      [class.fila--abierta]="estaAbierta(m)"
+                      [class.fila--clicable]="tieneDetalle(m)"
+                      (click)="alternarDetalle(m)">
+                    <td class="col-expandir">
+                      @if (tieneDetalle(m)) {
+                        <button type="button"
+                                class="btn-expandir"
+                                [class.btn-expandir--abierto]="estaAbierta(m)"
+                                [attr.aria-expanded]="estaAbierta(m)"
+                                [title]="estaAbierta(m) ? 'Ocultar productos' : 'Ver productos del pedido'"
+                                (click)="alternarDetalle(m); $event.stopPropagation()">
+                          <lucide-icon name="chevron-right" [size]="15" />
+                        </button>
+                      }
+                    </td>
+                    <td class="col-fecha">
+                      <span class="f-larga">{{ m.fecha | date:'dd/MM/yyyy hh:mm a':undefined:'en-US' }}</span>
+                      <span class="f-corta">{{ m.fecha | date:'dd/MM/yy hh:mm a':undefined:'en-US' }}</span>
+                    </td>
+                    <td>
+                      <span class="badge"
+                            [class.badge--in]="m.tipo === 'INGRESO' && !m.es_anulacion && !m.anulado"
+                            [class.badge--out]="m.tipo === 'EGRESO' && !m.es_anulacion && !m.anulado"
+                            [class.badge--anulado]="m.anulado || m.es_anulacion">
+                        @if (!m.anulado && !m.es_anulacion) {
+                          <lucide-icon [name]="m.tipo === 'INGRESO' ? 'plus' : 'minus'" [size]="12" />
+                        }
+                        {{ etiquetaTipo(m) }}
+                      </span>
+                    </td>
+                    <td>{{ tipoPedidoMovimiento(m) }}</td>
+                    <td>{{ conceptoCorto(m) }}</td>
+                    <td>{{ m.usuario?.primer_nombre }} {{ m.usuario?.primer_apellido }}</td>
+                    @if (puedeVerIngresos()) {
+                      <td class="num">
+                        <strong [class.pos]="m.tipo === 'INGRESO'" [class.neg]="m.tipo === 'EGRESO'">
+                          {{ m.tipo === 'EGRESO' ? '−' : '+' }}{{ m.monto | currency:'COP':'symbol-narrow':'1.0-0' }}
+                        </strong>
+                      </td>
+                    }
+                  </tr>
+                  @if (estaAbierta(m)) {
+                    <tr class="fila-detalle">
+                      <td [attr.colspan]="colspanMovimientosHist()">
+                        <ng-container
+                          *ngTemplateOutlet="detalleProductos; context: { $implicit: m }" />
+                      </td>
+                    </tr>
+                  }
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </section>
+    } @else {
+      <!-- ─── Lista de turnos cerrados ─── -->
+      <div class="hist-filtros">
+        <label>
+          Desde
+          <input class="input" type="date" [ngModel]="histDesde()" (ngModelChange)="histDesde.set($event)" />
+        </label>
+        <label>
+          Hasta
+          <input class="input" type="date" [ngModel]="histHasta()" (ngModelChange)="histHasta.set($event)" />
+        </label>
+        <button type="button" class="btn btn-primary btn-sm"
+                (click)="aplicarFiltroHistorial()" [disabled]="cargandoHistorial()">
+          <lucide-icon name="search" size="15" />
+          Filtrar
+        </button>
+        @if (histDesde() || histHasta()) {
+          <button type="button" class="btn btn-ghost btn-sm"
+                  (click)="limpiarFiltroHistorial()" [disabled]="cargandoHistorial()">
+            Limpiar
+          </button>
+        }
+      </div>
+
+      @if (errorHistorial()) {
+        <div class="panel estado">{{ errorHistorial() }}</div>
+      } @else if (cargandoHistorial() && historial().length === 0) {
+        <div class="estado">Cargando…</div>
+      } @else if (historial().length === 0) {
+        <div class="panel vacio">
+          <lucide-icon name="wallet" size="28" />
+          <strong>No hay cajas cerradas en este rango</strong>
+          <p>Cuando cierres una caja aparecerá aquí con su cuadre.</p>
+        </div>
+      } @else {
+        <div class="panel panel--tabla">
+          <div class="tabla-wrap">
+            <table class="tabla">
+              <thead>
+                <tr>
+                  <th>Turno</th>
+                  <th>Responsable</th>
+                  <th class="num">Movs.</th>
+                  @if (puedeVerIngresos()) {
+                    <th class="num">Apertura</th>
+                    <th class="num">Ingresos</th>
+                    <th class="num">Egresos</th>
+                    <th class="num">Esperado</th>
+                    <th class="num">Diferencia</th>
+                  }
+                  <th class="acc"><span class="sr-only">Detalle</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (c of historial(); track c.id_caja) {
+                  <tr class="tabla__fila-clic" (click)="verDetalleHistorial(c)">
+                    <td>
+                      <span class="celda-turno">
+                        <strong>{{ c.fecha_apertura | date:'d MMM yyyy':undefined:'es-CO' }}</strong>
+                        <em>
+                          {{ c.fecha_apertura | date:'hh:mm a':undefined:'en-US' }} –
+                          {{ c.fecha_cierre ? (c.fecha_cierre | date:'hh:mm a':undefined:'en-US') : 'Sin cerrar' }}
+                          @if (variasCajas() && c.punto) {
+                            · <span class="hist-item__caja">{{ c.punto }}</span>
+                          }
+                        </em>
+                      </span>
+                    </td>
+                    <td>{{ c.usuario.primer_nombre }} {{ c.usuario.primer_apellido }}</td>
+                    <td class="num">{{ c.total_movimientos }}</td>
+                    @if (puedeVerIngresos()) {
+                      <td class="num">{{ (c.monto_apertura || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</td>
+                      <td class="num pos">{{ (c.ingresos || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</td>
+                      <td class="num neg">{{ (c.egresos || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</td>
+                      <td class="num destacado">{{ (c.monto_esperado || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</td>
+                      <td class="num">
+                        @if (c.diferencia == null) { <span class="dif dif--na">Sin contar</span> }
+                        @else if (c.diferencia === 0) { <span class="dif dif--ok">Cuadra</span> }
+                        @else {
+                          <span class="dif" [class.dif--sobra]="c.diferencia > 0" [class.dif--falta]="c.diferencia < 0">
+                            {{ c.diferencia > 0 ? '+' : '' }}{{ c.diferencia | currency:'COP':'symbol-narrow':'1.0-0' }}
+                          </span>
+                        }
+                      </td>
+                    }
+                    <td class="acc">
+                      <button type="button" class="btn btn-outline btn-sm"
+                              [disabled]="cargandoDetalleHist()"
+                              (click)="verDetalleHistorial(c); $event.stopPropagation()">
+                        <lucide-icon name="eye" size="15" />
+                        Ver detalle
+                      </button>
                     </td>
                   </tr>
                 }
-              }
-            </tbody>
-          </table>
+              </tbody>
+            </table>
+          </div>
         </div>
+
+        @if (hayMasHistorial()) {
+          <button type="button" class="btn btn-outline hist-mas"
+                  (click)="cargarHistorial()" [disabled]="cargandoHistorial()">
+            {{ cargandoHistorial() ? 'Cargando…' : 'Cargar más' }}
+          </button>
+        }
+        <p class="hist-conteo">
+          Mostrando {{ historial().length }} de {{ historialTotal() }} turnos cerrados.
+        </p>
       }
-    </section>
+    }
   }
+
+  <!-- ── Resumen de un turno: tarjetas + desglose por forma de pago ──
+       Uno solo para el turno en curso y para el detalle del historial: pintan lo mismo. -->
+  <ng-template #resumenCaja let-c let-movs="movs" let-detalle="detalle">
+    @if (puedeVerIngresos()) {
+      <div class="resumen">
+        <article class="rk rk--neutro">
+          <span class="rk__lab">Base de apertura</span>
+          <strong class="rk__val">{{ c.monto_apertura | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+          <span class="rk__pie">
+            Abrió {{ c.usuario?.primer_nombre }} {{ c.usuario?.primer_apellido }} ·
+            {{ c.fecha_apertura | date:'hh:mm a':undefined:'en-US' }}
+          </span>
+        </article>
+        <article class="rk rk--exito">
+          <span class="rk__lab">Ingresos</span>
+          <strong class="rk__val">{{ (c.ingresos || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+          <span class="rk__pie">{{ conteoIngresos(movs) }} movimiento(s)</span>
+        </article>
+        <article class="rk rk--alerta">
+          <span class="rk__lab">Egresos</span>
+          <strong class="rk__val">{{ (c.egresos || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+          <span class="rk__pie">Gastos y salidas del turno</span>
+        </article>
+        <article class="rk rk--primario">
+          <span class="rk__lab">Debería haber en caja</span>
+          <strong class="rk__val">{{ (c.monto_esperado || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+          <span class="rk__pie">Apertura + ingresos − egresos</span>
+        </article>
+        @if (detalle && c.monto_reportado != null) {
+          <article class="rk rk--neutro">
+            <span class="rk__lab">Contado</span>
+            <strong class="rk__val">{{ c.monto_reportado | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+            <span class="rk__pie">Lo que se contó al cerrar</span>
+          </article>
+        }
+        @if (detalle && c.diferencia != null) {
+          <article class="rk" [class.rk--exito]="c.diferencia === 0" [class.rk--alerta]="c.diferencia !== 0">
+            <span class="rk__lab">Diferencia</span>
+            <strong class="rk__val">{{ c.diferencia | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+            <span class="rk__pie">
+              {{ c.diferencia === 0 ? 'La caja cuadró' : (c.diferencia > 0 ? 'Sobró dinero' : 'Faltó dinero') }}
+            </span>
+          </article>
+        }
+      </div>
+
+      @if (filasMetodo(c, movs); as filas) {
+        @if (filas.length > 0) {
+          <section class="panel">
+            <header class="panel__head">
+              <div>
+                <h2>Por forma de pago</h2>
+                <p>Con esto se cuadra el cajón y el datáfono. Los egresos restan de la forma de pago con la que salió la plata.</p>
+              </div>
+            </header>
+            <ul class="ranking">
+              @for (m of filas; track m.nombre) {
+                <li>
+                  <div class="ranking__fila">
+                    <span class="ranking__nombre">{{ m.nombre }}</span>
+                    <strong class="ranking__valor" [class.neg]="m.total < 0">
+                      {{ m.total | currency:'COP':'symbol-narrow':'1.0-0' }}
+                    </strong>
+                  </div>
+                  <div class="ranking__barra"><div [style.width.%]="m.pct"></div></div>
+                  <span class="ranking__pie">{{ m.movimientos }} movimiento(s)</span>
+                </li>
+              }
+            </ul>
+          </section>
+        }
+      }
+    } @else {
+      <!-- Sin `caja_ver_ingresos` se sigue viendo quién abrió y cuándo, pero no el dinero. -->
+      <div class="resumen">
+        <article class="rk rk--neutro">
+          <span class="rk__lab">Abrió</span>
+          <strong class="rk__val rk__val--texto">{{ c.usuario?.primer_nombre }} {{ c.usuario?.primer_apellido }}</strong>
+          <span class="rk__pie">Responsable del turno</span>
+        </article>
+        <article class="rk rk--primario">
+          <span class="rk__lab">Apertura</span>
+          <strong class="rk__val rk__val--texto">{{ c.fecha_apertura | date:'dd/MM/yyyy hh:mm a':undefined:'en-US' }}</strong>
+          <span class="rk__pie">Inicio del turno</span>
+        </article>
+      </div>
+      <p class="sin-importes">
+        <lucide-icon name="lock" size="14" />
+        Tu rol no tiene permiso para ver los valores de la caja. Abajo quedan los
+        movimientos del turno, sin montos.
+      </p>
+    }
+
+    @if (c.observaciones) {
+      <p class="obs">{{ c.observaciones }}</p>
+    }
+  </ng-template>
 
   <!-- ── Modal: apertura ── -->
   @if (modal() === 'apertura') {
@@ -415,271 +743,13 @@
     </div>
   }
 
-  <!-- ── Modal: historial de cajas ──
-       Dos vistas en el mismo modal: la lista de turnos cerrados y, al elegir uno,
-       su detalle con movimientos. `cajaHistSel()` decide cuál se muestra. -->
-  @if (modal() === 'historial') {
-    <div class="modal" (click)="cerrarModal()">
-      <div class="modal__panel modal__panel--wide" (click)="$event.stopPropagation()">
-
-        @if (cajaHistSel(); as sel) {
-          <!-- ─── Detalle de un turno ─── -->
-          <div class="hist-detalle-head">
-            <button type="button" class="btn btn-ghost btn-sm" (click)="volverAListaHistorial()">
-              <lucide-icon name="arrow-left" size="15" />
-              Volver
-            </button>
-            <h2>Caja #{{ sel.id_caja }}</h2>
-
-            <!-- El servidor rechaza la exportación sin `caja_ver_ingresos`, así que
-                 sin el permiso el botón ni se ofrece: el archivo ES las cifras. -->
-            @if (puedeVerIngresos()) {
-              <button type="button" class="btn btn-outline btn-sm hist-detalle-head__excel"
-                      [disabled]="exportandoCaja()"
-                      (click)="exportarCajaHistorial()">
-                <lucide-icon name="download" size="15" />
-                {{ exportandoCaja() ? 'Generando…' : 'Excel' }}
-              </button>
-            }
-          </div>
-
-          <div class="hist-fechas">
-            <span>
-              <lucide-icon name="play" size="13" />
-              {{ sel.fecha_apertura | date:'dd/MM/yyyy hh:mm a':undefined:'en-US' }}
-            </span>
-            <span>
-              <lucide-icon name="square" size="13" />
-              {{ sel.fecha_cierre ? (sel.fecha_cierre | date:'dd/MM/yyyy hh:mm a':undefined:'en-US') : 'Sin cerrar' }}
-            </span>
-            <span>
-              <lucide-icon name="user" size="13" />
-              {{ sel.usuario?.primer_nombre }} {{ sel.usuario?.primer_apellido }}
-            </span>
-          </div>
-
-          @if (puedeVerIngresos()) {
-            <div class="resumen-cierre">
-              <div><span>Apertura</span><strong>{{ sel.monto_apertura | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
-              <div><span>Ingresos</span><strong>{{ (sel.ingresos || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
-              <div><span>Egresos</span><strong>{{ (sel.egresos || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
-              <div class="row-esperado"><span>Esperado en caja</span><strong>{{ (sel.monto_esperado || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
-              @if (sel.monto_reportado != null) {
-                <div><span>Contado</span><strong>{{ sel.monto_reportado | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
-              }
-              @if (sel.diferencia != null) {
-                <div>
-                  <span>Diferencia</span>
-                  <strong [class.dif--up]="sel.diferencia > 0"
-                          [class.dif--down]="sel.diferencia < 0"
-                          [class.dif--ok]="sel.diferencia === 0">
-                    {{ sel.diferencia | currency:'COP':'symbol-narrow':'1.0-0' }}
-                  </strong>
-                </div>
-              }
-            </div>
-
-            @if ((sel.ingresos_por_metodo || []).length > 0) {
-              <div class="resumen-metodos">
-                <p class="resumen-metodos__titulo">Dinero por forma de pago (neto)</p>
-                @for (item of (sel.ingresos_por_metodo || []); track (item.id_metodo_pago ?? 'manual')) {
-                  <div class="resumen-metodos__item">
-                    <span>{{ item.nombre }}</span>
-                    <strong [class.negativo]="item.total < 0">{{ item.total | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
-                  </div>
-                }
-              </div>
-            }
-          } @else {
-            <p class="sin-importes">
-              <lucide-icon name="lock" size="14" />
-              Tu rol no tiene permiso para ver los valores de la caja. Abajo quedan los
-              movimientos del turno, sin montos.
-            </p>
-          }
-
-          @if (sel.observaciones) {
-            <p class="obs">{{ sel.observaciones }}</p>
-          }
-
-          <h3 class="hist-sub">Movimientos</h3>
-          @if (movimientosHist().length === 0) {
-            <p class="estado">Este turno no registró movimientos.</p>
-          } @else {
-            <div class="movimientos__table">
-              <table>
-                <thead>
-                  <tr>
-                    <th class="col-expandir"><span class="sr-only">Productos</span></th>
-                    <th>Fecha</th>
-                    <th>Tipo</th>
-                    <th>Tipo pedido</th>
-                    <th>Concepto</th>
-                    <th>Usuario</th>
-                    @if (puedeVerIngresos()) {
-                      <th class="num">Monto</th>
-                    }
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (m of movimientosHist(); track m.id_movimiento) {
-                    <tr [class.fila--anulada]="m.anulado"
-                        [class.fila--anulacion]="m.es_anulacion"
-                        [class.fila--abierta]="estaAbierta(m)"
-                        [class.fila--clicable]="tieneDetalle(m)"
-                        (click)="alternarDetalle(m)">
-                      <td class="col-expandir">
-                        @if (tieneDetalle(m)) {
-                          <button type="button"
-                                  class="btn-expandir"
-                                  [class.btn-expandir--abierto]="estaAbierta(m)"
-                                  [attr.aria-expanded]="estaAbierta(m)"
-                                  [title]="estaAbierta(m) ? 'Ocultar productos' : 'Ver productos del pedido'"
-                                  (click)="alternarDetalle(m); $event.stopPropagation()">
-                            <lucide-icon name="chevron-right" [size]="15" />
-                          </button>
-                        }
-                      </td>
-                      <td class="col-fecha">
-                    <span class="f-larga">{{ m.fecha | date:'dd/MM/yyyy hh:mm a':undefined:'en-US' }}</span>
-                    <span class="f-corta">{{ m.fecha | date:'dd/MM/yy hh:mm a':undefined:'en-US' }}</span>
-                  </td>
-                      <td>
-                        <span class="badge"
-                              [class.badge--in]="m.tipo === 'INGRESO' && !m.es_anulacion && !m.anulado"
-                              [class.badge--out]="m.tipo === 'EGRESO' && !m.es_anulacion && !m.anulado"
-                              [class.badge--anulado]="m.anulado || m.es_anulacion">
-                          {{ etiquetaTipo(m) }}
-                        </span>
-                      </td>
-                      <td>{{ tipoPedidoMovimiento(m) }}</td>
-                      <td>{{ conceptoCorto(m) }}</td>
-                      <td>{{ m.usuario?.primer_nombre }} {{ m.usuario?.primer_apellido }}</td>
-                      @if (puedeVerIngresos()) {
-                        <td class="num">{{ m.monto | currency:'COP':'symbol-narrow':'1.0-0' }}</td>
-                      }
-                    </tr>
-                    @if (estaAbierta(m)) {
-                      <tr class="fila-detalle">
-                        <td [attr.colspan]="colspanMovimientosHist()">
-                          <ng-container
-                            *ngTemplateOutlet="detalleProductos; context: { $implicit: m }" />
-                        </td>
-                      </tr>
-                    }
-                  }
-                </tbody>
-              </table>
-            </div>
-          }
-
-        } @else {
-          <!-- ─── Lista de turnos cerrados ─── -->
-          <h2>Historial de cajas</h2>
-          <p class="hint">Turnos ya cerrados. Elige uno para ver sus movimientos.</p>
-
-          <div class="hist-filtros">
-            <label>
-              Desde
-              <input type="date" [ngModel]="histDesde()" (ngModelChange)="histDesde.set($event)" />
-            </label>
-            <label>
-              Hasta
-              <input type="date" [ngModel]="histHasta()" (ngModelChange)="histHasta.set($event)" />
-            </label>
-            <button type="button" class="btn btn-primary btn-sm"
-                    (click)="aplicarFiltroHistorial()" [disabled]="cargandoHistorial()">
-              <lucide-icon name="search" size="15" />
-              Filtrar
-            </button>
-            @if (histDesde() || histHasta()) {
-              <button type="button" class="btn btn-ghost btn-sm"
-                      (click)="limpiarFiltroHistorial()" [disabled]="cargandoHistorial()">
-                Limpiar
-              </button>
-            }
-          </div>
-
-          @if (errorHistorial()) {
-            <div class="estado">{{ errorHistorial() }}</div>
-          } @else if (cargandoHistorial() && historial().length === 0) {
-            <div class="estado">Cargando…</div>
-          } @else if (historial().length === 0) {
-            <div class="estado">No hay cajas cerradas en este rango.</div>
-          } @else {
-            <div class="hist-lista">
-              @for (c of historial(); track c.id_caja) {
-                <article class="hist-item">
-                  <div class="hist-item__info">
-                    <span class="hist-item__rango">
-                      {{ c.fecha_apertura | date:'dd/MM/yyyy hh:mm a':undefined:'en-US' }}
-                      <lucide-icon name="arrow-right" size="13" />
-                      {{ c.fecha_cierre ? (c.fecha_cierre | date:'dd/MM/yyyy hh:mm a':undefined:'en-US') : 'Sin cerrar' }}
-                    </span>
-                    <span class="hist-item__meta">
-                      @if (variasCajas() && c.punto) {
-                        <span class="hist-item__caja">{{ c.punto }}</span>
-                        <span class="punto">·</span>
-                      }
-                      <lucide-icon name="user" size="12" />
-                      {{ c.usuario.primer_nombre }} {{ c.usuario.primer_apellido }}
-                      <span class="punto">·</span>
-                      {{ c.total_movimientos }}
-                      {{ c.total_movimientos === 1 ? 'movimiento' : 'movimientos' }}
-                    </span>
-                  </div>
-
-                  @if (puedeVerIngresos()) {
-                    <div class="hist-item__montos">
-                      <strong>{{ (c.monto_esperado || 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
-                      @if (c.diferencia != null) {
-                        <small [class.dif--up]="c.diferencia > 0"
-                               [class.dif--down]="c.diferencia < 0"
-                               [class.dif--ok]="c.diferencia === 0">
-                          Diferencia: {{ c.diferencia | currency:'COP':'symbol-narrow':'1.0-0' }}
-                        </small>
-                      } @else {
-                        <small>Sin arqueo</small>
-                      }
-                    </div>
-                  }
-
-                  <button type="button"
-                          class="btn btn-outline btn-sm hist-item__ver"
-                          [disabled]="cargandoDetalleHist()"
-                          (click)="verDetalleHistorial(c)">
-                    <lucide-icon name="eye" size="15" />
-                    Ver detalle
-                  </button>
-                </article>
-              }
-            </div>
-
-            @if (hayMasHistorial()) {
-              <button type="button" class="btn btn-outline hist-mas"
-                      (click)="cargarHistorial()" [disabled]="cargandoHistorial()">
-                {{ cargandoHistorial() ? 'Cargando…' : 'Cargar más' }}
-              </button>
-            }
-            <p class="hist-conteo">
-              Mostrando {{ historial().length }} de {{ historialTotal() }} turnos cerrados.
-            </p>
-          }
-        }
-
-        <div class="modal__actions">
-          <button class="btn btn-ghost" (click)="cerrarModal()">Cerrar</button>
-        </div>
-      </div>
-    </div>
-  }
-
   <!-- ── Modal: seguimiento de pedidos («Movimientos») ──
-       Disponible con o sin caja abierta: es un reporte histórico, no una acción del turno. -->
+       Muestra los pedidos de la caja EN CURSO, sin fechas. Sin caja abierta el modal se abre igual
+       y lo dice: quien tiene el permiso no debe encontrarse el botón muerto. -->
   @if (modal() === 'seguimiento' && idNegocio()) {
     <div class="modal" (click)="cerrarModal()">
       <div class="modal__panel modal__panel--wide" (click)="$event.stopPropagation()">
-        <app-seguimiento-pedidos [idNegocio]="idNegocio()!" (cerrar)="cerrarModal()" />
+        <app-seguimiento-pedidos [idNegocio]="idNegocio()!" [caja]="caja()" (cerrar)="cerrarModal()" />
       </div>
     </div>
   }
@@ -794,6 +864,19 @@
       </div>
     </div>
   }
+
+  <!-- ── Encabezado que ordena ──
+       Uno solo para las dos tablas. Ascendente → descendente → sin orden (el original). -->
+  <ng-template #btnOrden let-campo="campo" let-texto="texto">
+    <button type="button"
+            class="th-orden"
+            [class.th-orden--activo]="orden()?.campo === campo"
+            [title]="'Ordenar por ' + texto.toLowerCase()"
+            (click)="alternarOrden(campo)">
+      {{ texto }}
+      <lucide-icon [name]="iconoOrden(campo)" [size]="12" />
+    </button>
+  </ng-template>
 
   <!-- ── Productos de un pedido (contenido del acordeón) ──
        Uno solo para las dos tablas —la del turno y la del historial—, que pintan

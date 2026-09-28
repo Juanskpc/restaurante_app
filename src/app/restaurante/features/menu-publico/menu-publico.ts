@@ -71,7 +71,7 @@ interface BarrioPublico {
 }
 
 /** Cuál de los pasos de «¿cómo quieres pedir?» toca ahora. */
-type PasoEleccion = 'modalidad' | 'barrio' | 'mesa';
+type PasoEleccion = 'modalidad' | 'barrio';
 
 /** Una categoría con sus productos, tal como la devuelve `/public/carta/completa`. */
 interface SeccionPublica extends CategoriaPublica {
@@ -88,6 +88,52 @@ interface SeccionVisible extends CategoriaPublica {
 /** Los cuatro estados de `horarioService.estadoDeAtencion` — mismo que lee el saludo del bot. */
 type EstadoAtencion = 'abierto' | 'fuera_de_horario' | 'aun_no_abre' | 'cerrado_sin_horario';
 
+/** Cuándo abre el negocio la próxima vez (`horarioService.proximaApertura`). Solo si cierra por horario. */
+interface ProximaApertura {
+  /** 0 = hoy, 1 = mañana… hasta 7 (el mismo día de la semana que viene). */
+  dias_adelante: number;
+  /** 0 = domingo … 6 = sábado. */
+  dia_semana: number;
+  /** «HH:MM», hora de Bogotá. */
+  hora: string;
+}
+
+const DIAS_SEMANA = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+
+/** «17:00» → «5:00 PM». */
+export function horaLegible(hhmm: string): string {
+  const [h, m] = hhmm.split(':').map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return hhmm;
+  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+}
+
+/**
+ * Lo que se le dice al cliente cuando intenta pedir y el negocio no está atendiendo.
+ *
+ * Cada estado dice algo distinto porque significa algo distinto: «fuera de horario» puede prometer
+ * una hora (la de la próxima apertura); «aún no abre» es que ya es la hora pero falta abrir la
+ * caja —pedir en unos minutos—; y sin horario cargado no hay ninguna hora que prometer.
+ */
+export function mensajeFueraDeHorario(estado: EstadoAtencion, abre?: ProximaApertura | null): string {
+  switch (estado) {
+    case 'fuera_de_horario': {
+      const base = 'Ahora mismo estamos fuera de nuestro horario de atención.';
+      if (!abre) return `${base} Vuelve a intentarlo más tarde.`;
+      const hora = horaLegible(abre.hora);
+      if (abre.dias_adelante === 0) return `${base} Puedes realizar tu pedido a partir de las ${hora}.`;
+      const cuando =
+        abre.dias_adelante === 1
+          ? 'mañana'
+          : `el ${abre.dias_adelante >= 7 ? 'próximo ' : ''}${DIAS_SEMANA[abre.dia_semana]}`;
+      return `${base} Puedes realizar tu pedido ${cuando} a partir de las ${hora}.`;
+    }
+    case 'aun_no_abre':
+      return 'Estamos a punto de abrir. En unos minutos podrás realizar tu pedido.';
+    default:
+      return 'Ahora mismo no estamos recibiendo pedidos. Vuelve a intentarlo más tarde.';
+  }
+}
+
 interface NegocioPublico {
   id_negocio: number;
   nombre: string;
@@ -101,7 +147,7 @@ interface NegocioPublico {
   /** Diseño publicado, ya recortado por el plan. Puede faltar con un backend anterior. */
   carta?: CartaPublicaConfig | null;
   /** Puede faltar con un backend anterior; en ese caso se trata como "abierto" (ver `atendiendoAhora`). */
-  atencion?: { estado: EstadoAtencion } | null;
+  atencion?: { estado: EstadoAtencion; abre?: ProximaApertura | null } | null;
 }
 
 /** Lo que manda Configuración → Apariencia cuando esta carta se muestra como vista previa. */
@@ -165,6 +211,38 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
 
   readonly textoFueraDeHorario = 'Disponible en horario de atención';
 
+  /** Lo que se le dice al cliente si intenta pedir con el negocio cerrado. */
+  readonly mensajeCerrado = computed(() =>
+    mensajeFueraDeHorario(
+      this.negocio()?.atencion?.estado ?? 'abierto',
+      this.negocio()?.atencion?.abre,
+    ),
+  );
+
+  /**
+   * ¿Se está enseñando ahora el aviso de fuera de horario?
+   *
+   * Aparece cuando el cliente TOCA un botón de pedir estando cerrado, y no antes: los botones se
+   * ven apagados pero siguen recibiendo el toque —un `disabled` no lo recibe, y en el móvil no hay
+   * «pasar el ratón» para leer un `title`—, así que antes el cliente tocaba y no pasaba nada.
+   */
+  readonly avisoCerradoVisible = signal(false);
+  private temporizadorAviso: ReturnType<typeof setTimeout> | null = null;
+
+  avisarCerrado(): void {
+    this.avisoCerradoVisible.set(true);
+    if (!isPlatformBrowser(this.platformId)) return;
+    if (this.temporizadorAviso) clearTimeout(this.temporizadorAviso);
+    // Largo a propósito: la frase es larga y trae una hora, que hay que dar tiempo a leer.
+    this.temporizadorAviso = setTimeout(() => this.cerrarAvisoCerrado(), 8000);
+  }
+
+  cerrarAvisoCerrado(): void {
+    if (this.temporizadorAviso) clearTimeout(this.temporizadorAviso);
+    this.temporizadorAviso = null;
+    this.avisoCerradoVisible.set(false);
+  }
+
   // ── ¿Cómo quieres pedir? ──────────────────────────────────────────────────────────────
   //
   // Antes de los productos: en el local / a domicilio / recoger. Solo cuando se puede pedir y el
@@ -187,14 +265,33 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
   );
   readonly hayMesas = computed(() => this.mesas().length > 0);
 
-  /** El paso que toca, o `null` si la elección está completa. */
+  /**
+   * El paso que toca, o `null` si la elección está completa.
+   *
+   * «En el local» ya no pregunta la mesa (2026-09-29): en el local pide un mesero, no el cliente, así
+   * que el número de mesa no sirve para nada. Un QR con `?mesa=` sigue reconociéndose (ver
+   * `reconciliarEleccion`) y solo se usa para decir en qué mesa está.
+   */
   readonly pasoEleccion = computed<PasoEleccion | null>(() => {
     const modalidad = this.carrito.modalidad();
     if (this.forzarInicio() || modalidad === null) return 'modalidad';
     if (modalidad === 'D' && this.hayBarrios() && this.carrito.barrio() === null) return 'barrio';
-    if (modalidad === 'L' && this.carrito.mesa() === null) return 'mesa';
     return null;
   });
+
+  /**
+   * ¿Se ofrece armar un pedido desde la carta? Hace falta poder pedir (WhatsApp y plan) Y que el
+   * cliente no haya dicho que está en el local: ahí lo toma un mesero, y los botones de agregar y de
+   * «pedir por WhatsApp» no se muestran — la carta queda para mirar. Solo «a domicilio» y «para
+   * recoger» arman pedido. Ojo: es lo que se PINTA; `pedidosHabilitados` sigue siendo si el negocio
+   * puede recibir pedidos por este medio, y de él cuelgan el selector y el chip para cambiarlo.
+   */
+  readonly puedeArmarPedido = computed(
+    () => this.pedidosHabilitados() && this.carrito.modalidad() !== 'L',
+  );
+
+  /** En el local: la carta se lee, no se pide. Es lo que dice la nota junto al chip. */
+  readonly soloMirar = computed(() => this.pedidosHabilitados() && this.carrito.modalidad() === 'L');
 
   /** El selector se ve solo cuando se puede pedir, se atiende ahora y falta elegir algo. */
   readonly mostrarSelector = computed(
@@ -265,10 +362,6 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
         ? { id_barrio: barrio.id_barrio, nombre: barrio.nombre, valor: barrio.valor }
         : { id_barrio: 0, nombre: 'Otro barrio', valor: null },
     );
-  }
-
-  elegirMesa(mesa: MesaElegida): void {
-    this.carrito.elegirMesa(mesa);
   }
 
   cambiarEleccion(): void {
@@ -599,6 +692,7 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
     window.removeEventListener('scroll', this._onScroll);
     window.removeEventListener('message', this._onMensaje);
     if (this.finDeScroll) clearTimeout(this.finDeScroll);
+    if (this.temporizadorAviso) clearTimeout(this.temporizadorAviso);
   }
 
   private _onResize = (): void => this.actualizarFlechas();
@@ -739,7 +833,12 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
   agregarAlCarrito(prod: ProductoPublico): void {
     // Un agotado se muestra para que el cliente sepa que existe, no para pedirlo.
     if (prod.disponible === false) return;
-    if (!this.atendiendoAhora()) return;
+    // Defensa: los botones ni se pintan en el local, pero esto es lo que agrega de verdad.
+    if (this.carrito.modalidad() === 'L') return;
+    if (!this.atendiendoAhora()) {
+      this.avisarCerrado();
+      return;
+    }
     // Con ingredientes que se pueden quitar, el «+» abre SIEMPRE el modal (aunque ya haya líneas
     // de ese producto): quien pide una segunda hamburguesa puede querer otra distinta. Sin
     // removibles se agrega directo, como siempre.
@@ -849,6 +948,11 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
 
   abrirPrePedido(): void {
     if (this.carrito.vacio()) return;
+    // Un carrito guardado de otra visita puede seguir ahí con el negocio ya cerrado.
+    if (!this.atendiendoAhora()) {
+      this.avisarCerrado();
+      return;
+    }
     this.pasoPanel.set('pedido');
     this.intentoEnvio.set(false);
     this.prePedidoAbierto.set(true);
