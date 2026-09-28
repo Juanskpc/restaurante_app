@@ -1,0 +1,243 @@
+// El overlay (.modal / .modal__panel--wide) lo pone `caja.html`: este componente solo
+// pinta su propio contenido, así que aquí no se repite el ancho ni el fondo del panel.
+
+.seg {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.seg__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+
+  h2 { margin: 0; font-size: 1.1rem; }
+}
+
+.seg__subtitulo {
+  margin: .2rem 0 0;
+  font-size: .82rem;
+  color: var(--color-text-secondary);
+}
+
+.seg__cerrar { flex-shrink: 0; padding: .4rem; }
+
+.seg__filtros {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: .5rem;
+
+  label { display: flex; flex-direction: column; gap: .25rem; flex: 1 1 140px; min-width: 0; }
+  label span { font-size: .78rem; color: var(--color-text-secondary); font-weight: 600; }
+}
+
+.seg__buscar { flex: 2 1 220px !important; }
+
+.input {
+  padding: .5rem .6rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font-size: .86rem;
+  width: 100%;
+}
+
+.btn {
+  display: inline-flex; align-items: center; gap: .4rem;
+  padding: .5rem .85rem;
+  border-radius: var(--radius-md);
+  font-size: .85rem; font-weight: 600;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+
+  &-outline { background: transparent; color: var(--color-text-primary); border-color: var(--color-border); }
+  &-outline:hover:not(:disabled) { border-color: var(--color-primary); color: var(--color-primary); }
+  &-ghost   { background: transparent; color: var(--color-text-secondary); }
+  &-ghost:hover:not(:disabled)   { color: var(--color-text-primary); }
+  &:disabled { opacity: .55; cursor: not-allowed; }
+}
+
+.seg__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+}
+
+.chip {
+  padding: .35rem .75rem;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: .8rem;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), color var(--transition-fast), background var(--transition-fast);
+
+  &--activo {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+    font-weight: 600;
+  }
+}
+
+.seg__resumen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .6rem;
+}
+
+.seg__tarjeta {
+  flex: 1 1 160px;
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+  padding: .65rem .85rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+
+  span { font-size: .76rem; color: var(--color-text-secondary); }
+  strong { font-size: 1.2rem; color: var(--color-text-primary); }
+  small { font-size: .74rem; color: var(--color-text-secondary); }
+
+  // El número que de verdad importa vigilar: cuánto se canceló o anuló.
+  &--alerta {
+    border-color: color-mix(in srgb, var(--color-warning, #f59e0b) 45%, transparent);
+    background: var(--color-warning-bg, color-mix(in srgb, #f59e0b 10%, transparent));
+    strong, small { color: var(--color-warning, #b45309); }
+  }
+}
+
+.seg__error {
+  display: flex; align-items: center; gap: .4rem;
+  margin: 0; padding: .6rem .8rem;
+  border: 1px solid color-mix(in srgb, var(--color-error) 40%, transparent);
+  border-radius: var(--radius-md);
+  background: var(--color-error-bg);
+  color: var(--color-error);
+  font-size: .84rem;
+}
+
+.estado { color: var(--color-text-secondary); padding: 1rem 0; text-align: center; }
+
+.seg__lista {
+  list-style: none;
+  margin: 0; padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+
+.pedido {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  overflow: hidden;
+
+  &--abierto { border-color: var(--color-primary); }
+}
+
+.pedido__cabeza {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .65rem .85rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+}
+
+.pedido__info {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .5rem;
+  min-width: 0;
+}
+
+.pedido__num { font-weight: 700; font-size: .9rem; }
+
+.pedido__meta {
+  font-size: .78rem;
+  color: var(--color-text-secondary);
+}
+
+.pedido__derecha {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  flex-shrink: 0;
+
+  strong { font-size: .92rem; }
+  lucide-icon { color: var(--color-text-secondary); }
+}
+
+.badge {
+  display: inline-flex; padding: .15rem .5rem; border-radius: var(--radius-full);
+  font-size: .7rem; font-weight: 600; white-space: nowrap;
+
+  &--abierta   { background: color-mix(in srgb, var(--color-primary) 14%, transparent); color: var(--color-primary); }
+  &--cobrada   { background: var(--color-success-bg); color: var(--color-success); }
+  &--cancelada { background: var(--color-error-bg);   color: var(--color-error); }
+  &--anulada   {
+    background: var(--color-warning-bg, color-mix(in srgb, #f59e0b 14%, transparent));
+    color: var(--color-warning, #b45309);
+  }
+}
+
+.linea-tiempo {
+  list-style: none;
+  margin: 0;
+  padding: .2rem .85rem .85rem;
+  display: flex;
+  flex-direction: column;
+  gap: .6rem;
+  border-top: 1px solid var(--color-border);
+
+  li {
+    display: flex;
+    align-items: flex-start;
+    gap: .55rem;
+    padding-top: .6rem;
+
+    lucide-icon { flex-shrink: 0; margin-top: .1rem; color: var(--color-text-secondary); }
+  }
+}
+
+.linea-tiempo__texto {
+  display: flex;
+  flex-direction: column;
+  gap: .1rem;
+  font-size: .82rem;
+
+  strong { color: var(--color-text-primary); }
+  span { color: var(--color-text-secondary); }
+}
+
+.linea-tiempo__monto { font-weight: 600; color: var(--color-text-primary) !important; }
+
+.seg__mas { align-self: center; }
+
+.seg__conteo {
+  margin: 0;
+  text-align: center;
+  font-size: .78rem;
+  color: var(--color-text-secondary);
+}
+
+@media (max-width: 640px) {
+  .seg__filtros label { flex: 1 1 100%; }
+  .seg__buscar { flex: 1 1 100% !important; }
+  .seg__tarjeta { flex: 1 1 100%; }
+}

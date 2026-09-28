@@ -168,6 +168,58 @@ export interface HistorialCajas {
   rows: CajaHistorial[];
 }
 
+// ── Sección «Movimientos»: seguimiento del flujo mesero → caja ─────────────────────────────
+//
+// Requiere el permiso `caja_ver_movimientos` (apagado por defecto, ver
+// `admin_ws/docs/...`); el backend lo revalida y responde 403 si no lo tiene.
+
+export type EstadoSeguimiento = 'ABIERTA' | 'CERRADA' | 'CANCELADA' | 'ANULADA';
+export type TipoEventoSeguimiento = 'tomado' | 'cobrado' | 'cancelado' | 'anulado';
+
+/** Un paso de la línea de tiempo de un pedido: quién lo hizo y cuándo. */
+export interface EventoSeguimiento {
+  tipo: TipoEventoSeguimiento;
+  fecha: string;
+  id_usuario: number | null;
+  actor: string | null;
+  /** Solo en 'cobrado' y 'anulado'. */
+  monto?: number;
+  /** Solo en 'cobrado': con qué se pagó (una o varias, si hubo multipago). */
+  metodo_pago?: string | null;
+}
+
+export interface PedidoSeguimiento {
+  id_orden: number;
+  numero_orden: string;
+  tipo_pedido: string;
+  estado: EstadoSeguimiento;
+  estado_pago: string;
+  total: number;
+  mesa: string | null;
+  punto_caja: string | null;
+  fecha_creacion: string;
+  mesero: string | null;
+  eventos: EventoSeguimiento[];
+}
+
+export interface ResumenSeguimiento {
+  abiertas: number;
+  cobradas: number;
+  canceladas: number;
+  anuladas: number;
+  monto_cobrado: number;
+  monto_no_cobrado: number;
+}
+
+export interface SeguimientoPedidos {
+  rows: PedidoSeguimiento[];
+  total: number;
+  limite: number;
+  offset: number;
+  resumen: ResumenSeguimiento;
+  rango: { desde: string; hasta: string };
+}
+
 /**
  * Una caja del negocio entendida como RUBRO de ingreso (Restaurante, Tienda…). Cada una lleva
  * sus propios turnos. El negocio con una sola nunca ve nada de esto.
@@ -572,5 +624,34 @@ export class CajaService {
     id_metodo_pago?: number | null;
   }): Observable<ApiResponse<MovimientoCaja>> {
     return this.http.post<ApiResponse<MovimientoCaja>>(`${this.base}/movimientos`, payload);
+  }
+
+  /**
+   * Seguimiento del flujo mesero → caja: qué pasó con cada pedido del rango
+   * («tomado / cobrado / cancelado / anulado» y por quién). `desde`/`hasta` son
+   * fechas de pared (YYYY-MM-DD); sin ellas, el backend usa el día de hoy.
+   */
+  getSeguimiento(
+    idNegocio: number,
+    opciones: {
+      desde?: string | null;
+      hasta?: string | null;
+      estado?: EstadoSeguimiento | null;
+      q?: string | null;
+      idPuntoCaja?: number | null;
+      limite?: number;
+      offset?: number;
+    } = {},
+  ): Observable<ApiResponse<SeguimientoPedidos>> {
+    let params = new HttpParams().set('id_negocio', String(idNegocio));
+    if (opciones.desde) params = params.set('desde', opciones.desde);
+    if (opciones.hasta) params = params.set('hasta', opciones.hasta);
+    if (opciones.estado) params = params.set('estado', opciones.estado);
+    if (opciones.q) params = params.set('q', opciones.q);
+    if (opciones.idPuntoCaja) params = params.set('id_punto_caja', String(opciones.idPuntoCaja));
+    if (opciones.limite != null) params = params.set('limite', String(opciones.limite));
+    if (opciones.offset != null) params = params.set('offset', String(opciones.offset));
+
+    return this.http.get<ApiResponse<SeguimientoPedidos>>(`${this.base}/seguimiento`, { params });
   }
 }

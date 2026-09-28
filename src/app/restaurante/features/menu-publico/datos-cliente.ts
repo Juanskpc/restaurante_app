@@ -7,7 +7,6 @@ import type { Modalidad } from './carrito.service';
  * Viajan en el mensaje como un bloque legible con etiquetas FIJAS, antes de la línea `#P…`:
  *
  *     Nombre: Ana Pérez
- *     Teléfono: 3001234567
  *     Dirección: Cra 3 #21-10, apto 201
  *     Nota: sin cebolla en todo
  *
@@ -15,22 +14,23 @@ import type { Modalidad } from './carrito.service';
  * parser estricto por etiqueta. Las etiquetas (`ETIQUETAS`) son las mismas en los dos lados. Todo
  * lo de aquí es una SUGERENCIA editable: la confirmación del bot lo vuelve a enseñar antes del «sí».
  * Nada de esto viaja dentro de la línea `#P`.
+ *
+ * El teléfono NO se pide (desde 2026-09-27): el cliente ya llega por su WhatsApp y el canal prueba
+ * su número. Uno escrito a mano solo podía contradecirlo.
  */
 export interface DatosCliente {
   nombre: string;
-  telefono: string;
   direccion: string;
   nota: string;
 }
 
 export type CampoCliente = keyof DatosCliente;
 
-export const CLIENTE_VACIO: DatosCliente = { nombre: '', telefono: '', direccion: '', nota: '' };
+export const CLIENTE_VACIO: DatosCliente = { nombre: '', direccion: '', nota: '' };
 
 /** Las etiquetas del mensaje. Si cambian aquí, cambian en `datosCliente.js` (y al revés). */
 export const ETIQUETAS: Record<CampoCliente, string> = {
   nombre: 'Nombre',
-  telefono: 'Teléfono',
   direccion: 'Dirección',
   nota: 'Nota',
 };
@@ -38,7 +38,6 @@ export const ETIQUETAS: Record<CampoCliente, string> = {
 /** Largos máximos: los mismos que aplica el bot al leerlos. */
 export const MAXIMOS: Record<CampoCliente, number> = {
   nombre: 100,
-  telefono: 20,
   direccion: 300,
   nota: 300,
 };
@@ -50,8 +49,8 @@ export interface Requisito {
 
 /**
  * Qué se pide según cómo quiere recibir el pedido:
- *  - domicilio: nombre, teléfono y dirección obligatorios.
- *  - recoger: nombre obligatorio; teléfono opcional (WhatsApp ya lo trae, pero puede ser otro).
+ *  - domicilio: nombre y dirección obligatorios.
+ *  - recoger: solo el nombre.
  *  - en el local (mesa): solo el nombre.
  * La nota especial es OPCIONAL en las tres (desde 2026-09-25: antes era solo del domicilio, y quien
  * pedía en mesa o para recoger no tenía dónde decir «sin cebolla en todo»). El bot ya la lee y la
@@ -62,14 +61,12 @@ export function requisitos(modalidad: Modalidad | null): Requisito[] {
     case 'D':
       return [
         { campo: 'nombre', obligatorio: true },
-        { campo: 'telefono', obligatorio: true },
         { campo: 'direccion', obligatorio: true },
         { campo: 'nota', obligatorio: false },
       ];
     case 'R':
       return [
         { campo: 'nombre', obligatorio: true },
-        { campo: 'telefono', obligatorio: false },
         { campo: 'nota', obligatorio: false },
       ];
     case 'L':
@@ -101,18 +98,9 @@ export function sanear(valor: string, max: number): string {
     .slice(0, max);
 }
 
-/** Solo dígitos, con un `+` inicial si lo trae. */
-export function limpiarTelefono(valor: string): string {
-  const crudo = String(valor ?? '').trim();
-  const digitos = crudo.replace(/\D/g, '');
-  return (crudo.startsWith('+') ? '+' : '') + digitos.slice(0, 15);
-}
-
-const DIGITOS_TELEFONO = { min: 7, max: 15 };
-
 export type ErroresCliente = Partial<Record<CampoCliente, string>>;
 
-/** Validación ligera: obligatorios, largos y teléfono con dígitos. Vacío = sin errores. */
+/** Validación ligera: obligatorios y largos. Vacío = sin errores. */
 export function validarCliente(modalidad: Modalidad | null, datos: DatosCliente): ErroresCliente {
   const errores: ErroresCliente = {};
   for (const { campo, obligatorio } of requisitos(modalidad)) {
@@ -123,12 +111,6 @@ export function validarCliente(modalidad: Modalidad | null, datos: DatosCliente)
     }
     if (campo === 'nombre' && valor.length < 2) errores.nombre = 'El nombre es muy corto.';
     if (campo === 'direccion' && valor.length < 5) errores.direccion = 'La dirección es muy corta.';
-    if (campo === 'telefono') {
-      const n = valor.replace(/\D/g, '').length;
-      if (n < DIGITOS_TELEFONO.min || n > DIGITOS_TELEFONO.max) {
-        errores.telefono = 'Escribe un teléfono con solo números (mínimo 7 dígitos).';
-      }
-    }
   }
   return errores;
 }
@@ -136,7 +118,6 @@ export function validarCliente(modalidad: Modalidad | null, datos: DatosCliente)
 function articulo(campo: CampoCliente): string {
   return {
     nombre: 'tu nombre',
-    telefono: 'un teléfono de contacto',
     direccion: 'la dirección',
     nota: 'la nota',
   }[campo];
@@ -149,10 +130,7 @@ function articulo(campo: CampoCliente): string {
 export function lineasDelBloque(modalidad: Modalidad | null, datos: DatosCliente): string[] {
   const lineas: string[] = [];
   for (const { campo } of requisitos(modalidad)) {
-    const valor =
-      campo === 'telefono'
-        ? limpiarTelefono(sanear(datos.telefono, MAXIMOS.telefono))
-        : sanear(datos[campo], MAXIMOS[campo]);
+    const valor = sanear(datos[campo], MAXIMOS[campo]);
     if (valor) lineas.push(`${ETIQUETAS[campo]}: ${valor}`);
   }
   return lineas;

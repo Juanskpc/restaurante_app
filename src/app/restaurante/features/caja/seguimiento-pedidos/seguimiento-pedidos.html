@@ -1,0 +1,119 @@
+<div class="seg">
+  <header class="seg__head">
+    <div>
+      <h2>Movimientos</h2>
+      <p class="seg__subtitulo">Quién tomó cada pedido, quién lo cobró o lo canceló, y con qué.</p>
+    </div>
+    <button type="button" class="btn btn-ghost seg__cerrar" (click)="cerrar.emit()" aria-label="Cerrar">
+      <lucide-icon name="x" size="18" />
+    </button>
+  </header>
+
+  <div class="seg__filtros">
+    <label>
+      <span>Desde</span>
+      <input class="input" type="date" [ngModel]="desde()" (ngModelChange)="desde.set($event)" />
+    </label>
+    <label>
+      <span>Hasta</span>
+      <input class="input" type="date" [ngModel]="hasta()" (ngModelChange)="hasta.set($event)" />
+    </label>
+    <label class="seg__buscar">
+      <span>Buscar</span>
+      <input class="input" type="text" placeholder="Número de orden o mesero"
+             [ngModel]="q()" (ngModelChange)="q.set($event)" (keyup.enter)="buscar(true)" />
+    </label>
+    <button type="button" class="btn btn-outline" [disabled]="cargando()" (click)="buscar(true)">
+      <lucide-icon name="search" size="15" />
+      Buscar
+    </button>
+  </div>
+
+  <nav class="seg__chips">
+    @for (f of filtros; track f.etiqueta) {
+      <button type="button" class="chip" [class.chip--activo]="estado() === f.clave" (click)="cambiarFiltro(f.clave)">
+        {{ f.etiqueta }}
+      </button>
+    }
+  </nav>
+
+  @if (resumen(); as r) {
+    <div class="seg__resumen">
+      <div class="seg__tarjeta">
+        <span>Cobradas</span>
+        <strong>{{ r.cobradas }}</strong>
+        <small>{{ r.monto_cobrado | currency:'COP':'symbol-narrow':'1.0-0' }}</small>
+      </div>
+      <div class="seg__tarjeta seg__tarjeta--alerta">
+        <span>Canceladas / anuladas</span>
+        <strong>{{ r.canceladas + r.anuladas }}</strong>
+        <small>{{ r.monto_no_cobrado | currency:'COP':'symbol-narrow':'1.0-0' }} sin cobrar</small>
+      </div>
+      @if (r.abiertas > 0) {
+        <div class="seg__tarjeta">
+          <span>En curso</span>
+          <strong>{{ r.abiertas }}</strong>
+          <small>todavía sin resolver</small>
+        </div>
+      }
+    </div>
+  }
+
+  @if (error()) {
+    <p class="seg__error">
+      <lucide-icon name="circle-alert" size="15" />
+      {{ error() }}
+    </p>
+  } @else if (cargando() && filas().length === 0) {
+    <p class="estado">Cargando…</p>
+  } @else if (filas().length === 0) {
+    <p class="estado">Ningún pedido en este rango.</p>
+  } @else {
+    <ul class="seg__lista">
+      @for (p of filas(); track p.id_orden) {
+        <li class="pedido" [class.pedido--abierto]="filaAbierta() === p.id_orden">
+          <button type="button" class="pedido__cabeza" (click)="toggleFila(p.id_orden)">
+            <div class="pedido__info">
+              <span class="pedido__num">{{ p.numero_orden }}</span>
+              <span class="badge" [class]="etiquetaEstado(p.estado).clase">{{ etiquetaEstado(p.estado).etiqueta }}</span>
+              <span class="pedido__meta">
+                {{ p.tipo_pedido }}{{ p.mesa ? ' · ' + p.mesa : '' }}{{ p.mesero ? ' · ' + p.mesero : '' }}
+              </span>
+            </div>
+            <div class="pedido__derecha">
+              <strong>{{ p.total | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+              <lucide-icon [name]="filaAbierta() === p.id_orden ? 'chevron-up' : 'chevron-down'" size="16" />
+            </div>
+          </button>
+
+          @if (filaAbierta() === p.id_orden) {
+            <ol class="linea-tiempo">
+              @for (e of p.eventos; track e.tipo + e.fecha) {
+                <li>
+                  <lucide-icon [name]="eventoInfo(e.tipo).icono" size="15" />
+                  <div class="linea-tiempo__texto">
+                    <strong>{{ eventoInfo(e.tipo).texto }}</strong>
+                    <span>{{ e.actor || 'Usuario eliminado' }} · {{ e.fecha | date:'d MMM, h:mm a' }}</span>
+                    @if (e.monto != null) {
+                      <span class="linea-tiempo__monto">
+                        {{ e.monto | currency:'COP':'symbol-narrow':'1.0-0' }}
+                        @if (e.metodo_pago) { · {{ e.metodo_pago }} }
+                      </span>
+                    }
+                  </div>
+                </li>
+              }
+            </ol>
+          }
+        </li>
+      }
+    </ul>
+
+    @if (hayMas()) {
+      <button type="button" class="btn btn-outline seg__mas" [disabled]="cargando()" (click)="buscar(false)">
+        {{ cargando() ? 'Cargando…' : 'Cargar más' }}
+      </button>
+    }
+    <p class="seg__conteo">Mostrando {{ filas().length }} de {{ total() }} pedidos.</p>
+  }
+</div>

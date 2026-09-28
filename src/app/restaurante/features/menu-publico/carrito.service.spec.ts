@@ -429,7 +429,6 @@ describe('CarritoService', () => {
   describe('datos del cliente en el mensaje', () => {
     const datos = {
       nombre: 'Ana Pérez',
-      telefono: '300 123 4567',
       direccion: 'Cra 3 #21-10, apto 201',
       nota: 'sin cebolla en todo',
     };
@@ -447,9 +446,8 @@ describe('CarritoService', () => {
       const lineas = carrito.mensajeParaWhatsApp().split('\n');
 
       const i = lineas.indexOf('Nombre: Ana Pérez');
-      expect(lineas.slice(i, i + 4)).toEqual([
+      expect(lineas.slice(i, i + 3)).toEqual([
         'Nombre: Ana Pérez',
-        'Teléfono: 3001234567',
         'Dirección: Cra 3 #21-10, apto 201',
         'Nota: sin cebolla en todo',
       ]);
@@ -465,7 +463,7 @@ describe('CarritoService', () => {
       expect(codigo).not.toContain('Ana');
     });
 
-    it('en mesa solo viaja el nombre; en recoger, nombre y teléfono si lo hay', () => {
+    it('en mesa solo viaja el nombre; en recoger también solo el nombre, y nunca un teléfono', () => {
       carrito.guardarCliente(datos);
       carrito.elegirModalidad('L');
       expect(carrito.mensajeParaWhatsApp()).toContain('Nombre: Ana Pérez');
@@ -473,7 +471,7 @@ describe('CarritoService', () => {
       expect(carrito.mensajeParaWhatsApp()).not.toContain('Teléfono:');
 
       carrito.elegirModalidad('R');
-      expect(carrito.mensajeParaWhatsApp()).toContain('Teléfono: 3001234567');
+      expect(carrito.mensajeParaWhatsApp()).not.toContain('Teléfono:');
     });
 
     it('los saltos de línea del valor no pueden colar etiquetas', () => {
@@ -486,7 +484,7 @@ describe('CarritoService', () => {
     it('se recuerdan por negocio (sin la nota) para quien repite', () => {
       carrito.guardarCliente(datos);
       carrito.iniciar(12);
-      expect(carrito.cliente()).toEqual({ ...datos, telefono: '3001234567', nota: '' });
+      expect(carrito.cliente()).toEqual({ ...datos, nota: '' });
 
       carrito.iniciar(99);
       expect(carrito.cliente().nombre).toBe('');

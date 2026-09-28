@@ -27,6 +27,14 @@
         <lucide-icon name="clock-3" size="18" />
         Historial
       </button>
+      <!-- Apagado por defecto para todos los roles (Usuarios → Roles y permisos):
+           es una pantalla de control, no una que deba ofrecerse a todo el mundo. -->
+      @if (puedeVerMovimientos()) {
+        <button class="btn btn-outline" (click)="abrirModal('seguimiento')">
+          <lucide-icon name="layers" size="18" />
+          Movimientos
+        </button>
+      }
       @if (caja() && puedeMovimiento()) {
         <button class="btn btn-outline" (click)="abrirModal('movimiento')">
           <lucide-icon name="plus-circle" size="18" />
@@ -662,6 +670,16 @@
         <div class="modal__actions">
           <button class="btn btn-ghost" (click)="cerrarModal()">Cerrar</button>
         </div>
+      </div>
+    </div>
+  }
+
+  <!-- ── Modal: seguimiento de pedidos («Movimientos») ──
+       Disponible con o sin caja abierta: es un reporte histórico, no una acción del turno. -->
+  @if (modal() === 'seguimiento' && idNegocio()) {
+    <div class="modal" (click)="cerrarModal()">
+      <div class="modal__panel modal__panel--wide" (click)="$event.stopPropagation()">
+        <app-seguimiento-pedidos [idNegocio]="idNegocio()!" (cerrar)="cerrarModal()" />
       </div>
     </div>
   }

@@ -674,29 +674,18 @@ describe('MenuPublicoComponent — quitar ingredientes al agregar', () => {
         (e.textContent ?? '').replace(/\s+/g, ' ').trim(),
       );
 
-    it('domicilio: pide nombre, teléfono, dirección y nota (opcional)', () => {
+    it('domicilio: pide nombre, dirección y nota (opcional); nunca teléfono', () => {
       const { fixture } = panel('D');
-      expect(etiquetas(fixture)).toEqual(['Nombre', 'Teléfono', 'Dirección', 'Nota (opcional)']);
+      expect(etiquetas(fixture)).toEqual(['Nombre', 'Dirección', 'Nota (opcional)']);
+      expect(fixture.nativeElement.querySelector('#cli-telefono')).toBeNull();
     });
 
-    it('recoger: nombre, teléfono (opcional) y nota (opcional)', () => {
-      expect(etiquetas(panel('R').fixture)).toEqual([
-        'Nombre',
-        'Teléfono (opcional)',
-        'Nota (opcional)',
-      ]);
+    it('recoger: nombre y nota (opcional)', () => {
+      expect(etiquetas(panel('R').fixture)).toEqual(['Nombre', 'Nota (opcional)']);
     });
 
     it('en mesa: nombre y nota (opcional)', () => {
       expect(etiquetas(panel('L').fixture)).toEqual(['Nombre', 'Nota (opcional)']);
-    });
-
-    it('nombre y teléfono comparten renglón solo cuando la modalidad pide los dos', () => {
-      const mitades = (f: { nativeElement: HTMLElement }) =>
-        f.nativeElement.querySelectorAll('.campo--mitad').length;
-      expect(mitades(panel('D').fixture)).toBe(2);
-      TestBed.resetTestingModule();
-      expect(mitades(panel('L').fixture)).toBe(0);
     });
 
     describe('texto bajo el total', () => {
@@ -737,14 +726,14 @@ describe('MenuPublicoComponent — quitar ingredientes al agregar', () => {
 
       expect(abrir).not.toHaveBeenCalled();
       const errores = fixture.nativeElement.querySelectorAll('.campo__error');
-      expect(errores).toHaveLength(3);
+      expect(errores).toHaveLength(2);
       expect((fixture.nativeElement.querySelector('#cli-nombre') as HTMLInputElement).getAttribute('aria-invalid')).toBe('true');
     });
 
     it('con los datos completos abre WhatsApp con el bloque ANTES de la línea #P', () => {
       const { fixture, comp, carrito } = panel('D');
       carrito.guardarCliente({
-        nombre: 'Ana Pérez', telefono: '3001234567', direccion: 'Cra 3 #21-10', nota: 'sin cebolla',
+        nombre: 'Ana Pérez', direccion: 'Cra 3 #21-10', nota: 'sin cebolla',
       });
       comp.enviarPorWhatsApp();
       fixture.detectChanges();
@@ -754,6 +743,7 @@ describe('MenuPublicoComponent — quitar ingredientes al agregar', () => {
       const lineas = texto.split('\n');
       expect(lineas).toContain('Nombre: Ana Pérez');
       expect(lineas).toContain('Nota: sin cebolla');
+      expect(lineas.some((l) => l.startsWith('Teléfono:'))).toBe(false);
       expect(lineas[lineas.length - 1]).toBe('#P12-9x1~m=D');
     });
 
@@ -765,15 +755,6 @@ describe('MenuPublicoComponent — quitar ingredientes al agregar', () => {
 
       expect(fixture.nativeElement.querySelector('.pre-pedido-items')).not.toBeNull();
       expect(carrito.cliente().nombre).toBe('Ana');
-    });
-
-    it('el teléfono se limpia al escribir: solo dígitos', () => {
-      const { fixture } = panel('D');
-      const tel = fixture.nativeElement.querySelector('#cli-telefono') as HTMLInputElement;
-      tel.value = '(300) 123-4567 abc';
-      tel.dispatchEvent(new Event('input'));
-
-      expect(TestBed.inject(CarritoService).cliente().telefono).toBe('3001234567');
     });
   });
 });

@@ -7,7 +7,6 @@ import {
   DatosCliente,
   MAXIMOS,
   lineasDelBloque,
-  limpiarTelefono,
   sanear,
 } from './datos-cliente';
 
@@ -140,7 +139,7 @@ export class CarritoService {
   private readonly _barrio = signal<BarrioElegido | null>(null);
   private readonly _mesa = signal<MesaElegida | null>(null);
 
-  // ── Datos del cliente (nombre, teléfono, dirección, nota) ─────────────────────────────
+  // ── Datos del cliente (nombre, dirección, nota) ─────────────────────────────
   //
   // Se piden en el panel antes de abrir WhatsApp. Se recuerdan por negocio en el navegador para
   // quien repite (menos la nota, que es de ESTE pedido). Valor inicial vacío en servidor y cliente.
@@ -428,11 +427,11 @@ export class CarritoService {
   private guardarClienteEnNavegador(): void {
     const id = this._idNegocio();
     if (id === null || !isPlatformBrowser(this.platformId)) return;
-    const { nombre, telefono, direccion } = this._cliente();
+    const { nombre, direccion } = this._cliente();
     try {
       localStorage.setItem(
         this.claveCliente(id),
-        JSON.stringify({ v: 1, guardado: Date.now(), nombre, telefono, direccion }),
+        JSON.stringify({ v: 1, guardado: Date.now(), nombre, direccion }),
       );
     } catch {
       // Sin almacenamiento los datos duran lo que dure la pestaña.
@@ -456,7 +455,6 @@ export class CarritoService {
         typeof v === 'string' ? sanear(v, MAXIMOS[campo]) : '';
       this._cliente.set({
         nombre: texto(s.nombre, 'nombre'),
-        telefono: limpiarTelefono(texto(s.telefono, 'telefono')),
         direccion: texto(s.direccion, 'direccion'),
         nota: '',
       });

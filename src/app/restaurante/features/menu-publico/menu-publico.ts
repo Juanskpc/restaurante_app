@@ -24,7 +24,6 @@ import {
   CampoCliente,
   ETIQUETAS,
   MAXIMOS,
-  limpiarTelefono,
   requisitos,
   validarCliente,
 } from './datos-cliente';
@@ -893,10 +892,6 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly cliente = this.carrito.cliente;
   readonly requisitosCliente = computed(() => requisitos(this.carrito.modalidad()));
 
-  /** Nombre y teléfono comparten renglón cuando la modalidad pide los dos: el formulario cabe. */
-  readonly datosEnDosColumnas = computed(() =>
-    this.requisitosCliente().some((r) => r.campo === 'telefono'),
-  );
   readonly erroresCliente = computed(() => validarCliente(this.carrito.modalidad(), this.carrito.cliente()));
 
   protected etiquetaCampo(campo: CampoCliente): string {
@@ -908,7 +903,7 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   protected autocompletar(campo: CampoCliente): string | null {
-    return { nombre: 'name', telefono: 'tel', direccion: 'street-address', nota: null }[campo];
+    return { nombre: 'name', direccion: 'street-address', nota: null }[campo];
   }
 
   protected mostrarError(campo: CampoCliente): boolean {
@@ -916,9 +911,8 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   protected cambiarCampo(campo: CampoCliente, valor: string): void {
-    // El teléfono se limpia al escribir (solo dígitos y un + inicial); el resto se guarda tal cual y
-    // se sanea al armar el mensaje.
-    this.carrito.guardarCliente({ [campo]: campo === 'telefono' ? limpiarTelefono(valor) : valor });
+    // Se guarda tal cual y se sanea al armar el mensaje.
+    this.carrito.guardarCliente({ [campo]: valor });
   }
 
   /** «Continuar» del pedido: con modalidad elegida pide los datos; sin ella (caso raro) abre WhatsApp. */

@@ -2360,12 +2360,6 @@
   grid-column: 1 / -1;
 }
 
-.campo--mitad { grid-column: auto; }
-
-@media (max-width: 340px) {
-  .campo--mitad { grid-column: 1 / -1; }
-}
-
 .campo__etiqueta {
   color: var(--color-text-primary);
   font-size: var(--font-size-sm);

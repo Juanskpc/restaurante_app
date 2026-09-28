@@ -20,8 +20,9 @@ import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service
 import { RealtimeService } from '../../../core/services/realtime.service';
 import { aplicarLista } from '../../../core/utils/refresco-vivo';
 import { CajaSelectorComponent } from '../../shared/caja-selector/caja-selector';
+import { SeguimientoPedidosComponent } from './seguimiento-pedidos/seguimiento-pedidos';
 
-type ModalActivo = null | 'apertura' | 'cierre' | 'movimiento' | 'domiciliarios' | 'historial';
+type ModalActivo = null | 'apertura' | 'cierre' | 'movimiento' | 'domiciliarios' | 'historial' | 'seguimiento';
 
 /** Un filtro de la barra de formas de pago, con lo que trae el turno por esa vía. */
 interface FiltroMetodo {
@@ -39,7 +40,7 @@ const SIN_METODO = 'sin';
   selector: 'app-caja',
   standalone: true,
   imports: [
-    CajaSelectorComponent,
+    CajaSelectorComponent, SeguimientoPedidosComponent,
     FormsModule, LucideAngularModule, NgTemplateOutlet, CurrencyPipe, DatePipe, DecimalPipe,
   ],
   templateUrl: './caja.html',
@@ -245,6 +246,14 @@ export class CajaComponent implements OnInit, OnDestroy {
    * los negocios; se habilita a mano en Usuarios → Roles y permisos.
    */
   readonly puedeEliminarPedido = computed(() => this.auth.canAccessSubnivel('caja_eliminar_pedido'));
+  /**
+   * Sección «Movimientos»: el flujo completo de cada pedido —quién lo tomó, quién
+   * lo cobró o lo canceló—. Nace denegado para todos los roles, incluido el
+   * administrador; se habilita a mano en Usuarios → Roles y permisos, igual que
+   * `caja_eliminar_pedido`: es una pantalla de control sobre lo que hacen los
+   * propios empleados, no algo que deba verse por defecto.
+   */
+  readonly puedeVerMovimientos = computed(() => this.auth.canAccessSubnivel('caja_ver_movimientos'));
   readonly anulandoOrdenId = signal<number | null>(null);
 
   /**

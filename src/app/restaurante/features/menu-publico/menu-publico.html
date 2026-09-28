@@ -629,9 +629,7 @@
             Van en tu mensaje para que el restaurante no tenga que pedírtelos.
           </p>
           @for (r of requisitosCliente(); track r.campo) {
-            <div class="campo"
-                 [class.campo--mitad]="datosEnDosColumnas() && (r.campo === 'nombre' || r.campo === 'telefono')"
-                 [class.campo--error]="mostrarError(r.campo)">
+            <div class="campo" [class.campo--error]="mostrarError(r.campo)">
               <label class="campo__etiqueta" [for]="'cli-' + r.campo">
                 {{ etiquetaCampo(r.campo) }}
                 @if (!r.obligatorio) { <span class="campo__opcional">(opcional)</span> }
@@ -651,8 +649,7 @@
                 <input
                   class="campo__entrada"
                   [id]="'cli-' + r.campo"
-                  [type]="r.campo === 'telefono' ? 'tel' : 'text'"
-                  [attr.inputmode]="r.campo === 'telefono' ? 'tel' : null"
+                  type="text"
                   [attr.autocomplete]="autocompletar(r.campo)"
                   [attr.maxlength]="maximoCampo(r.campo)"
                   [value]="cliente()[r.campo]"
