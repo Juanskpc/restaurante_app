@@ -678,7 +678,11 @@
 }
 
 .input {
-  font-size: .9rem; color: var(--color-text-primary);
+  // 16px en duro, no `.9rem` (14.4px): por debajo de 16px, Safari/Chrome en iOS hacen zoom
+  // automático al enfocar el campo —para que el texto se lea— y ese zoom se queda pegado en
+  // TODA la página hasta que el usuario lo revierte a mano (el «hay que hacer zoom invertido»
+  // reportado). No es un bug de layout: es el umbral exacto que dispara ese comportamiento.
+  font-size: 16px; color: var(--color-text-primary);
   background: var(--color-surface);
   padding: .5rem .65rem;
   border: 1px solid var(--color-border);
@@ -795,7 +799,10 @@
     font-size: .8rem; color: var(--color-text-secondary);
 
     input, textarea, select {
-      font-size: .95rem; color: var(--color-text-primary);
+      // Mismo umbral que `.input` arriba: por debajo de 16px, iOS hace zoom automático al
+      // enfocar (monto de apertura, monto contado, monto y concepto del movimiento manual…) y
+      // ese zoom se queda pegado en toda la página, no solo en el modal.
+      font-size: 16px; color: var(--color-text-primary);
       background: var(--color-surface);
       padding: .55rem .65rem;
       border: 1px solid var(--color-border);

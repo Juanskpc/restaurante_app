@@ -42,7 +42,12 @@
   border-radius: var(--radius-md);
   background: var(--color-surface);
   color: var(--color-text-primary);
-  font-size: .86rem;
+  // 16px en duro, no `.86rem` (13.76px): por debajo de 16px, Safari/Chrome en iOS hacen zoom
+  // automático al enfocar el campo de búsqueda, y ese zoom se queda pegado en TODA la página
+  // —no solo en el modal— hasta que el usuario lo revierte a mano. Es justo lo que se reportó
+  // como «hay que hacer zoom invertido para ver bien el modal de Movimientos»: no era un bug de
+  // layout, era este umbral.
+  font-size: 16px;
   width: 100%;
 }
 
