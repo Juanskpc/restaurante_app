@@ -147,11 +147,10 @@ function evaluateRoutePermission(
     return true;
   }
 
-  // Tiqueteras y fiado son opt-in del negocio. Esconder el menú no basta: quien escriba la
-  // URL a mano entraría igual, y se encontraría una pantalla que su API rechaza.
-  if (requestedPath === '/clientes' && !authService.permiteCuentasCliente()) {
-    return router.parseUrl(authService.getFirstAccessibleRoute() ?? '/dashboard');
-  }
+  // `/clientes` ya no depende de `permite_cuentas_cliente`: desde 2026-09-29 su sección principal
+  // es el directorio automático (clientes que piden por la carta), que tienen todos los
+  // restaurantes. Tiqueteras y fiado siguen siendo opt-in, pero como pestaña dentro de la vista,
+  // y su API conserva su propio candado.
 
   // Ruta de diagnostico siempre disponible para evitar pantalla en blanco.
   if (requestedPath === '/sin-acceso') {

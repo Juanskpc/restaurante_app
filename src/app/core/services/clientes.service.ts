@@ -63,6 +63,28 @@ export interface MovimientoCuenta {
   id_movimiento_anula: number | null;
 }
 
+/**
+ * Un cliente del directorio. Llega solo cuando confirma un pedido con teléfono (la llave única
+ * es negocio + teléfono) o se da de alta a mano al abrirle una tiquetera.
+ */
+export interface ClienteDirectorio {
+  id_persona_negocio: string;
+  cliente: string;
+  /** E.164 (+57…). `null` en altas manuales sin teléfono. */
+  telefono: string | null;
+  registrado_en: string;
+  /** Pedidos sin contar cancelados ni anulados. */
+  pedidos: number;
+  /** Suma de los pedidos cerrados (cobrados). */
+  total_gastado: number;
+  ultimo_pedido: string | null;
+  /** `PEDIDO`: llegó pidiendo (carta/asistente/despacho). `MANUAL`: alta de tiquetera. */
+  origen: 'PEDIDO' | 'MANUAL';
+  /** Su tiquetera o fiado activo, si tiene. */
+  id_cuenta: number | null;
+  modo_cuenta: ModoCuenta | null;
+}
+
 /** Lo que la cuenta puede pagar de un pedido concreto. */
 export interface CoberturaCuenta {
   modo: ModoCuenta;
@@ -96,13 +118,27 @@ export class ClientesService {
   private readonly cajaSvc = inject(CajaService);
   private readonly base = `${environment.apiUrl}/clientes`;
 
+  /** Todos los clientes del negocio. No depende del interruptor de tiqueteras. */
+  directorio(idNegocio: number, limite = 500): Observable<ApiResponse<ClienteDirectorio[]>> {
+    const params = new HttpParams()
+      .set('id_negocio', String(idNegocio))
+      .set('limite', String(limite));
+    return this.http.get<ApiResponse<ClienteDirectorio[]>>(`${this.base}/directorio`, { params });
+  }
+
   listar(
     idNegocio: number,
-    opciones: { busqueda?: string | null; filtro?: 'todos' | 'deben' | 'a_favor' } = {},
+    opciones: {
+      busqueda?: string | null;
+      filtro?: 'todos' | 'deben' | 'a_favor';
+      /** Máximo de filas (el backend acepta hasta 500; por defecto devuelve 100). */
+      limite?: number;
+    } = {},
   ): Observable<ApiResponse<CuentaCliente[]>> {
     let params = new HttpParams().set('id_negocio', String(idNegocio));
     if (opciones.busqueda) params = params.set('busqueda', opciones.busqueda);
     if (opciones.filtro) params = params.set('filtro', opciones.filtro);
+    if (opciones.limite) params = params.set('limite', String(opciones.limite));
     return this.http.get<ApiResponse<CuentaCliente[]>>(this.base, { params });
   }
 

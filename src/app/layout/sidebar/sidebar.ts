@@ -81,8 +81,6 @@ export class SidebarComponent {
   readonly navItemsPermitidos = computed(() =>
     this.navItems.filter((item) => {
       if (!this.auth.canAccessRoute(item.route)) return false;
-      // Tiqueteras y fiado son opt-in del negocio: sin encenderlas, el menú no aparece.
-      if (item.route === '/clientes' && !this.auth.permiteCuentasCliente()) return false;
       const subnivel = this.subnivelPorRuta[item.route];
       return !subnivel || this.auth.canAccessSubnivel(subnivel);
     })

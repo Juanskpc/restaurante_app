@@ -3,72 +3,466 @@
      ============================================================ -->
 <section class="clientes">
 
-  <!-- ── Barra de acciones ── -->
-  <div class="barra">
-    <div class="barra__buscar">
-      <lucide-icon name="search" [size]="16" aria-hidden="true" />
-      <input type="text" placeholder="Buscar cliente…"
-             [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)" />
+  <!-- ── Secciones: el directorio (automático) y, si el negocio las usa, tiqueteras y fiado ── -->
+  @if (permiteCuentas()) {
+    <div class="secciones" role="tablist" aria-label="Secciones de clientes">
+      <button type="button" role="tab" class="seccion" id="tab-clientes"
+              [class.seccion--activa]="seccion() === 'clientes'"
+              [attr.aria-selected]="seccion() === 'clientes'"
+              aria-controls="panel-clientes"
+              (click)="cambiarSeccion('clientes')">
+        <lucide-icon name="users" [size]="16" aria-hidden="true" />
+        Clientes
+        <span class="seccion__n">{{ directorio().length }}</span>
+      </button>
+      <button type="button" role="tab" class="seccion" id="tab-cuentas"
+              [class.seccion--activa]="seccion() === 'cuentas'"
+              [attr.aria-selected]="seccion() === 'cuentas'"
+              aria-controls="panel-cuentas"
+              (click)="cambiarSeccion('cuentas')">
+        <lucide-icon name="ticket" [size]="16" aria-hidden="true" />
+        Tiqueteras y fiado
+        <span class="seccion__n">{{ cuentas().length }}</span>
+      </button>
     </div>
+  }
 
-    <div class="barra__filtros" role="group" aria-label="Filtrar cuentas">
-      <button type="button" [class.activo]="filtro() === 'todos'" (click)="filtro.set('todos')">Todos</button>
-      <button type="button" [class.activo]="filtro() === 'deben'" (click)="filtro.set('deben')">Deben</button>
-      <button type="button" [class.activo]="filtro() === 'a_favor'" (click)="filtro.set('a_favor')">A favor</button>
-    </div>
+  @if (seccion() === 'clientes') {
+  <div id="panel-clientes" role="tabpanel" [attr.aria-labelledby]="permiteCuentas() ? 'tab-clientes' : null">
+    @if (cargandoDir() && directorio().length === 0) {
+      <!-- ── Carga inicial ── -->
+      <div class="panel" aria-busy="true" aria-label="Cargando clientes">
+        <div class="barra">
+          <span class="esq esq--buscar"></span>
+          <span class="esq esq--filtros"></span>
+        </div>
+        <div class="esq-tabla">
+          <span class="esq-tabla__cab"></span>
+          @for (i of [1, 2, 3, 4, 5, 6]; track i) {
+            <div class="esq-tabla__fila">
+              <span class="esq esq--avatar"></span>
+              <span class="esq esq--texto"></span>
+              <span class="esq esq--chip"></span>
+              <span class="esq esq--num"></span>
+              <span class="esq esq--num esq--corto"></span>
+            </div>
+          }
+        </div>
+      </div>
+    } @else {
+      <div class="panel">
+        <div class="barra">
+          <div class="buscar">
+            <lucide-icon name="search" [size]="18" class="buscar__icono" aria-hidden="true" />
+            <input #campoBusquedaDir
+                   type="search"
+                   class="buscar__campo"
+                   placeholder="Buscar por nombre o teléfono…"
+                   aria-label="Buscar clientes por nombre o teléfono"
+                   [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)" />
+            @if (busqueda()) {
+              <button type="button" class="buscar__limpiar" (click)="limpiarBusqueda(campoBusquedaDir)"
+                      aria-label="Limpiar búsqueda">
+                <lucide-icon name="x" [size]="16" aria-hidden="true" />
+              </button>
+            }
+          </div>
 
-    <button type="button" class="btn-primario" (click)="abrirNueva()">
-      <lucide-icon name="plus" [size]="16" aria-hidden="true" />
-      Nuevo cliente
-    </button>
+          <div class="barra__acciones">
+            <div class="filtros" role="radiogroup" aria-label="Filtrar clientes">
+              @for (f of filtrosDir; track f.valor) {
+                <button type="button" role="radio" class="filtro"
+                        [class.filtro--activo]="filtroDir() === f.valor"
+                        [attr.aria-checked]="filtroDir() === f.valor"
+                        (click)="filtroDir.set(f.valor)">
+                  {{ f.texto }}
+                  <span class="filtro__n" [attr.aria-label]="conteosDir()[f.valor] + ' clientes'">
+                    {{ conteosDir()[f.valor] }}
+                  </span>
+                </button>
+              }
+            </div>
+          </div>
+        </div>
+
+        <p class="aviso-auto">
+          <lucide-icon name="info" [size]="15" aria-hidden="true" />
+          Los clientes se registran solos cuando confirman un pedido por la carta virtual.
+          Se identifican por su número de teléfono.
+        </p>
+
+        <p class="sr-only" aria-live="polite">{{ dirFiltrados().length }} clientes en la lista</p>
+
+        @if (errorDir()) {
+          <div class="estado-vacio estado-vacio--error" role="alert">
+            <span class="estado-vacio__icono"><lucide-icon name="circle-alert" [size]="24" aria-hidden="true" /></span>
+            <p class="estado-vacio__titulo">No se pudieron cargar los clientes.</p>
+            <p class="estado-vacio__texto">Revisa tu conexión e inténtalo de nuevo.</p>
+            <button type="button" class="btn-secundario" (click)="reintentarDirectorio()">
+              <lucide-icon name="rotate-cw" [size]="16" aria-hidden="true" />
+              Intentar nuevamente
+            </button>
+          </div>
+        } @else if (directorio().length === 0) {
+          <div class="estado-vacio">
+            <span class="estado-vacio__icono"><lucide-icon name="users" [size]="24" aria-hidden="true" /></span>
+            <p class="estado-vacio__titulo">Aún no tienes clientes registrados.</p>
+            <p class="estado-vacio__texto">
+              Aparecerán aquí automáticamente cuando confirmen su primer pedido por la carta virtual.
+            </p>
+            @if (permiteCuentas()) {
+              <button type="button" class="btn-secundario" (click)="abrirNueva()">
+                <lucide-icon name="ticket" [size]="16" aria-hidden="true" />
+                Agregar cliente con tiquetera
+              </button>
+            }
+          </div>
+        } @else if (dirFiltrados().length === 0) {
+          <div class="estado-vacio">
+            <span class="estado-vacio__icono"><lucide-icon name="search-x" [size]="24" aria-hidden="true" /></span>
+            <p class="estado-vacio__titulo">No encontramos clientes con esos criterios.</p>
+            <p class="estado-vacio__texto">Prueba con otro nombre o número de teléfono.</p>
+            @if (hayFiltrosDir()) {
+              <button type="button" class="btn-secundario" (click)="limpiarFiltrosDir()">Limpiar búsqueda</button>
+            }
+          </div>
+        } @else {
+          <!-- ── Tabla (escritorio y tablet) ── -->
+          <div class="tabla">
+            <table>
+              <caption class="sr-only">Clientes registrados por sus pedidos</caption>
+              <thead>
+                <tr>
+                  <th scope="col" class="col-cliente" [attr.aria-sort]="ariaSortDir('nombre')">
+                    <button type="button" class="orden" (click)="ordenarDirPor('nombre')">
+                      Cliente
+                      <lucide-icon [name]="ordenDir() === 'nombre' ? (ordenDirAsc() ? 'arrow-up' : 'arrow-down') : 'arrow-up-down'"
+                                   [size]="13" aria-hidden="true" />
+                    </button>
+                  </th>
+                  <th scope="col">Origen</th>
+                  <th scope="col" class="num" [attr.aria-sort]="ariaSortDir('pedidos')">
+                    <button type="button" class="orden" (click)="ordenarDirPor('pedidos')">
+                      Pedidos
+                      <lucide-icon [name]="ordenDir() === 'pedidos' ? (ordenDirAsc() ? 'arrow-up' : 'arrow-down') : 'arrow-up-down'"
+                                   [size]="13" aria-hidden="true" />
+                    </button>
+                  </th>
+                  <th scope="col" class="num" [attr.aria-sort]="ariaSortDir('total')">
+                    <button type="button" class="orden" (click)="ordenarDirPor('total')">
+                      Total pagado
+                      <lucide-icon [name]="ordenDir() === 'total' ? (ordenDirAsc() ? 'arrow-up' : 'arrow-down') : 'arrow-up-down'"
+                                   [size]="13" aria-hidden="true" />
+                    </button>
+                  </th>
+                  <th scope="col" class="num" [attr.aria-sort]="ariaSortDir('ultimo')">
+                    <button type="button" class="orden" (click)="ordenarDirPor('ultimo')">
+                      Último pedido
+                      <lucide-icon [name]="ordenDir() === 'ultimo' ? (ordenDirAsc() ? 'arrow-up' : 'arrow-down') : 'arrow-up-down'"
+                                   [size]="13" aria-hidden="true" />
+                    </button>
+                  </th>
+                  @if (permiteCuentas()) {
+                    <th scope="col">Tiquetera</th>
+                  }
+                  <th scope="col" class="col-acciones"><span class="sr-only">Acciones</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (c of dirPaginados(); track c.id_persona_negocio) {
+                  <tr tabindex="0"
+                      [class.activa]="clienteVer()?.id_persona_negocio === c.id_persona_negocio"
+                      (click)="verCliente(c)"
+                      (keydown.enter)="verCliente(c)"
+                      (keydown.space)="$event.preventDefault(); verCliente(c)">
+                    <td>
+                      <div class="celda-cliente">
+                        <span class="avatar" aria-hidden="true">{{ iniciales(c.cliente) }}</span>
+                        <div class="celda-cliente__texto">
+                          <strong [title]="c.cliente">{{ c.cliente }}</strong>
+                          <span>{{ c.telefono || 'Sin teléfono' }}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      @if (c.origen === 'PEDIDO') {
+                        <span class="tipo">
+                          <lucide-icon name="shopping-bag" [size]="13" aria-hidden="true" />
+                          <span class="tipo__texto">Por pedidos</span>
+                        </span>
+                      } @else {
+                        <span class="tipo tipo--dinero">
+                          <lucide-icon name="pencil" [size]="13" aria-hidden="true" />
+                          <span class="tipo__texto">Manual</span>
+                        </span>
+                      }
+                    </td>
+                    <td class="num"><span class="cifra">{{ c.pedidos }}</span></td>
+                    <td class="num">
+                      @if (c.total_gastado > 0) {
+                        <strong>{{ c.total_gastado | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+                      } @else {
+                        <span class="sin-dato" aria-label="Sin pagos">—</span>
+                      }
+                    </td>
+                    <td class="num">
+                      @if (c.ultimo_pedido) {
+                        <span class="cifra">{{ haceCuanto(c.ultimo_pedido) }}</span>
+                      } @else {
+                        <span class="sin-dato" aria-label="Sin pedidos">—</span>
+                      }
+                    </td>
+                    @if (permiteCuentas()) {
+                      <td>
+                        @if (c.id_cuenta) {
+                          <span class="tipo" [class.tipo--dinero]="c.modo_cuenta === 'DINERO'">
+                            <lucide-icon [name]="c.modo_cuenta === 'DINERO' ? 'wallet' : 'ticket'" [size]="13" aria-hidden="true" />
+                            <span class="tipo__texto">{{ c.modo_cuenta === 'DINERO' ? 'En dinero' : 'Por producto' }}</span>
+                          </span>
+                        } @else {
+                          <span class="sin-dato" aria-label="Sin tiquetera">—</span>
+                        }
+                      </td>
+                    }
+                    <td class="col-acciones">
+                      <button type="button" class="btn-icono"
+                              [class.btn-icono--abierto]="menuDir()?.cliente?.id_persona_negocio === c.id_persona_negocio"
+                              [attr.aria-label]="'Acciones para ' + c.cliente"
+                              aria-haspopup="menu"
+                              [attr.aria-expanded]="menuDir()?.cliente?.id_persona_negocio === c.id_persona_negocio"
+                              (click)="abrirMenuDir($event, c)"
+                              (keydown.enter)="$event.stopPropagation()"
+                              (keydown.space)="$event.stopPropagation()">
+                        <lucide-icon name="ellipsis-vertical" [size]="18" aria-hidden="true" />
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <!-- ── Tarjetas (móvil) ── -->
+          <ul class="tarjetas">
+            @for (c of dirPaginados(); track c.id_persona_negocio) {
+              <li class="tarjeta">
+                <button type="button" class="tarjeta__resumen"
+                        [attr.aria-label]="'Ver ficha de ' + c.cliente"
+                        (click)="verCliente(c)">
+                  <span class="avatar" aria-hidden="true">{{ iniciales(c.cliente) }}</span>
+                  <span class="tarjeta__cuerpo">
+                    <strong class="tarjeta__nombre">{{ c.cliente }}</strong>
+                    <span class="tarjeta__etiqueta">{{ c.telefono || 'Sin teléfono' }}</span>
+                  </span>
+                  <span class="tarjeta__valor">
+                    <span class="cifra"><strong>{{ c.pedidos }}</strong> {{ c.pedidos === 1 ? 'pedido' : 'pedidos' }}</span>
+                    <small class="tarjeta__etiqueta">{{ c.ultimo_pedido ? haceCuanto(c.ultimo_pedido) : 'Sin pedidos' }}</small>
+                  </span>
+                  <lucide-icon name="chevron-right" [size]="18" class="tarjeta__chevron" aria-hidden="true" />
+                </button>
+              </li>
+            }
+          </ul>
+
+          <footer class="pie">
+            <span class="pie__rango">
+              {{ rangoDir().desde }}–{{ rangoDir().hasta }} de {{ rangoDir().total }}
+              {{ rangoDir().total === 1 ? 'cliente' : 'clientes' }}
+            </span>
+            @if (totalPaginasDir() > 1) {
+              <nav class="pie__paginas" aria-label="Paginación de clientes">
+                <button type="button" class="btn-icono" aria-label="Página anterior"
+                        [disabled]="rangoDir().pagina === 0" (click)="irAPaginaDir(rangoDir().pagina - 1)">
+                  <lucide-icon name="chevron-left" [size]="18" aria-hidden="true" />
+                </button>
+                <span class="pie__pagina" aria-current="page">
+                  Página {{ rangoDir().pagina + 1 }} de {{ totalPaginasDir() }}
+                </span>
+                <button type="button" class="btn-icono" aria-label="Página siguiente"
+                        [disabled]="rangoDir().pagina >= totalPaginasDir() - 1" (click)="irAPaginaDir(rangoDir().pagina + 1)">
+                  <lucide-icon name="chevron-right" [size]="18" aria-hidden="true" />
+                </button>
+              </nav>
+            }
+          </footer>
+        }
+      </div>
+    }
   </div>
+  } @else {
+  <div id="panel-cuentas" role="tabpanel" aria-labelledby="tab-cuentas">
 
-  <!-- ── Tabla ── -->
-  <div class="lista">
-      @if (cargando() && cuentas().length === 0) {
-        <p class="estado">Cargando…</p>
+  @if (cargando() && cuentas().length === 0) {
+    <!-- ── Carga inicial: esqueleto de la barra y de la tabla ── -->
+    <div class="panel" aria-busy="true" aria-label="Cargando clientes">
+      <div class="barra">
+        <span class="esq esq--buscar"></span>
+        <span class="esq esq--filtros"></span>
+        <span class="esq esq--boton"></span>
+      </div>
+      <div class="esq-tabla">
+        <span class="esq-tabla__cab"></span>
+        @for (i of [1, 2, 3, 4, 5, 6]; track i) {
+          <div class="esq-tabla__fila">
+            <span class="esq esq--avatar"></span>
+            <span class="esq esq--texto"></span>
+            <span class="esq esq--chip"></span>
+            <span class="esq esq--num"></span>
+            <span class="esq esq--num esq--corto"></span>
+          </div>
+        }
+      </div>
+    </div>
+  } @else {
+    <div class="panel">
+      <!-- ── Barra: buscador, filtros y acción principal ── -->
+      <div class="barra">
+        <div class="buscar">
+          <lucide-icon name="search" [size]="18" class="buscar__icono" aria-hidden="true" />
+          <input #campoBusqueda
+                 type="search"
+                 class="buscar__campo"
+                 placeholder="Buscar por nombre, saldo o tipo de tiquetera…"
+                 aria-label="Buscar clientes por nombre, saldo o tipo de tiquetera"
+                 [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)" />
+          @if (busqueda()) {
+            <button type="button" class="buscar__limpiar" (click)="limpiarBusqueda(campoBusqueda)"
+                    aria-label="Limpiar búsqueda">
+              <lucide-icon name="x" [size]="16" aria-hidden="true" />
+            </button>
+          }
+        </div>
+
+        <div class="barra__acciones">
+          <div class="filtros" role="radiogroup" aria-label="Filtrar clientes por saldo">
+            @for (f of filtros; track f.valor) {
+              <button type="button" role="radio" class="filtro"
+                      [class.filtro--activo]="filtro() === f.valor"
+                      [attr.aria-checked]="filtro() === f.valor"
+                      (click)="filtro.set(f.valor)">
+                {{ f.texto }}
+                <span class="filtro__n" [attr.aria-label]="conteos()[f.valor] + ' clientes'">
+                  {{ conteos()[f.valor] }}
+                </span>
+              </button>
+            }
+          </div>
+
+          <button type="button" class="btn-primario btn-nuevo" (click)="abrirNueva()">
+            <lucide-icon name="plus" [size]="18" aria-hidden="true" />
+            Nuevo cliente
+          </button>
+        </div>
+      </div>
+
+      <!-- Cuántos resultados hay, para lectores de pantalla -->
+      <p class="sr-only" aria-live="polite">{{ filtradas().length }} clientes en la lista</p>
+
+      <!-- ── Estados ── -->
+      @if (errorCarga()) {
+        <div class="estado-vacio estado-vacio--error" role="alert">
+          <span class="estado-vacio__icono"><lucide-icon name="circle-alert" [size]="24" aria-hidden="true" /></span>
+          <p class="estado-vacio__titulo">No se pudieron cargar los clientes.</p>
+          <p class="estado-vacio__texto">Revisa tu conexión e inténtalo de nuevo.</p>
+          <button type="button" class="btn-secundario" (click)="reintentar()">
+            <lucide-icon name="rotate-cw" [size]="16" aria-hidden="true" />
+            Intentar nuevamente
+          </button>
+        </div>
       } @else if (cuentas().length === 0) {
-        <div class="vacio">
-          <lucide-icon name="users" [size]="34" aria-hidden="true" />
-          <p><strong>Todavía no hay cuentas.</strong></p>
-          <p class="vacio__texto">
+        <div class="estado-vacio">
+          <span class="estado-vacio__icono"><lucide-icon name="users" [size]="24" aria-hidden="true" /></span>
+          <p class="estado-vacio__titulo">Aún no tienes clientes registrados.</p>
+          <p class="estado-vacio__texto">
             Aquí van los clientes de confianza: los que pagan el mes por adelantado
             y los que comen y pagan al final.
           </p>
+          <button type="button" class="btn-primario" (click)="abrirNueva()">
+            <lucide-icon name="plus" [size]="16" aria-hidden="true" />
+            Agregar primer cliente
+          </button>
+        </div>
+      } @else if (filtradas().length === 0) {
+        <div class="estado-vacio">
+          <span class="estado-vacio__icono"><lucide-icon name="search-x" [size]="24" aria-hidden="true" /></span>
+          <p class="estado-vacio__titulo">No encontramos clientes con esos criterios.</p>
+          <p class="estado-vacio__texto">Prueba con otro nombre, saldo o tipo de tiquetera.</p>
+          @if (hayFiltros()) {
+            <button type="button" class="btn-secundario" (click)="limpiarFiltros()">Limpiar búsqueda</button>
+          }
         </div>
       } @else {
+        <!-- ── Tabla (escritorio y tablet) ── -->
         <div class="tabla">
           <table>
+            <caption class="sr-only">Clientes con tiquetera o cuenta de fiado</caption>
             <thead>
               <tr>
-                <th scope="col">Cliente</th>
-                <th scope="col">Tipo de tiquetera</th>
-                <th scope="col" class="num">Saldo en dinero</th>
-                <th scope="col" class="num">Tiquetes comprados</th>
-                <th scope="col" class="num">Tiquetes restantes</th>
+                <th scope="col" class="col-cliente" [attr.aria-sort]="ariaSort('nombre')">
+                  <button type="button" class="orden" (click)="ordenarPor('nombre')">
+                    Cliente
+                    <lucide-icon [name]="orden() === 'nombre' ? (ordenAsc() ? 'arrow-up' : 'arrow-down') : 'arrow-up-down'"
+                                 [size]="13" aria-hidden="true" />
+                  </button>
+                </th>
+                <th scope="col" class="col-tipo">Tipo de tiquetera</th>
+                <th scope="col" class="num col-saldo" [attr.aria-sort]="ariaSort('saldo')">
+                  <button type="button" class="orden" (click)="ordenarPor('saldo')">
+                    Saldo en dinero
+                    <lucide-icon [name]="orden() === 'saldo' ? (ordenAsc() ? 'arrow-up' : 'arrow-down') : 'arrow-up-down'"
+                                 [size]="13" aria-hidden="true" />
+                  </button>
+                </th>
+                <th scope="col" class="num col-tiq" [attr.aria-sort]="ariaSort('comprados')">
+                  <button type="button" class="orden" (click)="ordenarPor('comprados')">
+                    Tiquetes comprados
+                    <lucide-icon [name]="orden() === 'comprados' ? (ordenAsc() ? 'arrow-up' : 'arrow-down') : 'arrow-up-down'"
+                                 [size]="13" aria-hidden="true" />
+                  </button>
+                </th>
+                <th scope="col" class="num col-tiq" [attr.aria-sort]="ariaSort('restantes')">
+                  <button type="button" class="orden" (click)="ordenarPor('restantes')">
+                    Tiquetes restantes
+                    <lucide-icon [name]="orden() === 'restantes' ? (ordenAsc() ? 'arrow-up' : 'arrow-down') : 'arrow-up-down'"
+                                 [size]="13" aria-hidden="true" />
+                  </button>
+                </th>
+                <th scope="col" class="col-acciones"><span class="sr-only">Acciones</span></th>
               </tr>
             </thead>
             <tbody>
-              @for (c of cuentas(); track c.id_cuenta) {
+              @for (c of paginadas(); track c.id_cuenta) {
                 <tr tabindex="0"
                     [class.activa]="seleccionada()?.id_cuenta === c.id_cuenta"
-                    [attr.aria-selected]="seleccionada()?.id_cuenta === c.id_cuenta"
+                    [class.resaltada]="resaltada() === c.id_cuenta"
                     (click)="seleccionar(c)"
-                    (keydown.enter)="seleccionar(c)">
+                    (keydown.enter)="seleccionar(c)"
+                    (keydown.space)="$event.preventDefault(); seleccionar(c)">
                   <td>
                     <div class="celda-cliente">
-                      <strong>{{ c.cliente }}</strong>
-                      @if (c.telefono) { <span>{{ c.telefono }}</span> }
+                      <span class="avatar" aria-hidden="true">{{ iniciales(c.cliente) }}</span>
+                      <div class="celda-cliente__texto">
+                        <strong [title]="c.cliente">{{ c.cliente }}</strong>
+                        @if (c.telefono) { <span>{{ c.telefono }}</span> }
+                      </div>
                     </div>
                   </td>
                   <td>
-                    <span class="tipo" [class.tipo--dinero]="c.modo === 'DINERO'">{{ tipoCuenta(c) }}</span>
+                    <span class="tipo" [class.tipo--dinero]="c.modo === 'DINERO'" [title]="tipoCuenta(c)">
+                      <lucide-icon [name]="c.modo === 'DINERO' ? 'wallet' : 'ticket'" [size]="13" aria-hidden="true" />
+                      <span class="tipo__texto">{{ tipoCuenta(c) }}</span>
+                    </span>
                   </td>
                   <td class="num">
                     @if (c.modo === 'DINERO') {
                       <span class="saldo" [class]="'saldo saldo--' + claseSaldo(c)">
-                        <small>{{ etiquetaSaldo(c) }}</small>
-                        {{ (c.saldo < 0 ? -c.saldo : c.saldo) | currency:'COP':'symbol-narrow':'1.0-0' }}
+                        @if (c.saldo === 0) {
+                          Sin saldo
+                        } @else {
+                          <lucide-icon [name]="c.saldo < 0 ? 'circle-alert' : 'check-circle'" [size]="14" aria-hidden="true" />
+                          {{ c.saldo < 0 ? 'Pendiente' : 'A favor' }} ·
+                          <strong>{{ (c.saldo < 0 ? -c.saldo : c.saldo) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+                        }
                       </span>
                     } @else {
                       <span class="sin-dato" aria-label="No aplica">—</span>
@@ -76,26 +470,173 @@
                   </td>
                   <td class="num">
                     @if (c.modo === 'TIQUETES') {
-                      {{ c.tiquetes_comprados ?? 0 }}
+                      <span class="cifra">{{ c.tiquetes_comprados ?? 0 }}</span>
                     } @else {
                       <span class="sin-dato" aria-label="No aplica">—</span>
                     }
                   </td>
                   <td class="num">
                     @if (c.modo === 'TIQUETES') {
-                      <strong class="saldo" [class]="'saldo saldo--' + claseSaldo(c)">{{ c.tiquetes_restantes ?? 0 }}</strong>
+                      @if (restantes(c) > 0) {
+                        <span class="restantes">
+                          <lucide-icon name="ticket" [size]="14" aria-hidden="true" />
+                          <strong>{{ restantes(c) }}</strong>
+                          <span class="restantes__txt">disponibles</span>
+                        </span>
+                      } @else {
+                        <span class="restantes restantes--cero">0 · agotados</span>
+                      }
                     } @else {
                       <span class="sin-dato" aria-label="No aplica">—</span>
                     }
+                  </td>
+                  <td class="col-acciones">
+                    <button type="button" class="btn-icono"
+                            [class.btn-icono--abierto]="menu()?.cuenta?.id_cuenta === c.id_cuenta"
+                            [attr.aria-label]="'Acciones para ' + c.cliente"
+                            aria-haspopup="menu"
+                            [attr.aria-expanded]="menu()?.cuenta?.id_cuenta === c.id_cuenta"
+                            (click)="abrirMenu($event, c)"
+                            (keydown.enter)="$event.stopPropagation()"
+                            (keydown.space)="$event.stopPropagation()">
+                      <lucide-icon name="ellipsis-vertical" [size]="18" aria-hidden="true" />
+                    </button>
                   </td>
                 </tr>
               }
             </tbody>
           </table>
         </div>
+
+        <!-- ── Tarjetas (móvil) ── -->
+        <ul class="tarjetas">
+          @for (c of paginadas(); track c.id_cuenta) {
+            <li class="tarjeta" [class.tarjeta--abierta]="expandida() === c.id_cuenta"
+                [class.resaltada]="resaltada() === c.id_cuenta">
+              <button type="button" class="tarjeta__resumen"
+                      [attr.aria-expanded]="expandida() === c.id_cuenta"
+                      [attr.aria-controls]="'tarjeta-' + c.id_cuenta"
+                      (click)="alternarTarjeta(c.id_cuenta)">
+                <span class="avatar" aria-hidden="true">{{ iniciales(c.cliente) }}</span>
+                <span class="tarjeta__cuerpo">
+                  <strong class="tarjeta__nombre">{{ c.cliente }}</strong>
+                  <span class="tipo" [class.tipo--dinero]="c.modo === 'DINERO'">
+                    <lucide-icon [name]="c.modo === 'DINERO' ? 'wallet' : 'ticket'" [size]="12" aria-hidden="true" />
+                    <span class="tipo__texto">{{ tipoCuenta(c) }}</span>
+                  </span>
+                </span>
+                <span class="tarjeta__valor">
+                  @if (c.modo === 'DINERO') {
+                    <span class="saldo" [class]="'saldo saldo--' + claseSaldo(c)">
+                      @if (c.saldo === 0) {
+                        Sin saldo
+                      } @else {
+                        <lucide-icon [name]="c.saldo < 0 ? 'circle-alert' : 'check-circle'" [size]="13" aria-hidden="true" />
+                        <strong>{{ (c.saldo < 0 ? -c.saldo : c.saldo) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+                      }
+                    </span>
+                    @if (c.saldo !== 0) {
+                      <small class="tarjeta__etiqueta">{{ c.saldo < 0 ? 'Pendiente' : 'A favor' }}</small>
+                    }
+                  } @else if (restantes(c) > 0) {
+                    <span class="restantes">
+                      <lucide-icon name="ticket" [size]="13" aria-hidden="true" />
+                      <strong>{{ restantes(c) }}</strong>
+                    </span>
+                    <small class="tarjeta__etiqueta">disponibles</small>
+                  } @else {
+                    <span class="restantes restantes--cero">0</span>
+                    <small class="tarjeta__etiqueta">agotados</small>
+                  }
+                </span>
+                <lucide-icon name="chevron-down" [size]="18" class="tarjeta__chevron" aria-hidden="true" />
+              </button>
+
+              @if (expandida() === c.id_cuenta) {
+                <div class="tarjeta__extra" [id]="'tarjeta-' + c.id_cuenta">
+                  <dl>
+                    <div><dt>Teléfono</dt><dd>{{ c.telefono || 'Sin teléfono' }}</dd></div>
+                    @if (c.modo === 'TIQUETES') {
+                      <div><dt>Tiquetes comprados</dt><dd>{{ c.tiquetes_comprados ?? 0 }}</dd></div>
+                    }
+                  </dl>
+                  <div class="tarjeta__acciones">
+                    <button type="button" class="btn-secundario" (click)="accionMenu('ver', c)">
+                      <lucide-icon name="eye" [size]="16" aria-hidden="true" /> Ver detalle
+                    </button>
+                    @if (puedeAbonar()) {
+                      <button type="button" class="btn-secundario" (click)="accionMenu('abonar', c)">
+                        <lucide-icon [name]="c.modo === 'TIQUETES' ? 'ticket' : 'banknote'" [size]="16" aria-hidden="true" />
+                        {{ c.modo === 'TIQUETES' ? 'Agregar tiquetes' : 'Registrar pago' }}
+                      </button>
+                    }
+                  </div>
+                </div>
+              }
+            </li>
+          }
+        </ul>
+
+        <!-- ── Paginación ── -->
+        <footer class="pie">
+          <span class="pie__rango">
+            {{ rango().desde }}–{{ rango().hasta }} de {{ rango().total }}
+            {{ rango().total === 1 ? 'cliente' : 'clientes' }}
+          </span>
+          @if (totalPaginas() > 1) {
+            <nav class="pie__paginas" aria-label="Paginación de clientes">
+              <button type="button" class="btn-icono" aria-label="Página anterior"
+                      [disabled]="rango().pagina === 0" (click)="irAPagina(rango().pagina - 1)">
+                <lucide-icon name="chevron-left" [size]="18" aria-hidden="true" />
+              </button>
+              <span class="pie__pagina" aria-current="page">
+                Página {{ rango().pagina + 1 }} de {{ totalPaginas() }}
+              </span>
+              <button type="button" class="btn-icono" aria-label="Página siguiente"
+                      [disabled]="rango().pagina >= totalPaginas() - 1" (click)="irAPagina(rango().pagina + 1)">
+                <lucide-icon name="chevron-right" [size]="18" aria-hidden="true" />
+              </button>
+            </nav>
+          }
+        </footer>
       }
+    </div>
+  }
   </div>
+  }
 </section>
+
+<!-- Menú contextual de una fila: fijo, se abre sin alterar el tamaño de la tabla -->
+@if (menu(); as m) {
+  <div class="menu-fondo" (click)="cerrarMenu()"></div>
+  <div class="menu-ctx" role="menu" [attr.aria-label]="'Acciones para ' + m.cuenta.cliente"
+       [style.top.px]="m.top" [style.right.px]="m.right">
+    <button type="button" role="menuitem" class="menu-ctx__item" (click)="accionMenu('ver')">
+      <lucide-icon name="eye" [size]="16" aria-hidden="true" /> Ver detalle
+    </button>
+    <button type="button" role="menuitem" class="menu-ctx__item" (click)="accionMenu('editar')">
+      <lucide-icon name="pencil" [size]="16" aria-hidden="true" /> Editar cliente
+    </button>
+    @if (puedeAbonar()) {
+      @if (m.cuenta.modo === 'TIQUETES') {
+        <button type="button" role="menuitem" class="menu-ctx__item" (click)="accionMenu('abonar')">
+          <lucide-icon name="ticket" [size]="16" aria-hidden="true" /> Agregar tiquetes
+        </button>
+      } @else {
+        <button type="button" role="menuitem" class="menu-ctx__item" (click)="accionMenu('abonar')">
+          <lucide-icon name="banknote" [size]="16" aria-hidden="true" /> Registrar pago
+        </button>
+      }
+    }
+    @if (puedeEliminar()) {
+      <span class="menu-ctx__sep" role="separator"></span>
+      <button type="button" role="menuitem" class="menu-ctx__item menu-ctx__item--peligro"
+              (click)="accionMenu('eliminar')">
+        <lucide-icon name="trash-2" [size]="16" aria-hidden="true" /> Eliminar cliente
+      </button>
+    }
+  </div>
+}
 
 <!-- ════════════════ DETALLE DEL CLIENTE (modal) ════════════════ -->
 @if (seleccionada(); as cuenta) {
@@ -402,5 +943,98 @@
         </button>
       </div>
     }
+  </div>
+}
+
+<!-- Menú contextual de un cliente del directorio -->
+@if (menuDir(); as m) {
+  <div class="menu-fondo" (click)="cerrarMenuDir()"></div>
+  <div class="menu-ctx" role="menu" [attr.aria-label]="'Acciones para ' + m.cliente.cliente"
+       [style.top.px]="m.top" [style.right.px]="m.right">
+    <button type="button" role="menuitem" class="menu-ctx__item" (click)="accionDir('ver')">
+      <lucide-icon name="eye" [size]="16" aria-hidden="true" /> Ver ficha
+    </button>
+    @if (urlWhatsapp(m.cliente.telefono); as wa) {
+      <a role="menuitem" class="menu-ctx__item" [href]="wa" target="_blank" rel="noopener noreferrer"
+         (click)="cerrarMenuDir()">
+        <lucide-icon name="message-circle" [size]="16" aria-hidden="true" /> Escribir por WhatsApp
+      </a>
+    }
+    @if (permiteCuentas()) {
+      @if (m.cliente.id_cuenta) {
+        <button type="button" role="menuitem" class="menu-ctx__item" (click)="accionDir('tiquetera')">
+          <lucide-icon name="ticket" [size]="16" aria-hidden="true" /> Ver tiquetera
+        </button>
+      } @else {
+        <button type="button" role="menuitem" class="menu-ctx__item" (click)="accionDir('abrir_tiquetera')">
+          <lucide-icon name="plus" [size]="16" aria-hidden="true" /> Abrir tiquetera o fiado
+        </button>
+      }
+    }
+  </div>
+}
+
+<!-- Ficha de un cliente del directorio -->
+@if (clienteVer(); as c) {
+  <div class="overlay" (click)="clienteVer.set(null)"></div>
+  <div class="modal modal--ficha" role="dialog" aria-modal="true" [attr.aria-label]="'Ficha de ' + c.cliente">
+    <header class="ficha__head">
+      <span class="avatar avatar--grande" aria-hidden="true">{{ iniciales(c.cliente) }}</span>
+      <div class="ficha__id">
+        <h2>{{ c.cliente }}</h2>
+        <span>{{ c.telefono || 'Sin teléfono' }}</span>
+      </div>
+      <button type="button" class="btn-icono" (click)="clienteVer.set(null)" aria-label="Cerrar ficha">
+        <lucide-icon name="x" [size]="18" aria-hidden="true" />
+      </button>
+    </header>
+
+    <dl class="ficha__datos">
+      <div>
+        <dt>Pedidos</dt>
+        <dd>{{ c.pedidos }}</dd>
+      </div>
+      <div>
+        <dt>Total pagado</dt>
+        <dd>{{ c.total_gastado | currency:'COP':'symbol-narrow':'1.0-0' }}</dd>
+      </div>
+      <div>
+        <dt>Último pedido</dt>
+        <dd>{{ c.ultimo_pedido ? haceCuanto(c.ultimo_pedido) : 'Sin pedidos' }}</dd>
+      </div>
+      <div>
+        <dt>Cliente desde</dt>
+        <dd>{{ c.registrado_en | date:'d MMM y' }}</dd>
+      </div>
+    </dl>
+
+    <p class="ficha__origen">
+      <lucide-icon [name]="c.origen === 'PEDIDO' ? 'shopping-bag' : 'pencil'" [size]="14" aria-hidden="true" />
+      {{ c.origen === 'PEDIDO'
+        ? 'Se registró automáticamente al confirmar un pedido.'
+        : 'Se registró a mano al abrirle una tiquetera o fiado.' }}
+    </p>
+
+    <div class="modal__acciones ficha__acciones">
+      @if (urlWhatsapp(c.telefono); as wa) {
+        <a class="btn-secundario" [href]="wa" target="_blank" rel="noopener noreferrer">
+          <lucide-icon name="message-circle" [size]="16" aria-hidden="true" />
+          WhatsApp
+        </a>
+      }
+      @if (permiteCuentas()) {
+        @if (c.id_cuenta) {
+          <button type="button" class="btn-primario" (click)="accionDir('tiquetera', c)">
+            <lucide-icon name="ticket" [size]="16" aria-hidden="true" />
+            Ver tiquetera
+          </button>
+        } @else {
+          <button type="button" class="btn-primario" (click)="accionDir('abrir_tiquetera', c)">
+            <lucide-icon name="plus" [size]="16" aria-hidden="true" />
+            Abrir tiquetera o fiado
+          </button>
+        }
+      }
+    </div>
   </div>
 }

@@ -29,7 +29,7 @@ import {
   LayoutGrid, Grid3x3, List, SquarePen,
   PanelLeft, PanelLeftClose, PanelTop, Percent, Tag, Filter, Check, Info, Monitor, Smartphone,
   RotateCcw, Palette, CircleAlert, Ban, Salad, ChevronUp, Layers,
-  ArrowUp, ArrowDown, ArrowUpDown
+  ArrowUp, ArrowDown, ArrowUpDown, EllipsisVertical, Ticket, SearchX, UserPlus
 } from 'lucide-angular';
 
 const icons = {
@@ -48,7 +48,7 @@ const icons = {
   LayoutGrid, Grid3x3, List, SquarePen,
   PanelLeft, PanelLeftClose, PanelTop, Percent, Tag, Filter, Check, Info, Monitor, Smartphone,
   RotateCcw, Palette, CircleAlert, Ban, Salad, Mesa, ChevronUp, Layers,
-  ArrowUp, ArrowDown, ArrowUpDown
+  ArrowUp, ArrowDown, ArrowUpDown, EllipsisVertical, Ticket, SearchX, UserPlus
 };
 
 export const appConfig: ApplicationConfig = {
