@@ -20,6 +20,10 @@
   flex-direction: column;
   margin-left: 240px;
   min-height: 0; // permite que `.content` se acote y haga scroll interno
+  // Sin esto un flex item no baja de su contenido mínimo: una tabla ancha ensanchaba TODO el área
+  // (header incluido) más allá de la ventana en tableta, y el scroll horizontal debía vivir
+  // dentro de la tabla, no en la página.
+  min-width: 0;
   height: 100%;
   transition: margin-left var(--transition-normal);
 }

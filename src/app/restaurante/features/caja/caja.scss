@@ -209,8 +209,13 @@
     background: color-mix(in srgb, var(--color-warning, #f59e0b) 7%, transparent);
   }
 
+  // `position: relative`: es el padre directo de un `.sr-only` (`position: absolute` sin
+  // ancestro anclado). Sin esto, en la última columna de una tabla más ancha que la pantalla el
+  // span se posiciona en coordenadas del DOCUMENTO —no de la celda ni de la tabla— y empuja
+  // TODA la página de lado, aunque el propio span mida 1×1px y sea invisible. Es justo el bug
+  // que se veía en móvil: nada se ve mal, pero `document.documentElement.scrollWidth` crecía.
   th.acciones,
-  td.acciones { text-align: center; width: 1%; white-space: nowrap; }
+  td.acciones { text-align: center; width: 1%; white-space: nowrap; position: relative; }
 
   .btn-eliminar {
     display: inline-flex;
@@ -259,17 +264,12 @@
 
   // ── Acordeón: productos del pedido bajo su fila ──
 
-  .sr-only {
-    position: absolute;
-    width: 1px; height: 1px;
-    padding: 0; margin: -1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-
+  // `position: relative`: es el padre directo de un `.sr-only` (ver su comentario, más abajo,
+  // fuera del mixin). Sin esto, en un `<th>` cerca del final de una tabla más ancha que la
+  // pantalla el span se posiciona en coordenadas del DOCUMENTO —no de la celda ni de la
+  // tabla— y empuja TODA la página de lado, aunque el propio span mida 1×1px y sea invisible.
   th.col-expandir,
-  td.col-expandir { width: 1%; padding-right: 0; text-align: center; }
+  td.col-expandir { width: 1%; padding-right: 0; text-align: center; position: relative; }
 
   .btn-expandir {
     display: inline-flex;
@@ -593,6 +593,32 @@
   max-width: 100%;
   container-type: inline-size;
 }
+/**
+ * Oculto para la vista, disponible para lectores de pantalla.
+ *
+ * Vive AQUÍ, fuera del mixin de Movimientos, y no dentro (donde estuvo hasta ahora): la tabla del
+ * historial (`.tabla`, más abajo) también lo usa (`.col-chevron`) pero NO incluye ese mixin —
+ * `panel--movimientos` es a propósito el único que lo incluye, para no repetir el bug de que sus
+ * reglas se colaran en cualquier `.panel` con una tabla (ver el comentario de `&--movimientos`
+ * más arriba). Puesto ahí, esta clase simplemente no existía para `.col-chevron`, y «Detalle»
+ * salía como texto normal y visible en vez de oculto.
+ *
+ * `position: absolute` sin un ancestro con `position` propio se posiciona en coordenadas del
+ * DOCUMENTO, no de su celda: en la última columna de una tabla más ancha que la pantalla eso
+ * empuja TODA la página de lado (aunque el span mismo mida 1×1px y sea invisible) — el bug real
+ * de scroll horizontal en móvil reportado el 2026-09-29. Por eso cada `th`/`td` que lo contiene
+ * (`.col-expandir`, `.acciones`, `.col-chevron`) lleva su propio `position: relative`: así el span
+ * queda anclado a su celda, que sí está contenida por el scroll de la tabla.
+ */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .tabla {
   width: 100%; border-collapse: collapse; font-size: .84rem; min-width: 820px;
 
@@ -611,7 +637,9 @@
   // que se puede, igual que `.btn-expandir` en la tabla de movimientos.
   .tabla__fila-clic { cursor: pointer; }
   .tabla__fila-clic--cargando { cursor: wait; opacity: .7; }
-  .col-chevron { width: 1%; padding-left: 0; }
+  // `position: relative`: mismo motivo que `th.col-expandir`/`th.acciones` del mixin de
+  // Movimientos — es el padre directo de un `.sr-only`.
+  .col-chevron { width: 1%; padding-left: 0; position: relative; }
   .tabla__chevron { color: var(--color-text-muted); }
 }
 

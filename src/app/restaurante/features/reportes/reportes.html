@@ -46,69 +46,287 @@
     </div>
   </header>
 
+  <nav class="tipo-tabs" role="tablist" aria-label="Tipo de reporte">
+    @for (tipo of tipoOptions; track tipo.value) {
+      <button
+        type="button"
+        role="tab"
+        class="tipo-tab"
+        [class.active]="tipoSeleccionado() === tipo.value"
+        [attr.aria-selected]="tipoSeleccionado() === tipo.value"
+        [disabled]="cargando()"
+        (click)="onTipoChange(tipo.value)"
+      >
+        {{ tipo.label }}
+      </button>
+    }
+  </nav>
+
   <section class="filters-card">
-    <label class="field">
-      <span>Tipo de reporte</span>
-      <select [value]="tipoSeleccionado()" (change)="setTipo($any($event.target).value)">
-        @for (tipo of tipoOptions; track tipo.value) {
-          <option [value]="tipo.value">{{ tipo.label }}</option>
-        }
-      </select>
-    </label>
+    <div class="range-group" role="group" aria-label="Rango de fechas">
+      @for (r of rangosRapidos; track r.value) {
+        <button
+          type="button"
+          class="range-chip"
+          [class.active]="rangoRapido() === r.value"
+          [attr.aria-pressed]="rangoRapido() === r.value"
+          [disabled]="cargando() && r.value !== 'custom'"
+          (click)="seleccionarRango(r.value)"
+        >
+          @if (r.value === 'custom') {
+            <lucide-icon name="calendar" [size]="13" />
+          }
+          {{ r.label }}
+        </button>
+      }
+    </div>
 
-    <label class="field">
-      <span>Desde</span>
-      <input type="date" [value]="fechaDesdeInput()" (change)="setFechaDesde($any($event.target).value)" />
-    </label>
-
-    <label class="field">
-      <span>Hasta</span>
-      <input type="date" [value]="fechaHastaInput()" (change)="setFechaHasta($any($event.target).value)" />
-    </label>
-
-    <label class="field field-small">
-      <span>Filas</span>
-      <select [value]="pageSize()" (change)="setPageSize(+$any($event.target).value)">
-        <option [value]="10">10</option>
-        <option [value]="20">20</option>
-        <option [value]="50">50</option>
-        <option [value]="100">100</option>
-      </select>
-    </label>
-
-    <button class="apply-btn" [disabled]="cargando()" (click)="aplicarFiltros()">
-      <lucide-icon name="search" [size]="14" />
-      Aplicar filtros
-    </button>
+    @if (rangoRapido() === 'custom') {
+      <div class="custom-range">
+        <label class="field">
+          <span>Desde</span>
+          <input type="date" [value]="fechaDesdeInput()" (change)="setFechaDesde($any($event.target).value)" />
+        </label>
+        <label class="field">
+          <span>Hasta</span>
+          <input type="date" [value]="fechaHastaInput()" (change)="setFechaHasta($any($event.target).value)" />
+        </label>
+        <button class="apply-btn" [disabled]="cargando()" (click)="aplicarFiltros()">
+          <lucide-icon name="search" [size]="14" />
+          Aplicar
+        </button>
+      </div>
+    }
   </section>
 
   <p class="report-description">{{ getTipoDescripcion() }}</p>
-
-  @if (warningPdf()) {
-    <div class="state-card warn">
-      El PDF funciona mejor para tablas compactas. Para reportes extensos se recomienda Excel.
-    </div>
-  }
 
   @if (error()) {
     <div class="state-card error">{{ error() }}</div>
   }
 
+  @if (cambiandoTipo()) {
+    <div class="skeleton-wrap" role="status" aria-live="polite" aria-busy="true">
+      <span class="sr-only">Cargando reporte…</span>
+      <section class="summary-grid">
+        @for (i of [1, 2, 3, 4]; track i) {
+          <article class="kpi-card">
+            <span class="sk sk-icon"></span>
+            <div class="kpi-body sk-col">
+              <span class="sk sk-line w40"></span>
+              <span class="sk sk-line w70 tall"></span>
+              <span class="sk sk-line w50"></span>
+            </div>
+          </article>
+        }
+      </section>
+
+      <section class="charts-grid">
+        <article class="chart-card">
+          <span class="sk sk-line w40"></span>
+          <span class="sk sk-block"></span>
+        </article>
+        <article class="chart-card">
+          <span class="sk sk-line w50"></span>
+          <span class="sk sk-block"></span>
+        </article>
+      </section>
+
+      <section class="table-card">
+        <div class="table-header"><span class="sk sk-line w30"></span></div>
+        <div class="sk-rows">
+          @for (i of [1, 2, 3, 4, 5, 6]; track i) {
+            <span class="sk sk-row"></span>
+          }
+        </div>
+      </section>
+    </div>
+  } @else {
+  <div class="fade-in">
   <section class="summary-grid">
-    @for (item of summaryItems(); track trackSummary($index, item)) {
-      <article class="summary-card">
-        <span>{{ item.label }}</span>
-        <strong>{{ formatSummary(item) }}</strong>
+    @for (kpi of kpis(); track kpi.key) {
+      <article class="kpi-card">
+        <span class="kpi-icon tono-{{ kpi.tono }}">
+          <lucide-icon [name]="kpi.icon" [size]="20" />
+        </span>
+        <div class="kpi-body">
+          <span class="kpi-label">{{ kpi.label }}</span>
+          <strong class="kpi-value">{{ kpi.value }}</strong>
+          @if (kpi.tendencia || kpi.nota) {
+            <span class="kpi-foot">
+              @if (kpi.tendencia; as t) {
+                <span class="trend-badge" [class.up]="t.sube" [class.down]="!t.sube">
+                  <lucide-icon [name]="t.sube ? 'trending-up' : 'trending-down'" [size]="12" />
+                  {{ t.texto }}
+                </span>
+              }
+              @if (kpi.nota) {
+                <span class="kpi-note">{{ kpi.nota }}</span>
+              }
+            </span>
+          }
+        </div>
       </article>
     }
 
-    @if (!cargando() && summaryItems().length === 0) {
-      <article class="summary-card empty">
-        <span>Sin resumen</span>
-        <strong>No hay datos en el rango seleccionado</strong>
+    @if (!cargando() && kpis().length === 0) {
+      <article class="kpi-card empty">
+        <div class="kpi-body">
+          <span class="kpi-label">Sin resumen</span>
+          <strong class="kpi-value small">No hay datos en el rango seleccionado</strong>
+        </div>
       </article>
     }
   </section>
+
+  @if (graficas()) {
+    <section class="charts-grid">
+      @if (tipoActual() === 'ventas_periodo') {
+        <article class="chart-card">
+          <header class="chart-head">
+            <div>
+              <h3>Evolución de ventas</h3>
+              <p>Ventas cobradas por día</p>
+            </div>
+            <strong class="chart-total">{{ formatCurrency(chartVentas().total) }}</strong>
+          </header>
+
+          @if (!chartVentas().hayVentas) {
+            <div class="chart-empty">Sin ventas cobradas en este rango.</div>
+          } @else {
+            <div class="area-wrap" #areaWrap>
+              <svg
+                class="area-chart"
+                [attr.viewBox]="'0 0 ' + chartW() + ' ' + chartH"
+                role="img"
+                aria-label="Gráfica de área: evolución de ventas por fecha"
+                (mousemove)="onChartMove($event)"
+                (touchstart)="onChartMove($event)"
+                (touchmove)="onChartMove($event)"
+                (mouseleave)="onChartLeave()"
+              >
+                <defs>
+                  <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" class="stop-top" />
+                    <stop offset="100%" class="stop-bottom" />
+                  </linearGradient>
+                </defs>
+
+                @for (t of chartVentas().ticks; track t.y) {
+                  <line class="grid-line" x1="58" [attr.x2]="chartW() - 16" [attr.y1]="t.y" [attr.y2]="t.y" />
+                  <text class="axis-label" x="50" [attr.y]="t.y + 4" text-anchor="end">{{ t.label }}</text>
+                }
+
+                @for (e of chartVentas().etiquetas; track e.x) {
+                  <text class="axis-label" [attr.x]="e.x" [attr.y]="chartH - 8" text-anchor="middle">{{ e.label }}</text>
+                }
+
+                @if (chartVentas().area) {
+                  <path class="area-fill" [attr.d]="chartVentas().area" fill="url(#areaFill)" />
+                }
+                <path class="area-line" [attr.d]="chartVentas().linea" />
+
+                @if (hoverPunto(); as h) {
+                  <line class="hover-line" [attr.x1]="h.x" [attr.x2]="h.x" [attr.y1]="16" [attr.y2]="chartVentas().baseY" />
+                  <circle class="hover-dot" [attr.cx]="h.x" [attr.cy]="h.y" r="5" />
+                } @else if (chartVentas().puntos.length === 1) {
+                  <circle class="hover-dot" [attr.cx]="chartVentas().puntos[0].x" [attr.cy]="chartVentas().puntos[0].y" r="4" />
+                }
+              </svg>
+
+              @if (hoverPunto(); as h) {
+                <div
+                  class="chart-tooltip"
+                  [class.flip]="h.x > chartW() * 0.7"
+                  [style.left.%]="(h.x / chartW()) * 100"
+                  [style.top.%]="(h.y / chartH) * 100"
+                >
+                  <span class="tt-date">{{ formatFechaLarga(h.fecha) }}</span>
+                  <strong>{{ formatCurrency(h.ventas) }}</strong>
+                  <span class="tt-orders">{{ h.ordenes }} {{ h.ordenes === 1 ? 'orden' : 'órdenes' }}</span>
+                </div>
+              }
+            </div>
+          }
+        </article>
+      } @else {
+        <article class="chart-card">
+          <header class="chart-head">
+            <div>
+              <h3>{{ barras().titulo }}</h3>
+              <p>{{ barras().subtitulo }}</p>
+            </div>
+          </header>
+
+          @if (barras().items.length === 0) {
+            <div class="chart-empty">Sin ventas cobradas en este rango.</div>
+          } @else {
+            <ol class="bars">
+              @for (b of barras().items; track b.key) {
+                <li class="bar-row">
+                  <div class="bar-top">
+                    <span class="bar-label" [title]="b.label">{{ b.label }}</span>
+                    <strong class="bar-value">{{ b.valor }}</strong>
+                  </div>
+                  <div class="bar-track">
+                    <span class="bar-fill" [class.lead]="b.rank === 0" [style.width.%]="b.pct"></span>
+                  </div>
+                  <span class="bar-detail">{{ b.detalle }}</span>
+                </li>
+              }
+            </ol>
+          }
+        </article>
+      }
+
+      <article class="chart-card">
+        <header class="chart-head">
+          <div>
+            <h3>{{ donut().titulo }}</h3>
+            <p>{{ donut().subtitulo }}</p>
+          </div>
+        </header>
+
+        @if (donut().total === 0) {
+          <div class="chart-empty">Sin ventas cobradas en este rango.</div>
+        } @else {
+          <div class="donut-layout">
+            <div class="donut-wrap">
+              <svg class="donut" viewBox="0 0 140 140" role="img" [attr.aria-label]="'Gráfica de anillo: ' + donut().titulo">
+                <circle class="donut-track" cx="70" cy="70" [attr.r]="donut().r" />
+                @for (s of donut().segmentos; track s.key) {
+                  <circle
+                    class="donut-seg {{ s.clase }}"
+                    cx="70"
+                    cy="70"
+                    [attr.r]="donut().r"
+                    [attr.stroke-dasharray]="s.dash"
+                    [attr.stroke-dashoffset]="s.offset"
+                    transform="rotate(-90 70 70)"
+                  />
+                }
+              </svg>
+              <div class="donut-center">
+                <strong>{{ donut().totalConteo }}</strong>
+                <span>{{ donut().totalConteo === 1 ? donut().unidad.uno : donut().unidad.varios }}</span>
+              </div>
+            </div>
+
+            <ul class="donut-legend">
+              @for (s of donut().segmentos; track s.key) {
+                <li>
+                  <span class="legend-dot {{ s.clase }}"></span>
+                  <span class="legend-name" [title]="s.label">{{ s.label }}</span>
+                  <span class="legend-pct">{{ formatPct(s.pct) }}</span>
+                  <span class="legend-amount">{{ formatCurrency(s.valor) }} · {{ s.conteo }}</span>
+                </li>
+              }
+            </ul>
+          </div>
+        }
+      </article>
+    </section>
+  }
 
   <section class="table-card">
     <div class="table-header">
@@ -132,7 +350,7 @@
         <thead>
           <tr>
             @for (column of columns(); track trackColumn($index, column)) {
-              <th>{{ column.label }}</th>
+              <th [class.num]="column.type === 'currency' || column.type === 'number'">{{ column.label }}</th>
             }
             @if (esVentasPeriodo()) {
               <th class="col-actions">Acciones</th>
@@ -151,7 +369,25 @@
           @for (row of rows(); track $index) {
             <tr>
               @for (column of columns(); track trackColumn($index, column)) {
-                <td>{{ formatCell(row[column.key], column.type, column.key) }}</td>
+                @switch (column.key) {
+                  @case ('tipo_pedido') {
+                    <td>
+                      <span class="badge {{ tipoPedidoClase(row[column.key] + '') }}">
+                        {{ formatCell(row[column.key], column.type, column.key) }}
+                      </span>
+                    </td>
+                  }
+                  @case ('metodo_pago') {
+                    <td>
+                      <span class="tag-neutral">{{ formatCell(row[column.key], column.type, column.key) }}</span>
+                    </td>
+                  }
+                  @default {
+                    <td [class.num]="column.type === 'currency' || column.type === 'number'">
+                      {{ formatCell(row[column.key], column.type, column.key) }}
+                    </td>
+                  }
+                }
               }
               @if (esVentasPeriodo()) {
                 <td class="col-actions">
@@ -173,6 +409,16 @@
 
     @if (pagination().total > 0) {
       <footer class="pagination-bar">
+        <label class="page-size">
+          Filas
+          <select [value]="pageSize()" (change)="setPageSize(+$any($event.target).value)">
+            <option [value]="10">10</option>
+            <option [value]="20">20</option>
+            <option [value]="50">50</option>
+            <option [value]="100">100</option>
+          </select>
+        </label>
+
         <span class="page-counter">Pagina {{ pagination().page }} / {{ pagination().total_pages }}</span>
 
         <div class="page-actions">
@@ -190,29 +436,57 @@
       </footer>
     }
   </section>
+  </div>
+  }
 
   @if (modalDetalleAbierto()) {
-    <div class="overlay">
-      <article class="detalle-modal">
-        <header class="detalle-header">
-          <div>
-            <h3>Detalle de pedido</h3>
-            @if (detallePedido(); as detalle) {
-              <p>{{ detalle.numero_orden }} · {{ formatDateValue(detalle.fecha_cierre) }}</p>
-            }
-          </div>
+    <div class="overlay" (click)="cerrarDetallePedido()">
+      <article
+        class="detalle-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Detalle de pedido"
+        (click)="$event.stopPropagation()"
+      >
+        <button class="icon-btn modal-close" title="Cerrar" aria-label="Cerrar" (click)="cerrarDetallePedido()">
+          <lucide-icon name="x" [size]="18" />
+        </button>
 
-          <button class="icon-btn" title="Cerrar" (click)="cerrarDetallePedido()">
-            <lucide-icon name="x" [size]="18" />
-          </button>
-        </header>
+        @if (!cargandoDetalle() && !detalleError() && detallePedido(); as detalle) {
+          <header class="ticket-head">
+            <div class="ticket-main">
+              <span class="ticket-kicker">Comprobante de venta</span>
+              <h3 class="ticket-number">#{{ detalle.numero_orden }}</h3>
+              <span class="ticket-date">{{ formatDateValue(detalle.fecha_cierre) }}</span>
+              <div class="ticket-badges">
+                <span class="badge {{ tipoPedidoClase(detalle.tipo_pedido) }}">
+                  {{ formatTipoPedidoLabel(detalle.tipo_pedido) }}
+                </span>
+                <span class="badge estado-{{ estadoClase(detalle.estado) }}">
+                  {{ formatEstadoLabel(detalle.estado) }}
+                </span>
+              </div>
+            </div>
+
+            <dl class="ticket-side">
+              <div>
+                <dt>Atendido por</dt>
+                <dd>{{ atendidoPor(detalle) }}</dd>
+              </div>
+              <div>
+                <dt>Mesa / Canal</dt>
+                <dd>{{ canalLabel(detalle) }}</dd>
+              </div>
+            </dl>
+          </header>
+        }
 
         <div class="detalle-body-scroll">
           @if (cargandoDetalle()) {
             <div class="state-card">
               <span class="loading-inline">
                 <lucide-icon name="loader" [size]="14" class="spin" />
-                Cargando trazabilidad del pedido...
+                Cargando comprobante del pedido...
               </span>
             </div>
           }
@@ -222,87 +496,81 @@
           }
 
           @if (!cargandoDetalle() && !detalleError() && detallePedido(); as detalle) {
-            <section class="detalle-meta-grid">
-              <article class="meta-card">
-                <span>Orden</span>
-                <strong>{{ detalle.numero_orden }}</strong>
-              </article>
-              <article class="meta-card">
-                <span>Tipo pedido</span>
-                <strong>{{ formatTipoPedidoLabel(detalle.tipo_pedido) }}</strong>
-              </article>
-              <article class="meta-card">
-                <span>Responsable</span>
-                <strong>{{ detalle.responsable || 'No aplica' }}</strong>
-              </article>
-              <article class="meta-card">
-                <span>Mesa</span>
-                <strong>{{ formatMesaLabel(detalle) }}</strong>
-              </article>
-              <article class="meta-card">
-                <span>Estado</span>
-                <strong>{{ formatEstadoLabel(detalle.estado) }}</strong>
-              </article>
-              <article class="meta-card">
-                <span>Estado cocina</span>
-                <strong>{{ formatEstadoLabel(detalle.estado_cocina) }}</strong>
-              </article>
-              <article class="meta-card">
-                <span>Fecha cierre</span>
-                <strong>{{ formatDateValue(detalle.fecha_cierre) }}</strong>
-              </article>
-            </section>
+            @if (detalle.nota_orden) {
+              <p class="ticket-note"><strong>Nota:</strong> {{ detalle.nota_orden }}</p>
+            }
 
-            <section class="nota-box">
-              <h4>Nota general del pedido</h4>
-              <p>{{ detalle.nota_orden || 'Sin nota general.' }}</p>
-            </section>
-
-            <section class="items-box">
-              <h4>Items facturados</h4>
-
+            <section class="ticket-items" aria-label="Ítems facturados">
               @if (detalle.items.length === 0) {
                 <div class="state-card">No hay items registrados en este pedido.</div>
-              }
-
-              @for (item of detalle.items; track trackDetalleItem($index, item)) {
-                <article class="item-card">
-                  <div class="item-main">
-                    <p class="item-title">
-                      <strong>{{ item.cantidad }}x {{ item.producto }}</strong>
-                      <span>{{ formatEstadoLabel(item.estado) }}</span>
-                    </p>
-                    <p class="item-pricing">
-                      {{ formatCurrency(item.precio_unitario) }} c/u · Subtotal {{ formatCurrency(item.subtotal) }}
-                    </p>
-
-                    @if (item.nota) {
-                      <p class="item-note">Nota del mesero: {{ item.nota }}</p>
+              } @else {
+                <table class="items-table">
+                  <thead>
+                    <tr>
+                      <th class="col-cant">Cant.</th>
+                      <th>Producto</th>
+                      <th class="num">P. unitario</th>
+                      <th class="num">Subtotal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (item of detalle.items; track trackDetalleItem($index, item)) {
+                      <tr>
+                        <td class="col-cant">{{ item.cantidad }}</td>
+                        <td>
+                          <span class="item-name">{{ item.producto }}</span>
+                          <span class="item-state estado-{{ estadoClase(item.estado) }}">
+                            <span class="dot"></span>{{ formatEstadoLabel(item.estado) }}
+                          </span>
+                          @if (item.nota) {
+                            <span class="item-sub">Nota: {{ item.nota }}</span>
+                          }
+                          @if (item.exclusiones.length > 0) {
+                            <span class="item-sub">
+                              @for (exclusion of item.exclusiones; track exclusion.id_ingrediente) {
+                                Sin {{ exclusion.nombre }}{{ $last ? '' : ', ' }}
+                              }
+                            </span>
+                          }
+                        </td>
+                        <td class="num">{{ formatCurrency(item.precio_unitario) }}</td>
+                        <td class="num strong">{{ formatCurrency(item.subtotal) }}</td>
+                      </tr>
                     }
-
-                    @if (item.exclusiones.length > 0) {
-                      <div class="chips-row">
-                        @for (exclusion of item.exclusiones; track exclusion.id_ingrediente) {
-                          <span class="chip">Sin {{ exclusion.nombre }}</span>
-                        }
-                      </div>
-                    }
-                  </div>
-                </article>
+                  </tbody>
+                </table>
               }
             </section>
 
-            <section class="totales-box">
-              <div>
+            <section class="ticket-totals" aria-label="Resumen financiero">
+              <div class="t-row">
                 <span>Subtotal</span>
-                <strong>{{ formatCurrency(detalle.totales.subtotal) }}</strong>
+                <span>{{ formatCurrency(detalle.totales.subtotal) }}</span>
               </div>
-              <div>
-                <span>Impuesto</span>
-                <strong>{{ formatCurrency(detalle.totales.impuesto) }}</strong>
+              <div class="t-row">
+                <span>Impuestos</span>
+                <span>{{ formatCurrency(detalle.totales.impuesto) }}</span>
               </div>
-              <div>
-                <span>Total</span>
+              @if (costoDomicilio(detalle) > 0) {
+                <div class="t-row">
+                  <span>Domicilio</span>
+                  <span>{{ formatCurrency(costoDomicilio(detalle)) }}</span>
+                </div>
+              }
+              <div class="t-row t-pago">
+                <span>Forma de pago</span>
+                <strong>{{ detalle.metodo_pago || 'Sin registrar' }}</strong>
+              </div>
+              @if (detalle.pagos.length > 1) {
+                @for (pago of detalle.pagos; track $index) {
+                  <div class="t-row t-pago-sub">
+                    <span>{{ pago.metodo }}</span>
+                    <span>{{ formatCurrency(pago.valor) }}</span>
+                  </div>
+                }
+              }
+              <div class="t-total">
+                <span>TOTAL</span>
                 <strong>{{ formatCurrency(detalle.totales.total) }}</strong>
               </div>
             </section>
@@ -310,7 +578,11 @@
         </div>
 
         <footer class="detalle-footer">
-          <button class="pager-btn" (click)="cerrarDetallePedido()">Cerrar</button>
+          <button class="btn-secundario" [disabled]="!detallePedido()" (click)="imprimirComprobante()">
+            <lucide-icon name="printer" [size]="14" />
+            Imprimir comprobante
+          </button>
+          <button class="btn-cerrar" (click)="cerrarDetallePedido()">Cerrar</button>
         </footer>
       </article>
     </div>
