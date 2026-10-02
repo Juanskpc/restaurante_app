@@ -54,6 +54,9 @@ export interface ProductoAdmin {
   es_popular: boolean;
   disponible: boolean;
   visible: boolean;
+  /** Empaque que el asistente suma en pedidos para llevar y a domicilio (null = ninguno). */
+  id_producto_empaque?: number | null;
+  cantidad_empaque?: number;
   ingredientes: ProductoIngrediente[];
 }
 
@@ -86,6 +89,8 @@ interface ProdFormData {
   disponible: boolean;
   visible: boolean;
   id_categoria: number | null;
+  id_producto_empaque: number | null;
+  cantidad_empaque: number;
   ingredientes: IngredienteForm[];
 }
 
@@ -139,8 +144,11 @@ export class MenuComponent implements OnInit, OnDestroy {
   readonly prodForm         = signal<ProdFormData>({
     nombre: '', descripcion: '', precio: null, icono: '🍔',
     imagen_url: '', es_popular: false, disponible: true,
-    visible: true, id_categoria: null, ingredientes: [],
+    visible: true, id_categoria: null, id_producto_empaque: null, cantidad_empaque: 1, ingredientes: [],
   });
+
+  /** Productos que se pueden elegir como empaque (los de una categoría «Empaques», o todos si no hay). */
+  readonly opcionesEmpaque = signal<{ id_producto: number; nombre: string; precio: number }[]>([]);
 
   // ── Imágenes pendientes (opcional, conviven con los íconos) ─
   // Se guardan en memoria tras recortar y se suben al guardar, ya que el
@@ -444,6 +452,38 @@ export class MenuComponent implements OnInit, OnDestroy {
     this.cerrarPanelCopiar();
   }
 
+  /**
+   * Los productos que pueden ser empaque: los de una categoría cuyo nombre diga «empaque»; si el
+   * negocio no tiene una, todos (menos el que se está editando). Se piden aparte porque la lista
+   * de la pantalla solo trae la categoría que se está mirando.
+   */
+  private cargarOpcionesEmpaque(): void {
+    const id = this.negocioId();
+    if (!id) return;
+    this.http.get<{ success: boolean; data: ProductoAdmin[] }>(
+      `${environment.apiUrl}/carta/admin/productos?id_negocio=${id}`
+    ).subscribe({
+      next: res => {
+        const todos = res?.data ?? [];
+        const categoriasEmpaque = new Set(
+          this.categorias()
+            .filter(c => normalizeSearchValue(c.nombre).includes('empaque'))
+            .map(c => c.id_categoria),
+        );
+        const candidatos = categoriasEmpaque.size
+          ? todos.filter(p => categoriasEmpaque.has(p.id_categoria))
+          : todos;
+        this.opcionesEmpaque.set(
+          candidatos
+            .filter(p => p.id_producto !== this.editandoProdId())
+            .map(p => ({ id_producto: p.id_producto, nombre: p.nombre, precio: p.precio }))
+            .sort((a, b) => a.precio - b.precio),
+        );
+      },
+      error: () => this.opcionesEmpaque.set([]),
+    });
+  }
+
   private cargarProductosParaCopiar(): void {
     const id = this.negocioId();
     if (!id) return;
@@ -605,6 +645,8 @@ export class MenuComponent implements OnInit, OnDestroy {
         disponible:   prod.disponible,
         visible:      prod.visible !== false,
         id_categoria: prod.id_categoria,
+        id_producto_empaque: prod.id_producto_empaque ?? null,
+        cantidad_empaque:    prod.cantidad_empaque ?? 1,
         ingredientes: prod.ingredientes.map(pi => ({
           id_producto_ingred: pi.id_producto_ingred,
           id_ingrediente:     pi.id_ingrediente,
@@ -619,10 +661,11 @@ export class MenuComponent implements OnInit, OnDestroy {
       this.prodForm.set({
         nombre: '', descripcion: '', precio: null, icono: '🍔',
         imagen_url: '', es_popular: false, disponible: true,
-        visible: true, id_categoria: this.categoriaActiva(), ingredientes: [],
+        visible: true, id_categoria: this.categoriaActiva(), id_producto_empaque: null, cantidad_empaque: 1, ingredientes: [],
       });
       this.ingredientesModificados.set(false);
     }
+    this.cargarOpcionesEmpaque();
     this.modalProdOpen.set(true);
   }
 
@@ -669,6 +712,9 @@ export class MenuComponent implements OnInit, OnDestroy {
       es_popular:   form.es_popular,
       disponible:   form.disponible,
       visible:      form.visible,
+      // null = sin empaque (lo quita); el backend vuelve la cantidad a 1.
+      id_producto_empaque: form.id_producto_empaque,
+      cantidad_empaque:    form.id_producto_empaque ? Math.max(1, Math.floor(form.cantidad_empaque || 1)) : 1,
     };
 
     try {

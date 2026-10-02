@@ -462,6 +462,45 @@
           </div>
         </div>
 
+        <!-- ── Empaque (pedidos para llevar y a domicilio) ──
+             El asistente de WhatsApp suma este empaque solo; en mesa no se cobra. «Sin empaque»
+             lo quita. Se declara [selected] en cada <option> por el mismo motivo que en Categoría. -->
+        @if (opcionesEmpaque().length > 0 || prodForm().id_producto_empaque) {
+          <div class="form-row form-row-empaque">
+            <div class="form-group" style="flex:1">
+              <label class="form-label">Empaque <span class="form-label-optional">(llevar y domicilio)</span></label>
+              <select
+                class="form-select"
+                (change)="updateProdField('id_producto_empaque', +$any($event.target).value || null)"
+              >
+                <option value="" [selected]="!prodForm().id_producto_empaque">Sin empaque</option>
+                @for (emp of opcionesEmpaque(); track emp.id_producto) {
+                  <option
+                    [value]="emp.id_producto"
+                    [selected]="emp.id_producto === prodForm().id_producto_empaque"
+                  >
+                    {{ emp.nombre }} — {{ formatPrice(emp.precio) }}
+                  </option>
+                }
+              </select>
+            </div>
+            @if (prodForm().id_producto_empaque) {
+              <div class="form-group form-group-orden">
+                <label class="form-label">Por unidad</label>
+                <input
+                  type="number"
+                  class="form-input"
+                  min="1"
+                  max="20"
+                  step="1"
+                  [value]="prodForm().cantidad_empaque"
+                  (input)="updateProdField('cantidad_empaque', +$any($event.target).value || 1)"
+                />
+              </div>
+            }
+          </div>
+        }
+
         <!-- ── Descripción ── -->
         <div class="form-group">
           <label class="form-label">Descripción</label>
