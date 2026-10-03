@@ -349,6 +349,24 @@
   gap: 8px;
 }
 
+// «Para servir · Karen»: la mesa la guardó el asistente para alguien que viene en camino. Va con
+// el acento de la marca y no con un color de estado: el estado (ocupada) ya lo dice el badge.
+.para-servir {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  margin-top: 6px;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  color: var(--color-primary);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;

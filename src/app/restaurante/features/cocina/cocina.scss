@@ -278,6 +278,13 @@
   color: var(--color-text-secondary);
 }
 
+// La mesa la guardó el asistente: el cliente viene en camino a comer aquí.
+.order-servir {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
 .order-server {
   font-size: 0.72rem;
   color: var(--color-text-secondary);

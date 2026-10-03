@@ -122,6 +122,9 @@
         <div class="card-meta">
           <div class="order-num">{{ orden.numero_orden }}</div>
           <div class="order-mesa">{{ getNombreMesa(orden) }}</div>
+          @if (orden.para_servir) {
+            <div class="order-servir">🍽️ Para servir · {{ orden.contacto_nombre || 'cliente de WhatsApp' }}</div>
+          }
           <div class="order-server">👤 {{ getNombreMesero(orden) }}</div>
         </div>
       </div>

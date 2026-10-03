@@ -184,6 +184,12 @@
               </div>
             </div>
             <span class="badge" [class]="'badge status-' + mesa.status">{{ statusLabel(mesa.status) }}</span>
+            @if (mesa.order.para_servir) {
+              <!-- La guardó el asistente: el cliente viene en camino, no hay nadie sentado aún. -->
+              <span class="para-servir" title="Pedido por WhatsApp para comer aquí: el cliente viene en camino">
+                🍽️ Para servir · {{ mesa.order.contacto_nombre || 'cliente de WhatsApp' }}
+              </span>
+            }
 
             @if (verProductos() && mesa.order.items.length > 0) {
               <ul class="card-productos">

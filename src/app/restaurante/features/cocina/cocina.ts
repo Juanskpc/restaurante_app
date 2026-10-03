@@ -38,6 +38,9 @@ interface OrdenCocina {
   mesa: string | null;
   fecha_creacion: string;
   nota: string | null;
+  /** Pedido por WhatsApp para comer en el local: el cliente viene en camino (mesa asignada). */
+  para_servir?: boolean;
+  contacto_nombre?: string | null;
   estado_cocina: EstadoCocina;
   usuario: { id_usuario: number; primer_nombre: string; primer_apellido: string } | null;
   detalles: DetalleItem[];
