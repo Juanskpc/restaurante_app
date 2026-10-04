@@ -89,6 +89,59 @@ const TOKEN_KEY    = 'app_token';
 const SESSION_KEY  = 'app_session';
 const NEGOCIO_KEY  = 'app_negocio_activo';
 
+/**
+ * El `id_usuario` que lleva dentro un JWT, o `null` si no se puede leer.
+ *
+ * **No valida la firma y no hace falta:** quien valida es el backend en cada petición. Esto
+ * solo sirve para contestar «¿este token y esta sesión son de la misma persona?», y para eso
+ * basta el cuerpo. Un token manipulado daría un `id_usuario` falso, pero con él no se consigue
+ * nada: el servidor lo rechaza igual. Lo que se evita es un fallo accidental, no un ataque.
+ */
+function idUsuarioDelToken(token: string): number | null {
+  try {
+    const cuerpo = token.split('.')[1];
+    if (!cuerpo) return null;
+    // base64url → base64, y el relleno que `atob` exige.
+    const base64 = cuerpo.replace(/-/g, '+').replace(/_/g, '/');
+    const relleno = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+    const id = JSON.parse(atob(relleno))?.id_usuario;
+    return typeof id === 'number' ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * ¿La sesión guardada pertenece al token guardado?
+ *
+ * ## Por qué hace falta
+ *
+ * Las tres apps se sirven del MISMO origen (`escalapp.cloud/admin`, `/restaurante`,
+ * `/reserva`), así que comparten un único `localStorage`. Y `admin_app_v21` guarda su token
+ * bajo la misma clave `app_token` que esta app. De ahí sale un desajuste real, medido en
+ * producción: alguien inicia sesión en el panel de administración, `app_token` queda con SU
+ * token, y en `app_session` sigue la sesión de la persona que usó esta app antes en el mismo
+ * navegador. Al abrir `/restaurante`, `restoreSession()` cargaba esa sesión vieja y la app
+ * arrancaba con el token de uno y el negocio de otro.
+ *
+ * El efecto no era teórico: el encabezado consulta el inventario cada 60 s en cuanto hay
+ * sesión, y la auditoría del backend registró **1.705 peticiones** a
+ * `/restaurante/inventario/resumen?id_negocio=12` firmadas por usuarios de los negocios 6,
+ * 13, 15 y 16 (auditoría 2026-10-04, módulo `authz`). Nadie vio datos ajenos —el backend
+ * resuelve el negocio desde el token para devolverlos—, pero es exactamente el desajuste que
+ * `AUTHZ_MODO=bloqueo` va a empezar a rechazar, y había que arreglarlo antes de activarlo.
+ *
+ * Ante la duda se descarta la sesión, no se conserva: perder la sesión guardada cuesta una
+ * revalidación contra el backend —que el guardia ya hace en cada carga— y operar con la
+ * equivocada cuesta pedir datos del negocio de otra persona.
+ */
+function sesionCorrespondeAlToken(sesion: SesionRestaurante, token: string): boolean {
+  const idDelToken = idUsuarioDelToken(token);
+  // Token ilegible: no se puede afirmar que correspondan, así que no se restaura.
+  if (idDelToken === null) return false;
+  return Number(sesion.usuario?.id_usuario) === idDelToken;
+}
+
 const APP_ROUTE_PRIORITY = [
   '/dashboard',
   '/pedidos',
@@ -561,6 +614,18 @@ export class AuthService {
           this.clearSession();
           return;
         }
+        // La sesión guardada tiene que ser la DE ESTE token. Ver `sesionCorrespondeAlToken`:
+        // sin esta comprobación la app arrancaba con el token de una persona y la sesión de
+        // otra, y pedía datos del negocio equivocado hasta que el guardia revalidaba.
+        //
+        // Se descarta la sesión y se CONSERVA el token, que es la diferencia que importa: el
+        // token suele ser el bueno —recién puesto por el panel de administración— y borrarlo
+        // echaría de la sesión a quien no ha hecho nada mal. Sin sesión guardada, el guardia
+        // la reconstruye preguntándole al backend, que es la fuente correcta de todos modos.
+        if (!sesionCorrespondeAlToken(parsed, token)) {
+          this.descartarSesionGuardada();
+          return;
+        }
         this.session.set(parsed);
         // Restaurar negocio activo
         const savedNegocio = localStorage.getItem(NEGOCIO_KEY);
@@ -600,6 +665,23 @@ export class AuthService {
       this._negocioIdx.set(idx);
       localStorage.setItem(NEGOCIO_KEY, String(elegido));
     }
+  }
+
+  /**
+   * Tira la sesión guardada pero deja el token donde está.
+   *
+   * Es media `clearSession()`, y la mitad que falta es intencionada: se usa cuando la sesión
+   * de `localStorage` no corresponde al token (ver `sesionCorrespondeAlToken`). Ahí el token
+   * es el dato de fiar y la sesión es la basura, así que borrar el token sería castigar al
+   * usuario por el desajuste. El guardia revalida y vuelve con la sesión correcta.
+   */
+  private descartarSesionGuardada(): void {
+    if (!isPlatformBrowser(this.platformId)) return;
+    localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(NEGOCIO_KEY);
+    this.session.set(null);
+    this.sesionConfirmada.set(false);
+    this._negocioIdx.set(0);
   }
 
   private clearSession(): void {
