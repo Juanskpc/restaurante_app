@@ -5,11 +5,15 @@ import { isPlatformBrowser } from '@angular/common';
 const GESTOS_DE_DESBLOQUEO = ['pointerdown', 'keydown', 'touchstart'] as const;
 
 /**
- * SonidoAlertaService — el «ding» de las alertas del negocio.
+ * SonidoAlertaService — los avisos sonoros del negocio.
+ *
+ * Son dos, y suenan distinto a propósito: `sonarNuevoPedido` (un pedido entró por el asistente) y
+ * `sonarConversacionEscalada` (el asistente no supo responder y hay alguien esperando). Quien
+ * añada un tercero tiene el mismo deber: que se distinga sin mirar la pantalla.
  *
  * ## Por qué se sintetiza y no se carga un `.mp3`
  *
- * Un tono de dos notas se genera con Web Audio en unas líneas: no hay archivo que servir, ni que
+ * Un tono de dos o tres notas se genera con Web Audio en unas líneas: no hay archivo que servir, ni que
  * cachear, ni derechos que revisar, y no puede fallar por una ruta mal apuntada en el despliegue
  * (esta app se sirve bajo `/restaurante/`). Cuesta lo mismo que un recurso y falla menos.
  *
@@ -53,6 +57,33 @@ export class SonidoAlertaService {
     }
   }
 
+  /**
+   * Tres golpes graves y descendentes, con timbre de triángulo: el aviso de que una conversación
+   * se quedó esperando a una persona.
+   *
+   * **Tiene que no parecerse al de un pedido**, y por eso se diferencia en las tres cosas que el
+   * oído distingue sin mirar la pantalla: el contorno (baja en vez de subir), la cuenta (tres en
+   * vez de dos) y el timbre (triángulo, más áspero que el seno). Con solo cambiar las notas, en
+   * una cocina con ruido los dos avisos acaban siendo «un pitido» y hay que ir a ver cuál fue —
+   * que es exactamente lo que este sonido existe para evitar.
+   */
+  sonarConversacionEscalada(): void {
+    if (!this.esNavegador) return;
+    try {
+      const contexto = this.obtenerContexto();
+      if (!contexto) return;
+      if (contexto.state === 'suspended') void contexto.resume();
+
+      const inicio = contexto.currentTime + 0.02;
+      // Sol4 → Re4 → Sol3: el salto final de octava es lo que lo vuelve inconfundible.
+      this.nota(contexto, 392, inicio, 0.14, 'triangle');
+      this.nota(contexto, 293.66, inicio + 0.16, 0.14, 'triangle');
+      this.nota(contexto, 196, inicio + 0.32, 0.34, 'triangle');
+    } catch {
+      // Sin audio disponible: se pierde el sonido, no la pantalla.
+    }
+  }
+
   private readonly desbloquear = (): void => {
     try {
       const contexto = this.obtenerContexto();
@@ -76,11 +107,17 @@ export class SonidoAlertaService {
   }
 
   /** Una nota con ataque y caída suaves: sin ellas cada nota termina con un «clic» seco. */
-  private nota(contexto: AudioContext, frecuencia: number, inicio: number, duracion: number): void {
+  private nota(
+    contexto: AudioContext,
+    frecuencia: number,
+    inicio: number,
+    duracion: number,
+    timbre: OscillatorType = 'sine',
+  ): void {
     const oscilador = contexto.createOscillator();
     const volumen = contexto.createGain();
 
-    oscilador.type = 'sine';
+    oscilador.type = timbre;
     oscilador.frequency.value = frecuencia;
 
     volumen.gain.setValueAtTime(0.0001, inicio);

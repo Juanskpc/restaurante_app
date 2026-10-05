@@ -5,7 +5,17 @@ import { environment } from '../../../environments/environment';
 import { AuthService } from './auth.service';
 
 /** Áreas de datos que el servidor puede anunciar. Coinciden con `avisoService.js`. */
-export type TemaRealtime = 'pedidos' | 'mesas' | 'cocina' | 'caja' | 'clientes' | 'whatsapp';
+export type TemaRealtime =
+  | 'pedidos'
+  | 'mesas'
+  | 'cocina'
+  | 'caja'
+  | 'clientes'
+  | 'whatsapp'
+  // El asistente se quedó sin respuesta y le pasó la conversación a una persona. Como
+  // 'whatsapp', no recarga ninguna lista: se oye y se avisa (ver `alAvisar`). Lo emite
+  // `intelligence/avisos/escalado.js`, no el API del restaurante.
+  | 'escalada';
 
 /** Espera antes de recargar, para juntar varios avisos seguidos en una sola consulta. */
 const AGRUPAR_MS = 250;

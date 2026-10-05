@@ -561,6 +561,19 @@ export class AuthService {
     await this.irAlInicio(destino);
   }
 
+  /**
+   * Lleva al panel, a las conversaciones del asistente, con el negocio actual ya elegido.
+   *
+   * La Bandeja vive en `admin_app_v21` y no aquí, así que se sale por la misma puerta que «Mis
+   * pagos»: un SSO de salida que no pide volver a iniciar sesión. Sin el `?negocio=`, con varios
+   * negocios se abriría siempre el primero — que es justo el que no avisó.
+   */
+  async irAConversaciones(): Promise<void> {
+    const idNegocio = this.negocio()?.id_negocio;
+    const destino = idNegocio ? `/admin/whatsapp?negocio=${idNegocio}` : '/admin/whatsapp';
+    await this.irAlInicio(destino);
+  }
+
   canAccessRoute(routePath: string): boolean {
     const session = this.session();
     if (!session) return false;

@@ -4,6 +4,12 @@
       <div class="feedback-toast__content">
         <strong>{{ toast.title }}</strong>
         <p>{{ toast.message }}</p>
+
+        @if (toast.accion; as accion) {
+          <button type="button" class="feedback-toast__accion" (click)="runToastAccion(toast.id)">
+            {{ accion.texto }}
+          </button>
+        }
       </div>
 
       <button

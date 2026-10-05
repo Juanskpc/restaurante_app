@@ -87,6 +87,14 @@ export class LayoutComponent {
     this.destroyRef.onDestroy(
       this.realtime.alAvisar('whatsapp', () => this.alLlegarPedidoDeWhatsapp()),
     );
+
+    // Lo mismo, por el mismo motivo, para la conversación que el asistente no supo contestar.
+    // Hasta 2026-10-05 esto era un correo: llegaba tarde —nadie revisa el buzón mientras
+    // atiende— y llenaba la bandeja. Ahora suena aquí, con un sonido que no se confunde con el
+    // de un pedido nuevo, porque lo que pide no es lo mismo: hay un cliente escribiendo.
+    this.destroyRef.onDestroy(
+      this.realtime.alAvisar('escalada', () => this.alEscalarseUnaConversacion()),
+    );
   }
 
   /**
@@ -102,6 +110,49 @@ export class LayoutComponent {
     if (!this.router.url.startsWith('/despacho')) {
       this.ui.info('Llegó un pedido por WhatsApp. Confírmalo en Despacho.', 'Nuevo pedido');
     }
+  }
+
+  /**
+   * Suena y avisa de que una conversación quedó esperando a una persona.
+   *
+   * Solo a quien puede contestarla: el dueño del negocio y el cajero, que es la misma regla con
+   * la que `whatsappGuard` protege la Bandeja en el panel. Un mesero o un domiciliario no tienen
+   * dónde responder, y un aviso que no se puede atender se aprende a ignorar —el del pedido ya
+   * se acota igual unas líneas más arriba.
+   *
+   * La Bandeja vive en el panel (`/admin/whatsapp`), que es otro origen, así que el aviso no
+   * navega: lleva un botón que sale por el SSO de `irAConversaciones`.
+   */
+  private alEscalarseUnaConversacion(): void {
+    if (!this.atiendeConversaciones()) return;
+
+    this.sonido.sonarConversacionEscalada();
+    // Más tiempo en pantalla que un aviso normal, y con botón: al otro lado hay alguien
+    // esperando, y el gesto que pide —salir al panel— no se hace en los tres segundos de un
+    // toast corriente ni se adivina leyendo una ruta.
+    this.ui.toast({
+      tone: 'warning',
+      title: 'Una conversación te espera',
+      message: 'El asistente no supo qué responder y hay un cliente escribiendo.',
+      durationMs: 12000,
+      accion: { texto: 'Abrir conversaciones', ejecutar: () => void this.auth.irAConversaciones() },
+    });
+  }
+
+  /** ¿Esta persona puede responder la Bandeja? Administrador (o super) y cajero. */
+  private atiendeConversaciones(): boolean {
+    const sesion = this.auth.session();
+    if (!sesion) return false;
+
+    const roles = [
+      ...(sesion.roles_globales ?? []),
+      ...(sesion.roles ?? []),
+      ...(this.auth.negocio()?.roles ?? []),
+    ].map((rol) => rol.descripcion.trim().toUpperCase());
+
+    return roles.some(
+      (rol) => rol === 'ADMINISTRADOR' || rol === 'SUPER ADMINISTRADOR' || rol === 'CAJERO',
+    );
   }
 
   private readonly alVolverALaPestana = (): void => {

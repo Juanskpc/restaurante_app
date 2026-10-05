@@ -2,12 +2,26 @@ import { Injectable, signal } from '@angular/core';
 
 export type UiFeedbackTone = 'success' | 'info' | 'warning' | 'error';
 
+/**
+ * Lo que un toast puede pedir que se haga, además de leerse.
+ *
+ * Existe para los avisos que llegan sin que nadie los haya provocado —los del canal en vivo— y
+ * que piden ir a otro sitio: sin botón, el aviso dice a dónde ir y deja al usuario buscarlo, y
+ * eso en mitad de un turno es lo mismo que no avisar. Es opcional a propósito: la inmensa mayoría
+ * de los toasts confirman algo que el usuario acaba de hacer y no tienen nada que pedir.
+ */
+export interface UiToastAccion {
+  texto: string;
+  ejecutar: () => void;
+}
+
 interface UiToast {
   id: number;
   tone: UiFeedbackTone;
   title: string;
   message: string;
   durationMs: number;
+  accion?: UiToastAccion;
 }
 
 interface UiDialogState {
@@ -88,6 +102,7 @@ export class UiFeedbackService {
     title: string;
     message: string;
     durationMs?: number;
+    accion?: UiToastAccion;
   }): void {
     const id = ++this.toastCounter;
     const durationMs = Math.max(1800, options.durationMs ?? 3600);
@@ -100,11 +115,28 @@ export class UiFeedbackService {
         title: options.title,
         message: options.message,
         durationMs,
+        accion: options.accion,
       },
     ]);
 
     const timer = setTimeout(() => this.dismissToast(id), durationMs);
     this.toastTimers.set(id, timer);
+  }
+
+  /**
+   * Hace lo que el toast pedía y lo cierra.
+   *
+   * Se cierra siempre, también si la acción revienta: el aviso ya se leyó, y dejarlo en pantalla
+   * porque una navegación falló solo añade un segundo problema al primero.
+   */
+  runToastAccion(id: number): void {
+    const accion = this.toasts().find((toast) => toast.id === id)?.accion;
+    this.dismissToast(id);
+    try {
+      accion?.ejecutar();
+    } catch {
+      // Ídem: el error es de quien puso la acción, no del aviso.
+    }
   }
 
   dismissToast(id: number): void {

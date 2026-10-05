@@ -20,6 +20,10 @@ export class UiFeedbackHostComponent {
     this.uiFeedback.dismissToast(id);
   }
 
+  protected runToastAccion(id: number): void {
+    this.uiFeedback.runToastAccion(id);
+  }
+
   protected acceptDialog(): void {
     this.uiFeedback.acceptDialog();
   }
