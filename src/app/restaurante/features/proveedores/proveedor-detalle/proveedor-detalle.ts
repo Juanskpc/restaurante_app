@@ -146,6 +146,18 @@ export class ProveedorDetalleComponent {
   readonly puedeEditarFicha = computed(() => this.esPropietario() && this.permisos().editar);
   readonly puedeVerPrecios = computed(() => this.permisos().precios);
 
+  /**
+   * ¿Hay algo que enseñar en «Dónde está»?
+   *
+   * El formulario solo pide la dirección, así que ciudad, región y zonas vienen vacías en casi
+   * todos los proveedores nuevos. Un bloque con tres guiones ocupa sitio y no dice nada: si no
+   * hay nada, el bloque no se pinta.
+   */
+  readonly tieneUbicacion = computed(() => {
+    const p = this.proveedor();
+    return !!p.direccion || !!p.ciudad || (p.zonas_cobertura?.length ?? 0) > 0;
+  });
+
   readonly tieneCondiciones = computed(() => {
     const p = this.proveedor();
     return p.pedido_minimo !== undefined

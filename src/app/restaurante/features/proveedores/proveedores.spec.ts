@@ -246,24 +246,39 @@ describe('ComparadorComponent', () => {
 describe('ProveedorFormComponent', () => {
   beforeEach(configurar);
 
-  it('nace vacío, privado y sin poder guardarse', () => {
-    const fixture = TestBed.createComponent(ProveedorFormComponent);
-    fixture.componentRef.setInput('proveedor', null);
-    fixture.componentRef.setInput('categorias', []);
-    fixture.detectChanges();
+  const CATEGORIAS = [
+    { id_categoria_prov: 1, codigo: 'carnes', nombre: 'Carnes y proteínas', icono: null },
+    { id_categoria_prov: 2, codigo: 'bebidas', nombre: 'Bebidas', icono: null },
+    { id_categoria_prov: 3, codigo: 'abarrotes', nombre: 'Abarrotes', icono: null },
+  ];
 
-    const comp = fixture.componentInstance;
+  function montar(proveedor: unknown = null, puedePublicar = true) {
+    const fixture = TestBed.createComponent(ProveedorFormComponent);
+    fixture.componentRef.setInput('categorias', CATEGORIAS);
+    fixture.componentRef.setInput('puedePublicar', puedePublicar);
+    fixture.componentRef.setInput(
+      'proveedor',
+      proveedor as Parameters<typeof fixture.componentRef.setInput>[1],
+    );
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  it('nace vacío, privado y sin poder guardarse', () => {
+    const comp = montar().componentInstance;
     expect(comp.esEdicion()).toBe(false);
     expect(comp.visibilidad()).toBe('PRIVADO');
     expect(comp.puedeGuardar()).toBe(false);
   });
 
-  it('sin permiso de publicar, elegir una visibilidad compartida no hace nada', () => {
-    const fixture = TestBed.createComponent(ProveedorFormComponent);
-    fixture.componentRef.setInput('proveedor', null);
-    fixture.componentRef.setInput('puedePublicar', false);
-    fixture.detectChanges();
+  it('pide solo lo imprescindible: el nombre basta para guardar', () => {
+    const comp = montar().componentInstance;
+    comp.nombre.set('Carnes del Valle');
+    expect(comp.puedeGuardar()).toBe(true);
+  });
 
+  it('sin permiso de publicar, elegir una visibilidad compartida no hace nada', () => {
+    const fixture = montar(null, false);
     const comp = fixture.componentInstance;
     comp.elegirVisibilidad('DIRECTORIO');
     expect(comp.visibilidad()).toBe('PRIVADO');
@@ -275,84 +290,63 @@ describe('ProveedorFormComponent', () => {
     expect(comp.visibilidad()).toBe('DIRECTORIO');
   });
 
-  it('avisa de un correo mal escrito y no deja guardar', () => {
-    const fixture = TestBed.createComponent(ProveedorFormComponent);
-    fixture.componentRef.setInput('proveedor', null);
-    fixture.detectChanges();
+  it('la categoría se busca y se elige una sola', () => {
+    const comp = montar().componentInstance;
 
-    const comp = fixture.componentInstance;
-    comp.nombre.set('Carnes del Valle');
-    comp.email.set('no-es-correo');
-    expect(comp.errorEmail()).not.toBeNull();
-    expect(comp.puedeGuardar()).toBe(false);
+    comp.alEscribirCategoria('beb');
+    expect(comp.categoriasFiltradas().map((c) => c.codigo)).toEqual(['bebidas']);
 
-    comp.email.set('ventas@carnes.co');
-    expect(comp.errorEmail()).toBeNull();
-    expect(comp.puedeGuardar()).toBe(true);
+    comp.elegirCategoria(CATEGORIAS[1]);
+    expect(comp.categoria()).toBe('bebidas');
+    expect(comp.buscaCategoria()).toBe('Bebidas');
+    expect(comp.listaAbierta()).toBe(false);
+
+    // Con una elegida, la lista vuelve a enseñarlas todas: si filtrara por el nombre puesto,
+    // habría que borrarlo a mano para poder cambiar de categoría.
+    expect(comp.categoriasFiltradas()).toHaveLength(3);
+
+    comp.limpiarCategoria();
+    expect(comp.categoria()).toBeNull();
   });
 
-  it('las zonas de cobertura no se duplican ni por mayúsculas', () => {
-    const fixture = TestBed.createComponent(ProveedorFormComponent);
-    fixture.componentRef.setInput('proveedor', null);
-    fixture.detectChanges();
+  it('borrar el texto suelta la categoría elegida', () => {
+    const comp = montar().componentInstance;
+    comp.elegirCategoria(CATEGORIAS[0]);
+    expect(comp.categoria()).toBe('carnes');
 
-    const comp = fixture.componentInstance;
-    comp.zonaNueva.set('Norte');
-    comp.agregarZona();
-    comp.zonaNueva.set('  norte ');
-    comp.agregarZona();
-    comp.zonaNueva.set('Centro');
-    comp.agregarZona();
-
-    expect(comp.zonas()).toEqual(['Norte', 'Centro']);
-
-    comp.quitarZona('Norte');
-    expect(comp.zonas()).toEqual(['Centro']);
+    comp.alEscribirCategoria('');
+    expect(comp.categoria()).toBeNull();
   });
 
-  it('emite el payload con los días ordenados y las categorías elegidas', () => {
-    const fixture = TestBed.createComponent(ProveedorFormComponent);
-    fixture.componentRef.setInput('proveedor', null);
-    fixture.componentRef.setInput('categorias', [
-      { id_categoria_prov: 1, codigo: 'carnes', nombre: 'Carnes y proteínas', icono: null },
-      { id_categoria_prov: 2, codigo: 'bebidas', nombre: 'Bebidas', icono: null },
-    ]);
-    fixture.detectChanges();
-
+  it('el contacto se guarda como teléfono Y como WhatsApp', () => {
+    const fixture = montar();
     const comp = fixture.componentInstance;
     let emitido: Record<string, unknown> | null = null;
     comp.guardar.subscribe((p) => { emitido = p as Record<string, unknown>; });
 
     comp.nombre.set('  Carnes del Valle  ');
-    comp.alternarCategoria('carnes');
-    comp.alternarCategoria('bebidas');
-    comp.alternarCategoria('bebidas');     // se quita: era un clic de más
-    comp.alternarDia(5);
-    comp.alternarDia(1);
-    comp.instagram.set('@carnesvalle');
+    comp.contacto.set('+573001112233');
+    comp.elegirCategoria(CATEGORIAS[0]);
+    comp.direccion.set('Calle 10 #5-20');
     comp.enviar();
 
-    expect(emitido).not.toBeNull();
     const p = emitido as unknown as {
-      nombre_comercial: string; categorias: string[]; dias_entrega: number[];
-      redes: Record<string, string>; visibilidad: string; telefono: string | null;
+      nombre_comercial: string; telefono: string; whatsapp: string;
+      categorias: string[]; direccion: string; sitio_web: string | null; visibilidad: string;
     };
     expect(p.nombre_comercial).toBe('Carnes del Valle');
+    // Un solo número para los dos botones: llamar y escribir.
+    expect(p.telefono).toBe('+573001112233');
+    expect(p.whatsapp).toBe('+573001112233');
     expect(p.categorias).toEqual(['carnes']);
-    expect(p.dias_entrega).toEqual([1, 5]);
-    expect(p.redes).toEqual({ instagram: '@carnesvalle' });
+    expect(p.direccion).toBe('Calle 10 #5-20');
+    // Lo que se deja en blanco viaja como null, no como cadena vacía.
+    expect(p.sitio_web).toBeNull();
     expect(p.visibilidad).toBe('PRIVADO');
-    // Lo que se deja en blanco viaja como null, no como cadena vacía: el backend distingue
-    // «sin teléfono» de «teléfono vacío» al validar.
-    expect(p.telefono).toBeNull();
   });
 
   it('no emite nada si falta el nombre, y enciende el error', () => {
-    const fixture = TestBed.createComponent(ProveedorFormComponent);
-    fixture.componentRef.setInput('proveedor', null);
-    fixture.detectChanges();
-
-    const comp = fixture.componentInstance;
+    const comp = montar().componentInstance;
     let veces = 0;
     comp.guardar.subscribe(() => { veces += 1; });
 
@@ -362,33 +356,64 @@ describe('ProveedorFormComponent', () => {
   });
 
   it('al editar se rellena con la ficha que llega', () => {
-    const fixture = TestBed.createComponent(ProveedorFormComponent);
-    fixture.componentRef.setInput('categorias', [
-      { id_categoria_prov: 1, codigo: 'carnes', nombre: 'Carnes y proteínas', icono: null },
-    ]);
-    fixture.componentRef.setInput('proveedor', {
+    const comp = montar({
       id_proveedor: 7,
       nombre_comercial: 'Distribuidora Andina',
-      telefono: '3001112233',
-      ciudad: 'Bogotá',
-      tipo_atencion: 'ENTREGA',
+      whatsapp: '+573009998877',
+      direccion: 'Carrera 7 #30-15',
+      sitio_web: 'https://andina.co',
       visibilidad: 'DIRECTORIO',
-      dias_entrega: [2, 4],
-      zonas_cobertura: ['Chapinero'],
-      categorias: [{ id_categoria_prov: 1, codigo: 'carnes', nombre: 'Carnes y proteínas', icono: null }],
+      categorias: [CATEGORIAS[0]],
       redes: {},
       es_propio: true,
       nivel_acceso: 'propio',
-    } as unknown as Parameters<typeof fixture.componentRef.setInput>[1]);
-    fixture.detectChanges();
+    }).componentInstance;
 
-    const comp = fixture.componentInstance;
     expect(comp.esEdicion()).toBe(true);
     expect(comp.nombre()).toBe('Distribuidora Andina');
+    expect(comp.contacto()).toBe('+573009998877');
+    expect(comp.direccion()).toBe('Carrera 7 #30-15');
+    expect(comp.sitioWeb()).toBe('https://andina.co');
     expect(comp.visibilidad()).toBe('DIRECTORIO');
-    expect(comp.tieneCategoria('carnes')).toBe(true);
-    expect(comp.tieneDia(2)).toBe(true);
-    expect(comp.tieneDia(3)).toBe(false);
-    expect(comp.zonas()).toEqual(['Chapinero']);
+    expect(comp.categoria()).toBe('carnes');
+    expect(comp.buscaCategoria()).toBe('Carnes y proteínas');
+  });
+
+  /**
+   * El fallo que este test existe para impedir: el backend reescribe la ficha entera al
+   * editar, así que un campo que el formulario ya no muestra y no devuelve se borraría solo.
+   */
+  it('devuelve intactos los campos que ya no se piden', () => {
+    const comp = montar({
+      id_proveedor: 9,
+      nombre_comercial: 'Vieja Guardia',
+      nombre_legal: 'Vieja Guardia SAS',
+      identificacion: '900111222-3',
+      email: 'ventas@vieja.co',
+      ciudad: 'Medellín',
+      pedido_minimo: 80000,
+      dias_entrega: [1, 3],
+      observaciones: 'Entrega antes de las 9',
+      categorias: [],
+      redes: { instagram: '@vieja' },
+      tipo_atencion: 'ENTREGA',
+      es_propio: true,
+      nivel_acceso: 'propio',
+    }).componentInstance;
+
+    let emitido: Record<string, unknown> | null = null;
+    comp.guardar.subscribe((p) => { emitido = p as Record<string, unknown>; });
+    comp.enviar();
+
+    const p = emitido as unknown as Record<string, unknown>;
+    expect(p['nombre_legal']).toBe('Vieja Guardia SAS');
+    expect(p['identificacion']).toBe('900111222-3');
+    expect(p['email']).toBe('ventas@vieja.co');
+    expect(p['ciudad']).toBe('Medellín');
+    expect(p['pedido_minimo']).toBe(80000);
+    expect(p['dias_entrega']).toEqual([1, 3]);
+    expect(p['observaciones']).toBe('Entrega antes de las 9');
+    expect(p['redes']).toEqual({ instagram: '@vieja' });
+    expect(p['tipo_atencion']).toBe('ENTREGA');
   });
 });

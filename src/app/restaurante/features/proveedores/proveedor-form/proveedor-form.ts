@@ -1,5 +1,6 @@
 import {
-  ChangeDetectionStrategy, Component, HostListener, computed, effect, input, output, signal,
+  ChangeDetectionStrategy, Component, ElementRef, HostListener, computed, effect, inject, input,
+  output, signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
@@ -7,17 +8,7 @@ import { LucideAngularModule } from 'lucide-angular';
 import {
   CategoriaProveedor, Proveedor, ProveedorPayload, TipoAtencion, Visibilidad,
 } from '../../../../core/services/proveedores.service';
-
-/** Los días como los lee una persona. El backend los guarda 0..6 con el domingo en 0. */
-const DIAS = [
-  { valor: 1, corto: 'Lun' },
-  { valor: 2, corto: 'Mar' },
-  { valor: 3, corto: 'Mié' },
-  { valor: 4, corto: 'Jue' },
-  { valor: 5, corto: 'Vie' },
-  { valor: 6, corto: 'Sáb' },
-  { valor: 0, corto: 'Dom' },
-] as const;
+import { TelefonoPaisComponent } from '../../../shared/telefono-pais/telefono-pais';
 
 /**
  * Las cuatro visibilidades, explicadas en el idioma del dueño del restaurante.
@@ -36,13 +27,13 @@ const VISIBILIDADES: ReadonlyArray<{ valor: Visibilidad; titulo: string; texto: 
   {
     valor: 'DIRECTORIO_BASICO',
     titulo: 'Compartir lo básico',
-    texto: 'Otros negocios ven el nombre, las categorías, la ciudad, el contacto y qué vende. Sin precios ni condiciones.',
+    texto: 'Otros negocios ven el nombre, la categoría, el contacto y qué vende. Sin precios.',
     icono: 'eye',
   },
   {
     valor: 'DIRECTORIO_SIN_PRECIOS',
     titulo: 'Compartir sin precios',
-    texto: 'Además ven cobertura y condiciones comerciales. Tus precios siguen siendo tuyos.',
+    texto: 'Además ven la dirección y las condiciones. Tus precios siguen siendo tuyos.',
     icono: 'users',
   },
   {
@@ -56,22 +47,39 @@ const VISIBILIDADES: ReadonlyArray<{ valor: Visibilidad; titulo: string; texto: 
 /**
  * ProveedorFormComponent — alta y edición de la ficha de un proveedor.
  *
- * Es un formulario largo y por eso va por secciones plegables mentales (básico, contacto,
- * ubicación, condiciones, visibilidad): en el móvil se recorre de arriba abajo sin que nada
- * quede escondido detrás de una pestaña.
+ * ## Por qué pide tan poco
  *
- * Lo único obligatorio es el nombre. Un proveedor que solo tiene nombre y teléfono ya vale la
- * pena registrarlo, y exigir más haría que nadie lo registre.
+ * Esto es un manejo interno: «a X proveedor le compro X producto y este es su contacto». Un
+ * formulario con razón social, NIT, cobertura, pedido mínimo y días de entrega es un formulario
+ * que nadie llena — y un proveedor sin registrar no sirve de nada. Se piden cinco datos y la
+ * visibilidad; lo demás (insumos, precios, notas) se añade desde la ficha, cuando hace falta.
+ *
+ * Lo único obligatorio es el nombre.
+ *
+ * ## Lo que no se ve pero sigue ahí
+ *
+ * El backend reescribe la ficha entera al editar, así que los campos que este formulario ya no
+ * muestra —los que pudo cargar una versión anterior o el directorio— se guardan en
+ * `ocultos` y se devuelven tal cual. Sin eso, abrir y guardar un proveedor antiguo le borraría
+ * en silencio la mitad de la ficha.
+ *
+ * ## El contacto es uno solo
+ *
+ * Se guarda en `telefono` **y** en `whatsapp`. En un proveedor de barrio es el mismo número, y
+ * pedirlo dos veces para que funcionen los botones de «Llamar» y «WhatsApp» es trabajo que el
+ * formulario puede hacer por su cuenta.
  */
 @Component({
   selector: 'app-proveedor-form',
   standalone: true,
-  imports: [FormsModule, LucideAngularModule],
+  imports: [FormsModule, LucideAngularModule, TelefonoPaisComponent],
   templateUrl: './proveedor-form.html',
   styleUrl: './proveedor-form.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ProveedorFormComponent {
+  private readonly host = inject(ElementRef);
+
   /** `null` = alta. Con ficha = edición. */
   readonly proveedor = input<Proveedor | null>(null);
   readonly categorias = input<CategoriaProveedor[]>([]);
@@ -82,51 +90,41 @@ export class ProveedorFormComponent {
   readonly guardar = output<Omit<ProveedorPayload, 'id_negocio'>>();
   readonly cerrar = output<void>();
 
-  readonly dias = DIAS;
   readonly visibilidades = VISIBILIDADES;
 
-  // ── Campos ──
+  // ── Los seis campos ──
   readonly nombre = signal('');
-  readonly nombreLegal = signal('');
-  readonly identificacion = signal('');
-  readonly descripcion = signal('');
-  readonly cats = signal<Set<string>>(new Set());
-  readonly buscaCategoria = signal('');
-
   readonly contacto = signal('');
-  readonly telefono = signal('');
-  readonly whatsapp = signal('');
-  readonly email = signal('');
+  readonly categoria = signal<string | null>(null);
   readonly sitioWeb = signal('');
-  readonly instagram = signal('');
-  readonly facebook = signal('');
-
   readonly direccion = signal('');
-  readonly ciudad = signal('');
-  readonly region = signal('');
-  readonly pais = signal('Colombia');
-  readonly zonas = signal<string[]>([]);
-  readonly zonaNueva = signal('');
-  readonly tipoAtencion = signal<TipoAtencion>('AMBOS');
-
-  readonly pedidoMinimo = signal<number | null>(null);
-  readonly diasEntrega = signal<Set<number>>(new Set());
-  readonly tiempoEntrega = signal<number | null>(null);
-  readonly metodosPago = signal('');
-  readonly mayoristas = signal(false);
-  readonly observaciones = signal('');
-
   readonly visibilidad = signal<Visibilidad>('PRIVADO');
+
+  /** Buscador de la categoría; también es lo que se ve cuando hay una elegida. */
+  readonly buscaCategoria = signal('');
+  readonly listaAbierta = signal(false);
 
   /** Intento de guardar con el formulario incompleto: enciende los mensajes de validación. */
   readonly intentado = signal(false);
 
+  /**
+   * Lo que la ficha ya tenía y este formulario no muestra. Se devuelve intacto al guardar.
+   * Ver la nota de la cabecera: el backend reescribe la ficha entera.
+   */
+  private ocultos: Partial<ProveedorPayload> = {};
+
   readonly esEdicion = computed(() => this.proveedor() !== null);
+
+  readonly categoriaElegida = computed<CategoriaProveedor | null>(
+    () => this.categorias().find((c) => c.codigo === this.categoria()) ?? null,
+  );
 
   readonly categoriasFiltradas = computed(() => {
     const q = this.buscaCategoria().trim().toLowerCase();
     const todas = this.categorias();
-    if (!q) return todas;
+    // Con una ya elegida, el campo muestra su nombre: filtrar por ese texto dejaría la lista
+    // con un solo elemento y haría imposible cambiarla sin borrar antes.
+    if (!q || q === this.categoriaElegida()?.nombre.toLowerCase()) return todas;
     return todas.filter((c) => c.nombre.toLowerCase().includes(q));
   });
 
@@ -136,15 +134,7 @@ export class ProveedorFormComponent {
       : null,
   );
 
-  readonly errorEmail = computed(() => {
-    const v = this.email().trim();
-    if (!v) return null;
-    return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v) ? null : 'Ese correo no parece válido.';
-  });
-
-  readonly puedeGuardar = computed(
-    () => this.nombre().trim().length >= 2 && !this.errorEmail() && !this.guardando(),
-  );
+  readonly puedeGuardar = computed(() => this.nombre().trim().length >= 2 && !this.guardando());
 
   /**
    * Rellena el formulario cuando llega una ficha a editar.
@@ -160,107 +150,75 @@ export class ProveedorFormComponent {
       return;
     }
     this.nombre.set(p.nombre_comercial ?? '');
-    this.nombreLegal.set(p.nombre_legal ?? '');
-    this.identificacion.set(p.identificacion ?? '');
-    this.descripcion.set(p.descripcion ?? '');
-    this.cats.set(new Set((p.categorias ?? []).map((c) => c.codigo)));
-
-    this.contacto.set(p.persona_contacto ?? '');
-    this.telefono.set(p.telefono ?? '');
-    this.whatsapp.set(p.whatsapp ?? '');
-    this.email.set(p.email ?? '');
+    this.contacto.set(p.whatsapp || p.telefono || '');
     this.sitioWeb.set(p.sitio_web ?? '');
-    this.instagram.set(p.redes?.['instagram'] ?? '');
-    this.facebook.set(p.redes?.['facebook'] ?? '');
-
     this.direccion.set(p.direccion ?? '');
-    this.ciudad.set(p.ciudad ?? '');
-    this.region.set(p.region ?? '');
-    this.pais.set(p.pais ?? 'Colombia');
-    this.zonas.set([...(p.zonas_cobertura ?? [])]);
-    this.tipoAtencion.set(p.tipo_atencion ?? 'AMBOS');
-
-    this.pedidoMinimo.set(p.pedido_minimo ? Number(p.pedido_minimo) : null);
-    this.diasEntrega.set(new Set(p.dias_entrega ?? []));
-    this.tiempoEntrega.set(p.tiempo_entrega_hrs ?? null);
-    this.metodosPago.set(p.metodos_pago ?? '');
-    this.mayoristas.set(Boolean(p.precios_mayoristas));
-    this.observaciones.set(p.observaciones ?? '');
     this.visibilidad.set(p.visibilidad ?? 'PRIVADO');
+
+    const primera = (p.categorias ?? [])[0] ?? null;
+    this.categoria.set(primera?.codigo ?? null);
+    this.buscaCategoria.set(primera?.nombre ?? '');
+
+    this.ocultos = {
+      nombre_legal: p.nombre_legal ?? null,
+      identificacion: p.identificacion ?? null,
+      descripcion: p.descripcion ?? null,
+      persona_contacto: p.persona_contacto ?? null,
+      email: p.email ?? null,
+      redes: p.redes ?? {},
+      ciudad: p.ciudad ?? null,
+      region: p.region ?? null,
+      pais: p.pais ?? 'Colombia',
+      zonas_cobertura: p.zonas_cobertura ?? [],
+      tipo_atencion: (p.tipo_atencion ?? 'AMBOS') as TipoAtencion,
+      pedido_minimo: p.pedido_minimo ?? 0,
+      dias_entrega: p.dias_entrega ?? [],
+      tiempo_entrega_hrs: p.tiempo_entrega_hrs ?? null,
+      metodos_pago: p.metodos_pago ?? null,
+      precios_mayoristas: p.precios_mayoristas ?? false,
+      observaciones: p.observaciones ?? null,
+    };
+
     this.intentado.set(false);
+    this.listaAbierta.set(false);
   });
 
   private limpiar(): void {
     this.nombre.set('');
-    this.nombreLegal.set('');
-    this.identificacion.set('');
-    this.descripcion.set('');
-    this.cats.set(new Set());
-    this.buscaCategoria.set('');
     this.contacto.set('');
-    this.telefono.set('');
-    this.whatsapp.set('');
-    this.email.set('');
+    this.categoria.set(null);
+    this.buscaCategoria.set('');
     this.sitioWeb.set('');
-    this.instagram.set('');
-    this.facebook.set('');
     this.direccion.set('');
-    this.ciudad.set('');
-    this.region.set('');
-    this.pais.set('Colombia');
-    this.zonas.set([]);
-    this.zonaNueva.set('');
-    this.tipoAtencion.set('AMBOS');
-    this.pedidoMinimo.set(null);
-    this.diasEntrega.set(new Set());
-    this.tiempoEntrega.set(null);
-    this.metodosPago.set('');
-    this.mayoristas.set(false);
-    this.observaciones.set('');
     this.visibilidad.set('PRIVADO');
     this.intentado.set(false);
+    this.listaAbierta.set(false);
+    this.ocultos = {};
   }
 
-  // ── Interacción ──
+  // ── Categoría ──
 
-  tieneCategoria(codigo: string): boolean {
-    return this.cats().has(codigo);
+  abrirLista(): void {
+    this.listaAbierta.set(true);
   }
 
-  alternarCategoria(codigo: string): void {
-    this.cats.update((actual) => {
-      const copia = new Set(actual);
-      if (copia.has(codigo)) copia.delete(codigo);
-      else copia.add(codigo);
-      return copia;
-    });
+  alEscribirCategoria(texto: string): void {
+    this.buscaCategoria.set(texto);
+    this.listaAbierta.set(true);
+    // Borrar el texto suelta la categoría: si no, quedaría elegida una que ya no se lee.
+    if (!texto.trim()) this.categoria.set(null);
   }
 
-  tieneDia(valor: number): boolean {
-    return this.diasEntrega().has(valor);
+  elegirCategoria(c: CategoriaProveedor): void {
+    this.categoria.set(c.codigo);
+    this.buscaCategoria.set(c.nombre);
+    this.listaAbierta.set(false);
   }
 
-  alternarDia(valor: number): void {
-    this.diasEntrega.update((actual) => {
-      const copia = new Set(actual);
-      if (copia.has(valor)) copia.delete(valor);
-      else copia.add(valor);
-      return copia;
-    });
-  }
-
-  agregarZona(): void {
-    const z = this.zonaNueva().trim();
-    if (!z) return;
-    // Sin duplicados: «Norte» y «norte» son la misma zona para quien la lee.
-    if (!this.zonas().some((x) => x.toLowerCase() === z.toLowerCase())) {
-      this.zonas.update((lista) => [...lista, z]);
-    }
-    this.zonaNueva.set('');
-  }
-
-  quitarZona(zona: string): void {
-    this.zonas.update((lista) => lista.filter((z) => z !== zona));
+  limpiarCategoria(): void {
+    this.categoria.set(null);
+    this.buscaCategoria.set('');
+    this.listaAbierta.set(true);
   }
 
   elegirVisibilidad(valor: Visibilidad): void {
@@ -268,49 +226,39 @@ export class ProveedorFormComponent {
     this.visibilidad.set(valor);
   }
 
-  onEnterZona(event: Event): void {
-    event.preventDefault();
-    this.agregarZona();
-  }
-
   enviar(): void {
     this.intentado.set(true);
     if (!this.puedeGuardar()) return;
 
-    const redes: Record<string, string> = {};
-    if (this.instagram().trim()) redes['instagram'] = this.instagram().trim();
-    if (this.facebook().trim()) redes['facebook'] = this.facebook().trim();
+    const contacto = this.contacto().trim() || null;
 
     this.guardar.emit({
+      ...this.ocultos,
       nombre_comercial: this.nombre().trim(),
-      nombre_legal: this.nombreLegal().trim() || null,
-      identificacion: this.identificacion().trim() || null,
-      descripcion: this.descripcion().trim() || null,
-      persona_contacto: this.contacto().trim() || null,
-      telefono: this.telefono().trim() || null,
-      whatsapp: this.whatsapp().trim() || null,
-      email: this.email().trim() || null,
+      // Un solo número para las dos acciones. Ver la nota de la cabecera.
+      telefono: contacto,
+      whatsapp: contacto,
       sitio_web: this.sitioWeb().trim() || null,
-      redes,
       direccion: this.direccion().trim() || null,
-      ciudad: this.ciudad().trim() || null,
-      region: this.region().trim() || null,
-      pais: this.pais().trim() || 'Colombia',
-      zonas_cobertura: this.zonas(),
-      tipo_atencion: this.tipoAtencion(),
-      pedido_minimo: this.pedidoMinimo() ?? 0,
-      dias_entrega: [...this.diasEntrega()].sort((a, b) => a - b),
-      tiempo_entrega_hrs: this.tiempoEntrega(),
-      metodos_pago: this.metodosPago().trim() || null,
-      precios_mayoristas: this.mayoristas(),
-      observaciones: this.observaciones().trim() || null,
       visibilidad: this.visibilidad(),
-      categorias: [...this.cats()],
+      categorias: this.categoria() ? [this.categoria()!] : [],
     });
+  }
+
+  /** La lista de categorías se cierra al pulsar fuera, como cualquier desplegable. */
+  @HostListener('document:click', ['$event'])
+  cerrarListaSiFuera(evento: MouseEvent): void {
+    if (!this.listaAbierta()) return;
+    const campo = this.host.nativeElement.querySelector('.combo');
+    if (campo && !campo.contains(evento.target as Node)) this.listaAbierta.set(false);
   }
 
   @HostListener('document:keydown.escape')
   onEscape(): void {
+    if (this.listaAbierta()) {
+      this.listaAbierta.set(false);
+      return;
+    }
     if (!this.guardando()) this.cerrar.emit();
   }
 }

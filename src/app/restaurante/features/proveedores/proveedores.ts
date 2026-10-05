@@ -383,7 +383,12 @@ export class ProveedoresComponent implements OnInit {
     return (p.categorias ?? []).slice(0, 3).map((c) => c.nombre).join(', ');
   }
 
+  /**
+   * Dónde está, con lo que haya. El formulario solo pide la dirección, así que ciudad y zonas
+   * vienen casi siempre vacías: la dirección es el primer candidato, no el último.
+   */
   ubicacion(p: Proveedor): string {
+    if (p.direccion) return p.direccion;
     const partes = [p.ciudad, p.region].filter(Boolean);
     if (partes.length) return partes.join(', ');
     return p.zonas_cobertura?.length ? p.zonas_cobertura.slice(0, 2).join(', ') : '';

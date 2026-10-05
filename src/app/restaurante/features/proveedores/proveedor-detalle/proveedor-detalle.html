@@ -120,21 +120,22 @@
         <p class="descripcion">{{ proveedor().descripcion }}</p>
       }
 
+      @if (tieneUbicacion()) {
       <section class="bloque">
         <h4 class="bloque__titulo">
           <lucide-icon name="map-pin" [size]="14" aria-hidden="true" />
-          Ubicación y cobertura
+          Dónde está
         </h4>
         <dl class="datos">
           @if (proveedor().direccion) {
-            <div class="dato"><dt>Dirección</dt><dd>{{ proveedor().direccion }}</dd></div>
+            <div class="dato dato--ancho"><dt>Dirección</dt><dd>{{ proveedor().direccion }}</dd></div>
           }
-          <div class="dato">
-            <dt>Ciudad</dt>
-            <dd>{{ proveedor().ciudad || '—' }}{{ proveedor().region ? ', ' + proveedor().region : '' }}</dd>
-          </div>
-          <div class="dato"><dt>País</dt><dd>{{ proveedor().pais || '—' }}</dd></div>
-          <div class="dato"><dt>Atención</dt><dd>{{ atencionTexto() }}</dd></div>
+          @if (proveedor().ciudad) {
+            <div class="dato">
+              <dt>Ciudad</dt>
+              <dd>{{ proveedor().ciudad }}{{ proveedor().region ? ', ' + proveedor().region : '' }}</dd>
+            </div>
+          }
           @if (proveedor().zonas_cobertura?.length) {
             <div class="dato dato--ancho">
               <dt>Zonas de entrega</dt>
@@ -146,13 +147,15 @@
             </div>
           }
         </dl>
-        @if (proveedor().nivel_acceso === 'basico') {
-          <p class="aviso">
-            <lucide-icon name="info" [size]="14" aria-hidden="true" />
-            Este negocio comparte solo la información básica de su proveedor.
-          </p>
-        }
       </section>
+      }
+
+      @if (proveedor().nivel_acceso === 'basico') {
+        <p class="aviso">
+          <lucide-icon name="info" [size]="14" aria-hidden="true" />
+          Este negocio comparte solo la información básica de su proveedor.
+        </p>
+      }
 
       @if (tieneCondiciones()) {
         <section class="bloque">
