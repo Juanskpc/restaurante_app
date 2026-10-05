@@ -1,0 +1,660 @@
+<!-- ============================================================
+     Proveedores — compras: historial, gasto y registro
+     ============================================================ -->
+@if (!puedeVer()) {
+  <div class="panel">
+    <div class="estado-vacio">
+      <span class="estado-vacio__icono">
+        <lucide-icon name="lock" [size]="24" aria-hidden="true" />
+      </span>
+      <p class="estado-vacio__titulo">Necesitas permiso para ver las compras.</p>
+      <p class="estado-vacio__texto">
+        El historial de compras y el gasto son información financiera del negocio. Pídele a un
+        administrador el permiso «Ver precios y gasto privados».
+      </p>
+    </div>
+  </div>
+} @else {
+
+  <!-- ── Resumen del gasto ── -->
+  @if (resumen(); as r) {
+    <div class="resumen">
+      <div class="kpi">
+        <span class="kpi__etiqueta">Gasto en el periodo</span>
+        <strong class="kpi__valor">{{ r.total | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+      </div>
+      <div class="kpi">
+        <span class="kpi__etiqueta">Compras</span>
+        <strong class="kpi__valor">{{ r.compras }}</strong>
+      </div>
+      <div class="kpi">
+        <span class="kpi__etiqueta">Promedio por compra</span>
+        <strong class="kpi__valor">{{ r.promedio | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+      </div>
+
+      @if (r.por_proveedor.length) {
+        <div class="kpi kpi--lista">
+          <span class="kpi__etiqueta">En quién más gastas</span>
+          <ul class="top">
+            @for (p of r.por_proveedor.slice(0, 3); track p.id_proveedor) {
+              <li class="top__fila">
+                <span class="top__nombre">{{ p.proveedor }}</span>
+                <span class="top__barra" aria-hidden="true">
+                  <span class="top__relleno"
+                        [style.width.%]="r.por_proveedor[0].total ? (p.total / r.por_proveedor[0].total) * 100 : 0">
+                  </span>
+                </span>
+                <span class="top__cifra">{{ p.total | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+              </li>
+            }
+          </ul>
+        </div>
+      }
+
+      @if (r.por_mes.length > 1) {
+        <div class="kpi kpi--lista">
+          <span class="kpi__etiqueta">Por mes</span>
+          <ul class="meses">
+            @for (m of r.por_mes.slice(-6); track m.periodo) {
+              <li class="mes">
+                <span class="mes__barra" aria-hidden="true">
+                  <span class="mes__relleno" [style.height.%]="r.total ? (m.total / r.total) * 100 : 0"></span>
+                </span>
+                <span class="mes__texto">{{ m.periodo }}</span>
+                <span class="sr-only">{{ m.total | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+              </li>
+            }
+          </ul>
+        </div>
+      }
+    </div>
+  }
+
+  <div class="panel">
+    <!-- ── Filtros ── -->
+    <div class="barra">
+      <div class="buscar">
+        <lucide-icon name="search" [size]="18" class="buscar__icono" aria-hidden="true" />
+        <input type="search" class="buscar__campo"
+               placeholder="Buscar por referencia, proveedor o producto…"
+               aria-label="Buscar compras"
+               [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)"
+               (keydown.enter)="aplicarFiltros()" />
+        @if (busqueda()) {
+          <button type="button" class="buscar__limpiar" (click)="busqueda.set(''); aplicarFiltros()"
+                  aria-label="Limpiar búsqueda">
+            <lucide-icon name="x" [size]="16" aria-hidden="true" />
+          </button>
+        }
+      </div>
+
+      <div class="barra__acciones">
+        @if (puedeRegistrar()) {
+          <button type="button" class="btn-primario btn-nuevo" (click)="abrirForm()">
+            <lucide-icon name="plus" [size]="16" aria-hidden="true" />
+            Registrar compra
+          </button>
+        }
+      </div>
+    </div>
+
+    <div class="filtros-fila">
+      <label class="filtro-campo">
+        <span>Proveedor</span>
+        <select class="select" [ngModel]="filtroProveedor()"
+                (ngModelChange)="filtroProveedor.set($event); aplicarFiltros()">
+          <option [ngValue]="null" [selected]="filtroProveedor() === null">Todos</option>
+          @for (p of proveedores(); track p.id_proveedor) {
+            <option [ngValue]="p.id_proveedor" [selected]="filtroProveedor() === p.id_proveedor">
+              {{ p.nombre_comercial }}
+            </option>
+          }
+        </select>
+      </label>
+
+      <label class="filtro-campo">
+        <span>Insumo</span>
+        <select class="select" [ngModel]="filtroIngrediente()"
+                (ngModelChange)="filtroIngrediente.set($event); aplicarFiltros()">
+          <option [ngValue]="null" [selected]="filtroIngrediente() === null">Todos</option>
+          @for (g of ingredientes(); track g.id_ingrediente) {
+            <option [ngValue]="g.id_ingrediente" [selected]="filtroIngrediente() === g.id_ingrediente">
+              {{ g.nombre }}
+            </option>
+          }
+        </select>
+      </label>
+
+      <label class="filtro-campo">
+        <span>Desde</span>
+        <input type="date" class="select" [ngModel]="desde()"
+               (ngModelChange)="desde.set($event); aplicarFiltros()" />
+      </label>
+
+      <label class="filtro-campo">
+        <span>Hasta</span>
+        <input type="date" class="select" [ngModel]="hasta()"
+               (ngModelChange)="hasta.set($event); aplicarFiltros()" />
+      </label>
+
+      <label class="casilla casilla--filtro">
+        <input type="checkbox" [ngModel]="verAnuladas()"
+               (ngModelChange)="verAnuladas.set($event); aplicarFiltros()" />
+        Ver anuladas
+      </label>
+
+      @if (hayFiltros()) {
+        <button type="button" class="btn-texto" (click)="limpiarFiltros()">
+          <lucide-icon name="x" [size]="15" aria-hidden="true" />
+          Limpiar
+        </button>
+      }
+    </div>
+
+    <!-- ── Listado ── -->
+    @if (cargando()) {
+      <div class="esq-tabla" aria-busy="true" aria-label="Cargando compras">
+        <span class="esq-tabla__cab"></span>
+        @for (i of [1, 2, 3, 4, 5]; track i) {
+          <div class="esq-tabla__fila">
+            <span class="esq esq--texto"></span>
+            <span class="esq esq--chip"></span>
+            <span class="esq esq--num"></span>
+          </div>
+        }
+      </div>
+    } @else if (errorCarga()) {
+      <div class="estado-vacio estado-vacio--error" role="alert">
+        <span class="estado-vacio__icono">
+          <lucide-icon name="circle-alert" [size]="24" aria-hidden="true" />
+        </span>
+        <p class="estado-vacio__titulo">No se pudieron cargar las compras.</p>
+        <p class="estado-vacio__texto">Revisa tu conexión e inténtalo de nuevo.</p>
+        <button type="button" class="btn-secundario" (click)="cargar()">
+          <lucide-icon name="rotate-cw" [size]="16" aria-hidden="true" />
+          Intentar nuevamente
+        </button>
+      </div>
+    } @else if (!compras().length) {
+      <div class="estado-vacio">
+        <span class="estado-vacio__icono">
+          <lucide-icon name="receipt" [size]="24" aria-hidden="true" />
+        </span>
+        <p class="estado-vacio__titulo">
+          {{ hayFiltros() ? 'No hay compras con esos criterios.' : 'Todavía no has registrado compras.' }}
+        </p>
+        <p class="estado-vacio__texto">
+          @if (hayFiltros()) {
+            Prueba con otro rango de fechas o con otro proveedor.
+          } @else {
+            Al registrar una compra, los renglones ligados a un insumo del inventario suman
+            stock y el precio de la factura actualiza el del proveedor.
+          }
+        </p>
+        @if (hayFiltros()) {
+          <button type="button" class="btn-secundario" (click)="limpiarFiltros()">Limpiar filtros</button>
+        } @else if (puedeRegistrar()) {
+          <button type="button" class="btn-secundario" (click)="abrirForm()">
+            <lucide-icon name="plus" [size]="16" aria-hidden="true" />
+            Registrar la primera compra
+          </button>
+        }
+      </div>
+    } @else {
+      <!-- Tabla (escritorio) -->
+      <div class="tabla">
+        <table>
+          <caption class="sr-only">Compras registradas</caption>
+          <thead>
+            <tr>
+              <th scope="col">Fecha</th>
+              <th scope="col">Proveedor</th>
+              <th scope="col">Referencia</th>
+              <th scope="col" class="num">Productos</th>
+              <th scope="col">Forma de pago</th>
+              <th scope="col">Estado</th>
+              <th scope="col" class="num">Total</th>
+              <th scope="col" class="col-acciones"><span class="sr-only">Acciones</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (c of compras(); track c.id_compra) {
+              <tr [class.fila--anulada]="c.estado === 'N'">
+                <td>{{ c.fecha | date:'dd MMM yyyy' }}</td>
+                <td><strong>{{ c.proveedor }}</strong></td>
+                <td>
+                  @if (c.referencia) { {{ c.referencia }} }
+                  @else { <span class="sin-dato">Sin referencia</span> }
+                </td>
+                <td class="num">{{ c.renglones }}</td>
+                <td>
+                  @if (c.metodo_pago) { {{ c.metodo_pago }} }
+                  @else { <span class="sin-dato">—</span> }
+                </td>
+                <td>
+                  @if (c.estado === 'N') {
+                    <span class="chip chip--error">
+                      <lucide-icon name="ban" [size]="11" aria-hidden="true" />
+                      Anulada
+                    </span>
+                  } @else if (c.afecta_inventario) {
+                    <span class="chip chip--ok">
+                      <lucide-icon name="package-check" [size]="11" aria-hidden="true" />
+                      En inventario
+                    </span>
+                  } @else {
+                    <span class="chip">
+                      <lucide-icon name="check" [size]="11" aria-hidden="true" />
+                      Registrada
+                    </span>
+                  }
+                </td>
+                <td class="num"><strong>{{ c.total | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></td>
+                <td class="col-acciones">
+                  <button type="button" class="btn-icono" (click)="abrirDetalle(c)"
+                          [attr.aria-label]="'Ver detalle de la compra ' + (c.referencia || c.id_compra)">
+                    <lucide-icon name="chevron-right" [size]="18" aria-hidden="true" />
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Tarjetas (móvil) -->
+      <ul class="tarjetas">
+        @for (c of compras(); track c.id_compra) {
+          <li class="tarjeta" [class.tarjeta--anulada]="c.estado === 'N'">
+            <button type="button" class="tarjeta__btn" (click)="abrirDetalle(c)">
+              <span class="tarjeta__linea1">
+                <strong>{{ c.proveedor }}</strong>
+                <strong class="cifra">{{ c.total | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+              </span>
+              <span class="tarjeta__linea2">
+                <span>{{ c.fecha | date:'dd MMM yyyy' }} · {{ c.renglones }} prod.</span>
+                @if (c.estado === 'N') {
+                  <span class="chip chip--error">Anulada</span>
+                } @else if (c.afecta_inventario) {
+                  <span class="chip chip--ok">En inventario</span>
+                }
+              </span>
+              @if (c.referencia) {
+                <span class="tarjeta__ref">{{ c.referencia }}</span>
+              }
+            </button>
+          </li>
+        }
+      </ul>
+
+      <div class="pie">
+        <span>{{ compras().length }} de {{ total() }} compras</span>
+      </div>
+    }
+  </div>
+}
+
+<!-- ══════════════ DETALLE DE UNA COMPRA ══════════════ -->
+@if (abierta(); as c) {
+  <div class="overlay" (click)="cerrarDetalle()" aria-hidden="true"></div>
+  <section class="modal modal--ancho" role="dialog" aria-modal="true" aria-labelledby="comp-titulo">
+    <header class="det-cab">
+      <div>
+        <h3 id="comp-titulo">{{ c.proveedor }}</h3>
+        <p class="subtitulo">
+          {{ c.fecha | date:'dd MMM yyyy' }}
+          @if (c.referencia) { · {{ c.referencia }} }
+          @if (c.usuario) { · registró {{ c.usuario }} }
+        </p>
+      </div>
+      <button type="button" class="btn-icono" (click)="cerrarDetalle()" aria-label="Cerrar">
+        <lucide-icon name="x" [size]="18" aria-hidden="true" />
+      </button>
+    </header>
+
+    @if (c.estado === 'N') {
+      <p class="aviso aviso--error">
+        <lucide-icon name="ban" [size]="14" aria-hidden="true" />
+        <span>
+          Compra anulada{{ c.motivo_anulacion ? ': ' + c.motivo_anulacion : '' }}.
+          El stock que había sumado se devolvió.
+        </span>
+      </p>
+    }
+
+    @if (cargandoDetalle()) {
+      <div class="esq-lista" aria-busy="true">
+        @for (i of [1, 2, 3]; track i) { <span class="esq esq--fila"></span> }
+      </div>
+    } @else {
+      <div class="tabla tabla--detalle">
+        <table>
+          <caption class="sr-only">Renglones de la compra</caption>
+          <thead>
+            <tr>
+              <th scope="col">Producto</th>
+              <th scope="col" class="num">Cant.</th>
+              <th scope="col" class="num">Precio</th>
+              <th scope="col" class="num">Total</th>
+              <th scope="col">Inventario</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (d of c.detalles ?? []; track d.id_detalle) {
+              <tr>
+                <td>
+                  <strong>{{ d.descripcion }}</strong>
+                  @if (d.ingrediente) {
+                    <small class="tenue">{{ d.ingrediente }}</small>
+                  }
+                </td>
+                <td class="num">{{ d.cantidad | number:'1.0-3' }} {{ d.unidad }}</td>
+                <td class="num">{{ d.precio_unitario | currency:'COP':'symbol-narrow':'1.0-0' }}</td>
+                <td class="num">{{ d.total | currency:'COP':'symbol-narrow':'1.0-0' }}</td>
+                <td>
+                  @if (d.stock_sumado > 0) {
+                    <span class="chip chip--ok">
+                      <lucide-icon name="package-check" [size]="11" aria-hidden="true" />
+                      +{{ d.stock_sumado | number:'1.0-2' }} {{ d.unidad_inventario }}
+                    </span>
+                  } @else {
+                    <span class="sin-dato">No suma</span>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <dl class="totales">
+        <div><dt>Subtotal</dt><dd>{{ c.subtotal | currency:'COP':'symbol-narrow':'1.0-0' }}</dd></div>
+        @if (c.descuento) {
+          <div><dt>Descuento</dt><dd>−{{ c.descuento | currency:'COP':'symbol-narrow':'1.0-0' }}</dd></div>
+        }
+        @if (c.impuesto) {
+          <div><dt>Impuestos</dt><dd>{{ c.impuesto | currency:'COP':'symbol-narrow':'1.0-0' }}</dd></div>
+        }
+        <div class="totales__total">
+          <dt>Total</dt><dd>{{ c.total | currency:'COP':'symbol-narrow':'1.0-0' }}</dd>
+        </div>
+      </dl>
+
+      @if (c.observaciones) {
+        <p class="aviso">
+          <lucide-icon name="message-square" [size]="14" aria-hidden="true" />
+          <span>{{ c.observaciones }}</span>
+        </p>
+      }
+
+      <div class="adjunto">
+        @if (c.adjunto_url) {
+          <button type="button" class="btn-secundario" (click)="verAdjunto(c)">
+            <lucide-icon name="file-text" [size]="15" aria-hidden="true" />
+            Ver factura adjunta
+          </button>
+        }
+        @if (puedeRegistrar() && c.estado === 'A') {
+          <label class="btn-secundario btn-archivo">
+            <lucide-icon name="paperclip" [size]="15" aria-hidden="true" />
+            {{ c.adjunto_url ? 'Reemplazar factura' : 'Adjuntar factura' }}
+            <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf"
+                   (change)="subirAdjunto($event, c)" />
+          </label>
+        }
+      </div>
+    }
+
+    <div class="modal__acciones">
+      <button type="button" class="btn-secundario" (click)="cerrarDetalle()">Cerrar</button>
+      @if (puedeRegistrar() && c.estado === 'A') {
+        <button type="button" class="btn-peligro" (click)="anular(c)">
+          <lucide-icon name="ban" [size]="15" aria-hidden="true" />
+          Anular compra
+        </button>
+      }
+    </div>
+  </section>
+}
+
+<!-- ══════════════ FORMULARIO DE COMPRA ══════════════ -->
+@if (form()) {
+  <div class="overlay overlay--encima" (click)="cerrarForm()" aria-hidden="true"></div>
+  <form class="modal modal--encima modal--ancho" role="dialog" aria-modal="true"
+        aria-labelledby="nueva-titulo" (ngSubmit)="guardar()">
+    <header class="det-cab">
+      <h3 id="nueva-titulo">Registrar compra</h3>
+      <button type="button" class="btn-icono" (click)="cerrarForm()" [disabled]="guardando()"
+              aria-label="Cerrar">
+        <lucide-icon name="x" [size]="18" aria-hidden="true" />
+      </button>
+    </header>
+
+    <div class="rejilla">
+      <label>
+        Proveedor <span class="requerido">*</span>
+        <select [ngModel]="fProveedor()" (ngModelChange)="alCambiarProveedor($event)"
+                name="fProveedor">
+          <option [ngValue]="null" [selected]="fProveedor() === null">Elige un proveedor…</option>
+          @for (p of proveedores(); track p.id_proveedor) {
+            <option [ngValue]="p.id_proveedor" [selected]="fProveedor() === p.id_proveedor">
+              {{ p.nombre_comercial }}
+            </option>
+          }
+        </select>
+      </label>
+      <label>
+        Fecha de la factura
+        <input type="date" [ngModel]="fFecha()" (ngModelChange)="fFecha.set($event)" name="fFecha" />
+      </label>
+      <label>
+        Número de factura o referencia
+        <input type="text" maxlength="60" [ngModel]="fReferencia()"
+               (ngModelChange)="fReferencia.set($event)" name="fReferencia" />
+      </label>
+      <label>
+        Forma de pago
+        <select [ngModel]="fMetodoPago()" (ngModelChange)="fMetodoPago.set($event)"
+                name="fMetodoPago">
+          <option [ngValue]="null" [selected]="fMetodoPago() === null">Sin especificar</option>
+          @for (m of metodosPago(); track m.id_metodo_pago) {
+            <option [ngValue]="m.id_metodo_pago" [selected]="fMetodoPago() === m.id_metodo_pago">
+              {{ m.nombre }}
+            </option>
+          }
+        </select>
+      </label>
+    </div>
+
+    @if (!proveedores().length) {
+      <p class="aviso aviso--warn">
+        <lucide-icon name="triangle-alert" [size]="14" aria-hidden="true" />
+        <span>
+          No tienes proveedores en tu lista. Crea uno o agrégalo del directorio antes de
+          registrarle una compra.
+        </span>
+      </p>
+    }
+
+    <!-- ── Renglones ── -->
+    <section class="seccion-form">
+      <h4>Productos comprados</h4>
+
+      <ul class="renglones">
+        @for (r of renglones(); track r.clave) {
+          <li class="renglon">
+            <div class="renglon__cab">
+              <span class="renglon__n">{{ $index + 1 }}</span>
+              @if (insumosProveedor().length) {
+                <select class="select select--mini"
+                        [attr.aria-label]="'Insumo del renglón ' + ($index + 1)"
+                        [ngModel]="r.idInsumo"
+                        (ngModelChange)="elegirInsumo(r.clave, $event)"
+                        [name]="'insumo' + r.clave">
+                  <option [ngValue]="null" [selected]="r.idInsumo === null">Escribir a mano…</option>
+                  @for (i of insumosProveedor(); track i.id_proveedor_insumo) {
+                    <option [ngValue]="i.id_proveedor_insumo"
+                            [selected]="r.idInsumo === i.id_proveedor_insumo">
+                      {{ i.nombre }}
+                    </option>
+                  }
+                </select>
+              }
+              <button type="button" class="btn-icono" (click)="quitarRenglon(r.clave)"
+                      [disabled]="renglones().length <= 1"
+                      [attr.aria-label]="'Quitar renglón ' + ($index + 1)">
+                <lucide-icon name="trash-2" [size]="15" aria-hidden="true" />
+              </button>
+            </div>
+
+            <div class="renglon__campos">
+              <label class="renglon__desc">
+                Producto <span class="requerido">*</span>
+                <input type="text" maxlength="160" placeholder="Qué compraste"
+                       [ngModel]="r.descripcion"
+                       (ngModelChange)="actualizarRenglon(r.clave, 'descripcion', $event)"
+                       [name]="'desc' + r.clave" />
+              </label>
+              <label>
+                Cantidad <span class="requerido">*</span>
+                <input type="number" min="0" step="0.001" inputmode="decimal"
+                       [ngModel]="r.cantidad"
+                       (ngModelChange)="actualizarRenglon(r.clave, 'cantidad', $event)"
+                       [name]="'cant' + r.clave" />
+              </label>
+              <label>
+                Unidad
+                <select [ngModel]="r.unidad"
+                        (ngModelChange)="actualizarRenglon(r.clave, 'unidad', $event)"
+                        [name]="'uni' + r.clave">
+                  @for (u of unidades; track u) {
+                    <option [value]="u" [selected]="r.unidad === u">{{ u }}</option>
+                  }
+                </select>
+              </label>
+              <label>
+                Precio unitario
+                <input type="number" min="0" step="1" inputmode="decimal"
+                       [ngModel]="r.precioUnitario"
+                       (ngModelChange)="actualizarRenglon(r.clave, 'precioUnitario', $event)"
+                       [name]="'pu' + r.clave" />
+              </label>
+              <label>
+                Descuento
+                <input type="number" min="0" step="1" inputmode="decimal"
+                       [ngModel]="r.descuento"
+                       (ngModelChange)="actualizarRenglon(r.clave, 'descuento', $event)"
+                       [name]="'desc2' + r.clave" />
+              </label>
+              <label>
+                Entra al inventario como
+                <select [ngModel]="r.idIngrediente"
+                        (ngModelChange)="actualizarRenglon(r.clave, 'idIngrediente', $event)"
+                        [name]="'ing' + r.clave">
+                  <option [ngValue]="null" [selected]="r.idIngrediente === null">No suma stock</option>
+                  @for (g of ingredientes(); track g.id_ingrediente) {
+                    <option [ngValue]="g.id_ingrediente" [selected]="r.idIngrediente === g.id_ingrediente">
+                      {{ g.nombre }} ({{ g.unidad_medida }})
+                    </option>
+                  }
+                </select>
+              </label>
+            </div>
+
+            <div class="renglon__pie">
+              @if (destinoInventario(r); as nombre) {
+                <span class="chip chip--ok">
+                  <lucide-icon name="package-check" [size]="11" aria-hidden="true" />
+                  Suma a {{ nombre }}
+                </span>
+              } @else {
+                <span class="chip">
+                  <lucide-icon name="minus" [size]="11" aria-hidden="true" />
+                  Solo gasto
+                </span>
+              }
+              <strong class="cifra">{{ totalRenglon(r) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+            </div>
+          </li>
+        }
+      </ul>
+
+      <button type="button" class="btn-secundario" (click)="agregarRenglon()">
+        <lucide-icon name="plus" [size]="15" aria-hidden="true" />
+        Añadir otro producto
+      </button>
+    </section>
+
+    <!-- ── Totales ── -->
+    <section class="seccion-form">
+      <h4>Totales</h4>
+      <div class="rejilla">
+        <label>
+          Descuento general
+          <input type="number" min="0" step="1" inputmode="decimal" [ngModel]="fDescuento()"
+                 (ngModelChange)="fDescuento.set($event)" name="fDescuento" />
+        </label>
+        <label>
+          Impuestos
+          <input type="number" min="0" step="1" inputmode="decimal" [ngModel]="fImpuesto()"
+                 (ngModelChange)="fImpuesto.set($event)" name="fImpuesto" />
+        </label>
+      </div>
+
+      <div class="cobro">
+        <div class="cobro__fila">
+          <span>Subtotal</span>
+          <span>{{ subtotal() | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+        </div>
+        @if (fDescuento()) {
+          <div class="cobro__fila cobro__fila--descuento">
+            <span>Descuento</span>
+            <span>−{{ fDescuento() | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+          </div>
+        }
+        @if (fImpuesto()) {
+          <div class="cobro__fila">
+            <span>Impuestos</span>
+            <span>{{ fImpuesto() | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+          </div>
+        }
+        <div class="cobro__fila cobro__fila--total">
+          <span>Total</span>
+          <strong>{{ totalForm() | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+        </div>
+      </div>
+
+      <label class="casilla">
+        <input type="checkbox" [ngModel]="fAfectaInventario()"
+               (ngModelChange)="fAfectaInventario.set($event)" name="fAfectaInventario" />
+        Sumar al inventario los renglones enlazados
+      </label>
+      @if (!fAfectaInventario()) {
+        <p class="aviso aviso--warn">
+          <lucide-icon name="triangle-alert" [size]="14" aria-hidden="true" />
+          <span>Esta compra quedará solo como gasto: no cambiará el stock de ningún insumo.</span>
+        </p>
+      }
+
+      <label>
+        Observaciones
+        <textarea rows="2" maxlength="2000" [ngModel]="fObservaciones()"
+                  (ngModelChange)="fObservaciones.set($event)" name="fObservaciones"></textarea>
+      </label>
+      <p class="aviso">
+        <lucide-icon name="paperclip" [size]="14" aria-hidden="true" />
+        <span>La factura escaneada se adjunta después, abriendo la compra desde el historial.</span>
+      </p>
+    </section>
+
+    <div class="modal__acciones">
+      <button type="button" class="btn-secundario" (click)="cerrarForm()" [disabled]="guardando()">
+        Cancelar
+      </button>
+      <button type="submit" class="btn-primario" [disabled]="!puedeGuardar()">
+        <lucide-icon name="check" [size]="16" aria-hidden="true" />
+        {{ guardando() ? 'Registrando…' : 'Registrar compra' }}
+      </button>
+    </div>
+  </form>
+}

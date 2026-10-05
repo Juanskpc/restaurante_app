@@ -1,0 +1,277 @@
+<!-- ============================================================
+     Proveedores — comparador de precios
+     ============================================================ -->
+<div class="panel">
+
+  @if (!puedeVerPrecios()) {
+    <div class="estado-vacio">
+      <span class="estado-vacio__icono">
+        <lucide-icon name="lock" [size]="24" aria-hidden="true" />
+      </span>
+      <p class="estado-vacio__titulo">Necesitas permiso para comparar precios.</p>
+      <p class="estado-vacio__texto">
+        Comparar es ver precios de compra, y eso es información financiera del negocio.
+        Pídele a un administrador el permiso «Ver precios y gasto privados».
+      </p>
+    </div>
+  } @else {
+    <div class="barra">
+      <div class="buscar">
+        <lucide-icon name="search" [size]="18" class="buscar__icono" aria-hidden="true" />
+        <input #campo
+               type="search"
+               class="buscar__campo"
+               placeholder="¿Qué insumo quieres comparar? Ej.: arroz, pollo, aceite…"
+               aria-label="Insumo a comparar"
+               [ngModel]="busqueda()"
+               (ngModelChange)="busqueda.set($event)"
+               (keydown.enter)="onEnter($event)" />
+        @if (busqueda()) {
+          <button type="button" class="buscar__limpiar" (click)="busqueda.set('')"
+                  aria-label="Limpiar búsqueda">
+            <lucide-icon name="x" [size]="16" aria-hidden="true" />
+          </button>
+        }
+      </div>
+
+      <div class="barra__acciones">
+        @if (ingredientes().length) {
+          <select class="select"
+                  aria-label="Comparar un insumo de mi inventario"
+                  [ngModel]="ingrediente()"
+                  (ngModelChange)="alElegirIngrediente($event)">
+            <option [ngValue]="null" [selected]="ingrediente() === null">…o un insumo del inventario</option>
+            @for (g of ingredientes(); track g.id_ingrediente) {
+              <option [ngValue]="g.id_ingrediente" [selected]="ingrediente() === g.id_ingrediente">
+                {{ g.nombre }}
+              </option>
+            }
+          </select>
+        }
+        <button type="button" class="btn-primario btn-nuevo" (click)="buscar()"
+                [disabled]="!puedeBuscar() || buscando()">
+          <lucide-icon name="scale" [size]="16" aria-hidden="true" />
+          {{ buscando() ? 'Comparando…' : 'Comparar' }}
+        </button>
+      </div>
+    </div>
+
+    @if (buscando()) {
+      <div class="esq-lista" aria-busy="true" aria-label="Comparando precios">
+        @for (i of [1, 2, 3]; track i) { <span class="esq esq--tarjeta"></span> }
+      </div>
+    } @else if (error()) {
+      <div class="estado-vacio estado-vacio--error" role="alert">
+        <span class="estado-vacio__icono">
+          <lucide-icon name="circle-alert" [size]="24" aria-hidden="true" />
+        </span>
+        <p class="estado-vacio__titulo">{{ error() }}</p>
+        <button type="button" class="btn-secundario" (click)="buscar()">
+          <lucide-icon name="rotate-cw" [size]="16" aria-hidden="true" />
+          Intentar nuevamente
+        </button>
+      </div>
+    } @else if (!buscado()) {
+      <div class="estado-vacio">
+        <span class="estado-vacio__icono">
+          <lucide-icon name="scale" [size]="24" aria-hidden="true" />
+        </span>
+        <p class="estado-vacio__titulo">Compara un insumo entre tus proveedores.</p>
+        <p class="estado-vacio__texto">
+          Escribe el nombre del insumo o elige uno de tu inventario. Verás el precio de cada
+          proveedor llevado a una unidad comparable, y cuál sale más barato de verdad.
+        </p>
+      </div>
+    } @else if (!grupos().length) {
+      <div class="estado-vacio">
+        <span class="estado-vacio__icono">
+          <lucide-icon name="search-x" [size]="24" aria-hidden="true" />
+        </span>
+        <p class="estado-vacio__titulo">No encontramos ese insumo con precio cargado.</p>
+        <p class="estado-vacio__texto">
+          Solo se comparan insumos que tengan precio: los tuyos y los que otros negocios hayan
+          publicado. Cárgale el precio al insumo en la ficha del proveedor y vuelve aquí.
+        </p>
+        <button type="button" class="btn-secundario" (click)="limpiar()">Limpiar</button>
+      </div>
+    } @else {
+      <div class="grupos">
+        @for (g of grupos(); track g.clave) {
+          <article class="grupo">
+            <header class="grupo__cab">
+              <h3 class="grupo__titulo">{{ g.insumo }}</h3>
+              <span class="grupo__n">
+                {{ g.ofertas.length }} {{ g.ofertas.length === 1 ? 'proveedor' : 'proveedores' }}
+              </span>
+            </header>
+
+            <!-- Las advertencias van ANTES de los precios: si se leen después, ya se decidió -->
+            @if (g.unidades_mixtas) {
+              <p class="aviso aviso--warn">
+                <lucide-icon name="triangle-alert" [size]="14" aria-hidden="true" />
+                <span>
+                  Estas ofertas vienen en unidades que no se pueden convertir entre sí (por
+                  ejemplo kilos contra cajas). <strong>No se señala un ganador</strong> porque
+                  cualquiera que se marcara sería mentira. Completa «cuánto trae la
+                  presentación» en cada insumo para poder compararlos.
+                </span>
+              </p>
+            } @else if (g.presentaciones_distintas) {
+              <p class="aviso">
+                <lucide-icon name="info" [size]="14" aria-hidden="true" />
+                <span>
+                  Las presentaciones son distintas. La comparación está hecha
+                  <strong>por unidad</strong>, no por lo que cuesta cada empaque.
+                </span>
+              </p>
+            }
+
+            @if (g.fechas_dispares) {
+              <p class="aviso aviso--warn">
+                <lucide-icon name="clock" [size]="14" aria-hidden="true" />
+                <span>
+                  Hay precios con más de {{ diasViejo }} días de diferencia entre sí
+                  (el más viejo tiene {{ g.precio_mas_viejo_dias }} días). Confirma antes de
+                  decidir.
+                </span>
+              </p>
+            }
+
+            <!-- Tabla (escritorio) -->
+            <div class="tabla">
+              <table>
+                <caption class="sr-only">Ofertas de {{ g.insumo }}</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Proveedor</th>
+                    <th scope="col">Presentación</th>
+                    <th scope="col" class="num">Precio</th>
+                    <th scope="col" class="num">Por unidad</th>
+                    <th scope="col">Actualizado</th>
+                    <th scope="col">Origen</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (o of g.ofertas; track o.id_proveedor_insumo) {
+                    <tr [class.fila--barata]="o.id_proveedor_insumo === g.id_mas_barato">
+                      <td>
+                        <div class="prov">
+                          <strong>{{ o.proveedor }}</strong>
+                          <small>
+                            @if (o.ciudad) { {{ o.ciudad }} }
+                            @if (o.marca) { · {{ o.marca }} }
+                            @if (!o.disponible) { · sin existencias }
+                          </small>
+                        </div>
+                      </td>
+                      <td>
+                        {{ o.presentacion || o.unidad }}
+                        @if (o.cantidad_presentacion) {
+                          <span class="tenue">· {{ o.cantidad_presentacion }} {{ o.unidad }}</span>
+                        }
+                      </td>
+                      <td class="num">{{ o.precio | currency:'COP':'symbol-narrow':'1.0-0' }}</td>
+                      <td class="num">
+                        @if (o.precio_base != null) {
+                          <strong>
+                            {{ o.precio_base | currency:'COP':'symbol-narrow':'1.0-2' }}{{ unidadCorta(o.unidad_base) }}
+                          </strong>
+                          @if (o.estimado) {
+                            <span class="chip chip--aviso" title="No se sabe cuánto trae la presentación">
+                              estimado
+                            </span>
+                          }
+                          @if (sobrecosto(g, o.id_proveedor_insumo); as pct) {
+                            <small class="sobrecosto">+{{ pct | number:'1.0-0' }}%</small>
+                          }
+                        } @else {
+                          <span class="sin-dato">—</span>
+                        }
+                      </td>
+                      <td>
+                        @if (o.fecha_precio) {
+                          {{ o.fecha_precio | date:'dd MMM yyyy' }}
+                          @if (o.dias_desde_precio !== null && o.dias_desde_precio > diasViejo) {
+                            <span class="chip chip--aviso">
+                              <lucide-icon name="clock" [size]="11" aria-hidden="true" />
+                              {{ o.dias_desde_precio }} días
+                            </span>
+                          }
+                        } @else {
+                          <span class="sin-dato">Sin fecha</span>
+                        }
+                      </td>
+                      <td>
+                        @if (o.ambito === 'PRIVADO') {
+                          <span class="chip chip--propio">
+                            <lucide-icon name="lock" [size]="11" aria-hidden="true" />
+                            Tu precio
+                          </span>
+                        } @else {
+                          <span class="chip chip--compartido"
+                                title="Precio publicado por otro negocio: es una referencia, no una oferta para ti">
+                            <lucide-icon name="users" [size]="11" aria-hidden="true" />
+                            Referencia
+                          </span>
+                        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Tarjetas (móvil) -->
+            <ul class="ofertas">
+              @for (o of g.ofertas; track o.id_proveedor_insumo) {
+                <li class="oferta" [class.oferta--barata]="o.id_proveedor_insumo === g.id_mas_barato">
+                  <div class="oferta__cab">
+                    <strong>{{ o.proveedor }}</strong>
+                    @if (o.id_proveedor_insumo === g.id_mas_barato) {
+                      <span class="chip chip--ok">
+                        <lucide-icon name="award" [size]="11" aria-hidden="true" />
+                        Más barato
+                      </span>
+                    }
+                  </div>
+                  <div class="oferta__precios">
+                    <span class="oferta__precio">{{ o.precio | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+                    @if (o.precio_base != null) {
+                      <span class="oferta__base">
+                        {{ o.precio_base | currency:'COP':'symbol-narrow':'1.0-2' }}{{ unidadCorta(o.unidad_base) }}
+                        @if (o.estimado) { <span class="chip chip--aviso">estimado</span> }
+                      </span>
+                    }
+                  </div>
+                  <div class="oferta__meta">
+                    <span>{{ o.presentacion || o.unidad }}</span>
+                    @if (o.fecha_precio) { <span>{{ o.fecha_precio | date:'dd MMM yy' }}</span> }
+                    @if (o.ambito === 'PRIVADO') {
+                      <span class="chip chip--propio">Tu precio</span>
+                    } @else {
+                      <span class="chip chip--compartido">Referencia</span>
+                    }
+                  </div>
+                </li>
+              }
+            </ul>
+
+            @if (g.id_mas_barato !== null) {
+              <p class="aviso aviso--ok">
+                <lucide-icon name="award" [size]="14" aria-hidden="true" />
+                <span>
+                  El más barato por unidad es
+                  <strong>{{ g.ofertas[0].proveedor }}</strong>.
+                  @if (g.ofertas[0].ambito === 'PUBLICO') {
+                    Ojo: es un precio de referencia publicado por otro negocio, no una oferta
+                    para ti.
+                  }
+                </span>
+              </p>
+            }
+          </article>
+        }
+      </div>
+    }
+  }
+</div>

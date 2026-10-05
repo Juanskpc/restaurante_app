@@ -1,0 +1,538 @@
+// ============================================================
+// Proveedores — ficha abierta
+//
+// Lo público arriba y lo privado abajo, en pestañas. Lo privado lleva fondo propio y un
+// aviso con candado: tiene que notarse de un vistazo cuál es cuál, porque confundir un
+// precio de referencia de otro negocio con una oferta propia es el error caro de esta vista.
+// ============================================================
+@use '../compartido';
+
+.modal--detalle {
+  gap: 0;
+  padding: 0;
+}
+
+// ── Cabecera ──
+.cabecera {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: var(--spacing-lg) var(--spacing-lg) 12px;
+  border-bottom: 1px solid var(--pv-linea);
+}
+
+.cabecera__id {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--pv-tinte-fuerte);
+  color: var(--color-primary);
+  font-weight: 800;
+  font-size: 1rem;
+}
+
+.cabecera__texto {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+
+  h3 { margin: 0; font-size: 1.1rem; color: var(--color-text-primary); }
+}
+
+.cabecera__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+// ── Acciones de contacto ──
+.contacto-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px var(--spacing-lg);
+  border-bottom: 1px solid var(--pv-linea);
+  background: var(--pv-tinte);
+}
+
+.accion {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--pv-radio-sm);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  text-decoration: none;
+
+  lucide-icon { display: flex; line-height: 0; color: var(--color-primary); }
+
+  &:hover { border-color: var(--color-primary); background: var(--color-surface-hover); }
+  &:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+}
+
+// ── Pestañas ──
+.pestanas {
+  display: flex;
+  gap: 2px;
+  padding: 0 var(--spacing-lg);
+  border-bottom: 1px solid var(--pv-linea);
+  overflow-x: auto;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar { display: none; }
+}
+
+.pestana {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 42px;
+  padding: 0 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+
+  &:hover:not(.pestana--activa) { color: var(--color-text-primary); }
+  &:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+  &--activa {
+    color: var(--color-primary);
+    border-bottom-color: var(--color-primary);
+  }
+}
+
+.pestana__n {
+  min-width: 20px;
+  height: 18px;
+  padding: 0 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-text-primary) 8%, transparent);
+  font-size: .68rem;
+  font-weight: 700;
+}
+
+// ── Cuerpo ──
+.cuerpo {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: var(--spacing-lg);
+  max-height: 52dvh;
+  overflow-y: auto;
+}
+
+.cuerpo__barra {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.descripcion {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  line-height: 1.55;
+  color: var(--color-text-secondary);
+}
+
+.subtitulo {
+  margin: -4px 0 4px;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.bloque {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bloque__titulo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: .76rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+
+  lucide-icon { display: flex; line-height: 0; }
+
+  &--sep { margin-top: 10px; padding-top: 14px; border-top: 1px solid var(--pv-linea); }
+}
+
+// ── Lista de datos ──
+.datos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 16px;
+  margin: 0;
+}
+
+.dato {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+
+  dt {
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .02em;
+    color: var(--color-text-muted);
+  }
+
+  dd {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+    overflow-wrap: anywhere;
+  }
+
+  &--ancho { grid-column: 1 / -1; }
+}
+
+.dato__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.cifra { font-variant-numeric: tabular-nums; }
+
+// ── Insumos ──
+.insumos {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.insumo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--pv-linea);
+  border-radius: var(--pv-radio-sm);
+  background: var(--color-surface);
+
+  // Lo que publicó otro negocio va con fondo distinto y borde punteado: es un dato de
+  // referencia, no una oferta, y no puede parecerse a los propios.
+  &--ajeno {
+    border-style: dashed;
+    background: var(--color-bg);
+  }
+}
+
+.insumo__texto {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+
+  strong { font-size: var(--font-size-sm); color: var(--color-text-primary); }
+  small { font-size: .74rem; color: var(--color-text-secondary); }
+}
+
+.insumo__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.enlace-inv {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--color-primary);
+  font-weight: 600;
+
+  lucide-icon { display: flex; line-height: 0; }
+}
+
+.insumo__precio {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  flex-shrink: 0;
+  text-align: right;
+
+  strong { font-size: .95rem; color: var(--color-text-primary); }
+  small { font-size: .7rem; color: var(--color-text-muted); }
+}
+
+.insumo__acciones {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+// ── Compras ──
+.resumen-mini {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 12px 14px;
+  border: 1px solid var(--pv-linea);
+  border-radius: var(--pv-radio-sm);
+  background: var(--pv-tinte);
+
+  .btn-secundario { margin-left: auto; }
+}
+
+.resumen-mini__dato {
+  display: flex;
+  flex-direction: column;
+
+  small { font-size: .72rem; color: var(--color-text-secondary); }
+  strong { font-size: 1.05rem; color: var(--color-text-primary); }
+}
+
+.compras {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.compra {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--pv-linea);
+  border-radius: var(--pv-radio-sm);
+
+  &--anulada {
+    opacity: .72;
+    .compra__texto strong, .cifra { text-decoration: line-through; }
+  }
+
+  > .cifra { margin-left: auto; font-weight: 700; }
+}
+
+.compra__texto {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+
+  strong { font-size: var(--font-size-sm); }
+  small { font-size: .74rem; color: var(--color-text-secondary); }
+}
+
+// ── Notas privadas ──
+.campo-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+
+  textarea {
+    padding: 9px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg);
+    color: var(--color-text-primary);
+    font-family: inherit;
+    font-size: var(--font-size-sm);
+    font-weight: 400;
+    resize: vertical;
+
+    &:focus-visible { outline: none; border-color: var(--color-primary); box-shadow: var(--focus-ring); }
+    &:disabled { opacity: .7; cursor: not-allowed; }
+  }
+}
+
+.estrellas {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.estrella {
+  display: inline-flex;
+  padding: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--color-border-strong);
+  cursor: pointer;
+
+  lucide-icon { display: flex; line-height: 0; }
+  &:disabled { cursor: default; }
+  &:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 4px; }
+  &--activa { color: var(--mesa-dorado, #d99a00); }
+}
+
+.estrellas__texto {
+  margin-left: 6px;
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+// ── Historial de precios ──
+.historial {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 46dvh;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.punto {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--pv-linea);
+  border-radius: var(--pv-radio-sm);
+}
+
+.punto__texto {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+
+  strong { font-size: .95rem; }
+  small { font-size: .72rem; color: var(--color-text-secondary); }
+}
+
+.variacion {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: .74rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+
+  lucide-icon { display: flex; line-height: 0; }
+
+  // Subir un precio es malo para quien compra: rojo arriba, verde abajo. Al revés de una
+  // bolsa, y a propósito.
+  &--sube { color: var(--color-error); }
+  &--baja { color: var(--color-success); }
+}
+
+// ── Visibilidad ──
+.opciones-vis {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.opcion-vis {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 13px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--pv-radio-sm);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+
+  lucide-icon { display: flex; line-height: 0; color: var(--color-primary); }
+
+  &:hover:not(:disabled):not(.opcion-vis--activa) { border-color: var(--color-border-strong); }
+  &:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+  &:disabled { opacity: .6; cursor: default; }
+
+  &--activa { border-color: var(--color-primary); background: var(--pv-tinte); }
+}
+
+// ── Pie ──
+.pie-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px var(--spacing-lg);
+  border-top: 1px solid var(--pv-linea);
+  background: var(--color-bg);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+
+  .btn-peligro { margin-left: auto; }
+}
+
+// ── Esqueletos ──
+.esq-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.esq--fila { height: 54px; border-radius: var(--pv-radio-sm); }
+
+.casilla--bloqueada { opacity: .6; cursor: not-allowed; }
+
+@media (max-width: 767px) {
+  .datos { grid-template-columns: 1fr; }
+
+  .cuerpo { max-height: 48dvh; padding: 14px; }
+  .cabecera { padding: 16px 14px 10px; }
+  .contacto-acciones { padding: 10px 14px; }
+  .pestanas { padding: 0 14px; }
+
+  .accion { flex: 1 0 auto; justify-content: center; }
+
+  .insumo { flex-wrap: wrap; }
+  .insumo__precio { align-items: flex-start; text-align: left; }
+  .insumo__acciones { margin-left: auto; }
+
+  .resumen-mini { flex-wrap: wrap; }
+  .resumen-mini .btn-secundario { width: 100%; margin-left: 0; }
+
+  .pie-acciones {
+    padding: 12px 14px;
+    .btn-primario, .btn-secundario, .btn-peligro, .btn-texto { width: 100%; }
+    .btn-peligro { margin-left: 0; }
+  }
+}

@@ -1,0 +1,310 @@
+<!-- ============================================================
+     Proveedores — alta y edición de la ficha
+     ============================================================ -->
+<div class="overlay overlay--encima" (click)="guardando() ? null : cerrar.emit()" aria-hidden="true"></div>
+
+<form class="modal modal--encima modal--ancho"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="form-titulo"
+      (ngSubmit)="enviar()">
+
+  <header class="cabecera">
+    <h3 id="form-titulo">{{ esEdicion() ? 'Editar proveedor' : 'Nuevo proveedor' }}</h3>
+    <button type="button" class="btn-icono" (click)="cerrar.emit()" [disabled]="guardando()"
+            aria-label="Cerrar">
+      <lucide-icon name="x" [size]="18" aria-hidden="true" />
+    </button>
+  </header>
+
+  <!-- ── Información básica ── -->
+  <section class="seccion-form">
+    <h4>Información básica</h4>
+
+    <label>
+      Nombre comercial <span class="requerido">*</span>
+      <input type="text"
+             maxlength="160"
+             placeholder="Ej.: Carnes del Valle"
+             [attr.aria-invalid]="errorNombre() ? 'true' : null"
+             [ngModel]="nombre()" (ngModelChange)="nombre.set($event)"
+             name="nombre" />
+      @if (errorNombre()) {
+        <span class="error-campo" role="alert">{{ errorNombre() }}</span>
+      }
+    </label>
+
+    <div class="rejilla">
+      <label>
+        Razón social <span class="opcional">(opcional)</span>
+        <input type="text" maxlength="160" [ngModel]="nombreLegal()"
+               (ngModelChange)="nombreLegal.set($event)" name="nombreLegal" />
+      </label>
+      <label>
+        NIT o identificación <span class="opcional">(opcional)</span>
+        <input type="text" maxlength="40" [ngModel]="identificacion()"
+               (ngModelChange)="identificacion.set($event)" name="identificacion" />
+      </label>
+    </div>
+
+    <p class="aviso">
+      <lucide-icon name="lock" [size]="14" aria-hidden="true" />
+      La razón social y el NIT no salen nunca al directorio compartido, aunque publiques
+      el proveedor.
+    </p>
+
+    <label>
+      Descripción <span class="opcional">(opcional)</span>
+      <textarea rows="2" maxlength="2000"
+                placeholder="Qué vende, cómo trabaja, con quién hablar…"
+                [ngModel]="descripcion()" (ngModelChange)="descripcion.set($event)"
+                name="descripcion"></textarea>
+    </label>
+
+    <!-- Categorías estándar del sistema: se eligen, no se escriben -->
+    <div class="campo">
+      <span class="campo__etiqueta">Categorías</span>
+      @if (categorias().length > 6) {
+        <div class="buscar buscar--mini">
+          <lucide-icon name="search" [size]="15" class="buscar__icono" aria-hidden="true" />
+          <input type="search" class="buscar__campo" placeholder="Buscar categoría…"
+                 aria-label="Buscar categoría"
+                 [ngModel]="buscaCategoria()" (ngModelChange)="buscaCategoria.set($event)"
+                 name="buscaCategoria" />
+        </div>
+      }
+      <div class="cats" role="group" aria-label="Categorías del proveedor">
+        @for (c of categoriasFiltradas(); track c.codigo) {
+          <button type="button" class="cat"
+                  [class.cat--activa]="tieneCategoria(c.codigo)"
+                  [attr.aria-pressed]="tieneCategoria(c.codigo)"
+                  (click)="alternarCategoria(c.codigo)">
+            @if (tieneCategoria(c.codigo)) {
+              <lucide-icon name="check" [size]="13" aria-hidden="true" />
+            }
+            {{ c.nombre }}
+          </button>
+        } @empty {
+          <p class="sin-dato">No hay categorías con ese nombre.</p>
+        }
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Contacto ── -->
+  <section class="seccion-form">
+    <h4>Contacto</h4>
+
+    <div class="rejilla">
+      <label>
+        Persona de contacto
+        <input type="text" maxlength="120" [ngModel]="contacto()"
+               (ngModelChange)="contacto.set($event)" name="contacto" />
+      </label>
+      <label>
+        Teléfono
+        <input type="tel" maxlength="40" inputmode="tel" [ngModel]="telefono()"
+               (ngModelChange)="telefono.set($event)" name="telefono" />
+      </label>
+      <label>
+        WhatsApp
+        <input type="tel" maxlength="40" inputmode="tel" [ngModel]="whatsapp()"
+               (ngModelChange)="whatsapp.set($event)" name="whatsapp" />
+      </label>
+      <label>
+        Correo electrónico
+        <input type="email" maxlength="160" inputmode="email"
+               [attr.aria-invalid]="errorEmail() ? 'true' : null"
+               [ngModel]="email()" (ngModelChange)="email.set($event)" name="email" />
+        @if (errorEmail()) {
+          <span class="error-campo" role="alert">{{ errorEmail() }}</span>
+        }
+      </label>
+      <label class="rejilla--ancha">
+        Sitio web
+        <input type="url" maxlength="200" placeholder="https://…" [ngModel]="sitioWeb()"
+               (ngModelChange)="sitioWeb.set($event)" name="sitioWeb" />
+      </label>
+      <label>
+        Instagram
+        <input type="text" maxlength="160" placeholder="&#64;usuario" [ngModel]="instagram()"
+               (ngModelChange)="instagram.set($event)" name="instagram" />
+      </label>
+      <label>
+        Facebook
+        <input type="text" maxlength="160" [ngModel]="facebook()"
+               (ngModelChange)="facebook.set($event)" name="facebook" />
+      </label>
+    </div>
+  </section>
+
+  <!-- ── Ubicación y cobertura ── -->
+  <section class="seccion-form">
+    <h4>Ubicación y cobertura</h4>
+
+    <label>
+      Dirección
+      <input type="text" maxlength="200" [ngModel]="direccion()"
+             (ngModelChange)="direccion.set($event)" name="direccion" />
+    </label>
+
+    <div class="rejilla">
+      <label>
+        Ciudad
+        <input type="text" maxlength="100" [ngModel]="ciudad()"
+               (ngModelChange)="ciudad.set($event)" name="ciudad" />
+      </label>
+      <label>
+        Departamento o región
+        <input type="text" maxlength="100" [ngModel]="region()"
+               (ngModelChange)="region.set($event)" name="region" />
+      </label>
+      <label>
+        País
+        <input type="text" maxlength="80" [ngModel]="pais()"
+               (ngModelChange)="pais.set($event)" name="pais" />
+      </label>
+      <label>
+        Tipo de atención
+        <select [ngModel]="tipoAtencion()" (ngModelChange)="tipoAtencion.set($event)"
+                name="tipoAtencion">
+          <option value="ENTREGA" [selected]="tipoAtencion() === 'ENTREGA'">Entrega a domicilio</option>
+          <option value="RECOGIDA" [selected]="tipoAtencion() === 'RECOGIDA'">Recogida en su bodega</option>
+          <option value="AMBOS" [selected]="tipoAtencion() === 'AMBOS'">Ambas</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="campo">
+      <span class="campo__etiqueta">Zonas donde entrega <span class="opcional">(opcional)</span></span>
+      <div class="zona-alta">
+        <input type="text" maxlength="60" placeholder="Ej.: Norte, Centro, Área metropolitana"
+               aria-label="Nueva zona de entrega"
+               [ngModel]="zonaNueva()" (ngModelChange)="zonaNueva.set($event)"
+               (keydown.enter)="onEnterZona($event)" name="zonaNueva" />
+        <button type="button" class="btn-secundario" (click)="agregarZona()"
+                [disabled]="!zonaNueva().trim()">
+          <lucide-icon name="plus" [size]="15" aria-hidden="true" />
+          Añadir
+        </button>
+      </div>
+      @if (zonas().length) {
+        <ul class="zonas" aria-label="Zonas de entrega">
+          @for (z of zonas(); track z) {
+            <li class="zona">
+              {{ z }}
+              <button type="button" class="zona__quitar" (click)="quitarZona(z)"
+                      [attr.aria-label]="'Quitar ' + z">
+                <lucide-icon name="x" [size]="12" aria-hidden="true" />
+              </button>
+            </li>
+          }
+        </ul>
+      }
+    </div>
+  </section>
+
+  <!-- ── Condiciones comerciales ── -->
+  <section class="seccion-form">
+    <h4>Condiciones comerciales</h4>
+
+    <div class="rejilla">
+      <label>
+        Pedido mínimo
+        <input type="number" min="0" step="1000" inputmode="decimal" placeholder="0"
+               [ngModel]="pedidoMinimo()" (ngModelChange)="pedidoMinimo.set($event)"
+               name="pedidoMinimo" />
+      </label>
+      <label>
+        Tiempo de entrega (horas)
+        <input type="number" min="0" max="8760" step="1" inputmode="numeric"
+               [ngModel]="tiempoEntrega()" (ngModelChange)="tiempoEntrega.set($event)"
+               name="tiempoEntrega" />
+      </label>
+    </div>
+
+    <div class="campo">
+      <span class="campo__etiqueta">Días que entrega</span>
+      <div class="dias" role="group" aria-label="Días de entrega">
+        @for (d of dias; track d.valor) {
+          <button type="button" class="dia"
+                  [class.dia--activo]="tieneDia(d.valor)"
+                  [attr.aria-pressed]="tieneDia(d.valor)"
+                  (click)="alternarDia(d.valor)">
+            {{ d.corto }}
+          </button>
+        }
+      </div>
+    </div>
+
+    <label>
+      Métodos de pago que acepta
+      <input type="text" maxlength="200" placeholder="Efectivo, transferencia, crédito a 30 días…"
+             [ngModel]="metodosPago()" (ngModelChange)="metodosPago.set($event)"
+             name="metodosPago" />
+    </label>
+
+    <label class="casilla">
+      <input type="checkbox" [ngModel]="mayoristas()" (ngModelChange)="mayoristas.set($event)"
+             name="mayoristas" />
+      Maneja precios mayoristas
+    </label>
+
+    <label>
+      Observaciones
+      <textarea rows="2" maxlength="2000"
+                [ngModel]="observaciones()" (ngModelChange)="observaciones.set($event)"
+                name="observaciones"></textarea>
+    </label>
+  </section>
+
+  <!-- ── Visibilidad ── -->
+  <section class="seccion-form">
+    <h4>Quién puede ver este proveedor</h4>
+
+    @if (!puedePublicar()) {
+      <p class="aviso aviso--warn">
+        <lucide-icon name="info" [size]="14" aria-hidden="true" />
+        No tienes permiso para publicar en el directorio compartido. El proveedor quedará
+        visible solo para tu negocio.
+      </p>
+    }
+
+    <div class="visibilidades" role="radiogroup" aria-label="Visibilidad del proveedor">
+      @for (v of visibilidades; track v.valor) {
+        <button type="button" role="radio" class="vis"
+                [class.vis--activa]="visibilidad() === v.valor"
+                [class.vis--bloqueada]="v.valor !== 'PRIVADO' && !puedePublicar()"
+                [attr.aria-checked]="visibilidad() === v.valor"
+                [disabled]="v.valor !== 'PRIVADO' && !puedePublicar()"
+                (click)="elegirVisibilidad(v.valor)">
+          <span class="vis__icono">
+            <lucide-icon [name]="v.icono" [size]="16" aria-hidden="true" />
+          </span>
+          <span class="vis__texto">
+            <strong>{{ v.titulo }}</strong>
+            <small>{{ v.texto }}</small>
+          </span>
+          @if (visibilidad() === v.valor) {
+            <lucide-icon name="check" [size]="16" class="vis__check" aria-hidden="true" />
+          }
+        </button>
+      }
+    </div>
+  </section>
+
+  <div class="modal__acciones">
+    <button type="button" class="btn-secundario" (click)="cerrar.emit()" [disabled]="guardando()">
+      Cancelar
+    </button>
+    <button type="submit" class="btn-primario" [disabled]="guardando()">
+      @if (guardando()) {
+        <lucide-icon name="loader-circle" [size]="16" class="girando" aria-hidden="true" />
+        Guardando…
+      } @else {
+        <lucide-icon name="check" [size]="16" aria-hidden="true" />
+        {{ esEdicion() ? 'Guardar cambios' : 'Crear proveedor' }}
+      }
+    </button>
+  </div>
+</form>

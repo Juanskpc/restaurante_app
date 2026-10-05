@@ -1,0 +1,436 @@
+<!-- ============================================================
+     Proveedores — vista principal
+     ============================================================ -->
+<section class="proveedores">
+
+  <!-- ── Encabezado ── -->
+  <header class="encabezado">
+    <div class="encabezado__texto">
+      <h1>Proveedores</h1>
+      <p>
+        A quién le compras los insumos, a qué precio y cuánto llevas gastado. Compara entre
+        proveedores y descubre otros en el directorio compartido.
+      </p>
+    </div>
+    @if (seccion() === 'lista' && permisos().crear) {
+      <button type="button" class="btn-primario btn-nuevo" (click)="abrirNuevo()">
+        <lucide-icon name="plus" [size]="16" aria-hidden="true" />
+        Agregar proveedor
+      </button>
+    }
+  </header>
+
+  <!-- ── Secciones ── -->
+  <div class="secciones" role="tablist" aria-label="Secciones de proveedores">
+    <button type="button" role="tab" class="seccion"
+            [class.seccion--activa]="seccion() === 'lista'"
+            [attr.aria-selected]="seccion() === 'lista'"
+            (click)="seccion.set('lista')">
+      <lucide-icon name="truck" [size]="16" aria-hidden="true" />
+      Proveedores
+    </button>
+    <button type="button" role="tab" class="seccion"
+            [class.seccion--activa]="seccion() === 'comparador'"
+            [attr.aria-selected]="seccion() === 'comparador'"
+            (click)="seccion.set('comparador')">
+      <lucide-icon name="scale" [size]="16" aria-hidden="true" />
+      Comparador
+    </button>
+    <button type="button" role="tab" class="seccion"
+            [class.seccion--activa]="seccion() === 'compras'"
+            [attr.aria-selected]="seccion() === 'compras'"
+            (click)="seccion.set('compras')">
+      <lucide-icon name="receipt" [size]="16" aria-hidden="true" />
+      Compras
+    </button>
+  </div>
+
+  <!-- ══════════════ LISTADO ══════════════ -->
+  @if (seccion() === 'lista') {
+    <div class="panel" role="tabpanel">
+
+      <!-- Filtros -->
+      <div class="barra">
+        <div class="buscar">
+          <lucide-icon name="search" [size]="18" class="buscar__icono" aria-hidden="true" />
+          <input #campoBusqueda type="search" class="buscar__campo"
+                 placeholder="Buscar por nombre, ciudad o insumo que vende…"
+                 aria-label="Buscar proveedores"
+                 [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)"
+                 (keydown.enter)="buscar()" />
+          @if (busqueda()) {
+            <button type="button" class="buscar__limpiar" (click)="busqueda.set(''); buscar()"
+                    aria-label="Limpiar búsqueda">
+              <lucide-icon name="x" [size]="16" aria-hidden="true" />
+            </button>
+          }
+        </div>
+
+        <div class="barra__acciones">
+          <div class="filtros" role="radiogroup" aria-label="Qué proveedores mostrar">
+            @for (a of ambitos; track a.valor) {
+              <button type="button" role="radio" class="filtro"
+                      [class.filtro--activo]="ambito() === a.valor"
+                      [attr.aria-checked]="ambito() === a.valor"
+                      (click)="ambito.set(a.valor)">
+                {{ a.texto }}
+              </button>
+            }
+          </div>
+        </div>
+      </div>
+
+      <div class="filtros-fila">
+        <label class="filtro-campo">
+          <span>Categoría</span>
+          <select class="select" [ngModel]="categoria()" (ngModelChange)="categoria.set($event)">
+            <option [ngValue]="null" [selected]="categoria() === null">Todas</option>
+            @for (c of categorias(); track c.codigo) {
+              <option [ngValue]="c.codigo" [selected]="categoria() === c.codigo">{{ c.nombre }}</option>
+            }
+          </select>
+        </label>
+
+        <label class="filtro-campo">
+          <span>Ciudad o zona</span>
+          <input type="text" class="select" maxlength="100" placeholder="Toda ubicación"
+                 [ngModel]="ciudad()" (ngModelChange)="ciudad.set($event)"
+                 (keydown.enter)="buscar()" />
+        </label>
+
+        <label class="filtro-campo">
+          <span>Ordenar por</span>
+          <select class="select" [ngModel]="orden()" (ngModelChange)="orden.set($event)">
+            @for (o of ordenes; track o.valor) {
+              <option [ngValue]="o.valor" [selected]="orden() === o.valor">{{ o.texto }}</option>
+            }
+          </select>
+        </label>
+
+        @if (ambito() !== 'directorio') {
+          <label class="casilla casilla--filtro">
+            <input type="checkbox" [ngModel]="verArchivados()"
+                   (ngModelChange)="verArchivados.set($event)" />
+            Ver archivados
+          </label>
+        }
+
+        <button type="button" class="btn-secundario" (click)="buscar()">
+          <lucide-icon name="filter" [size]="15" aria-hidden="true" />
+          Aplicar
+        </button>
+
+        @if (hayFiltros()) {
+          <button type="button" class="btn-texto" (click)="limpiarFiltros()">
+            <lucide-icon name="x" [size]="15" aria-hidden="true" />
+            Limpiar
+          </button>
+        }
+      </div>
+
+      @if (ambito() === 'directorio') {
+        <p class="aviso">
+          <lucide-icon name="users" [size]="14" aria-hidden="true" />
+          <span>
+            Son proveedores que <strong>otros negocios decidieron compartir</strong>. No se
+            muestra quién los registró, ni sus precios privados, ni sus compras. Agrégalos a tu
+            lista para llevarles tus propios precios y notas.
+          </span>
+        </p>
+      }
+
+      <!-- Estados -->
+      @if (cargando()) {
+        <div class="esq-tabla" aria-busy="true" aria-label="Cargando proveedores">
+          <span class="esq-tabla__cab"></span>
+          @for (i of [1, 2, 3, 4, 5, 6]; track i) {
+            <div class="esq-tabla__fila">
+              <span class="esq esq--avatar"></span>
+              <span class="esq esq--texto"></span>
+              <span class="esq esq--chip"></span>
+              <span class="esq esq--num"></span>
+            </div>
+          }
+        </div>
+      } @else if (errorCarga()) {
+        <div class="estado-vacio estado-vacio--error" role="alert">
+          <span class="estado-vacio__icono">
+            <lucide-icon name="circle-alert" [size]="24" aria-hidden="true" />
+          </span>
+          <p class="estado-vacio__titulo">No se pudieron cargar los proveedores.</p>
+          <p class="estado-vacio__texto">Revisa tu conexión e inténtalo de nuevo.</p>
+          <button type="button" class="btn-secundario" (click)="reintentar()">
+            <lucide-icon name="rotate-cw" [size]="16" aria-hidden="true" />
+            Intentar nuevamente
+          </button>
+        </div>
+      } @else if (!proveedores().length) {
+        <div class="estado-vacio">
+          <span class="estado-vacio__icono">
+            <lucide-icon [name]="hayFiltros() ? 'search-x' : 'truck'" [size]="24" aria-hidden="true" />
+          </span>
+          @if (hayFiltros() && ambito() === 'directorio') {
+            <p class="estado-vacio__titulo">El directorio compartido todavía está vacío por aquí.</p>
+            <p class="estado-vacio__texto">
+              Aparecerán proveedores a medida que otros negocios decidan publicarlos. Puedes ser
+              el primero: al crear uno, elige compartirlo.
+            </p>
+          } @else if (hayFiltros()) {
+            <p class="estado-vacio__titulo">No hay proveedores con esos criterios.</p>
+            <p class="estado-vacio__texto">Prueba con otra categoría, otra ciudad u otro nombre.</p>
+            <button type="button" class="btn-secundario" (click)="limpiarFiltros()">
+              Limpiar filtros
+            </button>
+          } @else {
+            <p class="estado-vacio__titulo">Todavía no tienes proveedores.</p>
+            <p class="estado-vacio__texto">
+              Registra a quién le compras los insumos: tendrás sus datos a mano, podrás comparar
+              precios y llevar el gasto. También puedes buscar en el directorio compartido.
+            </p>
+            @if (permisos().crear) {
+              <button type="button" class="btn-primario" (click)="abrirNuevo()">
+                <lucide-icon name="plus" [size]="16" aria-hidden="true" />
+                Agregar mi primer proveedor
+              </button>
+            }
+            <button type="button" class="btn-texto" (click)="ambito.set('directorio')">
+              Explorar el directorio compartido
+            </button>
+          }
+        </div>
+      } @else {
+
+        <!-- Tabla (escritorio) -->
+        <div class="tabla">
+          <table>
+            <caption class="sr-only">Proveedores</caption>
+            <thead>
+              <tr>
+                <th scope="col" class="col-nombre">Proveedor</th>
+                <th scope="col">Categorías</th>
+                <th scope="col">Ubicación</th>
+                <th scope="col">Principales insumos</th>
+                <th scope="col">Contacto</th>
+                <th scope="col">Estado</th>
+                <th scope="col">Precios</th>
+                <th scope="col" class="col-acciones"><span class="sr-only">Acciones</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (p of proveedores(); track p.id_proveedor) {
+                <tr [class.fila--archivada]="p.estado_interno === 'ARCHIVADO'">
+                  <td class="col-nombre">
+                    <button type="button" class="celda-nombre" (click)="abrir(p)">
+                      <span class="avatar" aria-hidden="true">
+                        {{ p.nombre_comercial.charAt(0).toUpperCase() }}
+                      </span>
+                      <span class="celda-nombre__texto">
+                        <strong>{{ p.nombre_comercial }}</strong>
+                        @if (p.descripcion) { <small>{{ p.descripcion }}</small> }
+                      </span>
+                    </button>
+                  </td>
+                  <td>
+                    @if (categoriasCortas(p)) { {{ categoriasCortas(p) }} }
+                    @else { <span class="sin-dato">Sin categoría</span> }
+                  </td>
+                  <td>
+                    @if (ubicacion(p)) { {{ ubicacion(p) }} }
+                    @else { <span class="sin-dato">—</span> }
+                  </td>
+                  <td>
+                    @if (p.insumos_destacados) {
+                      <span class="insumos-texto">{{ p.insumos_destacados }}</span>
+                      @if ((p.insumos ?? 0) > 3) {
+                        <span class="tenue">+{{ (p.insumos ?? 0) - 3 }}</span>
+                      }
+                    } @else {
+                      <span class="sin-dato">Sin insumos cargados</span>
+                    }
+                  </td>
+                  <td>
+                    <div class="contacto">
+                      @if (contactoPreferido(p); as tel) {
+                        <span class="contacto__num">{{ tel }}</span>
+                        <span class="contacto__iconos">
+                          @if (whatsappDe(p); as url) {
+                            <a class="btn-icono" [href]="url" target="_blank" rel="noopener noreferrer"
+                               [attr.aria-label]="'WhatsApp de ' + p.nombre_comercial">
+                              <lucide-icon name="message-circle" [size]="15" aria-hidden="true" />
+                            </a>
+                          }
+                          @if (p.telefono) {
+                            <a class="btn-icono" [href]="'tel:' + p.telefono"
+                               [attr.aria-label]="'Llamar a ' + p.nombre_comercial">
+                              <lucide-icon name="phone" [size]="15" aria-hidden="true" />
+                            </a>
+                          }
+                        </span>
+                      } @else {
+                        <span class="sin-dato">Sin teléfono</span>
+                      }
+                    </div>
+                  </td>
+                  <td>
+                    @if (p.estado_interno === 'ARCHIVADO') {
+                      <span class="chip chip--aviso">
+                        <lucide-icon name="archive" [size]="11" aria-hidden="true" />
+                        Archivado
+                      </span>
+                    } @else if (p.es_propio) {
+                      <span class="chip chip--propio">
+                        <lucide-icon name="bookmark" [size]="11" aria-hidden="true" />
+                        {{ p.es_propietario ? 'Tuyo' : 'En tu lista' }}
+                      </span>
+                    } @else {
+                      <span class="chip chip--compartido">
+                        <lucide-icon name="users" [size]="11" aria-hidden="true" />
+                        Compartido
+                      </span>
+                    }
+                  </td>
+                  <td>
+                    @if (p.ultimo_precio) {
+                      <span class="fecha-precio">{{ p.ultimo_precio | date:'dd MMM yyyy' }}</span>
+                      @if (permisos().precios && p.precio_min != null) {
+                        <small class="tenue">
+                          desde {{ p.precio_min | currency:'COP':'symbol-narrow':'1.0-0' }}
+                        </small>
+                      }
+                    } @else {
+                      <span class="sin-dato">Sin precios</span>
+                    }
+                  </td>
+                  <td class="col-acciones">
+                    <button type="button" class="btn-icono" (click)="abrir(p)"
+                            [attr.aria-label]="'Ver ' + p.nombre_comercial">
+                      <lucide-icon name="chevron-right" [size]="18" aria-hidden="true" />
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Tarjetas (móvil) -->
+        <ul class="tarjetas">
+          @for (p of proveedores(); track p.id_proveedor) {
+            <li class="tarjeta" [class.tarjeta--archivada]="p.estado_interno === 'ARCHIVADO'">
+              <button type="button" class="tarjeta__btn" (click)="abrir(p)">
+                <span class="tarjeta__cab">
+                  <span class="avatar" aria-hidden="true">
+                    {{ p.nombre_comercial.charAt(0).toUpperCase() }}
+                  </span>
+                  <span class="tarjeta__nombre">
+                    <strong>{{ p.nombre_comercial }}</strong>
+                    @if (ubicacion(p)) { <small>{{ ubicacion(p) }}</small> }
+                  </span>
+                  @if (p.estado_interno === 'ARCHIVADO') {
+                    <span class="chip chip--aviso">Archivado</span>
+                  } @else if (p.es_propio) {
+                    <span class="chip chip--propio">{{ p.es_propietario ? 'Tuyo' : 'En tu lista' }}</span>
+                  } @else {
+                    <span class="chip chip--compartido">Compartido</span>
+                  }
+                </span>
+
+                @if (categoriasCortas(p)) {
+                  <span class="tarjeta__cats">{{ categoriasCortas(p) }}</span>
+                }
+                @if (p.insumos_destacados) {
+                  <span class="tarjeta__insumos">{{ p.insumos_destacados }}</span>
+                }
+                @if (p.ultimo_precio) {
+                  <span class="tarjeta__precio">
+                    Precios al {{ p.ultimo_precio | date:'dd MMM yyyy' }}
+                  </span>
+                }
+              </button>
+
+              <!-- Contactar sin abrir la ficha: en el móvil es lo que más se usa -->
+              <div class="tarjeta__acciones">
+                @if (whatsappDe(p); as url) {
+                  <a class="accion-mini" [href]="url" target="_blank" rel="noopener noreferrer">
+                    <lucide-icon name="message-circle" [size]="15" aria-hidden="true" />
+                    WhatsApp
+                  </a>
+                }
+                @if (p.telefono) {
+                  <a class="accion-mini" [href]="'tel:' + p.telefono">
+                    <lucide-icon name="phone" [size]="15" aria-hidden="true" />
+                    Llamar
+                  </a>
+                }
+                @if (p.email) {
+                  <a class="accion-mini" [href]="'mailto:' + p.email">
+                    <lucide-icon name="mail" [size]="15" aria-hidden="true" />
+                    Correo
+                  </a>
+                }
+              </div>
+            </li>
+          }
+        </ul>
+
+        <!-- Paginación -->
+        <div class="pie">
+          <span>{{ rango().desde }}–{{ rango().hasta }} de {{ rango().total }}</span>
+          <div class="pie__paginas">
+            <button type="button" class="btn-icono" (click)="irAPagina(-1)"
+                    [disabled]="pagina() === 0" aria-label="Página anterior">
+              <lucide-icon name="chevron-left" [size]="18" aria-hidden="true" />
+            </button>
+            <span class="pie__pagina">{{ pagina() + 1 }} / {{ totalPaginas() }}</span>
+            <button type="button" class="btn-icono" (click)="irAPagina(1)"
+                    [disabled]="pagina() >= totalPaginas() - 1" aria-label="Página siguiente">
+              <lucide-icon name="chevron-right" [size]="18" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- ══════════════ COMPARADOR ══════════════ -->
+  @if (seccion() === 'comparador') {
+    <div role="tabpanel">
+      <app-comparador [ingredientes]="ingredientes()" [puedeVerPrecios]="permisos().precios" />
+    </div>
+  }
+
+  <!-- ══════════════ COMPRAS ══════════════ -->
+  @if (seccion() === 'compras') {
+    <div role="tabpanel">
+      <app-compras [proveedores]="misProveedores()"
+                   [ingredientes]="ingredientes()"
+                   [permisos]="permisos()"
+                   [abrirPara]="compraPara()"
+                   (registrada)="cargar()" />
+    </div>
+  }
+</section>
+
+<!-- ══════════════ MODALES ══════════════ -->
+@if (abierto(); as p) {
+  <app-proveedor-detalle [proveedor]="p"
+                         [cargando]="cargandoDetalle()"
+                         [permisos]="permisos()"
+                         [ingredientes]="ingredientes()"
+                         [categorias]="categorias()"
+                         (cerrar)="cerrarDetalle()"
+                         (editar)="abrirEdicion(p)"
+                         (cambiado)="refrescarTodo()"
+                         (archivar)="archivar(p, $event)"
+                         (vincular)="vincular(p)"
+                         (registrarCompra)="registrarCompraDe(p)" />
+}
+
+@if (form()) {
+  <app-proveedor-form [proveedor]="editando()"
+                      [categorias]="categorias()"
+                      [guardando]="guardando()"
+                      [puedePublicar]="permisos().publicar"
+                      (guardar)="guardarProveedor($event)"
+                      (cerrar)="cerrarForm()" />
+}

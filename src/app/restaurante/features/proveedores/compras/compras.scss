@@ -1,0 +1,428 @@
+// ============================================================
+// Proveedores — compras: gasto, historial y registro
+// ============================================================
+@use '../compartido';
+
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+// ── Resumen de gasto ──
+.resumen {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid var(--pv-linea);
+  border-radius: var(--pv-radio);
+  background: var(--color-surface);
+
+  &--lista { grid-column: span 3; gap: 10px; }
+}
+
+.kpi__etiqueta {
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.kpi__valor {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+// Top de proveedores: barra proporcional, con la cifra siempre escrita al lado.
+.top {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.top__fila {
+  display: grid;
+  grid-template-columns: minmax(90px, 1fr) 2fr auto;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--font-size-sm);
+}
+
+.top__nombre {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-primary);
+}
+
+.top__barra {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--color-bg);
+  overflow: hidden;
+}
+
+.top__relleno {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-primary);
+}
+
+.top__cifra {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-primary);
+}
+
+// Gasto por mes: barras verticales simples, con el valor accesible por texto oculto.
+.meses {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  height: 92px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mes {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+}
+
+.mes__barra {
+  display: flex;
+  align-items: flex-end;
+  width: 100%;
+  max-width: 44px;
+  flex: 1;
+  border-radius: var(--pv-radio-sm) var(--pv-radio-sm) 0 0;
+  background: var(--color-bg);
+  overflow: hidden;
+}
+
+.mes__relleno {
+  display: block;
+  width: 100%;
+  min-height: 3px;
+  border-radius: var(--pv-radio-sm) var(--pv-radio-sm) 0 0;
+  background: color-mix(in srgb, var(--color-primary) 70%, transparent);
+}
+
+.mes__texto {
+  font-size: .68rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+// ── Fila de filtros ──
+.filtros-fila {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 0 16px 14px;
+  border-bottom: 1px solid var(--pv-linea);
+}
+
+.filtro-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 140px;
+
+  > span {
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .02em;
+    color: var(--color-text-secondary);
+  }
+}
+
+.casilla--filtro {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--pv-toque);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  cursor: pointer;
+
+  input { width: 18px; height: 18px; accent-color: var(--color-primary); }
+}
+
+.fila--anulada td {
+  opacity: .66;
+  strong { text-decoration: line-through; }
+}
+
+// ── Tarjetas (móvil) ──
+.tarjetas { display: none; margin: 0; padding: 0; list-style: none; }
+
+.tarjeta {
+  border-bottom: 1px solid var(--pv-linea);
+  &:last-child { border-bottom: 0; }
+  &--anulada { opacity: .7; }
+}
+
+.tarjeta__btn {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+
+  &:active { background: var(--pv-tinte); }
+  &:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+}
+
+.tarjeta__linea1 {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+
+  strong { font-size: var(--font-size-sm); color: var(--color-text-primary); }
+  .cifra { font-variant-numeric: tabular-nums; }
+}
+
+.tarjeta__linea2 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: .76rem;
+  color: var(--color-text-secondary);
+}
+
+.tarjeta__ref {
+  font-size: .72rem;
+  color: var(--color-text-muted);
+}
+
+// ── Detalle de una compra ──
+.det-cab {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+
+  h3 { margin: 0; font-size: 1.05rem; color: var(--color-text-primary); }
+}
+
+.subtitulo {
+  margin: 2px 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.tabla--detalle {
+  border: 1px solid var(--pv-linea);
+  border-radius: var(--pv-radio-sm);
+  overflow: clip;
+
+  th { position: static; }
+  td { height: 52px; }
+
+  small { display: block; font-size: .72rem; }
+}
+
+.tenue { color: var(--color-text-muted); }
+
+.totales {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: var(--pv-radio-sm);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  font-variant-numeric: tabular-nums;
+
+  > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+  }
+
+  dt { margin: 0; }
+  dd { margin: 0; }
+}
+
+.totales__total {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-primary) !important;
+  font-weight: 700;
+
+  dd { font-size: 1.1rem; }
+}
+
+.adjunto {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+// Un `<label>` que se comporta como botón para abrir el selector de archivos.
+.btn-archivo {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+
+  input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+}
+
+// ── Renglones del formulario ──
+.renglones {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.renglon {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--pv-linea);
+  border-radius: var(--pv-radio-sm);
+  background: var(--color-bg);
+}
+
+.renglon__cab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  .select--mini { flex: 1; min-width: 0; height: 36px; }
+  .btn-icono { margin-left: auto; flex-shrink: 0; }
+}
+
+.renglon__n {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--pv-tinte-fuerte);
+  color: var(--color-primary);
+  font-size: .74rem;
+  font-weight: 800;
+}
+
+.renglon__campos {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+
+  label { font-size: .74rem; }
+  input, select { background: var(--color-surface); }
+}
+
+.renglon__desc { grid-column: 1 / -1; }
+
+.renglon__pie {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+
+  .cifra { font-weight: 700; font-variant-numeric: tabular-nums; }
+}
+
+// ── Caja de totales del formulario ──
+.cobro {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+}
+
+.cobro__fila {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+
+  &--descuento { color: var(--color-success); }
+
+  &--total {
+    margin-top: 2px;
+    padding-top: 6px;
+    border-top: 1px solid var(--color-border);
+    color: var(--color-text-primary);
+
+    strong { font-size: 1.05rem; }
+  }
+}
+
+// ── Esqueletos ──
+.esq-lista { display: flex; flex-direction: column; gap: 6px; }
+.esq--fila { height: 52px; border-radius: var(--pv-radio-sm); }
+
+@media (max-width: 1100px) {
+  .resumen { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kpi--lista { grid-column: span 2; }
+  .renglon__campos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 767px) {
+  .resumen { grid-template-columns: 1fr; }
+  .kpi--lista { grid-column: span 1; }
+
+  .filtros-fila { padding: 0 12px 12px; }
+  .filtro-campo { min-width: 0; flex: 1 0 45%; }
+
+  .tarjetas { display: block; }
+
+  .renglon__campos { grid-template-columns: 1fr 1fr; }
+  .renglon__desc { grid-column: 1 / -1; }
+
+  .tabla--detalle { display: block; overflow-x: auto; table { min-width: 560px; } }
+}

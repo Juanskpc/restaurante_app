@@ -170,6 +170,7 @@ const APP_ROUTE_PRIORITY = [
   '/caja',
   '/clientes',
   '/inventario',
+  '/proveedores',
   '/horarios',
   '/usuarios',
   '/reportes',
@@ -186,6 +187,10 @@ const ROUTE_PERMISSION_ALIASES: Record<string, string[]> = {
   '/caja': ['/caja'],
   '/clientes': ['/clientes'],
   '/inventario': ['/inventario'],
+  // Sin alias a `/inventario`: aunque los dos módulos hablen de insumos, el permiso de
+  // Proveedores es propio. Quien puede ajustar el stock no tiene por qué ver a cuánto
+  // compra el dueño, y al revés.
+  '/proveedores': ['/proveedores'],
   '/horarios': ['/horarios'],
   '/usuarios': ['/usuarios'],
   '/reportes': ['/reportes'],

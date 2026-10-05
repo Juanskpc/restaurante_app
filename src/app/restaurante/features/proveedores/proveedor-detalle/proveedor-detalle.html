@@ -1,0 +1,766 @@
+<!-- ============================================================
+     Proveedores — ficha abierta
+     Arriba lo público (lo ve cualquiera con acceso); abajo, en pestañas, lo privado
+     de este negocio. La separación tiene que notarse de un vistazo.
+     ============================================================ -->
+<div class="overlay" (click)="cerrar.emit()" aria-hidden="true"></div>
+
+<section class="modal modal--ancho modal--detalle"
+         role="dialog" aria-modal="true" aria-labelledby="det-titulo">
+
+  <!-- ── Cabecera ── -->
+  <header class="cabecera">
+    <div class="cabecera__id">
+      <span class="avatar" aria-hidden="true">
+        {{ proveedor().nombre_comercial.charAt(0).toUpperCase() }}
+      </span>
+      <div class="cabecera__texto">
+        <h3 id="det-titulo">{{ proveedor().nombre_comercial }}</h3>
+        <div class="cabecera__chips">
+          @if (esPropio()) {
+            <span class="chip chip--propio">
+              <lucide-icon name="bookmark" [size]="12" aria-hidden="true" />
+              {{ esPropietario() ? 'Tuyo' : 'En tu lista' }}
+            </span>
+          } @else {
+            <span class="chip chip--compartido">
+              <lucide-icon name="users" [size]="12" aria-hidden="true" />
+              Del directorio
+            </span>
+          }
+          @if (estaArchivado()) {
+            <span class="chip chip--aviso">
+              <lucide-icon name="archive" [size]="12" aria-hidden="true" />
+              Archivado
+            </span>
+          }
+          @if (esPropietario() && proveedor().visibilidad) {
+            <span class="chip chip--neutro">
+              <lucide-icon name="eye" [size]="12" aria-hidden="true" />
+              {{ etiquetaVisibilidad[proveedor().visibilidad!] }}
+            </span>
+          }
+          @for (c of proveedor().categorias; track c.codigo) {
+            <span class="chip">{{ c.nombre }}</span>
+          }
+        </div>
+      </div>
+    </div>
+    <button type="button" class="btn-icono" (click)="cerrar.emit()" aria-label="Cerrar ficha">
+      <lucide-icon name="x" [size]="18" aria-hidden="true" />
+    </button>
+  </header>
+
+  <!-- ── Acciones de contacto: lo primero que alguien quiere hacer con un proveedor ── -->
+  <div class="contacto-acciones">
+    @if (proveedor().telefono) {
+      <a class="accion" [href]="'tel:' + proveedor().telefono">
+        <lucide-icon name="phone" [size]="16" aria-hidden="true" />
+        Llamar
+      </a>
+    }
+    @if (whatsappUrl()) {
+      <a class="accion" [href]="whatsappUrl()" target="_blank" rel="noopener noreferrer">
+        <lucide-icon name="message-circle" [size]="16" aria-hidden="true" />
+        WhatsApp
+      </a>
+    }
+    @if (proveedor().email) {
+      <a class="accion" [href]="'mailto:' + proveedor().email">
+        <lucide-icon name="mail" [size]="16" aria-hidden="true" />
+        Correo
+      </a>
+    }
+    @if (proveedor().sitio_web) {
+      <a class="accion" [href]="proveedor().sitio_web" target="_blank" rel="noopener noreferrer">
+        <lucide-icon name="globe" [size]="16" aria-hidden="true" />
+        Sitio web
+      </a>
+    }
+    @if (!proveedor().telefono && !proveedor().email && !whatsappUrl() && !proveedor().sitio_web) {
+      <p class="sin-dato">Este proveedor no tiene datos de contacto cargados.</p>
+    }
+  </div>
+
+  <!-- ── Pestañas ── -->
+  <div class="pestanas" role="tablist" aria-label="Secciones del proveedor">
+    <button type="button" role="tab" class="pestana"
+            [class.pestana--activa]="pestana() === 'info'"
+            [attr.aria-selected]="pestana() === 'info'"
+            (click)="irAPestana('info')">
+      Información
+    </button>
+    <button type="button" role="tab" class="pestana"
+            [class.pestana--activa]="pestana() === 'insumos'"
+            [attr.aria-selected]="pestana() === 'insumos'"
+            (click)="irAPestana('insumos')">
+      Insumos
+      <span class="pestana__n">{{ insumos().length }}</span>
+    </button>
+    @if (esPropio()) {
+      <button type="button" role="tab" class="pestana"
+              [class.pestana--activa]="pestana() === 'compras'"
+              [attr.aria-selected]="pestana() === 'compras'"
+              (click)="irAPestana('compras')">
+        Mis compras
+      </button>
+      <button type="button" role="tab" class="pestana"
+              [class.pestana--activa]="pestana() === 'notas'"
+              [attr.aria-selected]="pestana() === 'notas'"
+              (click)="irAPestana('notas')">
+        Notas privadas
+      </button>
+    }
+  </div>
+
+  <!-- ══════════════ INFORMACIÓN (pública) ══════════════ -->
+  @if (pestana() === 'info') {
+    <div class="cuerpo" role="tabpanel">
+      @if (proveedor().descripcion) {
+        <p class="descripcion">{{ proveedor().descripcion }}</p>
+      }
+
+      <section class="bloque">
+        <h4 class="bloque__titulo">
+          <lucide-icon name="map-pin" [size]="14" aria-hidden="true" />
+          Ubicación y cobertura
+        </h4>
+        <dl class="datos">
+          @if (proveedor().direccion) {
+            <div class="dato"><dt>Dirección</dt><dd>{{ proveedor().direccion }}</dd></div>
+          }
+          <div class="dato">
+            <dt>Ciudad</dt>
+            <dd>{{ proveedor().ciudad || '—' }}{{ proveedor().region ? ', ' + proveedor().region : '' }}</dd>
+          </div>
+          <div class="dato"><dt>País</dt><dd>{{ proveedor().pais || '—' }}</dd></div>
+          <div class="dato"><dt>Atención</dt><dd>{{ atencionTexto() }}</dd></div>
+          @if (proveedor().zonas_cobertura?.length) {
+            <div class="dato dato--ancho">
+              <dt>Zonas de entrega</dt>
+              <dd class="dato__chips">
+                @for (z of proveedor().zonas_cobertura; track z) {
+                  <span class="chip">{{ z }}</span>
+                }
+              </dd>
+            </div>
+          }
+        </dl>
+        @if (proveedor().nivel_acceso === 'basico') {
+          <p class="aviso">
+            <lucide-icon name="info" [size]="14" aria-hidden="true" />
+            Este negocio comparte solo la información básica de su proveedor.
+          </p>
+        }
+      </section>
+
+      @if (tieneCondiciones()) {
+        <section class="bloque">
+          <h4 class="bloque__titulo">
+            <lucide-icon name="handshake" [size]="14" aria-hidden="true" />
+            Condiciones comerciales
+          </h4>
+          <dl class="datos">
+            @if (proveedor().pedido_minimo) {
+              <div class="dato">
+                <dt>Pedido mínimo</dt>
+                <dd class="cifra">{{ proveedor().pedido_minimo | currency:'COP':'symbol-narrow':'1.0-0' }}</dd>
+              </div>
+            }
+            @if (diasTexto()) {
+              <div class="dato"><dt>Días de entrega</dt><dd>{{ diasTexto() }}</dd></div>
+            }
+            @if (proveedor().tiempo_entrega_hrs != null) {
+              <div class="dato">
+                <dt>Tiempo estimado</dt>
+                <dd>{{ proveedor().tiempo_entrega_hrs }} h</dd>
+              </div>
+            }
+            @if (proveedor().metodos_pago) {
+              <div class="dato"><dt>Formas de pago</dt><dd>{{ proveedor().metodos_pago }}</dd></div>
+            }
+            <div class="dato">
+              <dt>Precios mayoristas</dt>
+              <dd>{{ proveedor().precios_mayoristas ? 'Sí' : 'No' }}</dd>
+            </div>
+            @if (proveedor().observaciones) {
+              <div class="dato dato--ancho">
+                <dt>Observaciones</dt><dd>{{ proveedor().observaciones }}</dd>
+              </div>
+            }
+          </dl>
+        </section>
+      }
+
+      @if (proveedor().persona_contacto) {
+        <section class="bloque">
+          <h4 class="bloque__titulo">
+            <lucide-icon name="user" [size]="14" aria-hidden="true" />
+            Contacto
+          </h4>
+          <dl class="datos">
+            <div class="dato"><dt>Persona</dt><dd>{{ proveedor().persona_contacto }}</dd></div>
+            @if (proveedor().telefono) {
+              <div class="dato"><dt>Teléfono</dt><dd>{{ proveedor().telefono }}</dd></div>
+            }
+            @if (proveedor().email) {
+              <div class="dato"><dt>Correo</dt><dd>{{ proveedor().email }}</dd></div>
+            }
+          </dl>
+        </section>
+      }
+    </div>
+  }
+
+  <!-- ══════════════ INSUMOS ══════════════ -->
+  @if (pestana() === 'insumos') {
+    <div class="cuerpo" role="tabpanel">
+      @if (esPropio() && permisos().editar) {
+        <div class="cuerpo__barra">
+          <button type="button" class="btn-secundario" (click)="abrirInsumo(null)">
+            <lucide-icon name="plus" [size]="15" aria-hidden="true" />
+            Agregar insumo
+          </button>
+        </div>
+      }
+
+      @if (!insumos().length) {
+        <div class="estado-vacio">
+          <span class="estado-vacio__icono">
+            <lucide-icon name="package" [size]="22" aria-hidden="true" />
+          </span>
+          <p class="estado-vacio__titulo">Todavía no hay insumos cargados.</p>
+          <p class="estado-vacio__texto">
+            @if (esPropio() && permisos().editar) {
+              Agrega lo que te vende este proveedor y a qué precio. Es lo que alimenta el
+              comparador y lo que deja registrar compras más rápido.
+            } @else {
+              Este negocio no ha publicado qué le compra a este proveedor.
+            }
+          </p>
+        </div>
+      } @else {
+        @if (insumosPropios().length) {
+          <h4 class="bloque__titulo">
+            <lucide-icon name="lock" [size]="14" aria-hidden="true" />
+            Tus insumos y precios
+          </h4>
+          <ul class="insumos">
+            @for (i of insumosPropios(); track i.id_proveedor_insumo) {
+              <li class="insumo">
+                <div class="insumo__texto">
+                  <strong>{{ i.nombre }}</strong>
+                  <small>
+                    {{ i.presentacion || unidadTexto(i.unidad) }}
+                    @if (i.cantidad_presentacion) { · {{ i.cantidad_presentacion }} {{ i.unidad }} }
+                    @if (i.marca) { · {{ i.marca }} }
+                    @if (i.ingrediente) {
+                      · <span class="enlace-inv">
+                          <lucide-icon name="link" [size]="11" aria-hidden="true" />
+                          {{ i.ingrediente }}
+                        </span>
+                    }
+                  </small>
+                  <div class="insumo__chips">
+                    @if (!i.disponible) {
+                      <span class="chip chip--aviso">
+                        <lucide-icon name="circle-slash" [size]="11" aria-hidden="true" />
+                        No disponible
+                      </span>
+                    }
+                    @if (i.precio_publico) {
+                      <span class="chip chip--compartido">
+                        <lucide-icon name="globe" [size]="11" aria-hidden="true" />
+                        Precio público
+                      </span>
+                    }
+                  </div>
+                </div>
+
+                <div class="insumo__precio">
+                  @if (!puedeVerPrecios()) {
+                    <span class="sin-dato">Sin permiso</span>
+                  } @else if (i.precio != null) {
+                    <strong class="cifra">{{ i.precio | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+                    @if (i.fecha_precio) {
+                      <small>{{ i.fecha_precio | date:'dd MMM yyyy' }}</small>
+                    }
+                  } @else {
+                    <span class="sin-dato">Sin precio</span>
+                  }
+                </div>
+
+                <div class="insumo__acciones">
+                  @if (puedeVerPrecios()) {
+                    <button type="button" class="btn-icono" (click)="verHistorial(i)"
+                            aria-label="Ver historial de precios">
+                      <lucide-icon name="trending-up" [size]="16" aria-hidden="true" />
+                    </button>
+                  }
+                  @if (permisos().editar) {
+                    <button type="button" class="btn-icono" (click)="abrirInsumo(i)"
+                            aria-label="Editar insumo">
+                      <lucide-icon name="pencil" [size]="15" aria-hidden="true" />
+                    </button>
+                    <button type="button" class="btn-icono" (click)="eliminarInsumo(i)"
+                            aria-label="Quitar insumo">
+                      <lucide-icon name="trash-2" [size]="15" aria-hidden="true" />
+                    </button>
+                  }
+                </div>
+              </li>
+            }
+          </ul>
+        }
+
+        @if (insumosAjenos().length) {
+          <h4 class="bloque__titulo bloque__titulo--sep">
+            <lucide-icon name="users" [size]="14" aria-hidden="true" />
+            Publicado por otro negocio
+          </h4>
+          <p class="aviso">
+            <lucide-icon name="info" [size]="14" aria-hidden="true" />
+            Son <strong>precios de referencia</strong>, no una oferta para ti: otro negocio los
+            publicó con sus condiciones y pueden estar desactualizados.
+          </p>
+          <ul class="insumos">
+            @for (i of insumosAjenos(); track i.id_proveedor_insumo) {
+              <li class="insumo insumo--ajeno">
+                <div class="insumo__texto">
+                  <strong>{{ i.nombre }}</strong>
+                  <small>
+                    {{ i.presentacion || unidadTexto(i.unidad) }}
+                    @if (i.cantidad_presentacion) { · {{ i.cantidad_presentacion }} {{ i.unidad }} }
+                    @if (i.marca) { · {{ i.marca }} }
+                  </small>
+                </div>
+                <div class="insumo__precio">
+                  @if (i.precio != null) {
+                    <strong class="cifra">{{ i.precio | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+                    @if (i.fecha_precio) {
+                      <small>{{ i.fecha_precio | date:'dd MMM yyyy' }}</small>
+                    }
+                  } @else if (i.precio_reservado) {
+                    <span class="sin-dato">Precio no publicado</span>
+                  } @else {
+                    <span class="sin-dato">Sin precio</span>
+                  }
+                </div>
+                <div class="insumo__acciones"></div>
+              </li>
+            }
+          </ul>
+        }
+      }
+    </div>
+  }
+
+  <!-- ══════════════ MIS COMPRAS (privado) ══════════════ -->
+  @if (pestana() === 'compras') {
+    <div class="cuerpo" role="tabpanel">
+      @if (!puedeVerPrecios()) {
+        <div class="estado-vacio">
+          <span class="estado-vacio__icono">
+            <lucide-icon name="lock" [size]="22" aria-hidden="true" />
+          </span>
+          <p class="estado-vacio__titulo">Necesitas permiso para ver el gasto.</p>
+          <p class="estado-vacio__texto">
+            El historial de compras y los precios son información financiera. Pídele a un
+            administrador el permiso «Ver precios y gasto privados».
+          </p>
+        </div>
+      } @else if (cargandoCompras()) {
+        <div class="esq-lista" aria-busy="true" aria-label="Cargando compras">
+          @for (i of [1, 2, 3]; track i) {
+            <span class="esq esq--fila"></span>
+          }
+        </div>
+      } @else if (!compras().length) {
+        <div class="estado-vacio">
+          <span class="estado-vacio__icono">
+            <lucide-icon name="receipt" [size]="22" aria-hidden="true" />
+          </span>
+          <p class="estado-vacio__titulo">Aún no le has registrado compras.</p>
+          <p class="estado-vacio__texto">
+            Al registrar una compra, los renglones ligados a un insumo del inventario suman
+            stock automáticamente.
+          </p>
+          @if (permisos().compras) {
+            <button type="button" class="btn-secundario" (click)="registrarCompra.emit()">
+              <lucide-icon name="plus" [size]="15" aria-hidden="true" />
+              Registrar compra
+            </button>
+          }
+        </div>
+      } @else {
+        <div class="resumen-mini">
+          <div class="resumen-mini__dato">
+            <small>Total comprado</small>
+            <strong class="cifra">{{ totalComprado() | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+          </div>
+          <div class="resumen-mini__dato">
+            <small>Compras</small>
+            <strong class="cifra">{{ compras().length }}</strong>
+          </div>
+          @if (permisos().compras) {
+            <button type="button" class="btn-secundario" (click)="registrarCompra.emit()">
+              <lucide-icon name="plus" [size]="15" aria-hidden="true" />
+              Registrar compra
+            </button>
+          }
+        </div>
+
+        <ul class="compras">
+          @for (c of compras(); track c.id_compra) {
+            <li class="compra" [class.compra--anulada]="c.estado === 'N'">
+              <div class="compra__texto">
+                <strong>{{ c.referencia || 'Sin referencia' }}</strong>
+                <small>
+                  {{ c.fecha | date:'dd MMM yyyy' }} · {{ c.renglones }}
+                  {{ c.renglones === 1 ? 'producto' : 'productos' }}
+                  @if (c.metodo_pago) { · {{ c.metodo_pago }} }
+                </small>
+              </div>
+              @if (c.estado === 'N') {
+                <span class="chip chip--error">
+                  <lucide-icon name="ban" [size]="11" aria-hidden="true" />
+                  Anulada
+                </span>
+              }
+              <strong class="cifra">{{ c.total | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+            </li>
+          }
+        </ul>
+      }
+    </div>
+  }
+
+  <!-- ══════════════ NOTAS PRIVADAS ══════════════ -->
+  @if (pestana() === 'notas') {
+    <div class="cuerpo" role="tabpanel">
+      <p class="aviso aviso--ok">
+        <lucide-icon name="lock" [size]="14" aria-hidden="true" />
+        Todo lo de esta pestaña es <strong>solo tuyo</strong>: no sale al directorio compartido
+        ni lo ve ningún otro negocio, aunque el proveedor esté publicado.
+      </p>
+
+      <label class="campo-label">
+        Tu calificación
+        <div class="estrellas" role="group" aria-label="Calificación del proveedor">
+          @for (n of [1, 2, 3, 4, 5]; track n) {
+            <button type="button" class="estrella"
+                    [class.estrella--activa]="(calificacion() ?? 0) >= n"
+                    [attr.aria-pressed]="(calificacion() ?? 0) >= n"
+                    [attr.aria-label]="n + ' de 5'"
+                    [disabled]="!permisos().editar"
+                    (click)="ponerCalificacion(n)">
+              <lucide-icon name="star" [size]="20" aria-hidden="true" />
+            </button>
+          }
+          @if (calificacion()) {
+            <span class="estrellas__texto">{{ calificacion() }} de 5</span>
+          }
+        </div>
+      </label>
+
+      <label class="campo-label">
+        Notas
+        <textarea rows="4" maxlength="4000"
+                  placeholder="Pide pago anticipado, entrega los martes temprano, preguntar por Luis…"
+                  [disabled]="!permisos().editar"
+                  [ngModel]="notas()" (ngModelChange)="notas.set($event)"></textarea>
+      </label>
+
+      <label class="campo-label">
+        Condiciones que negociaste
+        <textarea rows="3" maxlength="4000"
+                  placeholder="Descuento del 5% desde 20 bultos, crédito a 15 días…"
+                  [disabled]="!permisos().editar"
+                  [ngModel]="condiciones()" (ngModelChange)="condiciones.set($event)"></textarea>
+      </label>
+
+      @if (permisos().editar) {
+        <div class="modal__acciones">
+          <button type="button" class="btn-primario" (click)="guardarNotas()" [disabled]="guardando()">
+            <lucide-icon name="check" [size]="16" aria-hidden="true" />
+            Guardar notas
+          </button>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- ── Acciones de la ficha ── -->
+  <footer class="pie-acciones">
+    @if (!esPropio()) {
+      @if (permisos().crear) {
+        <button type="button" class="btn-primario" (click)="vincular.emit()">
+          <lucide-icon name="bookmark-plus" [size]="16" aria-hidden="true" />
+          Agregar a mis proveedores
+        </button>
+      }
+      <button type="button" class="btn-texto" (click)="subModal.set('reportar')">
+        <lucide-icon name="flag" [size]="15" aria-hidden="true" />
+        Reportar información incorrecta
+      </button>
+    } @else {
+      @if (puedeEditarFicha()) {
+        <button type="button" class="btn-secundario" (click)="editar.emit()">
+          <lucide-icon name="pencil" [size]="15" aria-hidden="true" />
+          Editar
+        </button>
+      }
+      @if (esPropietario() && permisos().publicar) {
+        <button type="button" class="btn-secundario" (click)="subModal.set('visibilidad')">
+          <lucide-icon name="eye" [size]="15" aria-hidden="true" />
+          Visibilidad
+        </button>
+      }
+      @if (permisos().compras) {
+        <button type="button" class="btn-secundario" (click)="registrarCompra.emit()">
+          <lucide-icon name="receipt" [size]="15" aria-hidden="true" />
+          Registrar compra
+        </button>
+      }
+      @if (permisos().archivar) {
+        <button type="button" class="btn-peligro" (click)="archivar.emit(!estaArchivado())">
+          <lucide-icon [name]="estaArchivado() ? 'archive-restore' : 'archive'" [size]="15" aria-hidden="true" />
+          {{ estaArchivado() ? 'Reactivar' : 'Archivar' }}
+        </button>
+      }
+    }
+  </footer>
+</section>
+
+<!-- ══════════════ SUB-MODAL: insumo ══════════════ -->
+@if (subModal() === 'insumo') {
+  <div class="overlay overlay--encima" (click)="cerrarSubModal()" aria-hidden="true"></div>
+  <form class="modal modal--encima" role="dialog" aria-modal="true" aria-labelledby="ins-titulo"
+        (ngSubmit)="guardarInsumo()">
+    <h3 id="ins-titulo">{{ insumoEditando() ? 'Editar insumo' : 'Agregar insumo' }}</h3>
+
+    <label>
+      Nombre <span class="requerido">*</span>
+      <input type="text" maxlength="160" placeholder="Ej.: Pechuga de pollo"
+             [ngModel]="iNombre()" (ngModelChange)="iNombre.set($event)" name="iNombre" />
+    </label>
+
+    <div class="rejilla">
+      <label>
+        Categoría
+        <select [ngModel]="iCategoria()" (ngModelChange)="iCategoria.set($event)" name="iCategoria">
+          <option [ngValue]="null" [selected]="iCategoria() === null">Sin categoría</option>
+          @for (c of categorias(); track c.id_categoria_prov) {
+            <option [ngValue]="c.id_categoria_prov"
+                    [selected]="iCategoria() === c.id_categoria_prov">{{ c.nombre }}</option>
+          }
+        </select>
+      </label>
+      <label>
+        Insumo del inventario <span class="opcional">(opcional)</span>
+        <select [ngModel]="iIngrediente()" (ngModelChange)="iIngrediente.set($event)" name="iIngrediente">
+          <option [ngValue]="null" [selected]="iIngrediente() === null">Sin enlazar</option>
+          @for (g of ingredientes(); track g.id_ingrediente) {
+            <option [ngValue]="g.id_ingrediente" [selected]="iIngrediente() === g.id_ingrediente">
+              {{ g.nombre }} ({{ g.unidad_medida }})
+            </option>
+          }
+        </select>
+      </label>
+    </div>
+
+    <p class="aviso">
+      <lucide-icon name="info" [size]="14" aria-hidden="true" />
+      Enlazarlo con un insumo del inventario es lo que hace que una compra
+      <strong>sume stock</strong> y que el comparador sepa que hablan del mismo producto.
+    </p>
+
+    <div class="rejilla">
+      <label>
+        Unidad
+        <select [ngModel]="iUnidad()" (ngModelChange)="iUnidad.set($event)" name="iUnidad">
+          @for (u of unidades; track u.valor) {
+            <option [value]="u.valor" [selected]="iUnidad() === u.valor">{{ u.texto }}</option>
+          }
+        </select>
+      </label>
+      <label>
+        Presentación
+        <input type="text" maxlength="80" placeholder="Bulto, caja, bandeja…"
+               [ngModel]="iPresentacion()" (ngModelChange)="iPresentacion.set($event)"
+               name="iPresentacion" />
+      </label>
+      <label class="rejilla--ancha">
+        Cuánto trae la presentación <span class="opcional">(en la unidad de arriba)</span>
+        <input type="number" min="0" step="0.001" inputmode="decimal"
+               placeholder="Ej.: 50 si el bulto trae 50 kg"
+               [ngModel]="iCantidad()" (ngModelChange)="iCantidad.set($event)" name="iCantidad" />
+      </label>
+      <label>
+        Precio
+        <input type="number" min="0" step="1" inputmode="decimal"
+               [ngModel]="iPrecio()" (ngModelChange)="iPrecio.set($event)" name="iPrecio" />
+      </label>
+      <label>
+        Marca
+        <input type="text" maxlength="80" [ngModel]="iMarca()"
+               (ngModelChange)="iMarca.set($event)" name="iMarca" />
+      </label>
+      <label>
+        Código del proveedor
+        <input type="text" maxlength="60" [ngModel]="iCodigo()"
+               (ngModelChange)="iCodigo.set($event)" name="iCodigo" />
+      </label>
+    </div>
+
+    @if (iPrecio() != null && !iCantidad()) {
+      <p class="aviso aviso--warn">
+        <lucide-icon name="triangle-alert" [size]="14" aria-hidden="true" />
+        Sin saber cuánto trae la presentación, el comparador asume 1 y lo marca como estimado.
+      </p>
+    }
+
+    <label class="casilla">
+      <input type="checkbox" [ngModel]="iDisponible()" (ngModelChange)="iDisponible.set($event)"
+             name="iDisponible" />
+      Lo tiene disponible
+    </label>
+
+    <label class="casilla" [class.casilla--bloqueada]="!permisos().publicar">
+      <input type="checkbox" [disabled]="!permisos().publicar"
+             [ngModel]="iPublico()" (ngModelChange)="iPublico.set($event)" name="iPublico" />
+      Publicar este precio en el directorio compartido
+    </label>
+    @if (!permisos().publicar) {
+      <p class="aviso aviso--warn">
+        <lucide-icon name="lock" [size]="14" aria-hidden="true" />
+        Necesitas el permiso «Publicar en el directorio» para compartir precios.
+      </p>
+    }
+
+    <label>
+      Notas
+      <textarea rows="2" maxlength="2000" [ngModel]="iNotas()"
+                (ngModelChange)="iNotas.set($event)" name="iNotas"></textarea>
+    </label>
+
+    <div class="modal__acciones">
+      <button type="button" class="btn-secundario" (click)="cerrarSubModal()" [disabled]="guardando()">
+        Cancelar
+      </button>
+      <button type="submit" class="btn-primario" [disabled]="guardando()">
+        {{ guardando() ? 'Guardando…' : (insumoEditando() ? 'Guardar' : 'Agregar') }}
+      </button>
+    </div>
+  </form>
+}
+
+<!-- ══════════════ SUB-MODAL: historial de precios ══════════════ -->
+@if (subModal() === 'precios') {
+  <div class="overlay overlay--encima" (click)="cerrarSubModal()" aria-hidden="true"></div>
+  <section class="modal modal--encima" role="dialog" aria-modal="true" aria-labelledby="hist-titulo">
+    <h3 id="hist-titulo">Historial de precios</h3>
+    <p class="subtitulo">{{ historialDe()?.nombre }}</p>
+
+    @if (cargandoHistorial()) {
+      <div class="esq-lista" aria-busy="true">
+        @for (i of [1, 2, 3]; track i) { <span class="esq esq--fila"></span> }
+      </div>
+    } @else if (!historial().length) {
+      <div class="estado-vacio">
+        <span class="estado-vacio__icono">
+          <lucide-icon name="trending-up" [size]="22" aria-hidden="true" />
+        </span>
+        <p class="estado-vacio__titulo">Todavía no hay historial.</p>
+        <p class="estado-vacio__texto">
+          Se guarda un punto cada vez que cambias el precio y cada vez que registras una compra.
+        </p>
+      </div>
+    } @else {
+      <ul class="historial">
+        @for (p of historial(); track p.id_precio; let i = $index) {
+          <li class="punto">
+            <div class="punto__texto">
+              <strong class="cifra">{{ p.precio | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+              <small>
+                {{ p.fecha | date:'dd MMM yyyy, HH:mm' }}
+                @if (p.usuario) { · {{ p.usuario }} }
+              </small>
+            </div>
+            <span class="chip" [class.chip--ok]="p.origen === 'COMPRA'">
+              <lucide-icon [name]="p.origen === 'COMPRA' ? 'receipt' : 'pencil'" [size]="11"
+                           aria-hidden="true" />
+              {{ p.origen === 'COMPRA' ? 'De una factura' : 'Manual' }}
+            </span>
+            @if (variacion(i) !== null) {
+              <span class="variacion"
+                    [class.variacion--sube]="variacion(i)! > 0"
+                    [class.variacion--baja]="variacion(i)! < 0">
+                <lucide-icon [name]="variacion(i)! > 0 ? 'arrow-up' : 'arrow-down'" [size]="12"
+                             aria-hidden="true" />
+                {{ variacion(i)! > 0 ? '+' : '' }}{{ variacion(i) | number:'1.0-1' }}%
+              </span>
+            }
+          </li>
+        }
+      </ul>
+    }
+
+    <div class="modal__acciones">
+      <button type="button" class="btn-secundario" (click)="cerrarSubModal()">Cerrar</button>
+    </div>
+  </section>
+}
+
+<!-- ══════════════ SUB-MODAL: visibilidad ══════════════ -->
+@if (subModal() === 'visibilidad') {
+  <div class="overlay overlay--encima" (click)="cerrarSubModal()" aria-hidden="true"></div>
+  <section class="modal modal--encima" role="dialog" aria-modal="true" aria-labelledby="vis-titulo">
+    <h3 id="vis-titulo">Quién puede ver este proveedor</h3>
+    <div class="opciones-vis" role="radiogroup" aria-label="Visibilidad">
+      @for (v of visibilidadesPosibles; track v) {
+        <button type="button" role="radio" class="opcion-vis"
+                [class.opcion-vis--activa]="proveedor().visibilidad === v"
+                [attr.aria-checked]="proveedor().visibilidad === v"
+                [disabled]="guardando()"
+                (click)="cambiarVisibilidad(v)">
+          {{ etiquetaVisibilidad[v] }}
+          @if (proveedor().visibilidad === v) {
+            <lucide-icon name="check" [size]="16" aria-hidden="true" />
+          }
+        </button>
+      }
+    </div>
+    <p class="aviso">
+      <lucide-icon name="info" [size]="14" aria-hidden="true" />
+      Ningún nivel comparte tus notas, tus compras ni tu razón social. Los precios solo salen
+      en «Compartido con precios», y uno a uno: hay que marcarlos en cada insumo.
+    </p>
+    <div class="modal__acciones">
+      <button type="button" class="btn-secundario" (click)="cerrarSubModal()">Cerrar</button>
+    </div>
+  </section>
+}
+
+<!-- ══════════════ SUB-MODAL: reportar ══════════════ -->
+@if (subModal() === 'reportar') {
+  <div class="overlay overlay--encima" (click)="cerrarSubModal()" aria-hidden="true"></div>
+  <form class="modal modal--encima" role="dialog" aria-modal="true" aria-labelledby="rep-titulo"
+        (ngSubmit)="enviarReporte()">
+    <h3 id="rep-titulo">Reportar información incorrecta</h3>
+    <p class="subtitulo">{{ proveedor().nombre_comercial }}</p>
+    <label>
+      ¿Qué está mal? <span class="requerido">*</span>
+      <textarea rows="4" maxlength="500"
+                placeholder="El teléfono ya no existe, cambió de ciudad, cerró…"
+                [ngModel]="motivoReporte()" (ngModelChange)="motivoReporte.set($event)"
+                name="motivoReporte"></textarea>
+    </label>
+    <div class="modal__acciones">
+      <button type="button" class="btn-secundario" (click)="cerrarSubModal()" [disabled]="guardando()">
+        Cancelar
+      </button>
+      <button type="submit" class="btn-primario" [disabled]="guardando()">Enviar reporte</button>
+    </div>
+  </form>
+}

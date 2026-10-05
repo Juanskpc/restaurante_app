@@ -29,10 +29,14 @@ import {
   LayoutGrid, Grid3x3, List, SquarePen,
   PanelLeft, PanelLeftClose, PanelTop, Percent, Tag, Filter, Check, Info, Monitor, Smartphone,
   RotateCcw, Palette, CircleAlert, Ban, Salad, ChevronUp, Layers,
-  ArrowUp, ArrowDown, ArrowUpDown, EllipsisVertical, Ticket, SearchX, UserPlus
+  ArrowUp, ArrowDown, ArrowUpDown, EllipsisVertical, Ticket, SearchX, UserPlus,
+  // Proveedores
+  Scale, Bookmark, BookmarkPlus, Archive, ArchiveRestore, Flag, Award, Handshake,
+  PackageCheck, CircleSlash, Link, MessageSquare, FileText, Paperclip, TriangleAlert,
+  LoaderCircle
 } from 'lucide-angular';
 
-const icons = {
+export const icons = {
   ChefHat, LayoutDashboard, ClipboardList, UtensilsCrossed, Armchair,
   Package, Users, ChartBar, Settings, LogOut, Menu, X,
   Calendar, Sun, Moon, Bell, ChevronDown, ChevronLeft, ChevronRight,
@@ -48,7 +52,10 @@ const icons = {
   LayoutGrid, Grid3x3, List, SquarePen,
   PanelLeft, PanelLeftClose, PanelTop, Percent, Tag, Filter, Check, Info, Monitor, Smartphone,
   RotateCcw, Palette, CircleAlert, Ban, Salad, Mesa, ChevronUp, Layers,
-  ArrowUp, ArrowDown, ArrowUpDown, EllipsisVertical, Ticket, SearchX, UserPlus
+  ArrowUp, ArrowDown, ArrowUpDown, EllipsisVertical, Ticket, SearchX, UserPlus,
+  Scale, Bookmark, BookmarkPlus, Archive, ArchiveRestore, Flag, Award, Handshake,
+  PackageCheck, CircleSlash, Link, MessageSquare, FileText, Paperclip, TriangleAlert,
+  LoaderCircle
 };
 
 export const appConfig: ApplicationConfig = {

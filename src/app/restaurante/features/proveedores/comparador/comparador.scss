@@ -1,0 +1,162 @@
+// ============================================================
+// Proveedores — comparador de precios
+//
+// La fila más barata se marca con fondo, borde y la palabra «Más barato»: nunca solo con
+// color, porque es justo el dato que alguien daltónico necesita leer bien.
+// ============================================================
+@use '../compartido';
+
+.grupos {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+}
+
+.grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--pv-linea);
+  border-radius: var(--pv-radio);
+  background: var(--color-surface);
+}
+
+.grupo__cab {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.grupo__titulo {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--color-text-primary);
+}
+
+.grupo__n {
+  font-size: .76rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+// ── Tabla ──
+.tabla {
+  border: 1px solid var(--pv-linea);
+  border-radius: var(--pv-radio-sm);
+  overflow: clip;
+
+  th { position: static; }
+  td { height: 56px; }
+}
+
+.fila--barata td {
+  background: color-mix(in srgb, var(--color-success) 8%, transparent);
+  box-shadow: inset 3px 0 0 var(--color-success);
+}
+
+.prov {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+
+  strong { font-size: var(--font-size-sm); }
+  small { font-size: .72rem; color: var(--color-text-secondary); }
+}
+
+.tenue { color: var(--color-text-muted); font-size: .76rem; }
+
+.sobrecosto {
+  display: block;
+  font-size: .72rem;
+  font-weight: 700;
+  color: var(--color-error);
+  font-variant-numeric: tabular-nums;
+}
+
+// ── Tarjetas (móvil) ──
+.ofertas {
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.oferta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 11px 12px;
+  border: 1px solid var(--pv-linea);
+  border-radius: var(--pv-radio-sm);
+
+  &--barata {
+    border-color: color-mix(in srgb, var(--color-success) 45%, transparent);
+    background: color-mix(in srgb, var(--color-success) 7%, transparent);
+  }
+}
+
+.oferta__cab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+
+  strong { font-size: var(--font-size-sm); }
+}
+
+.oferta__precios {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.oferta__precio {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.oferta__base {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: .82rem;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.oferta__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: .74rem;
+  color: var(--color-text-secondary);
+}
+
+// ── Esqueleto ──
+.esq-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+
+.esq--tarjeta { height: 148px; border-radius: var(--pv-radio); }
+
+@media (max-width: 1100px) {
+  .tabla table { min-width: 680px; }
+}
+
+@media (max-width: 767px) {
+  .grupos { padding: 12px; gap: 12px; }
+  .tabla { display: none; }
+  .ofertas { display: flex; }
+}
