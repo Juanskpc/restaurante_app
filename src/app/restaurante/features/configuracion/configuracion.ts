@@ -144,6 +144,15 @@ export class ConfiguracionComponent {
   readonly permitePagoDomicilio = computed(() => this.configuracion()?.permite_pago_domicilio === true);
   readonly guardandoPagoDomicilio = signal(false);
 
+  /**
+   * De qué forma de pago sale el pago al domiciliario. `null` = de la misma con la que
+   * pagó el cliente, que es como funcionaba antes de existir esta opción.
+   */
+  readonly metodoPagoDomicilioId = computed(
+    () => this.configuracion()?.id_metodo_pago_domicilio ?? null,
+  );
+  readonly guardandoMetodoDomicilio = signal(false);
+
   readonly permiteDescuento = computed(() => this.configuracion()?.permite_descuento === true);
   readonly guardandoDescuento = signal(false);
 
@@ -172,6 +181,13 @@ export class ConfiguracionComponent {
   readonly editandoMetodoNombre = signal('');
   readonly guardandoMetodo = signal(false);
   readonly errorMetodo = signal<string | null>(null);
+
+  /**
+   * Las formas de pago que mueven el cajón. La de «Cuenta / Tiquetera» queda fuera: ese
+   * dinero no está ahí, y sacarle el pago de un domiciliario descuadraría el saldo de un
+   * cliente que no pidió nada. El backend la rechaza igual.
+   */
+  readonly metodosPagoCobrables = computed(() => this.metodosPago().filter((m) => !m.es_cuenta));
 
   readonly form = this.fb.group({
     nombre: this.fb.control('', {
@@ -405,6 +421,44 @@ export class ConfiguracionComponent {
       off: 'Cobro de domicilio desactivado.',
       error: 'No se pudo actualizar el cobro de domicilio.',
     });
+  }
+
+  /**
+   * De qué forma de pago sale el pago al domiciliario.
+   *
+   * No pasa por `actualizarFlag` porque no es un interruptor y, sobre todo, porque no hace
+   * falta revalidar el token: este dato no viaja en la sesión — lo resuelve el backend al
+   * cobrar, leyéndolo del negocio.
+   */
+  setMetodoPagoDomicilio(valor: string): void {
+    const idNegocio = this.negocioActivoId();
+    if (!idNegocio || !this.canEdit()) return;
+
+    const id = valor ? Number(valor) : null;
+    if (id === this.metodoPagoDomicilioId()) return;
+
+    const nombre = this.metodosPagoCobrables().find((m) => m.id_metodo_pago === id)?.nombre;
+
+    this.guardandoMetodoDomicilio.set(true);
+    this.configuracionService
+      .updateConfiguracion({ id_negocio: idNegocio, id_metodo_pago_domicilio: id })
+      .pipe(finalize(() => this.guardandoMetodoDomicilio.set(false)))
+      .subscribe({
+        next: (config) => {
+          this.configuracion.set(config);
+          this.uiFeedback.success(
+            id === null
+              ? 'El pago al domiciliario se descontará de la forma de pago del pedido.'
+              : `El pago al domiciliario se descontará de ${nombre}.`,
+            'Domicilios',
+          );
+        },
+        error: (e) => {
+          this.uiFeedback.error(
+            e?.error?.message || 'No se pudo actualizar la forma de pago del domicilio.',
+          );
+        },
+      });
   }
 
   /** Registrar un descuento sobre el pedido en el POS. */

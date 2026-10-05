@@ -111,6 +111,8 @@ export interface MetodoPago {
   id_negocio: number;
   nombre: string;
   estado: 'A' | 'I';
+  /** La forma de pago «Cuenta / Tiquetera». Ese dinero no está en el cajón. */
+  es_cuenta?: boolean;
   fecha_creacion: string;
 }
 

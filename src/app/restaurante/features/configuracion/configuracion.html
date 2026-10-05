@@ -340,6 +340,35 @@
             </span>
           </label>
 
+          <!-- Solo tiene sentido con el cobro de domicilio encendido: sin él no hay egreso. -->
+          @if (permitePagoDomicilio()) {
+            <div class="switch-sub" [class.is-disabled]="!canEdit() || guardandoMetodoDomicilio()">
+              <label class="switch-sub__label" for="metodo-pago-domicilio">
+                <strong>El pago al domiciliario sale de</strong>
+                <small>De qué forma de pago se descuenta ese egreso en el cuadre del turno. Es
+                  independiente de cómo pague el cliente: un pedido de $20.000 + $7.000 de
+                  domicilio cobrado por transferencia suma $27.000 a Transferencia y resta los
+                  $7.000 de lo que elijas aquí.</small>
+              </label>
+              <!-- `[selected]` por opción, no `[value]` en el select: con @for el valor se
+                   aplica antes de que existan las opciones y no selecciona ninguna. -->
+              <select id="metodo-pago-domicilio"
+                      class="switch-sub__select"
+                      [disabled]="!canEdit() || guardandoMetodoDomicilio()"
+                      (change)="setMetodoPagoDomicilio($any($event.target).value)">
+                <option value="" [selected]="metodoPagoDomicilioId() === null">
+                  La misma forma de pago del pedido
+                </option>
+                @for (m of metodosPagoCobrables(); track m.id_metodo_pago) {
+                  <option [value]="m.id_metodo_pago"
+                          [selected]="metodoPagoDomicilioId() === m.id_metodo_pago">
+                    {{ m.nombre }}
+                  </option>
+                }
+              </select>
+            </div>
+          }
+
           <label class="switch-row" [class.is-disabled]="!canEdit() || guardandoDomicilioPersonal()">
             <input type="checkbox"
                    [checked]="permiteDomicilioPersonal()"
