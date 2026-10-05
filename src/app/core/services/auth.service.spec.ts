@@ -86,8 +86,8 @@ describe('AuthService — frescura de la sesión', () => {
   it('una sesión sacada de localStorage NO cuenta como validada', () => {
     // El token es de la MISMA persona que la sesión (usuario 7): es el caso normal, recargar
     // la página. Lo que se afirma es que la sesión se restaura pero sin el sello de validada.
-    localStorage.setItem('app_token', jwtDe(7));
-    localStorage.setItem('app_session', JSON.stringify(sesion(['/pedidos'])));
+    localStorage.setItem('negocio_token', jwtDe(7));
+    localStorage.setItem('negocio_session', JSON.stringify(sesion(['/pedidos'])));
 
     // Nueva instancia: es lo que pasa al recargar la página.
     TestBed.resetTestingModule();
@@ -104,7 +104,7 @@ describe('AuthService — frescura de la sesión', () => {
   });
 
   it('tras revalidar contra el backend, la sesión queda validada y con los permisos nuevos', async () => {
-    localStorage.setItem('app_token', 'token');
+    localStorage.setItem('negocio_token', 'token');
     const promesa = auth.revalidarToken('token');
 
     http
@@ -118,7 +118,7 @@ describe('AuthService — frescura de la sesión', () => {
   });
 
   it('un permiso retirado deja de dar acceso en cuanto vuelve el perfil', async () => {
-    localStorage.setItem('app_token', 'token');
+    localStorage.setItem('negocio_token', 'token');
     const primera = auth.revalidarToken('token');
     http
       .expectOne(`${environment.apiUrl}/auth/verificar-token`)
@@ -137,7 +137,7 @@ describe('AuthService — frescura de la sesión', () => {
   });
 
   it('un 401 invalida la sesión; un fallo de red NO', async () => {
-    localStorage.setItem('app_token', 'token');
+    localStorage.setItem('negocio_token', 'token');
 
     const caducado = auth.revalidarToken('token');
     http
@@ -204,9 +204,9 @@ describe('AuthService — token y sesión de personas distintas', () => {
 
   it('descarta la sesión ajena en vez de arrancar con el negocio de otro', () => {
     // El escenario medido: token del usuario 36 (negocio 16), sesión guardada del negocio 12.
-    localStorage.setItem('app_token', jwtDe(36));
-    localStorage.setItem('app_session', JSON.stringify(sesionDe(19, 12)));
-    localStorage.setItem('app_negocio_activo', '12');
+    localStorage.setItem('negocio_token', jwtDe(36));
+    localStorage.setItem('negocio_session', JSON.stringify(sesionDe(19, 12)));
+    localStorage.setItem('negocio_activo', '12');
 
     const { auth, http } = recargar();
 
@@ -216,23 +216,30 @@ describe('AuthService — token y sesión de personas distintas', () => {
     http.verify();
   });
 
-  it('conserva el token al descartarla: el guardia lo revalida y trae la sesión buena', () => {
-    const token = jwtDe(36);
-    localStorage.setItem('app_token', token);
+  // Esta prueba cambió de forma al separar las claves, y el cambio es la mejora.
+  //
+  // Antes esta app leía `app_token` —la misma clave del panel—, así que ante un desajuste había
+  // que decidir si conservar ese token o borrarlo, y se conservaba para no cerrarle la sesión a
+  // quien acababa de entrar por el panel. Ahora esta app usa `negocio_token` y **ni mira** la
+  // clave del panel: no hay nada que conservar ni que borrar, que es más limpio que elegir bien.
+  it('no adopta ni borra el token del panel: lo deja donde está', () => {
+    // `app_token` a propósito: es LA CLAVE DEL PANEL, y de eso va esta prueba.
+    const tokenDelPanel = jwtDe(36);
+    localStorage.setItem('app_token', tokenDelPanel);
     localStorage.setItem('app_session', JSON.stringify(sesionDe(19, 12)));
 
     const { auth, http } = recargar();
 
-    // Borrar el token aquí cerraría la sesión de quien acaba de entrar por el panel.
-    expect(auth.getAccessToken()).toBe(token);
-    expect(localStorage.getItem('app_session')).toBeNull();
-    expect(localStorage.getItem('app_negocio_activo')).toBeNull();
+    expect(auth.getAccessToken()).toBeNull();
+    expect(auth.isAuthenticated()).toBe(false);
+    // Intacto: el panel sigue con su sesión.
+    expect(localStorage.getItem('app_token')).toBe(tokenDelPanel);
     http.verify();
   });
 
   it('un token ilegible tampoco restaura: ante la duda, no se adivina', () => {
-    localStorage.setItem('app_token', 'esto-no-es-un-jwt');
-    localStorage.setItem('app_session', JSON.stringify(sesionDe(19, 12)));
+    localStorage.setItem('negocio_token', 'esto-no-es-un-jwt');
+    localStorage.setItem('negocio_session', JSON.stringify(sesionDe(19, 12)));
 
     const { auth, http } = recargar();
 
@@ -241,14 +248,111 @@ describe('AuthService — token y sesión de personas distintas', () => {
   });
 
   it('cuando sí corresponden, la sesión se restaura con su negocio', () => {
+    localStorage.setItem('negocio_token', jwtDe(19));
+    localStorage.setItem('negocio_session', JSON.stringify(sesionDe(19, 12)));
+    localStorage.setItem('negocio_activo', '12');
+
+    const { auth, http } = recargar();
+
+    expect(auth.isAuthenticated()).toBe(true);
+    expect(auth.negocio()?.id_negocio).toBe(12);
+    http.verify();
+  });
+});
+
+/**
+ * Las claves de `localStorage` pasaron de `app_*` a `negocio_*` para que esta app y el panel
+ * dejen de pisarse el token (las dos se sirven del mismo origen). El renombrado tiene que ser
+ * INVISIBLE: quien tenga la sesión abierta al desplegar no debe notar nada.
+ */
+describe('AuthService — migración de las claves heredadas', () => {
+  function jwtDe(idUsuario: number): string {
+    const b64 = (o: unknown) =>
+      btoa(JSON.stringify(o)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    return `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ id_usuario: idUsuario })}.firma`;
+  }
+
+  const sesionDe = (idUsuario: number, idNegocio: number): SesionRestaurante => ({
+    usuario: {
+      id_usuario: idUsuario,
+      nombre_completo: 'Quien Sea',
+      primer_nombre: 'Quien',
+      primer_apellido: 'Sea',
+      email: 'quien@demo.co',
+    },
+    negocio: null,
+    negocios: [
+      {
+        id_negocio: idNegocio,
+        nombre: `Negocio ${idNegocio}`,
+        tipo_negocio: 'RESTAURANTE',
+        paleta: null,
+        roles: [{ id_rol: 2, descripcion: 'ADMINISTRADOR' }],
+        permisos_vista: [],
+        permisos_subnivel: [],
+      },
+    ],
+    roles: [{ id_rol: 2, descripcion: 'ADMINISTRADOR' }],
+    roles_globales: [],
+  });
+
+  function recargar() {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    });
+    return {
+      auth: TestBed.inject(AuthService),
+      http: TestBed.inject(HttpTestingController),
+    };
+  }
+
+  beforeEach(() => localStorage.clear());
+  afterEach(() => localStorage.clear());
+
+  it('una sesión guardada con las claves viejas sigue funcionando y se muda sola', () => {
     localStorage.setItem('app_token', jwtDe(19));
     localStorage.setItem('app_session', JSON.stringify(sesionDe(19, 12)));
     localStorage.setItem('app_negocio_activo', '12');
 
     const { auth, http } = recargar();
 
+    // Nadie pierde la sesión.
     expect(auth.isAuthenticated()).toBe(true);
     expect(auth.negocio()?.id_negocio).toBe(12);
+    // Y ya vive en las claves nuevas.
+    expect(localStorage.getItem('negocio_token')).toBe(jwtDe(19));
+    expect(localStorage.getItem('negocio_activo')).toBe('12');
+    // Las viejas se van: dejarlas mantendría viva la colisión con el panel.
+    expect(localStorage.getItem('app_token')).toBeNull();
+    expect(localStorage.getItem('app_session')).toBeNull();
+    http.verify();
+  });
+
+  it('un app_token que NO es de esta app se deja intacto: es la sesión del panel', () => {
+    // El panel guardó su token; la sesión vieja de esta app es de otra persona.
+    localStorage.setItem('app_token', jwtDe(36));
+    localStorage.setItem('app_session', JSON.stringify(sesionDe(19, 12)));
+
+    const { auth, http } = recargar();
+
+    expect(auth.isAuthenticated()).toBe(false);
+    // Lo que importa: no se le toca el token al panel.
+    expect(localStorage.getItem('app_token')).toBe(jwtDe(36));
+    expect(localStorage.getItem('negocio_token')).toBeNull();
+    http.verify();
+  });
+
+  it('con sesión nueva ya presente, no mira las viejas', () => {
+    localStorage.setItem('negocio_token', jwtDe(7));
+    localStorage.setItem('negocio_session', JSON.stringify(sesionDe(7, 1)));
+    localStorage.setItem('app_token', jwtDe(36));
+
+    const { auth, http } = recargar();
+
+    expect(auth.isAuthenticated()).toBe(true);
+    expect(auth.negocio()?.id_negocio).toBe(1);
+    expect(localStorage.getItem('app_token')).toBe(jwtDe(36));
     http.verify();
   });
 });

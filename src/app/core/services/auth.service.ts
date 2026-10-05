@@ -85,9 +85,27 @@ export interface SesionRestaurante {
   plan?: EstadoPlan | null;
 }
 
-const TOKEN_KEY    = 'app_token';
-const SESSION_KEY  = 'app_session';
-const NEGOCIO_KEY  = 'app_negocio_activo';
+/**
+ * Claves de `localStorage` propias de ESTA app.
+ *
+ * Antes eran `app_token` / `app_session` / `app_negocio_activo`, y `admin_app_v21` usa
+ * `app_token` para lo mismo. Las dos apps se sirven del mismo origen
+ * (`escalapp.cloud/admin` y `/restaurante`), así que comparten un único `localStorage` y se
+ * pisaban la clave del token: entrar al panel y abrir esta app dejaba el token de una persona
+ * junto a la sesión guardada de otra. La auditoría del backend recogió 1.705 peticiones al
+ * negocio equivocado por esa causa (módulo `authz`, 2026-09-11 a 2026-09-30).
+ *
+ * `sesionCorrespondeAlToken` ya impide operar con un desajuste, pero esto quita la causa:
+ * con nombres distintos las dos apps no pueden volver a pisarse.
+ */
+const TOKEN_KEY    = 'negocio_token';
+const SESSION_KEY  = 'negocio_session';
+const NEGOCIO_KEY  = 'negocio_activo';
+
+/** Las claves viejas, solo para la migración silenciosa de `migrarClavesHeredadas`. */
+const TOKEN_KEY_HEREDADA   = 'app_token';
+const SESSION_KEY_HEREDADA = 'app_session';
+const NEGOCIO_KEY_HEREDADA = 'app_negocio_activo';
 
 /**
  * El `id_usuario` que lleva dentro un JWT, o `null` si no se puede leer.
@@ -603,7 +621,47 @@ export class AuthService {
   // ============================================================
 
   /** Restaura sesión desde localStorage al iniciar. */
+  /**
+   * Mueve una sesión guardada con las claves viejas a las nuevas, una sola vez.
+   *
+   * Sin esto, renombrar las claves cerraría la sesión de todos los que la tengan abierta al
+   * desplegar — y eso es justo lo que no se quiere: el cambio tiene que ser invisible.
+   *
+   * **Solo migra si el token heredado y la sesión heredada son de la misma persona.** Si no
+   * corresponden, lo más probable es que `app_token` sea de una sesión del PANEL (que sigue
+   * usando esa clave y la necesita), así que no se toca nada: borrarlo cerraría la sesión de
+   * quien no ha hecho nada mal. Es el mismo criterio que `descartarSesionGuardada`.
+   */
+  private migrarClavesHeredadas(): void {
+    // Ya hay sesión con las claves nuevas: nada que migrar.
+    if (localStorage.getItem(TOKEN_KEY)) return;
+
+    const tokenViejo = localStorage.getItem(TOKEN_KEY_HEREDADA);
+    const sesionVieja = localStorage.getItem(SESSION_KEY_HEREDADA);
+    if (!tokenViejo || !sesionVieja) return;
+
+    try {
+      const parsed = JSON.parse(sesionVieja) as SesionRestaurante;
+      if (!sesionCorrespondeAlToken(parsed, tokenViejo)) return;
+
+      localStorage.setItem(TOKEN_KEY, tokenViejo);
+      localStorage.setItem(SESSION_KEY, sesionVieja);
+      const negocioViejo = localStorage.getItem(NEGOCIO_KEY_HEREDADA);
+      if (negocioViejo) localStorage.setItem(NEGOCIO_KEY, negocioViejo);
+
+      // Las viejas se van: eran de esta app y ya están copiadas. Dejarlas mantendría viva la
+      // colisión con el panel, que es lo que este cambio quita.
+      localStorage.removeItem(TOKEN_KEY_HEREDADA);
+      localStorage.removeItem(SESSION_KEY_HEREDADA);
+      localStorage.removeItem(NEGOCIO_KEY_HEREDADA);
+    } catch {
+      // Sesión heredada ilegible: no se migra y no se borra nada. El guardia revalidará.
+    }
+  }
+
   private restoreSession(): void {
+    this.migrarClavesHeredadas();
+
     const token = localStorage.getItem(TOKEN_KEY);
     const raw = localStorage.getItem(SESSION_KEY);
     if (token && raw) {
