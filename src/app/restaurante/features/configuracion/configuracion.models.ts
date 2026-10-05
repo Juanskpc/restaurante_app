@@ -16,6 +16,11 @@ export interface ConfiguracionNegocio {
   paleta: PaletaColor | null;
   permite_multipago: boolean;
   permite_pago_domicilio: boolean;
+  /**
+   * De qué forma de pago sale el pago al domiciliario (el egreso que deja el valor del
+   * domicilio al cobrar). null = de la misma con la que pagó el cliente.
+   */
+  id_metodo_pago_domicilio: number | null;
   permite_descuento: boolean;
   pregunta_cobro_envio: boolean;
   /** Tiqueteras y fiado. Opt-in: apagado, el módulo de Clientes no existe para el negocio. */
@@ -47,6 +52,7 @@ export interface ConfiguracionNegocioPayload {
   url_instagram?: string | null;
   permite_multipago?: boolean;
   permite_pago_domicilio?: boolean;
+  id_metodo_pago_domicilio?: number | null;
   permite_descuento?: boolean;
   pregunta_cobro_envio?: boolean;
   permite_cuentas_cliente?: boolean;
