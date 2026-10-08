@@ -156,7 +156,12 @@
                   WhatsApp
                 </span>
               }
-              @if (p.pendiente_confirmar) {
+              @if (p.cambio_por_confirmar) {
+                <span class="tipo-tag tag-pendiente" title="El cliente cambió este pedido por WhatsApp y nadie del negocio lo ha visto todavía">
+                  <lucide-icon name="clock-3" [size]="12" />
+                  Pedido modificado
+                </span>
+              } @else if (p.pendiente_confirmar) {
                 <span class="tipo-tag tag-pendiente" title="Nadie del negocio ha confirmado este pedido todavía">
                   <lucide-icon name="clock-3" [size]="12" />
                   Pendiente
@@ -274,8 +279,8 @@
                   <lucide-icon [name]="confirmandoId() === p.id_orden ? 'loader' : 'check-circle'" [size]="15"
                                [class.spin]="confirmandoId() === p.id_orden" />
                   <!-- «Confirmar» en el móvil, donde el botón es angosto; «Confirmar pedido» en el PC. -->
-                  <span class="lbl-corto">Confirmar</span>
-                  <span class="lbl-largo">Confirmar pedido</span>
+                  <span class="lbl-corto">{{ p.cambio_por_confirmar ? 'Ver cambio' : 'Confirmar' }}</span>
+                  <span class="lbl-largo">{{ p.cambio_por_confirmar ? 'Confirmar cambio' : 'Confirmar pedido' }}</span>
                 </button>
               }
               @case ('avisar') {
@@ -403,7 +408,7 @@
           @if (p.pendiente_confirmar) {
             <span class="tipo-tag tag-pendiente">
               <lucide-icon name="clock-3" [size]="12" />
-              Pendiente
+              {{ p.cambio_por_confirmar ? 'Pedido modificado' : 'Pendiente' }}
             </span>
           }
         </div>
@@ -669,7 +674,7 @@
                   (click)="confirmarPedido(p, $event)">
             <lucide-icon [name]="confirmandoId() === p.id_orden ? 'loader' : 'check-circle'" [size]="16"
                          [class.spin]="confirmandoId() === p.id_orden" />
-            Confirmar pedido
+            {{ p.cambio_por_confirmar ? 'Confirmar cambio' : 'Confirmar pedido' }}
           </button>
         }
         @if (puedeEditar(p)) {

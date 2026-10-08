@@ -94,6 +94,13 @@ export interface PedidoDespacho {
    */
   pendiente_confirmar?: boolean;
   /**
+   * Lo que falta por confirmar no es el pedido entero sino un CAMBIO del cliente: el negocio ya
+   * lo había visto y después el cliente le agregó algo por WhatsApp. Va siempre con
+   * `pendiente_confirmar`; solo cambia las palabras («Confirmar cambio»). Puede faltar con un
+   * backend anterior: se lee como falso.
+   */
+  cambio_por_confirmar?: boolean;
+  /**
    * ¿Se le puede ofrecer el aviso de «ya está listo»?
    *
    * Lo decide el **backend**, y por eso aquí no se recalcula. Son cuatro condiciones y una de
@@ -710,7 +717,9 @@ export class DespachoComponent implements OnInit {
     ).subscribe({
       next: () => {
         const apply = (ord: PedidoDespacho): PedidoDespacho =>
-          ord.id_orden === p.id_orden ? { ...ord, pendiente_confirmar: false } : ord;
+          ord.id_orden === p.id_orden
+            ? { ...ord, pendiente_confirmar: false, cambio_por_confirmar: false }
+            : ord;
 
         this.pedidos.update((lista) => lista.map(apply));
         const activo = this.pedidoActivo();
@@ -731,13 +740,17 @@ export class DespachoComponent implements OnInit {
 
   private async preguntarImprimirComanda(p: PedidoDespacho): Promise<void> {
     // El repartidor no imprime: el tiquete lo saca el local (mismo criterio que el botón).
+    // Era un cambio del cliente sobre un pedido ya visto: la comanda vieja ya no sirve.
+    const cambio = p.cambio_por_confirmar === true;
     if (this.esDomiciliario()) {
-      this.uiFeedback.success('Pedido confirmado.', 'Confirmado');
+      this.uiFeedback.success(cambio ? 'Cambio confirmado.' : 'Pedido confirmado.', 'Confirmado');
       return;
     }
     const imprimir = await this.uiFeedback.confirm({
-      title: 'Pedido confirmado',
-      message: `El pedido ${p.numero_orden} quedó confirmado. ¿Quieres imprimir la comanda?`,
+      title: cambio ? 'Cambio confirmado' : 'Pedido confirmado',
+      message: cambio
+        ? `El cambio del pedido ${p.numero_orden} quedó confirmado. ¿Quieres imprimir la comanda actualizada?`
+        : `El pedido ${p.numero_orden} quedó confirmado. ¿Quieres imprimir la comanda?`,
       confirmText: 'Imprimir comanda',
       cancelText: 'Omitir',
       tone: 'info',
