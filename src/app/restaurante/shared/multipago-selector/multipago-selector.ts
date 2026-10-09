@@ -149,6 +149,11 @@ export class MultipagoSelectorComponent {
    */
   readonly facturaAparte = input<boolean>(false);
   readonly factura = input<SeleccionFactura>(SIN_FACTURA);
+  /**
+   * La factura que se pidió al tomar el pedido (`pedid_orden.factura_solicitada`). El cobro de
+   * Mesas o Despacho abre con ella marcada, igual que con la forma de pago y la cuenta.
+   */
+  readonly facturaInicial = input<FacturaSolicitada | null>(null);
 
   /** Emite la selección actual cada vez que cambia. */
   readonly seleccionChange = output<PagoSeleccion>();
@@ -282,6 +287,15 @@ export class MultipagoSelectorComponent {
           valor: f.valor != null ? Number(f.valor) : null,
         }))
       );
+    });
+
+    // Siembra la factura pedida al tomar el pedido. Una sola vez: después manda lo que se elija.
+    let facturaSembrada = false;
+    effect(() => {
+      const inicial = this.facturaInicial();
+      if (facturaSembrada || !inicial) return;
+      facturaSembrada = true;
+      this.facturaElegida.set({ datos: inicial, valido: true });
     });
 
     // Siembra la cuenta guardada en el pedido. Una sola vez, y solo si el usuario no ha

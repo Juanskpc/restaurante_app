@@ -26,7 +26,12 @@ import {
   PagoSeleccion,
   avisoFacturaIncompleta,
 } from '../../shared/multipago-selector/multipago-selector';
-import { FacturaResumen, FacturacionService, tonoDeFactura } from '../../../core/services/facturacion.service';
+import {
+  FacturaResumen,
+  FacturaSolicitada,
+  FacturacionService,
+  tonoDeFactura,
+} from '../../../core/services/facturacion.service';
 import { FacturaChipComponent, SeleccionFactura, SIN_FACTURA } from '../../shared/factura-chip/factura-chip';
 
 // ============================================================
@@ -103,6 +108,8 @@ interface OrdenApi {
   id_orden: number;
   id_mesa: number | null;
   id_metodo_pago?: number | null;
+  /** La factura electrónica pedida al tomarlo (anónima o a nombre del cliente). */
+  factura_solicitada?: FacturaSolicitada | null;
   nota?: string | null;
   /** Quien tomó el pedido — no confundir con quien cobra o imprime la factura después. */
   usuario?: { id_usuario: number; primer_nombre: string; primer_apellido: string } | null;
@@ -1300,14 +1307,23 @@ export class PedidosComponent implements OnInit, OnDestroy {
     const s = this.pagoSeleccion();
     // `id_cuenta` sale del selector, que es quien preguntó de quién es la tiquetera.
     const cuenta = s?.idCuenta ? { id_cuenta: s.idCuenta } : {};
-    // La factura electrónica, si el cajero la pidió para este pedido. Sin ella no se factura.
-    const factura = s?.factura ? { factura: s.factura } : {};
+    // La factura electrónica de este cobro. Va siempre que el negocio factura —también `null`,
+    // que quiere decir «sin factura»—: sin la clave, el servidor usa la que se guardó al tomarlo.
+    const factura = this.facturacion.activa() ? { factura: s?.factura ?? null } : {};
 
     if (s?.modo === 'multi') {
       return s.valido ? { pagos: s.pagos, ...cuenta, ...factura } : null;
     }
     const id = this.metodoPagoId();
     return id ? { id_metodo_pago: id, ...cuenta, ...factura } : null;
+  }
+
+  /**
+   * La factura pedida, para guardarla con el pedido al enviarlo a cocina, a la mesa o a despacho.
+   * Así quien lo cobre después (Mesas, Despacho) la encuentra ya marcada.
+   */
+  private construirFacturaPedido(): { factura?: FacturaSolicitada | null } {
+    return this.facturacion.activa() ? { factura: this.facturaPedido().datos } : {};
   }
 
   /** Enseña cómo quedó la factura electrónica de un cobro. No hace nada si el negocio no factura. */
@@ -1438,6 +1454,10 @@ export class PedidosComponent implements OnInit, OnDestroy {
 
             const mappedItems = this.mapOrdenApiToItems(orden);
             this.ordenActivaId.set(orden.id_orden);
+            // La factura que se pidió al tomarlo vuelve a quedar marcada.
+            this.facturaPedido.set(
+              orden.factura_solicitada ? { datos: orden.factura_solicitada, valido: true } : SIN_FACTURA
+            );
             this.ordenCreadorNombre.set(this.nombreCreadorOrden(orden));
 
             // Si había productos nuevos ya agregados, fusionarlos al pedido cargado
@@ -1851,6 +1871,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
           // La cuenta elegida se guarda con el pedido, igual que la forma de pago: así al
           // cobrar la mesa desde otra pantalla no hay que volver a decir de quién es.
           id_cuenta: this.pagoSeleccion()?.idCuenta ?? null,
+          ...this.construirFacturaPedido(),
           nota: this.notaOrden() || null,
           porcentaje_impuesto: 0,
           permitir_stock_negativo: permitirStockNegativo,
@@ -1889,6 +1910,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
       id_negocio: this.negocioId(),
       id_metodo_pago: this.metodoPagoId(),
       id_cuenta: this.pagoSeleccion()?.idCuenta ?? null,
+      ...this.construirFacturaPedido(),
       id_mesa: tipo === 'MESA' ? (this.mesaId() || null) : null,
       nota: this.notaOrden() || null,
       porcentaje_impuesto: 0,

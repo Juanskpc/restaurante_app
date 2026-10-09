@@ -336,6 +336,7 @@
                 [pagosIniciales]="filasPagoMesaActiva()"
                 [cuentas]="cuentasCliente()"
                 [idCuentaInicial]="mesa.order.id_cuenta ?? null"
+                [facturaInicial]="mesa.order.factura_solicitada ?? null"
                 (seleccionChange)="onPagoSeleccion($event)"
               />
 

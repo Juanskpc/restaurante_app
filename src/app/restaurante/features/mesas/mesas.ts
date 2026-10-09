@@ -20,7 +20,7 @@ import {
   PagoSeleccion,
   avisoFacturaIncompleta,
 } from '../../shared/multipago-selector/multipago-selector';
-import { FacturaResumen, tonoDeFactura } from '../../../core/services/facturacion.service';
+import { FacturaResumen, FacturacionService, tonoDeFactura } from '../../../core/services/facturacion.service';
 import { AccionMesa, accionPrincipalDe } from './mesa-accion';
 import { TAB_TODAS, TabSeccion, agruparPorSeccion, armarTabs, filtrarPorTab } from './mesa-secciones';
 import {
@@ -116,6 +116,7 @@ export class MesasComponent {
   readonly metodoPagoId = signal<number | null>(null);
   readonly metodoPagoError = signal(false);
   readonly pagoSeleccion = signal<PagoSeleccion | null>(null);
+  private readonly facturacion = inject(FacturacionService);
   readonly permiteMultipago = computed(() => this.auth.permiteMultipago());
   /** Opt-in del negocio (Configuración → Descuentos): sin él no se ve el campo. */
   readonly permiteDescuento = computed(() => this.auth.permiteDescuento());
@@ -690,7 +691,7 @@ export class MesasComponent {
       this.metodoPagoId(),
       esMulti ? seleccion?.pagos ?? null : null,
       seleccion?.idCuenta ?? null,
-      seleccion?.factura ?? null,
+      this.facturacion.activa() ? (seleccion?.factura ?? null) : undefined,
     ).subscribe({
       next: (res) => {
         // Cómo quedó la factura electrónica, si el negocio factura.

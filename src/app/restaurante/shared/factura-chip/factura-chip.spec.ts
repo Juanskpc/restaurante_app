@@ -19,7 +19,8 @@ const ICONOS = { provide: LUCIDE_ICONS, multi: true, useValue: new LucideIconPro
 @Component({
   standalone: true,
   imports: [FacturaChipComponent],
-  template: `<app-factura-chip [valor]="valor()" [total]="total()" (cambio)="valor.set($event)" />`,
+  // Dentro de un «.modal», como en Mesas y Despacho.
+  template: `<div class="modal"><app-factura-chip [valor]="valor()" [total]="total()" (cambio)="valor.set($event)" /></div>`,
 })
 class Anfitrion {
   readonly valor = signal<SeleccionFactura>(SIN_FACTURA);
@@ -73,6 +74,16 @@ describe('FacturaChipComponent', () => {
     fixture.detectChanges();
     expect(el().querySelector('[role="dialog"]')).toBeNull();
     expect(check().checked).toBe(false);
+  });
+
+  it('mientras la ventana está abierta, el modal de atrás se esconde, y vuelve al cerrarla', () => {
+    const modal = el().querySelector<HTMLElement>('.modal')!;
+    check().click();
+    fixture.detectChanges();
+    expect(modal.style.visibility).toBe('hidden');
+    boton('Cancelar').click();
+    fixture.detectChanges();
+    expect(modal.style.visibility).toBe('');
   });
 
   it('no deja facturar a nombre de alguien sin sus datos', () => {
@@ -192,6 +203,12 @@ describe('MultipagoSelectorComponent — con facturación electrónica', () => {
     montar(50000, { facturaAparte: true, factura });
     expect(el().querySelector('app-factura-chip')).toBeNull();
     expect(comp.seleccion()).toMatchObject({ valido: true, factura: { consumidor_final: true } });
+  });
+
+  it('abre con la factura que se pidió al tomar el pedido', () => {
+    montar(50000, { facturaInicial: { consumidor_final: true } });
+    expect(comp.seleccion()).toMatchObject({ valido: true, factura: { consumidor_final: true } });
+    expect(el().querySelector<HTMLInputElement>('.fch__check')?.checked).toBe(true);
   });
 
   it('una anónima deja de valer si el pedido crece por encima del tope', () => {

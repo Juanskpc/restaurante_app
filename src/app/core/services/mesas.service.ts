@@ -27,6 +27,8 @@ export interface MesaOrder {
   id_metodo_pago?: number | null;
   /** Cuenta de cliente elegida al tomar el pedido (tiquetera o fiado). */
   id_cuenta?: number | null;
+  /** Factura electrónica pedida al tomar el pedido; el cobro abre con ella. */
+  factura_solicitada?: FacturaSolicitada | null;
   /** Desglose de multipago elegido al tomar el pedido; editable antes de cobrar. */
   pagos?: { id_metodo_pago: number; valor: number }[];
   nota?: string | null;
@@ -175,7 +177,8 @@ export class MesasService {
       ...(pagos && pagos.length > 0 ? { pagos } : { id_metodo_pago: idMetodoPago || null }),
       ...(idCuenta ? { id_cuenta: idCuenta } : {}),
       // La factura electrónica, si el cajero la pidió para este cobro. Sin ella no se factura.
-      ...(factura ? { factura } : {}),
+      // `undefined` = el negocio no factura, no se manda; `null` = este cobro va sin factura.
+      ...(factura !== undefined ? { factura } : {}),
     };
     return this.http.patch<{ success: boolean; data: unknown }>(
       `${environment.apiUrl}/pedidos/${idOrden}/cerrar`,

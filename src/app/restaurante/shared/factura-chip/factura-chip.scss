@@ -89,6 +89,8 @@
 
 // ── La ventana ──
 .fch-fondo {
+  // Gana al `visibility: hidden` que se le pone al modal de atrás mientras esta ventana está abierta.
+  visibility: visible;
   position: fixed;
   inset: 0;
   z-index: 1200;

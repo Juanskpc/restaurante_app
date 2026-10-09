@@ -26,7 +26,12 @@ import {
   PagoSeleccion,
   avisoFacturaIncompleta,
 } from '../../shared/multipago-selector/multipago-selector';
-import { FacturaResumen, tonoDeFactura } from '../../../core/services/facturacion.service';
+import {
+  FacturaResumen,
+  FacturaSolicitada,
+  FacturacionService,
+  tonoDeFactura,
+} from '../../../core/services/facturacion.service';
 
 type TipoPedido = 'MESA' | 'LLEVAR' | 'DOMICILIO';
 /**
@@ -61,6 +66,8 @@ export interface PedidoDespacho {
   id_metodo_pago?: number | null;
   /** Cuenta de cliente elegida al tomar el pedido (tiquetera o fiado). */
   id_cuenta?: number | null;
+  /** Factura electrónica pedida al tomar el pedido; el cobro abre con ella. */
+  factura_solicitada?: FacturaSolicitada | null;
   tipo_pedido: TipoPedido;
   total: number;
   valor_domicilio?: number | string | null;
@@ -207,6 +214,7 @@ export class DespachoComponent implements OnInit {
   readonly cuentasCliente = signal<CuentaCliente[]>([]);
   readonly metodoPagoSeleccionado = signal<number | null>(null);
   readonly pagoSeleccion = signal<PagoSeleccion | null>(null);
+  private readonly facturacion = inject(FacturacionService);
   /** Para el selector de "cambiar domiciliario". Antes solo se podía fijar al crear el pedido. */
   readonly domiciliariosDisponibles = signal<Array<{ id_usuario: number; nombre: string }>>([]);
   readonly asignandoDomiciliarioId = signal<number | null>(null);
@@ -1245,13 +1253,13 @@ export class DespachoComponent implements OnInit {
       const suma = filas.reduce((t, f) => t + f.valor, 0);
       const cuadra = Math.abs(suma - Number(p.total)) < 0.5;
       if (!cuadra || (filas.some((f) => esCuenta(f.id_metodo_pago)) && !idCuenta)) return null;
-      // El cobro directo desde la tarjeta no pregunta «a nombre de quién»: sale a consumidor final.
-      return { modo: 'multi', idMetodoPago: null, pagos: filas, filas, valido: true, idCuenta, factura: null, facturaValida: true };
+      // El cobro directo desde la tarjeta no pregunta nada: usa la factura pedida al tomarlo.
+      return { modo: 'multi', idMetodoPago: null, pagos: filas, filas, valido: true, idCuenta, factura: p.factura_solicitada ?? null, facturaValida: true };
     }
 
     const idMetodoPago = p.id_metodo_pago ?? null;
     if (!idMetodoPago || (esCuenta(idMetodoPago) && !idCuenta)) return null;
-    return { modo: 'simple', idMetodoPago, pagos: [], filas: [], valido: true, idCuenta, factura: null, facturaValida: true };
+    return { modo: 'simple', idMetodoPago, pagos: [], filas: [], valido: true, idCuenta, factura: p.factura_solicitada ?? null, facturaValida: true };
   }
 
   /**
@@ -1335,8 +1343,9 @@ export class DespachoComponent implements OnInit {
         ...bodyPago,
         // De quién es la tiquetera, cuando el cobro va contra una cuenta de cliente.
         ...(seleccion?.idCuenta ? { id_cuenta: seleccion.idCuenta } : {}),
-        // «Factura a nombre de», si el negocio factura. Sin ella sale a consumidor final.
-        ...(seleccion?.factura ? { factura: seleccion.factura } : {}),
+        // La factura de este cobro, si el negocio factura (`null` = sin factura). Sin la clave,
+        // el servidor usaría la guardada con el pedido.
+        ...(this.facturacion.activa() ? { factura: seleccion?.factura ?? null } : {}),
         origen_cobro: origenCobro,
         id_caja: idCaja,
       }

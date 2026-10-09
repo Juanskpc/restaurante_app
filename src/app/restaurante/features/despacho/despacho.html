@@ -614,6 +614,7 @@
                   [pagosIniciales]="filasPagoActivo()"
                   [cuentas]="cuentasCliente()"
                   [idCuentaInicial]="p.id_cuenta ?? null"
+                  [facturaInicial]="p.factura_solicitada ?? null"
                   (seleccionChange)="onPagoSeleccion($event)"
                 />
               </span>

@@ -1,6 +1,8 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
+  OnDestroy,
   computed,
   effect,
   inject,
@@ -52,8 +54,11 @@ type Pestana = 'cliente' | 'anonima';
   styleUrl: './factura-chip.scss',
   host: { '(document:keydown.escape)': 'cerrar()' },
 })
-export class FacturaChipComponent {
+export class FacturaChipComponent implements OnDestroy {
   private readonly facturacion = inject(FacturacionService);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  /** El modal de la pantalla dentro del cual vive el interruptor (Mesas, Despacho), si lo hay. */
+  private modalDeAtras: HTMLElement | null = null;
 
   readonly valor = input<SeleccionFactura>(SIN_FACTURA);
   readonly total = input<number>(0);
@@ -117,10 +122,34 @@ export class FacturaChipComponent {
     this.pestana.set(this.anonima() && !this.superaTope() ? 'anonima' : 'cliente');
     this.borrador.set(null);
     this.abierto.set(true);
+    this.ocultarModalDeAtras(true);
   }
 
   protected cerrar(): void {
+    if (!this.abierto()) return;
     this.abierto.set(false);
+    this.ocultarModalDeAtras(false);
+  }
+
+  ngOnDestroy(): void {
+    this.ocultarModalDeAtras(false);
+  }
+
+  /**
+   * En Mesas y Despacho el interruptor vive dentro del modal de cobro, y la ventana de la factura
+   * se pintaba encima de él: dos ventanas a la vez. Mientras se llenan los datos, el modal de atrás
+   * se esconde (`visibility`, no `display`: no se desmonta, así que no pierde nada de lo que tenía),
+   * y vuelve al cerrar. La ventana de la factura se vuelve a mostrar con `visibility: visible`, que
+   * sí gana sobre la de un antepasado.
+   */
+  private ocultarModalDeAtras(ocultar: boolean): void {
+    if (ocultar) {
+      this.modalDeAtras = this.host.nativeElement.parentElement?.closest<HTMLElement>('.modal, [role="dialog"]') ?? null;
+      if (this.modalDeAtras) this.modalDeAtras.style.visibility = 'hidden';
+    } else if (this.modalDeAtras) {
+      this.modalDeAtras.style.visibility = '';
+      this.modalDeAtras = null;
+    }
   }
 
   protected guardar(): void {
@@ -130,6 +159,6 @@ export class FacturaChipComponent {
     } else {
       this.cambio.emit({ datos: this.borrador()!.datos, valido: true });
     }
-    this.abierto.set(false);
+    this.cerrar();
   }
 }
