@@ -60,6 +60,15 @@ export const routes: Routes = [
           import('./restaurante/features/menu/menu').then(m => m.MenuComponent),
       },
       {
+        // El asistente de WhatsApp. Vivía en `admin_app_v21` hasta el 2026-10-08; allá queda
+        // la misma vista, pero solo para super admin (seguimiento interno de los inquilinos).
+        path: 'conversaciones',
+        title: 'Conversaciones',
+        canActivate: [planGuard],
+        loadComponent: () =>
+          import('./features/conversaciones/conversaciones').then(m => m.ConversacionesComponent),
+      },
+      {
         path: 'clientes',
         title: 'Clientes',
         canActivate: [planGuard],

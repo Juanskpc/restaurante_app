@@ -1,0 +1,261 @@
+<!--
+  Conectar WhatsApp (F8-D).
+
+  No abre con un formulario ni con un selector técnico: abre con la pregunta real — "¿te importa
+  conservar tu WhatsApp de siempre?" — como dos tarjetas explicadas en palabras. Ver la cabecera
+  del componente.
+-->
+<section class="cw">
+  @if (!ocultarEncabezado()) {
+    <header class="cw__head">
+      <div>
+        <h1 class="cw__title">
+          <lucide-icon name="message-circle" [size]="20"></lucide-icon>
+          Conectar WhatsApp
+        </h1>
+        <p class="cw__sub">
+          Así llega el asistente a tus clientes por WhatsApp — automatizado, respondiendo pedidos y
+          citas por ti.
+        </p>
+      </div>
+    </header>
+  }
+
+  <!-- Sin chips de negocio: aquí solo hay uno, el de la sesión. En el panel esta pantalla la
+       abría un super admin que podía estar mirando cualquiera. -->
+
+  @if (error()) {
+    <div class="cw__alerta cw__alerta--error" role="alert">
+      <lucide-icon name="alert-circle" [size]="18"></lucide-icon>
+      <span>{{ error() }}</span>
+    </div>
+  }
+
+  @if (cargando()) {
+    <div class="cw__cargando">
+      <lucide-icon name="loader-2" [size]="22" class="cw__spin"></lucide-icon>
+      <span>Cargando…</span>
+    </div>
+  } @else if (!idNegocio()) {
+    <div class="cw__vacio">
+      <lucide-icon name="store" [size]="28"></lucide-icon>
+      <p>No hay un negocio activo en esta sesión.</p>
+    </div>
+  } @else if (conectado()) {
+    <!-- ════════ Ya conectado ════════ -->
+    <article class="cw__card cw__card--ok">
+      <h2 class="cw__card-title">
+        <lucide-icon name="circle-check" [size]="18"></lucide-icon>
+        WhatsApp conectado
+      </h2>
+      <p class="cw__ayuda">
+        @if (esPropio()) {
+          Tu propio número está conectado
+          @if (estadoCanal()?.numeroE164) { ({{ estadoCanal()?.numeroE164 }}) }
+          y respondiendo por ti. La factura de WhatsApp la ves y la pagas directamente en tu
+          cuenta de Meta.
+        } @else {
+          Tu WhatsApp está gestionado por EscalApp. Si quieres conectar tu propio número más
+          adelante, escríbenos.
+        }
+      </p>
+
+      @if (esCoexistencia()) {
+        <!-- Coexistencia: lo que el dueño tiene que saber para que siga funcionando. -->
+        <ul class="cw__lista">
+          <li>Tus chats y contactos siguen en tu app WhatsApp Business, como siempre.</li>
+          <li>
+            Si respondes tú desde el celular, el asistente se queda callado en esa conversación
+            para no hablarte encima.
+          </li>
+          <li>
+            <strong>Abre la app WhatsApp Business al menos una vez cada 14 días.</strong> Si pasa
+            más tiempo sin abrirse, Meta desconecta el número y te avisamos aquí para reconectarlo.
+          </li>
+        </ul>
+      }
+
+      <!-- No navega: las conversaciones y esta pantalla son la MISMA vista, y la página cambia
+           de una a otra sin cambiar de ruta. Un routerLink aquí recargaría el componente entero
+           para enseñar lo que ya está montado al lado. -->
+      <button type="button" class="cw__boton cw__boton--outline" (click)="verConversaciones.emit()">
+        <lucide-icon name="message-circle" [size]="16"></lucide-icon>
+        Ver conversaciones
+      </button>
+
+      @if (esPropio()) {
+        @if (!confirmandoDesconectar()) {
+          <button type="button" class="cw__boton cw__boton--peligro" (click)="pedirConfirmacionDesconectar()">
+            <lucide-icon name="unlink" [size]="16"></lucide-icon>
+            Desconectar este número
+          </button>
+        } @else {
+          <div class="cw__confirmar">
+            <p class="cw__confirmar-texto">
+              <lucide-icon name="alert-circle" [size]="16"></lucide-icon>
+              El asistente deja de responder por este número hasta que lo vuelvas a conectar.
+              ¿Seguro?
+            </p>
+            <div class="cw__confirmar-botones">
+              <button type="button" class="cw__boton cw__boton--outline" (click)="cancelarDesconectar()" [disabled]="desconectando()">
+                Cancelar
+              </button>
+              <button type="button" class="cw__boton cw__boton--peligro" (click)="confirmarDesconectar()" [disabled]="desconectando()">
+                @if (desconectando()) {
+                  <lucide-icon name="loader-2" [size]="16" class="cw__spin"></lucide-icon>
+                  Desconectando…
+                } @else {
+                  Sí, desconectar
+                }
+              </button>
+            </div>
+          </div>
+        }
+      }
+    </article>
+  } @else {
+    <!-- ════════ Las dos opciones ════════ -->
+    <div class="cw__opciones">
+      <article class="cw__card">
+        <h2 class="cw__card-title">
+          <lucide-icon name="store" [size]="18"></lucide-icon>
+          Gestionado por EscalApp
+        </h2>
+        <p class="cw__ayuda">
+          EscalApp se encarga de la gestión completa de tu asistente inteligente: responderá y
+          dará servicio a tu negocio por WhatsApp, sin que tengas que hacer ningún trámite.
+        </p>
+        <a class="cw__boton cw__boton--outline" [href]="whatsappSoporte" target="_blank" rel="noopener">
+          Escríbenos para activarlo
+        </a>
+      </article>
+
+      <article class="cw__card">
+        <h2 class="cw__card-title">
+          <lucide-icon name="smartphone" [size]="18"></lucide-icon>
+          Tu propio número
+        </h2>
+        <p class="cw__ayuda">
+          Conecta el WhatsApp de tu negocio al asistente. Lo que WhatsApp cobre por los mensajes
+          del asistente te llega a ti, en tu propia cuenta de Meta.
+        </p>
+
+        @if (!embeddedSignupDisponible()) {
+          <p class="cw__ayuda cw__ayuda--pendiente">
+            <lucide-icon name="history" [size]="16"></lucide-icon>
+            Esta opción está en preparación. Escríbenos y te avisamos en cuanto esté lista.
+          </p>
+        } @else {
+          @if (navegadorIntegrado()) {
+            <p class="cw__ayuda cw__ayuda--pendiente">
+              <lucide-icon name="alert-circle" [size]="16"></lucide-icon>
+              Estás dentro de Facebook o Instagram. Abre esta página en Safari o Chrome: desde
+              aquí la ventana de Meta no se abre bien.
+            </p>
+          }
+
+          <div class="cw__antes">
+            <strong>Antes de empezar</strong>
+            <ul class="cw__lista">
+              <li>Entra con el Facebook del negocio o del dueño, no con el de otra persona.</li>
+              <li>
+                Si ya usas WhatsApp Business, ten el celular a mano con la app actualizada: vas a
+                escanear un código QR.
+              </li>
+              <li>
+                Si tu número está en WhatsApp normal (no Business), pásalo primero a WhatsApp
+                Business.
+              </li>
+            </ul>
+          </div>
+
+          @if (sdkEstado() === 'error') {
+            <div class="cw__aviso">
+              <span>
+                No se pudo cargar el conector de Facebook. Puede ser un bloqueador de anuncios, la
+                protección contra rastreo del navegador o la conexión.
+              </span>
+              <button type="button" class="cw__boton cw__boton--outline" (click)="reintentarSdk()">
+                <lucide-icon name="refresh-cw" [size]="16"></lucide-icon>
+                Reintentar
+              </button>
+            </div>
+          }
+
+          @if (conectando()) {
+            <div class="cw__aviso" role="status">
+              <span>
+                Termina los pasos en la ventana de Facebook.
+                @if (modoEnCurso() === 'coexistencia') {
+                  Cuando te lo pida, abre WhatsApp Business en tu celular y escanea el código QR.
+                }
+                Si la ventana no se abrió, permite las ventanas emergentes para este sitio y vuelve
+                a intentarlo.
+              </span>
+              <button type="button" class="cw__boton cw__boton--outline" (click)="cancelarConexion()">
+                Cancelar
+              </button>
+            </div>
+          }
+
+          <div class="cw__caminos">
+            <button
+              type="button"
+              class="cw__boton cw__camino"
+              [disabled]="sdkEstado() !== 'listo' || conectando()"
+              (click)="conectar('coexistencia')"
+            >
+              @if (conectando() && modoEnCurso() === 'coexistencia') {
+                <lucide-icon name="loader-2" [size]="16" class="cw__spin"></lucide-icon>
+                Conectando…
+              } @else if (sdkEstado() === 'cargando') {
+                <lucide-icon name="loader-2" [size]="16" class="cw__spin"></lucide-icon>
+                Preparando…
+              } @else {
+                <span class="cw__camino-titulo">Ya uso WhatsApp Business</span>
+                <span class="cw__camino-sub">Conservas tus chats y contactos</span>
+              }
+            </button>
+            <button
+              type="button"
+              class="cw__boton cw__boton--outline cw__camino"
+              [disabled]="sdkEstado() !== 'listo' || conectando()"
+              (click)="conectar('nuevo')"
+            >
+              @if (conectando() && modoEnCurso() === 'nuevo') {
+                <lucide-icon name="loader-2" [size]="16" class="cw__spin"></lucide-icon>
+                Conectando…
+              } @else {
+                <span class="cw__camino-titulo">Usar un número nuevo</span>
+                <span class="cw__camino-sub">Sin WhatsApp instalado</span>
+              }
+            </button>
+          </div>
+        }
+      </article>
+    </div>
+  }
+
+  <!-- Ayuda: al final de la vista, para quien se atasca en la activación o en un trámite. -->
+  @if (!cargando() && idNegocio()) {
+    <aside class="cw__soporte" aria-labelledby="cw-soporte-titulo">
+      <div class="cw__soporte-texto">
+        <strong id="cw-soporte-titulo">¿Necesitas ayuda?</strong>
+        <span>
+          Si tienes dudas con la activación o con algún trámite, escríbenos y te acompañamos.
+        </span>
+      </div>
+      <a
+        class="cw__boton cw__boton--outline"
+        [href]="whatsappAyuda"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
+          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+        </svg>
+        Escríbenos por WhatsApp
+      </a>
+    </aside>
+  }
+</section>

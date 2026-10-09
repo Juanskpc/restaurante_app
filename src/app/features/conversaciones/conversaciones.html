@@ -1,0 +1,74 @@
+<section class="conv">
+  @if (!habilitado()) {
+    <!-- El plan no trae el asistente. No hay pantalla intermedia que enseñar: lo único que se
+         puede hacer desde aquí es mejorar el plan, y eso se decide en el panel de pagos. -->
+    <div class="conv__oferta" role="region" aria-labelledby="conv-oferta-titulo">
+      <span class="conv__oferta-icono" aria-hidden="true">
+        <lucide-icon name="sparkles" [size]="24" />
+      </span>
+      <h2 id="conv-oferta-titulo" class="conv__oferta-titulo">
+        Tu plan todavía no incluye el asistente
+      </h2>
+      <p class="conv__oferta-texto">
+        Con un plan que lo incluya, {{ negocio()?.nombre }} tendría:
+      </p>
+      <ul class="conv__beneficios">
+        @for (b of beneficios; track b) {
+          <li>
+            <lucide-icon name="check" [size]="16" aria-hidden="true" />
+            <span>{{ b }}</span>
+          </li>
+        }
+      </ul>
+      <p class="conv__oferta-pie">
+        Escríbenos o entra a <strong>Mis pagos</strong> desde el panel para cambiar de plan.
+      </p>
+    </div>
+  } @else if (vista() === 'numero' && !administra()) {
+    <!-- Cajero en un negocio sin número: puede contestar, no puede conectar. Se le dice a quién
+         pedírselo en vez de ofrecerle un flujo que su rol no termina. -->
+    <div class="conv__oferta" role="region" aria-labelledby="conv-sin-numero-titulo">
+      <span class="conv__oferta-icono" aria-hidden="true">
+        <lucide-icon name="smartphone" [size]="24" />
+      </span>
+      <h2 id="conv-sin-numero-titulo" class="conv__oferta-titulo">Aún no hay WhatsApp conectado</h2>
+      <p class="conv__oferta-texto">
+        {{ negocio()?.nombre }} todavía no tiene su número conectado. Pídeselo al administrador del
+        negocio: cuando esté listo, aquí verás las conversaciones.
+      </p>
+    </div>
+  } @else if (vista() === 'numero') {
+    <header class="conv__cabecera">
+      <div>
+        <h1 class="conv__titulo">
+          <lucide-icon name="message-circle" [size]="20" aria-hidden="true" />
+          Conectar WhatsApp
+        </h1>
+        <p class="conv__sub">
+          Así llega el asistente a tus clientes: atiende tu WhatsApp, toma pedidos y te pasa a ti
+          lo que no sepa resolver.
+        </p>
+      </div>
+      @if (conectado()) {
+        <button type="button" class="conv__pill" (click)="irA('conversaciones')">
+          <lucide-icon name="message-circle" [size]="15" aria-hidden="true" />
+          Ver conversaciones
+        </button>
+      }
+    </header>
+
+    <app-canal-whatsapp
+      [negocioInicial]="idNegocio()"
+      [ocultarEncabezado]="true"
+      (estadoCambio)="alCambiarEstadoDelCanal($event)"
+      (verConversaciones)="irA('conversaciones')"
+    />
+  } @else {
+    <!-- La Bandeja trae su propia cabecera: aquí no va título, iría uno encima de otro. -->
+    <app-bandeja
+      [negocioFijo]="idNegocio()"
+      [mostrarGestionarNumero]="administra()"
+      (gestionarNumero)="irA('numero')"
+    />
+  }
+</section>

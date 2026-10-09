@@ -18,6 +18,7 @@ import { RealtimeService } from '../../../core/services/realtime.service';
 import { ClientesService, CuentaCliente } from '../../../core/services/clientes.service';
 import { CatalogoCacheService } from '../../../core/services/catalogo-cache.service';
 import { SidebarService } from '../../../core/services/sidebar.service';
+import { agruparPorSeccion, GrupoMesas } from '../mesas/mesa-secciones';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 import { environment } from '../../../../environments/environment';
 import {
@@ -83,6 +84,15 @@ export interface Mesa {
   capacidad: number;
   estado: string;
   estado_servicio?: 'DISPONIBLE' | 'OCUPADA' | 'POR_COBRAR' | string;
+  /**
+   * La sección del salón («Piso 1», «Patio»…). `GET /mesas` las manda desde que existen las
+   * secciones; lo que faltaba aquí era declararlas, y por eso el selector las listaba todas
+   * seguidas aunque el salón estuviera dividido.
+   */
+  id_seccion?: number | null;
+  seccion?: string | null;
+  /** Su lugar en el orden que fijó el administrador (menor primero). */
+  seccion_orden?: number | null;
 }
 
 interface DetalleExclusionApi {
@@ -237,6 +247,26 @@ export class PedidosComponent implements OnInit, OnDestroy {
   readonly items = signal<ItemOrden[]>([]);
   readonly searchTerm = signal('');
   readonly mesas = signal<Mesa[]>([]);
+
+  /**
+   * Las mesas del selector, agrupadas por sección.
+   *
+   * Reutiliza `agruparPorSeccion` de la vista de Mesas a propósito: el orden de las secciones lo
+   * fija el administrador allá, y un segundo criterio aquí haría que la misma mesa estuviera en
+   * un sitio distinto en cada pantalla.
+   *
+   * **No se le pasan las secciones del negocio**, solo las mesas. Allá se le pasan para que una
+   * sección recién creada se vea aunque esté vacía; aquí una sección sin mesas sería un
+   * `<optgroup>` vacío, que es ruido en una lista desplegable.
+   *
+   * Cuando el salón NO está dividido devuelve un único grupo sin título, y la plantilla lo pinta
+   * como la lista de siempre: nadie que no use secciones ve ningún cambio.
+   */
+  readonly mesasPorSeccion = computed<GrupoMesas<Mesa>[]>(() => agruparPorSeccion(this.mesas()));
+
+  /** ¿Hay secciones de verdad? Con una sola sin título, el selector va plano. */
+  readonly mesasAgrupadas = computed(() => this.mesasPorSeccion().some((g) => g.titulo !== null));
+
   readonly cargandoMesas = signal(true);
   readonly mesaId = signal<number | null>(null);
   readonly metodosPago = signal<Array<{ id_metodo_pago: number; nombre: string; es_cuenta?: boolean }>>([]);

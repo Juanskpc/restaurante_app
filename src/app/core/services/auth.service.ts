@@ -66,6 +66,12 @@ export interface NegocioRestaurante {
   permite_cuentas_cliente?: boolean;
   controla_inventario?: boolean;
   muestra_iconos_productos?: boolean;
+  /**
+   * Lo que trae el PLAN de este negocio, por nombre de feature (ADR-021). Se pregunta por la
+   * feature y nunca por el nombre del plan: el día que el asistente cambie de plan, esto no
+   * cambia. Hoy la única que se mira aquí es `asistente_ia`, que enciende Conversaciones.
+   */
+  features?: string[];
   roles: { id_rol: number; descripcion: string }[];
   permisos_vista: PermisoVistaRestaurante[];
   permisos_subnivel: PermisoSubnivelRestaurante[];
@@ -168,6 +174,7 @@ const APP_ROUTE_PRIORITY = [
   '/menu',
   '/mesas',
   '/caja',
+  '/conversaciones',
   '/clientes',
   '/inventario',
   '/proveedores',
@@ -186,6 +193,10 @@ const ROUTE_PERMISSION_ALIASES: Record<string, string[]> = {
   '/mesas': ['/mesas', '/pos', '/pos/pedidos'],
   '/caja': ['/caja'],
   '/clientes': ['/clientes'],
+  // Sin alias: el permiso de Conversaciones es propio y nuevo (`migrate:restaurante-conversaciones`).
+  // Un negocio cuya sesión sea anterior a esa migración no lo tiene, y «ausente» es «denegado»:
+  // por eso la migración siembra ANTES de que el frontend salga.
+  '/conversaciones': ['/conversaciones'],
   '/inventario': ['/inventario'],
   // Sin alias a `/inventario`: aunque los dos módulos hablen de insumos, el permiso de
   // Proveedores es propio. Quien puede ajustar el stock no tiene por qué ver a cuánto
@@ -252,6 +263,18 @@ export class AuthService {
 
   /** ¿El negocio activo puede operar? (plan vigente o dentro de la gracia). */
   readonly planActivo = computed(() => this.session()?.plan_activo ?? false);
+
+  /**
+   * ¿El plan del negocio activo trae esta feature?
+   *
+   * Es lo que separa «no tienes el asistente contratado» de «lo tienes y aún no has conectado el
+   * número»: dos pantallas distintas que sin esto se veían igual. Un negocio cuyo perfil es de
+   * antes de que el backend mandara `features` devuelve false, que es el lado seguro: enseña la
+   * invitación a mejorar el plan en vez de una bandeja que el backend va a rechazar.
+   */
+  tieneFeature(codigo: string): boolean {
+    return (this.negocio()?.features ?? []).includes(codigo);
+  }
 
   /** Detalle del plan: vencimiento y días de gracia restantes. */
   readonly plan = computed<EstadoPlan | null>(() => this.session()?.plan ?? null);
@@ -558,19 +581,6 @@ export class AuthService {
   async irAMisPagos(): Promise<void> {
     const idNegocio = this.negocio()?.id_negocio;
     const destino = idNegocio ? `/admin/mis-pagos?negocio=${idNegocio}` : '/admin/mis-pagos';
-    await this.irAlInicio(destino);
-  }
-
-  /**
-   * Lleva al panel, a las conversaciones del asistente, con el negocio actual ya elegido.
-   *
-   * La Bandeja vive en `admin_app_v21` y no aquí, así que se sale por la misma puerta que «Mis
-   * pagos»: un SSO de salida que no pide volver a iniciar sesión. Sin el `?negocio=`, con varios
-   * negocios se abriría siempre el primero — que es justo el que no avisó.
-   */
-  async irAConversaciones(): Promise<void> {
-    const idNegocio = this.negocio()?.id_negocio;
-    const destino = idNegocio ? `/admin/whatsapp?negocio=${idNegocio}` : '/admin/whatsapp';
     await this.irAlInicio(destino);
   }
 

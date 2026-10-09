@@ -115,44 +115,50 @@ export class LayoutComponent {
   /**
    * Suena y avisa de que una conversación quedó esperando a una persona.
    *
-   * Solo a quien puede contestarla: el dueño del negocio y el cajero, que es la misma regla con
-   * la que `whatsappGuard` protege la Bandeja en el panel. Un mesero o un domiciliario no tienen
-   * dónde responder, y un aviso que no se puede atender se aprende a ignorar —el del pedido ya
-   * se acota igual unas líneas más arriba.
+   * Solo a quien puede contestarla: quien tiene permiso de ver `/conversaciones`. Un mesero o un
+   * domiciliario no tienen dónde responder, y un aviso que no se puede atender se aprende a
+   * ignorar —el del pedido ya se acota igual unas líneas más arriba.
    *
-   * La Bandeja vive en el panel (`/admin/whatsapp`), que es otro origen, así que el aviso no
-   * navega: lleva un botón que sale por el SSO de `irAConversaciones`.
+   * Desde el 2026-10-08 la Bandeja vive en ESTA app, así que el botón **navega** en vez de salir
+   * por el SSO al panel. Era el gesto más caro de la jornada de un cajero: un salto de origen,
+   * varias veces al día, para contestarle a un cliente.
+   *
+   * Dentro de Conversaciones no se avisa: la lista ya se enciende sola, y el toast taparía justo
+   * la conversación de la que habla. Es la misma regla que el aviso de pedido con Despacho.
    */
   private alEscalarseUnaConversacion(): void {
     if (!this.atiendeConversaciones()) return;
 
     this.sonido.sonarConversacionEscalada();
+    if (this.router.url.startsWith('/conversaciones')) return;
+
     // Más tiempo en pantalla que un aviso normal, y con botón: al otro lado hay alguien
-    // esperando, y el gesto que pide —salir al panel— no se hace en los tres segundos de un
-    // toast corriente ni se adivina leyendo una ruta.
+    // esperando, y el gesto que pide no se hace en los tres segundos de un toast corriente.
     this.ui.toast({
       tone: 'warning',
       title: 'Una conversación te espera',
       message: 'El asistente no supo qué responder y hay un cliente escribiendo.',
       durationMs: 12000,
-      accion: { texto: 'Abrir conversaciones', ejecutar: () => void this.auth.irAConversaciones() },
+      accion: {
+        texto: 'Abrir conversaciones',
+        ejecutar: () => void this.router.navigate(['/conversaciones']),
+      },
     });
   }
 
-  /** ¿Esta persona puede responder la Bandeja? Administrador (o super) y cajero. */
+  /**
+   * ¿Esta persona puede responder la Bandeja?
+   *
+   * Lo decide **el permiso de la vista**, no una lista de roles escrita aquí. Hasta el
+   * 2026-10-08 era una lista —ADMINISTRADOR, SUPER ADMINISTRADOR, CAJERO— copiada del
+   * `whatsappGuard` del panel, y dos copias de la misma regla en dos apps distintas es una
+   * discrepancia esperando a pasar: el día que alguien encienda Conversaciones para otro rol
+   * desde «Personal → Roles y permisos», el aviso seguiría sin llegarle.
+   *
+   * Ahora la fuente es la misma que decide si la entrada del menú existe.
+   */
   private atiendeConversaciones(): boolean {
-    const sesion = this.auth.session();
-    if (!sesion) return false;
-
-    const roles = [
-      ...(sesion.roles_globales ?? []),
-      ...(sesion.roles ?? []),
-      ...(this.auth.negocio()?.roles ?? []),
-    ].map((rol) => rol.descripcion.trim().toUpperCase());
-
-    return roles.some(
-      (rol) => rol === 'ADMINISTRADOR' || rol === 'SUPER ADMINISTRADOR' || rol === 'CAJERO',
-    );
+    return this.auth.canAccessRoute('/conversaciones');
   }
 
   private readonly alVolverALaPestana = (): void => {
