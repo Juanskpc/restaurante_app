@@ -24,7 +24,9 @@ import {
   FilaPago,
   MultipagoSelectorComponent,
   PagoSeleccion,
+  avisoFacturaIncompleta,
 } from '../../shared/multipago-selector/multipago-selector';
+import { FacturaResumen, tonoDeFactura } from '../../../core/services/facturacion.service';
 
 type TipoPedido = 'MESA' | 'LLEVAR' | 'DOMICILIO';
 /**
@@ -1243,12 +1245,13 @@ export class DespachoComponent implements OnInit {
       const suma = filas.reduce((t, f) => t + f.valor, 0);
       const cuadra = Math.abs(suma - Number(p.total)) < 0.5;
       if (!cuadra || (filas.some((f) => esCuenta(f.id_metodo_pago)) && !idCuenta)) return null;
-      return { modo: 'multi', idMetodoPago: null, pagos: filas, filas, valido: true, idCuenta };
+      // El cobro directo desde la tarjeta no pregunta «a nombre de quién»: sale a consumidor final.
+      return { modo: 'multi', idMetodoPago: null, pagos: filas, filas, valido: true, idCuenta, factura: null, facturaValida: true };
     }
 
     const idMetodoPago = p.id_metodo_pago ?? null;
     if (!idMetodoPago || (esCuenta(idMetodoPago) && !idCuenta)) return null;
-    return { modo: 'simple', idMetodoPago, pagos: [], filas: [], valido: true, idCuenta };
+    return { modo: 'simple', idMetodoPago, pagos: [], filas: [], valido: true, idCuenta, factura: null, facturaValida: true };
   }
 
   /**
@@ -1271,6 +1274,12 @@ export class DespachoComponent implements OnInit {
 
     const seleccion = seleccionDirecta ?? this.pagoSeleccion();
     const esMulti = seleccion?.modo === 'multi';
+
+    const faltaFactura = avisoFacturaIncompleta(seleccion ?? null);
+    if (faltaFactura) {
+      void this.uiFeedback.alert({ ...faltaFactura, tone: 'warning' });
+      return;
+    }
 
     // Construir el cuerpo del cobro: pago simple o multipago.
     let bodyPago: Record<string, unknown>;
@@ -1320,12 +1329,14 @@ export class DespachoComponent implements OnInit {
 
     this.cobrandoId.set(p.id_orden);
 
-    this.http.patch<{ success: boolean }>(
+    this.http.patch<{ success: boolean; data?: { factura?: FacturaResumen | null } }>(
       `${environment.apiUrl}/pedidos/${p.id_orden}/marcar-pagado`,
       {
         ...bodyPago,
         // De quién es la tiquetera, cuando el cobro va contra una cuenta de cliente.
         ...(seleccion?.idCuenta ? { id_cuenta: seleccion.idCuenta } : {}),
+        // «Factura a nombre de», si el negocio factura. Sin ella sale a consumidor final.
+        ...(seleccion?.factura ? { factura: seleccion.factura } : {}),
         origen_cobro: origenCobro,
         id_caja: idCaja,
       }
@@ -1345,6 +1356,9 @@ export class DespachoComponent implements OnInit {
             this.pedidoActivo.set(apply(activo));
           }
           this.uiFeedback.success('Pago registrado correctamente.', 'Cobro exitoso');
+          const factura = res.data?.factura;
+          const tono = tonoDeFactura(factura);
+          if (factura && tono) this.uiFeedback[tono](factura.mensaje, 'Factura electrónica');
         }
         this.cobrandoId.set(null);
       },

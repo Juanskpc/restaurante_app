@@ -1,0 +1,87 @@
+// «Factura a nombre de». Vive dentro del selector de pago, así que hereda su ancho: los campos
+// se acomodan solos en una o dos columnas según quepa (Mesas lo pinta en un panel estrecho).
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.df {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed var(--color-border);
+
+  &__interruptor {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--color-text-primary);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+
+    input {
+      width: 1rem;
+      height: 1rem;
+      accent-color: var(--color-primary);
+    }
+
+    &.is-fijo {
+      cursor: default;
+    }
+  }
+
+  &__nota {
+    margin: 0;
+    color: var(--color-text-secondary, var(--color-text-primary));
+    font-size: 0.75rem;
+    line-height: 1.4;
+    opacity: 0.8;
+  }
+
+  &__campos {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: 0.5rem;
+  }
+
+  &__campo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+    color: var(--color-text-primary);
+    font-size: 0.75rem;
+
+    > span {
+      opacity: 0.75;
+    }
+
+    &--ancho {
+      grid-column: 1 / -1;
+    }
+  }
+
+  &__input {
+    width: 100%;
+    min-width: 0;
+    padding: 0.5rem 0.65rem;
+    border: 1px solid var(--color-border);
+    border-radius: 0.5rem;
+    background: var(--color-bg);
+    color: var(--color-text-primary);
+    font: inherit;
+    font-size: 0.875rem;
+
+    &:focus {
+      border-color: var(--color-primary);
+      outline: 2px solid color-mix(in srgb, var(--color-primary) 25%, transparent);
+    }
+
+    &.is-mal {
+      border-color: var(--color-error);
+    }
+  }
+}

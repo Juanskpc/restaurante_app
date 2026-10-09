@@ -3,12 +3,16 @@ import {
   Component,
   computed,
   effect,
+  inject,
   input,
   output,
   signal,
 } from '@angular/core';
 import { CurrencyPipe } from '@angular/common';
 import { LucideAngularModule } from 'lucide-angular';
+
+import { DatosFactura, FacturacionService } from '../../../core/services/facturacion.service';
+import { DatosFacturaComponent, SeleccionFactura } from '../datos-factura/datos-factura';
 
 export interface MetodoPagoLite {
   id_metodo_pago: number;
@@ -58,9 +62,32 @@ export interface PagoSeleccion {
    * el almuerzo a otra persona.
    */
   idCuenta: number | null;
+  /**
+   * «Factura a nombre de», para un negocio con facturación electrónica. `null` = consumidor
+   * final, que es también lo que vale siempre en un negocio que no factura.
+   */
+  factura: DatosFactura | null;
+  /**
+   * ¿Están bien los datos de la factura? Va aparte de `valido` (que ya lo incluye) para que la
+   * pantalla pueda decir QUÉ falta: «elige una forma de pago» no ayuda a quien ya la eligió.
+   */
+  facturaValida: boolean;
+}
+
+/**
+ * Lo que hay que decirle a quien cobra cuando la selección no vale **por los datos de la
+ * factura**. `null` si el problema es otro (o no hay ninguno).
+ */
+export function avisoFacturaIncompleta(s: PagoSeleccion | null): { title: string; message: string } | null {
+  if (!s || s.facturaValida) return null;
+  return {
+    title: 'Faltan los datos de la factura',
+    message: 'Completa el documento y el nombre de «Factura a nombre de un cliente» antes de cobrar.',
+  };
 }
 
 const MULTI_VALUE = '__multi__';
+const SIN_FACTURA: SeleccionFactura = { datos: null, valido: true };
 
 /**
  * Selector de forma de pago reutilizable para Pedidos, Mesas y Despacho.
@@ -75,13 +102,14 @@ const MULTI_VALUE = '__multi__';
 @Component({
   selector: 'app-multipago-selector',
   standalone: true,
-  imports: [CurrencyPipe, LucideAngularModule],
+  imports: [CurrencyPipe, LucideAngularModule, DatosFacturaComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './multipago-selector.html',
   styleUrl: './multipago-selector.scss',
   // En multipago el selector ocupa una fila completa (para que quepa el
   // desglose); en pago simple comparte fila con el <select> vecino.
-  host: { '[class.mp--multi]': 'modo() === "multi"' },
+  // Con «Factura a nombre de» abierta también: sus campos no caben en media fila.
+  host: { '[class.mp--multi]': 'modo() === "multi" || facturaActual().datos !== null' },
 })
 export class MultipagoSelectorComponent {
   readonly metodos = input<MetodoPagoLite[]>([]);
@@ -116,6 +144,18 @@ export class MultipagoSelectorComponent {
   protected readonly metodoSimple = signal<number | null>(null);
   protected readonly filas = signal<FilaPago[]>([]);
   protected readonly cuentaElegida = signal<number | null>(null);
+
+  /**
+   * La facturación electrónica vive aquí por lo mismo que la cuenta del cliente: cobran tres
+   * pantallas con este selector, y pedir «a nombre de quién» en cada una es la forma de que una
+   * se quede sin ello.
+   */
+  protected readonly facturacion = inject(FacturacionService);
+  protected readonly facturaElegida = signal<SeleccionFactura>(SIN_FACTURA);
+  /** Lo que cuenta: si el negocio no factura (o dejó de hacerlo), no hay factura que valga. */
+  protected readonly facturaActual = computed(() =>
+    this.facturacion.activa() ? this.facturaElegida() : SIN_FACTURA
+  );
 
   /**
    * ¿El cobro va contra la cuenta de un cliente? Vale tanto en pago simple como dentro de un
@@ -180,12 +220,13 @@ export class MultipagoSelectorComponent {
     // aquí como no válido hace que el botón de cobrar no deje llegar hasta ahí.
     const idCuenta = this.pagaConCuenta() ? this.cuentaElegida() : null;
     const faltaCuenta = this.pagaConCuenta() && idCuenta == null;
+    const { datos: factura, valido: facturaValida } = this.facturaActual();
 
     if (this.modo() === 'simple') {
       const id = this.metodoSimple();
       return {
         modo: 'simple', idMetodoPago: id, pagos: [], filas: [],
-        valido: id != null && !faltaCuenta, idCuenta,
+        valido: id != null && !faltaCuenta && facturaValida, idCuenta, factura, facturaValida,
       };
     }
 
@@ -201,9 +242,9 @@ export class MultipagoSelectorComponent {
     const totalCuadra =
       Math.round(this.sumaMulti() * 100) === Math.round(this.total() * 100);
     const valido =
-      filas.length >= 2 && completas.length === filas.length && totalCuadra && !faltaCuenta;
+      filas.length >= 2 && completas.length === filas.length && totalCuadra && !faltaCuenta && facturaValida;
 
-    return { modo: 'multi', idMetodoPago: null, pagos, filas, valido, idCuenta };
+    return { modo: 'multi', idMetodoPago: null, pagos, filas, valido, idCuenta, factura, facturaValida };
   });
 
   constructor() {

@@ -18,7 +18,9 @@ import {
   FilaPago,
   MultipagoSelectorComponent,
   PagoSeleccion,
+  avisoFacturaIncompleta,
 } from '../../shared/multipago-selector/multipago-selector';
+import { FacturaResumen, tonoDeFactura } from '../../../core/services/facturacion.service';
 import { AccionMesa, accionPrincipalDe } from './mesa-accion';
 import { TAB_TODAS, TabSeccion, agruparPorSeccion, armarTabs, filtrarPorTab } from './mesa-secciones';
 import {
@@ -661,9 +663,10 @@ export class MesasComponent {
     if (!this.pagoValido()) {
       this.metodoPagoError.set(true);
       this.cobroError.set(
-        esMulti
-          ? 'La suma de las formas de pago debe ser igual al total de la cuenta.'
-          : 'Debes seleccionar una forma de pago para completar el cobro.'
+        avisoFacturaIncompleta(seleccion ?? null)?.message
+          ?? (esMulti
+            ? 'La suma de las formas de pago debe ser igual al total de la cuenta.'
+            : 'Debes seleccionar una forma de pago para completar el cobro.')
       );
       return;
     }
@@ -687,8 +690,13 @@ export class MesasComponent {
       this.metodoPagoId(),
       esMulti ? seleccion?.pagos ?? null : null,
       seleccion?.idCuenta ?? null,
+      seleccion?.factura ?? null,
     ).subscribe({
-      next: () => {
+      next: (res) => {
+        // Cómo quedó la factura electrónica, si el negocio factura.
+        const factura = (res?.data as { factura?: FacturaResumen | null } | null)?.factura;
+        const tono = tonoDeFactura(factura);
+        if (factura && tono) this.uiFeedback[tono](factura.mensaje, 'Factura electrónica');
         this.persistirItemsPagadosMesaCache(mesa.id_mesa, mesa.order.items);
         this.mesasApi.cambiarEstadoServicio(mesa.id_mesa, 'OCUPADA').subscribe({
           next: () => {

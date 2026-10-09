@@ -24,7 +24,9 @@ import {
   FilaPago,
   MultipagoSelectorComponent,
   PagoSeleccion,
+  avisoFacturaIncompleta,
 } from '../../shared/multipago-selector/multipago-selector';
+import { FacturaResumen, tonoDeFactura } from '../../../core/services/facturacion.service';
 
 // ============================================================
 // Interfaces
@@ -1289,12 +1291,21 @@ export class PedidosComponent implements OnInit, OnDestroy {
     const s = this.pagoSeleccion();
     // `id_cuenta` sale del selector, que es quien preguntó de quién es la tiquetera.
     const cuenta = s?.idCuenta ? { id_cuenta: s.idCuenta } : {};
+    // «Factura a nombre de», si el negocio factura y el cajero la pidió. Sin ella, consumidor final.
+    const factura = s?.factura ? { factura: s.factura } : {};
 
     if (s?.modo === 'multi') {
-      return s.valido ? { pagos: s.pagos, ...cuenta } : null;
+      return s.valido ? { pagos: s.pagos, ...cuenta, ...factura } : null;
     }
     const id = this.metodoPagoId();
-    return id ? { id_metodo_pago: id, ...cuenta } : null;
+    return id ? { id_metodo_pago: id, ...cuenta, ...factura } : null;
+  }
+
+  /** Enseña cómo quedó la factura electrónica de un cobro. No hace nada si el negocio no factura. */
+  private avisarFactura(respuesta: unknown): void {
+    const f = (respuesta as { data?: { factura?: FacturaResumen | null } } | null)?.data?.factura;
+    const tono = tonoDeFactura(f);
+    if (f && tono) this.uiFeedback[tono](f.mensaje, 'Factura electrónica');
   }
 
   private loadCuentasCliente(): void {
@@ -1646,8 +1657,10 @@ export class PedidosComponent implements OnInit, OnDestroy {
     if (cobrar && !this.pagoValido()) {
       this.metodoPagoRequeridoError.set(true);
       await this.uiFeedback.alert({
-        title: 'Forma de pago requerida',
-        message: 'Debes seleccionar una forma de pago para cobrar antes de despachar.',
+        ...(avisoFacturaIncompleta(this.pagoSeleccion()) ?? {
+          title: 'Forma de pago requerida',
+          message: 'Debes seleccionar una forma de pago para cobrar antes de despachar.',
+        }),
         tone: 'warning',
       });
       return;
@@ -1734,8 +1747,10 @@ export class PedidosComponent implements OnInit, OnDestroy {
     if (this.requiereMetodoPago(destino) && !this.pagoValido()) {
       this.metodoPagoRequeridoError.set(true);
       void this.uiFeedback.alert({
-        title: 'Forma de pago requerida',
-        message: 'Debes seleccionar una forma de pago para completar el cobro.',
+        ...(avisoFacturaIncompleta(this.pagoSeleccion()) ?? {
+          title: 'Forma de pago requerida',
+          message: 'Debes seleccionar una forma de pago para completar el cobro.',
+        }),
         tone: 'warning',
       });
       return;
@@ -1948,7 +1963,10 @@ export class PedidosComponent implements OnInit, OnDestroy {
           `${environment.apiUrl}/pedidos/${idOrden}/marcar-pagado`,
           { ...(this.construirBodyPago() ?? {}), origen_cobro: origenCobro, id_caja: idCaja }
         ).subscribe({
-          next: () => finalizarDespacho(),
+          next: (res) => {
+            finalizarDespacho();
+            this.avisarFactura(res);
+          },
           error: () => this.resetEstadoEnvio(),
         });
       } else {
@@ -1970,10 +1988,12 @@ export class PedidosComponent implements OnInit, OnDestroy {
     if (!this.pagoValido()) {
       this.metodoPagoRequeridoError.set(true);
       await this.uiFeedback.alert({
-        title: 'Forma de pago requerida',
-        message: this.pagoSeleccion()?.modo === 'multi'
-          ? 'La suma de las formas de pago debe ser igual al total del pedido.'
-          : 'Debes seleccionar una forma de pago para completar el cobro.',
+        ...(avisoFacturaIncompleta(this.pagoSeleccion()) ?? {
+          title: 'Forma de pago requerida',
+          message: this.pagoSeleccion()?.modo === 'multi'
+            ? 'La suma de las formas de pago debe ser igual al total del pedido.'
+            : 'Debes seleccionar una forma de pago para completar el cobro.',
+        }),
         tone: 'warning',
       });
       this.resetEstadoEnvio();
@@ -2011,7 +2031,8 @@ export class PedidosComponent implements OnInit, OnDestroy {
         id_caja: this.tipoPedido() === 'DOMICILIO' ? null : this.getIdCaja(),
       }
     ).subscribe({
-      next: () => {
+      next: (res) => {
+        this.avisarFactura(res);
         if (this.requiereMesa()) {
           const idMesa = this.mesaId();
           if (!idMesa) {

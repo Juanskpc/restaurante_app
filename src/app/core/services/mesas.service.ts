@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
+import { DatosFactura } from './facturacion.service';
 
 export type MesaCardStatus = 'available' | 'occupied' | 'payment' | 'disabled';
 
@@ -165,6 +166,7 @@ export class MesasService {
     idMetodoPago?: number | null,
     pagos?: { id_metodo_pago: number; valor: number }[] | null,
     idCuenta?: number | null,
+    factura?: DatosFactura | null,
   ): Observable<{ success: boolean; data: unknown }> {
     // Multipago tiene prioridad; si no, se cierra con la forma de pago simple.
     // `id_cuenta` viaja cuando se paga con la tiquetera o el fiado de un cliente: el servidor
@@ -172,6 +174,8 @@ export class MesasService {
     const body = {
       ...(pagos && pagos.length > 0 ? { pagos } : { id_metodo_pago: idMetodoPago || null }),
       ...(idCuenta ? { id_cuenta: idCuenta } : {}),
+      // «Factura a nombre de», si el negocio factura. Sin ella sale a consumidor final.
+      ...(factura ? { factura } : {}),
     };
     return this.http.patch<{ success: boolean; data: unknown }>(
       `${environment.apiUrl}/pedidos/${idOrden}/cerrar`,

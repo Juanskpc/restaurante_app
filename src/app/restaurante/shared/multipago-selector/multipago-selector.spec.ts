@@ -1,7 +1,15 @@
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { describe, it, expect, beforeEach } from 'vitest';
 
+import { FacturacionService } from '../../../core/services/facturacion.service';
 import { MultipagoSelectorComponent } from './multipago-selector';
+
+/** Un negocio que no factura: es el caso de casi todos, y el que estas pruebas dan por hecho. */
+const SIN_FACTURACION = {
+  provide: FacturacionService,
+  useValue: { activa: signal(false), estado: signal(null), tope: signal(Number.POSITIVE_INFINITY) },
+};
 
 /**
  * El selector de forma de pago, que **comparten las tres pantallas que cobran**: POS, Mesas y
@@ -44,7 +52,7 @@ describe('MultipagoSelectorComponent — cobro contra la cuenta del cliente', ()
   };
 
   beforeEach(() => {
-    TestBed.configureTestingModule({ imports: [MultipagoSelectorComponent] });
+    TestBed.configureTestingModule({ imports: [MultipagoSelectorComponent], providers: [SIN_FACTURACION] });
     fixture = TestBed.createComponent(MultipagoSelectorComponent);
     comp = fixture.componentInstance;
     fixture.componentRef.setInput('metodos', [EFECTIVO, CUENTA]);
@@ -144,7 +152,7 @@ describe('MultipagoSelectorComponent — negocio con solo dos formas de pago', (
   };
 
   beforeEach(() => {
-    TestBed.configureTestingModule({ imports: [MultipagoSelectorComponent] });
+    TestBed.configureTestingModule({ imports: [MultipagoSelectorComponent], providers: [SIN_FACTURACION] });
     fixture = TestBed.createComponent(MultipagoSelectorComponent);
     comp = fixture.componentInstance;
     fixture.componentRef.setInput('metodos', [EFECTIVO, TRANSFERENCIA]);
