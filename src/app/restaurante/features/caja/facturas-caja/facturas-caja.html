@@ -1,0 +1,118 @@
+<section class="fc">
+  @for (a of alertas(); track a) {
+    <div class="fc__alerta" role="status">
+      <lucide-icon name="triangle-alert" [size]="16" aria-hidden="true" />
+      <span>{{ a }}</span>
+    </div>
+  }
+
+  <div class="fc__filtros">
+    <label class="fc__campo">
+      <span>Desde</span>
+      <input type="date" class="fc__input" [value]="desde()" [max]="hasta()"
+             (change)="desde.set($any($event.target).value)" />
+    </label>
+    <label class="fc__campo">
+      <span>Hasta</span>
+      <input type="date" class="fc__input" [value]="hasta()" [min]="desde()"
+             (change)="hasta.set($any($event.target).value)" />
+    </label>
+    <label class="fc__campo">
+      <span>Estado</span>
+      <select class="fc__input" (change)="estado.set($any($event.target).value)">
+        <option value="" [selected]="estado() === ''">Todos</option>
+        @for (e of estados; track e[0]) {
+          <option [value]="e[0]" [selected]="estado() === e[0]">{{ e[1] }}</option>
+        }
+      </select>
+    </label>
+    <button type="button" class="fc__btn" [disabled]="cargando()" (click)="cargar()">Actualizar</button>
+  </div>
+
+  @if (error()) {
+    <div class="fc__estado fc__estado--error" role="alert">{{ error() }}</div>
+  } @else if (cargando() && documentos().length === 0) {
+    <div class="fc__estado">Cargando…</div>
+  } @else if (documentos().length === 0) {
+    <div class="fc__estado">
+      <lucide-icon name="file-text" [size]="26" aria-hidden="true" />
+      <p>No hay facturas en estas fechas.</p>
+    </div>
+  } @else {
+    <div class="fc__tabla-wrap">
+      <table class="fc__tabla">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Pedido</th>
+            <th>Número</th>
+            <th>Comprador</th>
+            <th class="fc__num">Total</th>
+            <th>Estado</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (d of documentos(); track d.id_documento) {
+            <tr>
+              <td>{{ d.creado_en | date: 'dd/MM HH:mm' }}</td>
+              <td>{{ d.origen_referencia || '—' }}</td>
+              <td>
+                {{ d.numero || '—' }}
+                @if (d.tipo === 'NC') {
+                  <small class="fc__sub">Nota crédito{{ d.numero_factura_anulada ? ' · anula ' + d.numero_factura_anulada : '' }}</small>
+                }
+              </td>
+              <td>{{ d.consumidor_final ? 'Consumidor final' : (d.comprador || '—') }}</td>
+              <td class="fc__num">{{ d.total | currency: 'COP' : 'symbol-narrow' : '1.0-0' }}</td>
+              <td>
+                <span class="fc__chip" [attr.data-tono]="tono(d.estado)">{{ etiqueta(d.estado) }}</span>
+              </td>
+              <td class="fc__acciones">
+                @if (puede(d, 'pdf')) {
+                  <button type="button" class="fc__btn fc__btn--mini" [disabled]="ocupado() === d.id_documento"
+                          (click)="verPdf(d)">Ver PDF</button>
+                }
+                @if (puede(d, 'ver')) {
+                  <a class="fc__btn fc__btn--mini" [href]="d.url_publica" target="_blank" rel="noopener">
+                    Ver en línea <lucide-icon name="external-link" [size]="12" aria-hidden="true" />
+                  </a>
+                }
+                @if (puede(d, 'reintentar')) {
+                  <button type="button" class="fc__btn fc__btn--mini" [disabled]="ocupado() === d.id_documento"
+                          (click)="reintentar(d)">Reintentar</button>
+                }
+                @if (puede(d, 'completar')) {
+                  <button type="button" class="fc__btn fc__btn--mini fc__btn--primario"
+                          [disabled]="ocupado() === d.id_documento" (click)="abrirCompletar(d)">
+                    {{ completando() === d.id_documento ? 'Cerrar' : 'Completar datos' }}
+                  </button>
+                }
+              </td>
+            </tr>
+            @if (d.ultimo_error && d.estado !== 'ACEPTADO' && d.estado !== 'ANULADO') {
+              <tr class="fc__fila-detalle">
+                <td colspan="7"><span class="fc__error">{{ d.ultimo_error }}</span></td>
+              </tr>
+            }
+            @if (completando() === d.id_documento) {
+              <tr class="fc__fila-detalle">
+                <td colspan="7">
+                  <div class="fc__completar">
+                    <app-datos-factura [siempre]="true" [disabled]="ocupado() === d.id_documento"
+                                       (cambio)="comprador.set($event)" />
+                    <button type="button" class="fc__btn fc__btn--primario"
+                            [disabled]="!comprador().valido || ocupado() === d.id_documento"
+                            (click)="guardarComprador(d)">
+                      Guardar y enviar la factura
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</section>

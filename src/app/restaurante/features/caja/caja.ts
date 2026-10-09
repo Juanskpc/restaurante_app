@@ -18,6 +18,8 @@ import {
 import { CatalogoCacheService } from '../../../core/services/catalogo-cache.service';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 import { RealtimeService } from '../../../core/services/realtime.service';
+import { FacturacionService } from '../../../core/services/facturacion.service';
+import { FacturasCajaComponent } from './facturas-caja/facturas-caja';
 import { aplicarLista } from '../../../core/utils/refresco-vivo';
 import { CajaSelectorComponent } from '../../shared/caja-selector/caja-selector';
 import { SeguimientoPedidosComponent } from './seguimiento-pedidos/seguimiento-pedidos';
@@ -25,7 +27,7 @@ import { SeguimientoPedidosComponent } from './seguimiento-pedidos/seguimiento-p
 type ModalActivo = null | 'apertura' | 'cierre' | 'movimiento' | 'domiciliarios' | 'seguimiento';
 
 /** Las dos pestañas de la pantalla. El historial ya no es un modal (2026-09-29). */
-type PestanaCaja = 'turno' | 'historial';
+type PestanaCaja = 'turno' | 'historial' | 'facturas';
 
 /** Una forma de pago del resumen, lista para pintar su barra. */
 interface FilaMetodo {
@@ -57,7 +59,7 @@ type DireccionOrden = 'asc' | 'desc';
   selector: 'app-caja',
   standalone: true,
   imports: [
-    CajaSelectorComponent, SeguimientoPedidosComponent,
+    CajaSelectorComponent, SeguimientoPedidosComponent, FacturasCajaComponent,
     FormsModule, LucideAngularModule, NgTemplateOutlet, CurrencyPipe, DatePipe, DecimalPipe,
   ],
   templateUrl: './caja.html',
@@ -90,6 +92,9 @@ export class CajaComponent implements OnInit, OnDestroy {
   readonly enviando = signal(false);
 
   readonly pestana = signal<PestanaCaja>('turno');
+
+  /** La pestaña «Facturas» solo existe para un negocio con facturación electrónica activa. */
+  protected readonly facturacion = inject(FacturacionService);
 
   /**
    * Cambia de pestaña. Al entrar al historial siempre se arranca en la lista de turnos (no en el

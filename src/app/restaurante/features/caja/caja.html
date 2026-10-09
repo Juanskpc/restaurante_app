@@ -11,6 +11,12 @@
             [attr.aria-selected]="pestana() === 'historial'" (click)="cambiarPestana('historial')">
       Historial
     </button>
+    @if (facturacion.activa()) {
+      <button type="button" role="tab" class="tab" [class.tab--on]="pestana() === 'facturas'"
+              [attr.aria-selected]="pestana() === 'facturas'" (click)="cambiarPestana('facturas')">
+        Facturas
+      </button>
+    }
   </div>
 
   <header class="caja-header">
@@ -82,6 +88,13 @@
       </div>
     }
   </header>
+
+  <!-- Facturas electrónicas: los documentos del negocio, con o sin caja abierta. -->
+  @if (pestana() === 'facturas' && facturacion.activa()) {
+    @if (idNegocio(); as idNeg) {
+      <app-facturas-caja [idNegocio]="idNeg" />
+    }
+  }
 
   @if (pestana() === 'turno') {
     <!-- Con un turno ya en pantalla no se vuelve a «Cargando…»: el arqueo se queda donde está
