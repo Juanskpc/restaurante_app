@@ -50,7 +50,8 @@ interface FiltroMetodo {
 const SIN_METODO = 'sin';
 
 /** Las columnas por las que se puede ordenar la tabla de movimientos. */
-type CampoOrden = 'fecha' | 'tipo' | 'tipoPedido' | 'concepto' | 'formaPago' | 'usuario' | 'monto';
+type CampoOrden =
+  | 'fecha' | 'tipo' | 'tipoPedido' | 'concepto' | 'formaPago' | 'tomo' | 'cobro' | 'monto';
 type DireccionOrden = 'asc' | 'desc';
 
 @Component({
@@ -248,7 +249,8 @@ export class CajaComponent implements OnInit, OnDestroy {
       case 'tipoPedido': return this.tipoPedidoMovimiento(m);
       case 'concepto': return this.conceptoCorto(m);
       case 'formaPago': return this.formasPagoTexto(m);
-      case 'usuario': return `${m.usuario?.primer_nombre ?? ''} ${m.usuario?.primer_apellido ?? ''}`.trim();
+      case 'tomo': return this.tomoPedido(m);
+      case 'cobro': return this.cobroMovimiento(m);
       default: return '';
     }
   }
@@ -307,17 +309,17 @@ export class CajaComponent implements OnInit, OnDestroy {
 
   /**
    * Ancho de la fila desplegada, que tiene que cubrir la tabla entera: la columna
-   * del chevron más las seis fijas (fecha, tipo, tipo de pedido, concepto, forma
-   * de pago y usuario), y las dos que dependen de permisos.
+   * del chevron más las siete fijas (fecha, tipo, tipo de pedido, concepto, forma
+   * de pago, tomó y cobró), y las dos que dependen de permisos.
    */
   readonly colspanMovimientos = computed(
-    () => 7 + (this.puedeVerIngresos() ? 1 : 0) + (this.puedeEliminarPedido() ? 1 : 0),
+    () => 8 + (this.puedeVerIngresos() ? 1 : 0) + (this.puedeEliminarPedido() ? 1 : 0),
   );
   /**
    * La del historial es la misma tabla sin la columna de eliminar y sin la de forma
    * de pago: los filtros viven en el turno en curso, que es donde el cajero cuadra.
    */
-  readonly colspanMovimientosHist = computed(() => 6 + (this.puedeVerIngresos() ? 1 : 0));
+  readonly colspanMovimientosHist = computed(() => 7 + (this.puedeVerIngresos() ? 1 : 0));
 
   // ── Apertura ──
   // Arranca vacío (no en 0) para que el cajero escriba directo sin borrar nada.
@@ -921,6 +923,56 @@ export class CajaComponent implements OnInit, OnDestroy {
   conceptoCorto(m: MovimientoCaja): string {
     if (m.orden?.numero_orden) return m.orden.numero_orden;
     return m.concepto || '—';
+  }
+
+  /**
+   * Columna «Tomó»: quién levantó el pedido.
+   *
+   * Solo existe cuando la fila viene de un pedido. Un movimiento manual (un gasto, una
+   * tiquetera) no lo tomó nadie, y poner ahí al que lo registró sería repetir la columna
+   * de al lado diciendo otra cosa.
+   */
+  tomoPedido(m: MovimientoCaja): string {
+    return this.nombreUsuario(m.orden?.usuario);
+  }
+
+  /**
+   * Columna «Cobró»: quién registró el movimiento.
+   *
+   * En un ingreso de pedido es literalmente quien cobró; en un egreso o un movimiento
+   * manual, quien lo asentó. Es el mismo dato que antes se llamaba «Usuario» a secas.
+   */
+  cobroMovimiento(m: MovimientoCaja): string {
+    return this.nombreUsuario(m.usuario);
+  }
+
+  /** «Nombre Apellido», o un guion cuando no hay a quién nombrar. */
+  private nombreUsuario(u: { primer_nombre?: string; primer_apellido?: string } | null | undefined): string {
+    const nombre = `${u?.primer_nombre ?? ''} ${u?.primer_apellido ?? ''}`.trim();
+    return nombre || '—';
+  }
+
+  /**
+   * El día de una fecha en palabras cuando las tiene: «Hoy», «Ayer» o la fecha corta.
+   *
+   * Es para la apertura del turno: lo que el cajero necesita saber de un vistazo no es el
+   * dato completo sino si la caja se abrió hoy o viene colgada de anoche, que es el caso en
+   * el que el arqueo no cuadra con lo que se espera del día.
+   *
+   * Compara día de pared contra día de pared: las fechas del backend son hora de Bogotá sin
+   * zona, así que se comparan como las pinta `DatePipe`, no en UTC.
+   */
+  diaApertura(fecha: string | null | undefined): string {
+    if (!fecha) return '';
+    const d = new Date(fecha);
+    if (Number.isNaN(d.getTime())) return '';
+
+    const soloDia = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+    const hoy = new Date();
+    const dias = Math.round((soloDia(hoy) - soloDia(d)) / 86400000);
+    if (dias === 0) return 'Hoy';
+    if (dias === 1) return 'Ayer';
+    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
   }
 
   /** Etiqueta de la columna Tipo, que además distingue las anulaciones. */

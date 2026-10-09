@@ -1,0 +1,1098 @@
+<!--
+  Bandeja: donde el negocio contesta cuando el asistente no supo.
+
+  Tres piezas y un orden que no es casual:
+
+    · Una barra arriba con los NEGOCIOS. Estaban metidos entre el buscador y la lista, dentro de
+      la columna estrecha: con dos locales de nombre largo ocupaban tres renglones y empujaban
+      las conversaciones fuera de la pantalla. «De qué local hablamos» es una pregunta anterior a
+      «qué conversación abro», así que va arriba del todo y a lo ancho de las dos columnas.
+    · La lista, a la izquierda. Solo buscar y elegir.
+    · El hilo, a la derecha, con la misma cara que el chat de la landing: banda de color arriba,
+      papel con garabatos detrás y burbujas con la hora dentro. Quien ve la landing y luego entra
+      aquí tiene que reconocer lo mismo.
+-->
+<div class="bdj">
+  <!-- ── Barra superior: identidad y negocios ──────────────────── -->
+  <header class="bdj__top">
+    <div class="bdj__marca">
+      <span class="bdj__marca-icono" aria-hidden="true">
+        <lucide-icon name="message-circle" [size]="18" />
+      </span>
+      <div class="bdj__marca-texto">
+        <h1 class="bdj__title">Conversaciones</h1>
+        <p class="bdj__subtitle">Lo que el asistente habla con tus clientes</p>
+      </div>
+    </div>
+
+    <!-- Los negocios. Solo con más de uno: una sola pastilla no filtra nada. -->
+    @if (variosNegocios()) {
+      <div class="bdj__negocios" role="group" aria-label="Filtrar por negocio">
+        <button
+          type="button"
+          class="bdj__chip"
+          [class.bdj__chip--on]="negocioActivo() === null"
+          (click)="filtrarPorNegocio(null)"
+        >
+          Todos
+        </button>
+        @for (n of negocios(); track n.id_negocio) {
+          <button
+            type="button"
+            class="bdj__chip"
+            [class.bdj__chip--on]="negocioActivo() === n.id_negocio"
+            (click)="filtrarPorNegocio(n.id_negocio)"
+          >
+            <lucide-icon name="building-2" [size]="13" aria-hidden="true" />
+            {{ n.nombre }}
+          </button>
+        }
+      </div>
+    }
+
+    <div class="bdj__top-acciones">
+      @if (mostrarGestionarNumero()) {
+        <button type="button" class="bdj__chip" (click)="gestionarNumero.emit()">
+          <lucide-icon name="smartphone" [size]="14" aria-hidden="true" />
+          Gestionar número
+        </button>
+      }
+      <!-- Pausa de emergencia: un clic y el asistente deja de contestar (2026-10-04). -->
+      @if (config(); as cfg) {
+        <button
+          type="button"
+          class="bdj__chip"
+          [class.bdj__chip--pausa]="!pausado()"
+          [class.bdj__chip--on]="pausado()"
+          [disabled]="!cfg.puede_editar || cambiandoPausa()"
+          [attr.aria-pressed]="pausado()"
+          [title]="cfg.puede_editar ? '' : 'Solo un administrador del negocio puede pausar el asistente'"
+          (click)="alternarPausa()"
+        >
+          <lucide-icon [name]="pausado() ? 'play' : 'pause'" [size]="14" aria-hidden="true" />
+          {{ pausado() ? 'Reanudar asistente' : 'Pausar asistente' }}
+        </button>
+      }
+      <!-- Los ajustes del asistente viven en su propia ventana (pedido del dueño, 2026-10-02):
+           en la cabecera le quitaban altura a los mensajes. -->
+      @if (config()) {
+        <button
+          type="button"
+          class="bdj__chip"
+          aria-haspopup="dialog"
+          [attr.aria-expanded]="configAbierta()"
+          (click)="configAbierta.set(true)"
+        >
+          <lucide-icon name="settings" [size]="14" aria-hidden="true" />
+          Configuración del asistente
+        </button>
+      }
+      <!-- Informe con las conversaciones reales (fase 3): para quien puede actuar sobre él. -->
+      @if (config()?.puede_editar) {
+        <button
+          type="button"
+          class="bdj__chip"
+          [class.bdj__chip--on]="informeAbierto()"
+          [attr.aria-expanded]="informeAbierto()"
+          (click)="alternarInforme()"
+        >
+          <lucide-icon name="chart-column" [size]="14" aria-hidden="true" />
+          Informe
+        </button>
+      }
+      <!-- ¿Qué le falta al asistente para atender bien? Revisión del backend, con dónde se arregla. -->
+      @if (preparacion(); as prep) {
+        <button
+          type="button"
+          class="bdj__chip"
+          [class.bdj__chip--on]="prepAbierta()"
+          [class.bdj__chip--alerta]="prep.criticos > 0"
+          [attr.aria-expanded]="prepAbierta()"
+          (click)="prepAbierta() ? cerrarPreparacion() : prepAbierta.set(true)"
+        >
+          @if (prep.pendientes > 0) {
+            Al asistente le faltan datos
+            <span class="bdj__contador" [class.bdj__contador--alerta]="prep.criticos > 0">{{
+              prep.pendientes
+            }}</span>
+          } @else {
+            <lucide-icon name="check" [size]="14" aria-hidden="true" />
+            Asistente listo
+          }
+        </button>
+      }
+      <button type="button" class="bdj__icono" (click)="cargar()" aria-label="Actualizar">
+        <lucide-icon name="refresh-cw" [size]="16" aria-hidden="true" />
+      </button>
+    </div>
+    @if (pausado()) {
+      <div class="bdj__pausa" role="status">
+        <lucide-icon name="pause" [size]="16" aria-hidden="true" />
+        <span>
+          <strong>El asistente está en pausa</strong>@if (config()?.asistente_pausado_en; as desde) { desde las {{ desde | date: 'h:mm a' }}}. No le contesta a nadie. Los mensajes nuevos te llegan aquí, en «Esperan respuesta».
+        </span>
+        @if (config()?.puede_editar) {
+          <button type="button" class="bdj__pausa-boton" [disabled]="cambiandoPausa()" (click)="alternarPausa()">
+            <lucide-icon name="play" [size]="14" aria-hidden="true" />
+            Reanudar
+          </button>
+        }
+      </div>
+    }
+  </header>
+
+  <!-- ── Panel izquierdo: la lista ─────────────────────────────── -->
+  <aside class="bdj__lista-panel">
+    <div class="bdj__buscador">
+      <lucide-icon name="search" [size]="15" aria-hidden="true" />
+      <input
+        type="search"
+        placeholder="Buscar una conversación"
+        [ngModel]="busqueda()"
+        (ngModelChange)="busqueda.set($event)"
+      />
+    </div>
+
+    <!-- «Esperan respuesta» sobre la lista que filtra, como estuvo hasta septiembre (pedido del
+         dueño, 2026-10-02): en la cabecera quedaba lejos de lo que filtra. -->
+    <div class="bdj__lista-filtros">
+      <button
+        type="button"
+        class="bdj__chip bdj__chip--espera"
+        [class.bdj__chip--on]="soloEscaladas()"
+        [class.bdj__chip--alerta]="escaladas() > 0"
+        (click)="alternarEscaladas()"
+      >
+        Esperan respuesta
+        @if (escaladas() > 0) {
+          <span class="bdj__contador bdj__contador--alerta">{{ escaladas() }}</span>
+        }
+      </button>
+    </div>
+
+    <div class="bdj__scroll">
+      @if (sinModulo()) {
+        <p class="bdj__vacio">El asistente todavía no está activo en esta cuenta.</p>
+      } @else if (estado() === 'loading') {
+        <p class="bdj__vacio">
+          <lucide-icon name="loader-2" [size]="18" class="bdj__spin" aria-hidden="true" />
+          Cargando…
+        </p>
+      } @else if (estado() === 'error') {
+        <p class="bdj__vacio bdj__vacio--error">
+          {{ error() }}
+          <button type="button" class="bdj__chip" (click)="cargar()">Reintentar</button>
+        </p>
+      } @else if (visibles().length === 0) {
+        <p class="bdj__vacio">
+          {{ busqueda() ? 'Nada coincide con esa búsqueda.'
+             : soloEscaladas() ? 'Nada esperando respuesta. Todo lo lleva el asistente.'
+             : 'Todavía no hay conversaciones.' }}
+        </p>
+      } @else {
+        <ul class="bdj__lista">
+          @for (c of visibles(); track c.id_conversacion) {
+            <li>
+              <button
+                type="button"
+                class="bdj__item"
+                [class.bdj__item--activa]="abierta() === c.id_conversacion"
+                [class.bdj__item--espera]="recuadroEspera(c)"
+                [attr.aria-label]="c.escalada ? quien(c) + ' — espera respuesta' : null"
+                (click)="abrir(c)"
+              >
+                <span class="bdj__avatar" [class.bdj__avatar--espera]="c.escalada">
+                  @if (tieneNombre(c)) {
+                    {{ inicial(c) }}
+                  } @else {
+                    <lucide-icon name="user" [size]="18" aria-hidden="true" />
+                  }
+                </span>
+                <span class="bdj__item-cuerpo">
+                  <span class="bdj__item-fila">
+                    <span class="bdj__item-quien">{{ quien(c) }}</span>
+                    <span class="bdj__item-fecha">
+                      {{ (c.ultimo_mensaje_en || c.creado_en) | date: 'dd/MM HH:mm' }}
+                    </span>
+                  </span>
+                  <span class="bdj__item-fila">
+                    <span class="bdj__item-texto">{{ c.ultimo_texto || '—' }}</span>
+                    @if (c.escalada) {
+                      <span class="bdj__punto" title="Espera respuesta"></span>
+                    }
+                  </span>
+                  <span class="bdj__item-pie">
+                    <!-- El negocio, solo cuando hay más de uno y no se está filtrando por él:
+                         si no, es una línea repetida en todas las filas. -->
+                    @if (variosNegocios() && negocioActivo() === null && c.negocio) {
+                      <span class="bdj__item-negocio">
+                        <lucide-icon name="building-2" [size]="11" aria-hidden="true" />
+                        {{ c.negocio }}
+                      </span>
+                    }
+                    <!-- El contador es del CONTACTO: cuántos reportes acumula esta persona en el
+                         negocio, no cuántos lleva este hilo. -->
+                    @if (c.reportes > 0) {
+                      <span
+                        class="bdj__item-reportes"
+                        [title]="c.reportes + ' reporte(s) de esta persona'"
+                      >
+                        <lucide-icon name="flag" [size]="11" aria-hidden="true" />
+                        {{ c.reportes }}
+                      </span>
+                    }
+                  </span>
+                </span>
+              </button>
+            </li>
+          }
+        </ul>
+      }
+    </div>
+  </aside>
+
+  <!-- ── Panel derecho: el hilo ────────────────────────────────── -->
+  <section class="bdj__hilo-panel">
+    @if (!detalle()) {
+      <div class="bdj__placeholder">
+        <!-- Marca de agua: solo decoración. El chat abierto sí lleva el papel con garabatos. -->
+        <span class="bdj__marca-agua marca" aria-hidden="true">EscalApp</span>
+        <span class="bdj__placeholder-icono" aria-hidden="true">
+          <lucide-icon name="message-square" [size]="28" />
+        </span>
+        <p>Elige una conversación para leerla y responder.</p>
+        <span class="bdj__placeholder-nota">
+          Cuando el asistente no sabe qué contestar, la conversación aparece aquí marcada.
+        </span>
+      </div>
+    } @else if (detalle(); as d) {
+      <!-- La banda de color, como en el chat de la landing: identifica de un vistazo que esto
+           es una conversación y no una tabla más del panel. -->
+      <header class="bdj__hilo-head">
+        <span class="bdj__avatar bdj__avatar--grande">
+          @if (tieneNombre(d.conversacion)) {
+            {{ inicial(d.conversacion) }}
+          } @else {
+            <lucide-icon name="user" [size]="16" aria-hidden="true" />
+          }
+        </span>
+        <div class="bdj__hilo-quien">
+          <strong>{{ quien(d.conversacion) }}</strong>
+          <span>
+            {{ contacto(d.conversacion) }}
+            @if (d.conversacion.negocio) { · {{ d.conversacion.negocio }} }
+          </span>
+        </div>
+
+        @if (d.conversacion.escalada) {
+          <!-- No devuelve la conversación al asistente (ADR-023): solo deja de contar como
+               pendiente. Hace falta porque no todo se resuelve por el chat. -->
+          <button
+            type="button"
+            class="bdj__accion-hilo"
+            (click)="atender()"
+            title="Quitarla de las que esperan respuesta. El asistente no vuelve a esta conversación."
+          >
+            <lucide-icon name="check-check" [size]="15" aria-hidden="true" />
+            Ya me ocupé
+          </button>
+        }
+        <!--
+          «Reportar usuario» BLOQUEA al usuario: el asistente deja de contestarle. Es la única
+          opción del chat. Distinto de STOP/BAJA: esto lo decide el negocio, no el cliente, y por
+          eso el propio negocio lo puede deshacer. Una baja real (bloqueada_por = 'cliente') no
+          muestra este botón: esa solo la deshace un super admin desde la Consola.
+        -->
+        @if (d.conversacion.estado !== 'bloqueada') {
+          <button
+            type="button"
+            class="bdj__accion-hilo bdj__accion-hilo--peligro"
+            (click)="alternarConfirmarBloqueo()"
+            title="Reportar a este usuario: el asistente dejará de contestarle"
+          >
+            <lucide-icon name="ban" [size]="15" aria-hidden="true" />
+            Reportar usuario
+          </button>
+        } @else if (d.conversacion.bloqueada_por === 'negocio') {
+          <button
+            type="button"
+            class="bdj__icono"
+            (click)="desbloquear()"
+            [disabled]="bloqueando()"
+            title="Dejar que el asistente vuelva a contestarle a este número"
+          >
+            <lucide-icon name="bell-off" [size]="16" aria-hidden="true" />
+          </button>
+        }
+
+        <button type="button" class="bdj__icono bdj__icono--claro" (click)="cerrar()" aria-label="Cerrar">
+          <lucide-icon name="x" [size]="16" aria-hidden="true" />
+        </button>
+      </header>
+
+      @if (d.conversacion.estado === 'bloqueada') {
+        <div class="bdj__baja">
+          <lucide-icon name="bell-off" [size]="15" aria-hidden="true" />
+          @if (d.conversacion.bloqueada_por === 'cliente') {
+            <span>
+              Esta persona pidió la baja (STOP). No recibe nada, ni respuestas ni recordatorios.
+              Solo un administrador de EscalApp puede deshacerlo.
+            </span>
+          } @else {
+            <span>Bloqueaste este número: el asistente no le contesta.</span>
+          }
+        </div>
+      }
+
+      <!--
+        El aviso del propio asistente. No calla al bot ni bloquea a nadie: solo dice lo que midió
+        —cuántos turnos, cuánto costó, cuántas veces se repitió el mismo texto— para que la
+        decisión la tome una persona con el dato delante.
+      -->
+      @if (reportes().del_asistente > 0) {
+        <div class="bdj__aviso bdj__aviso--bot">
+          <lucide-icon name="shield-alert" [size]="15" aria-hidden="true" />
+          <span>
+            El asistente marcó esta conversación como posible mal uso. Sigue contestando con
+            normalidad: nadie ha sido bloqueado.
+          </span>
+        </div>
+      }
+
+      <!--
+        Solo cuando el asistente está fuera. Devolvérsela es una decisión de una persona, nunca
+        de un temporizador: eso es lo que separa la Enmienda 1 de ADR-023 de revocarlo.
+      -->
+      @if (d.conversacion.estado === 'handoff_humano') {
+        <div class="bdj__retomar">
+          <lucide-icon name="bot-message-square" [size]="15" aria-hidden="true" />
+          <span>El asistente no contesta en esta conversación. La llevas tú.</span>
+          <button type="button" (click)="devolverAlAsistente()">
+            Ya terminé, que siga el asistente
+          </button>
+          <p class="bdj__retomar-aviso" role="status">{{ avisoRetorno(d.conversacion) }}</p>
+        </div>
+      }
+
+      <div class="bdj__mensajes" #mensajes>
+        @for (it of lineaDeTiempo(); track it.clave) {
+          @if (it.tipo === 'msg') {
+            @let m = it.m;
+            <div class="bdj__msg" [class.bdj__msg--suyo]="esDeLaPersona(m)">
+              @if (m.media; as a) {
+                <!-- Foto, sticker, audio… que mandó el cliente: se trae de WhatsApp al abrir el
+                     chat (no se guarda copia; WhatsApp lo conserva 7 días). -->
+                <div class="bdj__archivo">
+                  @if (urlArchivo(m); as url) {
+                    @if (a.tipo === 'image' || a.tipo === 'sticker') {
+                      <a [href]="url" target="_blank" rel="noopener" title="Ver en grande">
+                        <img
+                          [src]="url"
+                          [class.bdj__archivo-sticker]="a.tipo === 'sticker'"
+                          [alt]="a.caption || (a.tipo === 'sticker' ? 'Sticker' : 'Foto del cliente')"
+                        />
+                      </a>
+                    } @else if (a.tipo === 'audio') {
+                      <audio controls [src]="url"></audio>
+                    } @else if (a.tipo === 'video') {
+                      <video controls [src]="url"></video>
+                    } @else {
+                      <button type="button" class="bdj__archivo-doc" (click)="abrirDocumento(m)">
+                        <lucide-icon name="file-text" [size]="15" aria-hidden="true" />
+                        {{ a.nombre || 'Abrir documento' }}
+                      </button>
+                    }
+                  } @else if (errorArchivo(m); as aviso) {
+                    <span class="bdj__archivo-aviso">{{ aviso }}</span>
+                  } @else if (a.tipo === 'document') {
+                    <button type="button" class="bdj__archivo-doc" (click)="abrirDocumento(m)" [disabled]="cargandoArchivo(m)">
+                      <lucide-icon name="file-text" [size]="15" aria-hidden="true" />
+                      {{ cargandoArchivo(m) ? 'Abriendo…' : a.nombre || 'Abrir documento' }}
+                    </button>
+                  } @else {
+                    <span class="bdj__archivo-aviso">Cargando {{ nombreDeArchivo(a.tipo) }}…</span>
+                  }
+                </div>
+                @if (a.caption) {
+                  <p class="bdj__msg-texto">{{ a.caption }}</p>
+                }
+              } @else if (m.eliminado) {
+                <!-- Lo borró quien lo escribió: el contenido ya no se guarda. -->
+                <p class="bdj__msg-texto bdj__msg-texto--eliminado">
+                  <lucide-icon name="ban" [size]="13" aria-hidden="true" />
+                  Mensaje eliminado
+                </p>
+              } @else {
+                <p class="bdj__msg-texto">{{ m.contenido }}</p>
+              }
+              <span class="bdj__msg-pie">
+                @if (m.editado && !m.eliminado) {
+                  <em class="bdj__msg-editado">Editado ·</em>
+                }
+                {{ m.creado_en | date: 'HH:mm' }}
+                @if (etiquetaEntrega(m); as et) {
+                  <em
+                    class="bdj__msg-entrega"
+                    [class.bdj__msg-entrega--mal]="m.estado_entrega === 'fallido'"
+                  >· {{ et }}</em>
+                }
+              </span>
+            </div>
+          } @else {
+            @let r = it.r;
+            <div class="bdj__evento" role="status">
+              <lucide-icon name="bot-message-square" [size]="13" aria-hidden="true" />
+              El asistente retomó la conversación ({{ textoRetomada(r) }}) · {{ r.fecha | date: 'dd/MM HH:mm' }}
+            </div>
+          }
+        }
+      </div>
+
+      <footer class="bdj__responder">
+        @if (!d.ventana.abierta) {
+          <!--
+            La ventana de 24 h. Se avisa aquí y no después de escribir: Meta rechaza el texto
+            libre pasado ese plazo, y descubrirlo con el párrafo redactado es la peor forma.
+          -->
+          <div class="bdj__cerrada">
+            <lucide-icon name="clock" [size]="16" aria-hidden="true" />
+            <div>
+              @if (d.ventana.ultimo_entrante_en) {
+                <strong>No puedes escribirle ahora.</strong>
+                Pasaron más de 24 horas desde su último mensaje
+                ({{ d.ventana.ultimo_entrante_en | date: 'dd/MM HH:mm' }}) y WhatsApp solo
+                permite texto libre dentro de ese plazo. Podrás responder en cuanto vuelva a
+                escribir.
+              } @else {
+                <strong>No puedes escribirle todavía.</strong>
+                Esta persona aún no ha escrito, y WhatsApp no permite que el negocio inicie una
+                conversación con texto libre.
+              }
+            </div>
+          </div>
+        } @else {
+          @if (d.conversacion.estado !== 'handoff_humano') {
+            <p class="bdj__nota">
+              <lucide-icon name="bot" [size]="13" aria-hidden="true" />
+              Si respondes, el asistente deja de contestar en esta conversación y sigues tú.
+            </p>
+          }
+          <div class="bdj__caja">
+            <textarea
+              class="bdj__texto"
+              rows="1"
+              placeholder="Escribe un mensaje"
+              [ngModel]="borrador()"
+              (ngModelChange)="borrador.set($event)"
+              (keydown.enter)="alEnter($event)"
+              [disabled]="enviando()"
+            ></textarea>
+            <button
+              type="button"
+              class="bdj__enviar"
+              [disabled]="!puedeEnviar()"
+              (click)="enviar()"
+              aria-label="Enviar"
+            >
+              @if (enviando()) {
+                <lucide-icon name="loader-2" [size]="17" class="bdj__spin" aria-hidden="true" />
+              } @else {
+                <lucide-icon name="send" [size]="17" aria-hidden="true" />
+              }
+            </button>
+          </div>
+        }
+
+        @if (errorEnvio()) {
+          <p class="bdj__error">{{ errorEnvio() }}</p>
+        }
+      </footer>
+    }
+  </section>
+</div>
+
+<!-- ── Modal «Reportar usuario»: reporta Y bloquea ──────────────── -->
+@if (confirmandoBloqueo() && detalle(); as d) {
+  <div class="bdj-modal" (click)="alternarConfirmarBloqueo()" (keydown.escape)="alternarConfirmarBloqueo()">
+    <div
+      class="bdj-modal__card"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="bdj-rep-title"
+      aria-describedby="bdj-rep-desc"
+      (click)="$event.stopPropagation()"
+    >
+      <app-modal-cabecera
+        icono="user-minus"
+        titulo="Reportar usuario"
+        [subtitulo]="quien(d.conversacion)"
+        tituloId="bdj-rep-title"
+        [bloqueado]="bloqueando()"
+        (cerrar)="alternarConfirmarBloqueo()"
+      />
+
+      <div class="bdj-modal__body" id="bdj-rep-desc">
+        <p class="bdj-modal__lead">
+          Al reportarlo, <strong>el asistente dejará de contestarle</strong> a este número. Podrás
+          deshacerlo cuando quieras desde esta misma conversación.
+        </p>
+        <label class="bdj-modal__label" for="bdj-rep-obs">
+          Observación <span class="bdj-modal__opcional">(opcional, queda auditada)</span>
+        </label>
+        <textarea
+          id="bdj-rep-obs"
+          class="bdj-modal__texto"
+          rows="3"
+          maxlength="300"
+          placeholder="Por ejemplo: insultos, spam, uso del asistente para nada…"
+          [ngModel]="motivoBloqueo()"
+          (ngModelChange)="motivoBloqueo.set($event)"
+          [disabled]="bloqueando()"
+        ></textarea>
+        @if (errorBloqueo(); as err) {
+          <p class="bdj__error" role="alert">{{ err }}</p>
+        }
+      </div>
+
+      <footer class="bdj-modal__pie">
+        <button type="button" class="bdj__btn-secundario" (click)="alternarConfirmarBloqueo()" [disabled]="bloqueando()">
+          Cancelar
+        </button>
+        <button type="button" class="bdj__btn-peligro" (click)="bloquear()" [disabled]="bloqueando()">
+          {{ bloqueando() ? 'Reportando…' : 'Reportar y bloquear' }}
+        </button>
+      </footer>
+    </div>
+  </div>
+}
+
+<!-- ── Ventana «Configuración del asistente» ─────────────────────── -->
+@if (configAbierta()) {
+  <div class="bdj-modal" (click)="configAbierta.set(false)" (keydown.escape)="configAbierta.set(false)">
+    <div
+      class="bdj-modal__card bdj-cfg"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="bdj-cfg-title"
+      (click)="$event.stopPropagation()"
+    >
+      <app-modal-cabecera
+        icono="settings"
+        titulo="Configuración del asistente"
+        subtitulo="Cada apartado se guarda por separado"
+        tituloId="bdj-cfg-title"
+        (cerrar)="configAbierta.set(false)"
+      />
+      <div class="bdj-modal__body">
+        @if (config(); as cfg) {
+          @if (!cfg.puede_editar) {
+            <p class="bdj-cfg__aviso">Solo un administrador de este negocio puede cambiar estos ajustes.</p>
+          }
+        }
+        <h3 class="bdj-cfg__titulo">Cuándo vuelve el asistente</h3>
+        <p class="bdj-cfg__ayuda">Cuando alguien del negocio contesta, el asistente se calla en ese chat. Aquí decides si vuelve solo y tras cuántos minutos.</p>
+        <!-- El asistente vuelve solo: decisión del negocio (ADR-023, Enmienda 2). «Nunca» es el
+             valor de fábrica. Solo con un negocio determinado, y solo un administrador lo cambia. -->
+        @if (config(); as cfg) {
+          <div class="bdj__auto" role="group" aria-label="Cuándo vuelve solo el asistente">
+            <span class="bdj__auto-etq">Asistente vuelve tras</span>
+            <input
+              type="number"
+              class="bdj__auto-min"
+              min="1"
+              max="1440"
+              step="5"
+              aria-label="Minutos hasta que el asistente vuelve"
+              [ngModel]="autoMinutos()"
+              (ngModelChange)="autoMinutos.set($event)"
+              [disabled]="autoNunca() || !cfg.puede_editar"
+            />
+            <span class="bdj__auto-etq">min</span>
+            <label class="bdj__auto-nunca">
+              <input
+                type="checkbox"
+                [ngModel]="autoNunca()"
+                (ngModelChange)="autoNunca.set($event)"
+                [disabled]="!cfg.puede_editar"
+              />
+              Nunca
+            </label>
+            @if (autoSucio()) {
+              <button
+                type="button"
+                class="bdj__auto-guardar"
+                [disabled]="!autoValido() || guardandoConfig()"
+                (click)="guardarConfig()"
+              >
+                Guardar
+              </button>
+            }
+          </div>
+        }
+        <h3 class="bdj-cfg__titulo">Tiempo de entrega</h3>
+        <p class="bdj-cfg__ayuda">Lo que el asistente contesta a «¿cuánto se demora?».</p>
+        <!-- Lo que el asistente contesta a «¿cuánto se demora?». Vacío = no se promete ningún tiempo. -->
+        @if (config(); as cfg) {
+          <div class="bdj__auto" role="group" aria-label="Tiempo estimado de entrega">
+            <span class="bdj__auto-etq">Entrega en</span>
+            <input
+              type="number"
+              class="bdj__auto-min"
+              min="1"
+              max="600"
+              step="5"
+              placeholder="40"
+              aria-label="Minutos mínimos de entrega"
+              [ngModel]="tiempoMin()"
+              (ngModelChange)="tiempoMin.set($event === '' ? null : $event)"
+              [disabled]="!cfg.puede_editar"
+            />
+            <span class="bdj__auto-etq">a</span>
+            <input
+              type="number"
+              class="bdj__auto-min"
+              min="1"
+              max="600"
+              step="5"
+              placeholder="60"
+              aria-label="Minutos máximos de entrega (opcional)"
+              [ngModel]="tiempoMax()"
+              (ngModelChange)="tiempoMax.set($event === '' ? null : $event)"
+              [disabled]="tiempoMin() === null || !cfg.puede_editar"
+            />
+            <span class="bdj__auto-etq">min</span>
+            @if (tiempoSucio()) {
+              <button
+                type="button"
+                class="bdj__auto-guardar"
+                [disabled]="!tiempoValido() || guardandoTiempo()"
+                (click)="guardarTiempo()"
+              >
+                Guardar
+              </button>
+            }
+          </div>
+        }
+        <h3 class="bdj-cfg__titulo">Valor del domicilio</h3>
+        <p class="bdj-cfg__ayuda">Un rango y, si hace falta, una nota (por ejemplo, fuera de la ciudad).</p>
+        <!-- Lo que el asistente contesta a «¿cuánto vale el domicilio?»: un rango, no barrio por barrio. -->
+        @if (config(); as cfg) {
+          <div class="bdj__auto" role="group" aria-label="Valor del domicilio">
+            <span class="bdj__auto-etq">Domicilio $</span>
+            <input
+              type="number"
+              class="bdj__auto-min bdj__auto-min--pesos"
+              min="0"
+              step="500"
+              placeholder="7000"
+              aria-label="Valor mínimo del domicilio en pesos"
+              [ngModel]="domicilioMin()"
+              (ngModelChange)="domicilioMin.set($event === '' ? null : $event)"
+              [disabled]="!cfg.puede_editar"
+            />
+            <span class="bdj__auto-etq">a $</span>
+            <input
+              type="number"
+              class="bdj__auto-min bdj__auto-min--pesos"
+              min="0"
+              step="500"
+              placeholder="9000"
+              aria-label="Valor máximo del domicilio en pesos (opcional)"
+              [ngModel]="domicilioMax()"
+              (ngModelChange)="domicilioMax.set($event === '' ? null : $event)"
+              [disabled]="domicilioMin() === null || !cfg.puede_editar"
+            />
+            <input
+              type="text"
+              class="bdj__auto-min bdj__auto-min--nota"
+              maxlength="200"
+              placeholder="Nota: fuera de la ciudad, desde $10.000"
+              aria-label="Nota sobre el domicilio (opcional)"
+              [ngModel]="domicilioNota()"
+              (ngModelChange)="domicilioNota.set($event ?? '')"
+              [disabled]="!cfg.puede_editar"
+            />
+            @if (domicilioSucio()) {
+              <button
+                type="button"
+                class="bdj__auto-guardar"
+                [disabled]="!domicilioValido() || guardandoDomicilio()"
+                (click)="guardarDomicilio()"
+              >
+                Guardar
+              </button>
+            }
+          </div>
+        }
+  
+        <h3 class="bdj-cfg__titulo">Información para el asistente</h3>
+        @if (config(); as cfg) {
+          <div class="bdj__info" role="group" aria-label="Información para el asistente">
+            <label class="bdj__info-etq" for="bdj-info-asistente">
+              Lo que el asistente puede decirle a tus clientes: número de Nequi o cuenta para
+              transferir, si reciben efectivo o datáfono, zonas a las que llegan… (el valor del
+              domicilio va en su propio apartado, arriba). Sin esto, el asistente le pasa la pregunta
+              a una persona.
+            </label>
+            <textarea
+              id="bdj-info-asistente"
+              class="bdj__info-texto"
+              rows="4"
+              maxlength="1500"
+              placeholder="Ej.: Nequi 300 123 4567 a nombre de Zona Burger. Recibimos efectivo y Nequi."
+              [ngModel]="infoTexto()"
+              (ngModelChange)="infoTexto.set($event)"
+              [disabled]="!cfg.puede_editar"
+            ></textarea>
+            <div class="bdj__info-pie">
+              <span>{{ infoTexto().length }}/1500</span>
+              @if (infoSucia()) {
+                <button
+                  type="button"
+                  class="bdj__auto-guardar"
+                  [disabled]="guardandoInfo()"
+                  (click)="guardarInfo()"
+                >
+                  Guardar
+                </button>
+              }
+            </div>
+          </div>
+        }
+  
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ── Ventana «Revisión del asistente» ──────────────────────────────
+     Antes era un panel dentro de la cabecera de la Bandeja, que tiene alto fijo: con el
+     diagnóstico de la carta y las recomendaciones crecía fuera de la pantalla sin scroll
+     (2026-10-05). Aquí el cuerpo tiene su propio scroll. -->
+@if (prepAbierta()) {
+  @if (preparacion(); as prep) {
+    <div class="bdj-modal" (click)="cerrarPreparacion()" (keydown.escape)="cerrarPreparacion()">
+      <div
+        class="bdj-modal__card bdj-rev"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="bdj-rev-title"
+        (click)="$event.stopPropagation()"
+      >
+        <app-modal-cabecera
+          icono="bot"
+          titulo="Revisión del asistente"
+          [subtitulo]="
+            prep.pendientes > 0
+              ? 'Completa esto para que atienda bien a tus clientes'
+              : 'Tiene todo lo que necesita para atender'
+          "
+          tituloId="bdj-rev-title"
+          (cerrar)="cerrarPreparacion()"
+        />
+        <div class="bdj-modal__body bdj-rev__body">
+          <!-- 1. Los datos del negocio (la revisión ligera de siempre). -->
+          <section class="bdj-rev__seccion" aria-labelledby="bdj-rev-datos">
+            <header class="bdj-rev__cabeza">
+              <span class="bdj-rev__paso" aria-hidden="true">1</span>
+              <div class="bdj-rev__titulos">
+                <h3 id="bdj-rev-datos" class="bdj-rev__titulo">Datos del negocio</h3>
+                <p class="bdj-rev__ayuda">Horario, pagos, domicilio y lo demás que el asistente le dice al cliente.</p>
+              </div>
+              <span class="bdj-rev__estado" [class.bdj-rev__estado--ok]="prep.pendientes === 0">
+                {{ prep.pendientes === 0 ? 'Completo' : prep.pendientes + (prep.pendientes === 1 ? ' pendiente' : ' pendientes') }}
+              </span>
+            </header>
+            @if (puntosPendientes().length > 0) {
+              <ul class="bdj__prep-lista">
+                @for (p of puntosPendientes(); track p.clave) {
+                  <li class="bdj__prep-punto" [class.bdj__prep-punto--falta]="p.estado === 'falta'">
+                    <span class="bdj__prep-marca" aria-hidden="true">
+                      <lucide-icon [name]="p.estado === 'falta' ? 'triangle-alert' : 'alert-circle'" [size]="16" />
+                    </span>
+                    <div>
+                      <p class="bdj__prep-nombre">
+                        {{ p.titulo }}
+                        <span class="bdj__prep-nivel">{{ p.estado === 'falta' ? 'Necesario' : 'Recomendado' }}</span>
+                      </p>
+                      @if (p.por_que) {
+                        <p class="bdj__prep-texto">{{ p.por_que }}</p>
+                      }
+                      <p class="bdj__prep-donde">Dónde: {{ p.donde }}</p>
+                      @if (p.clave === 'info_asistente') {
+                        <button type="button" class="bdj__auto-guardar" (click)="cerrarPreparacion(); configAbierta.set(true)">
+                          Escribirla ahora
+                        </button>
+                      }
+                    </div>
+                  </li>
+                }
+              </ul>
+            }
+            @if (puntosListos() > 0) {
+              <p class="bdj__prep-ok">
+                <lucide-icon name="check" [size]="14" aria-hidden="true" />
+                {{ puntosListos() }} {{ puntosListos() === 1 ? 'punto ya está listo' : 'puntos ya están listos' }}
+              </p>
+            }
+          </section>
+
+          <!-- 2 y 3. Diagnóstico a fondo de la carta y recomendaciones con IA: solo para quien puede
+               arreglarlo (administrador del negocio o super admin), y hoy solo en restaurantes. -->
+          @if (config()?.puede_editar && prep.tipo === 'RESTAURANTE') {
+            <section class="bdj-rev__seccion bdj__diag" aria-labelledby="bdj-rev-carta">
+              <header class="bdj-rev__cabeza">
+                <span class="bdj-rev__paso" aria-hidden="true">2</span>
+                <div class="bdj-rev__titulos">
+                  <h3 id="bdj-rev-carta" class="bdj-rev__titulo">¿Tu carta está lista para el asistente?</h3>
+                  <p class="bdj-rev__ayuda">
+                    Revisamos nombres, precios y descripciones, y probamos si el asistente encuentra
+                    los productos cuando un cliente los pide como se piden de verdad.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  class="bdj__auto-guardar"
+                  [disabled]="diagnosticando()"
+                  (click)="revisarCartaAFondo()"
+                >
+                  {{ diagnosticando() ? 'Revisando…' : diagnostico() ? 'Revisar otra vez' : 'Revisar la carta a fondo' }}
+                </button>
+              </header>
+
+              @if (diagnostico(); as d) {
+                @if (d.hallazgos.length === 0) {
+                  <p class="bdj__prep-ok">
+                    <lucide-icon name="check" [size]="14" aria-hidden="true" />
+                    No encontramos nada que mejorar en la carta
+                    @if (d.pruebas.hecha) {
+                      ({{ d.pruebas.total }} formas de pedir probadas)
+                    }
+                  </p>
+                } @else {
+                  <p class="bdj__diag-resumen">
+                    {{ d.hallazgos.length }} {{ d.hallazgos.length === 1 ? 'punto' : 'puntos' }} por mejorar
+                    @if (d.pruebas.hecha) {
+                      · probamos {{ d.pruebas.total }} formas de pedir y {{ d.pruebas.fallidas }}
+                      {{ d.pruebas.fallidas === 1 ? 'no encontró' : 'no encontraron' }} el producto
+                    }
+                  </p>
+                  <ul class="bdj__prep-lista">
+                    @for (h of d.hallazgos; track h.clave) {
+                      <li class="bdj__prep-punto" [class.bdj__prep-punto--falta]="h.estado === 'falta'">
+                        <span class="bdj__prep-marca" aria-hidden="true">
+                          <lucide-icon [name]="h.estado === 'falta' ? 'triangle-alert' : 'alert-circle'" [size]="16" />
+                        </span>
+                        <div>
+                          <p class="bdj__prep-nombre">
+                            {{ h.titulo }}
+                            <span class="bdj__prep-nivel">{{ h.estado === 'falta' ? 'Necesario' : 'Recomendado' }}</span>
+                          </p>
+                          <p class="bdj__prep-texto">{{ h.por_que }}</p>
+                          @if (h.detalles.length > 0) {
+                            <ul class="bdj__diag-detalles bdj__diag-detalles--columnas">
+                              @for (x of h.detalles; track x) {
+                                <li>{{ x }}</li>
+                              }
+                              @if (h.total > h.detalles.length) {
+                                <li class="bdj__diag-mas">y {{ h.total - h.detalles.length }} más</li>
+                              }
+                            </ul>
+                          }
+                          <p class="bdj__prep-donde">Dónde: {{ h.donde }}</p>
+                        </div>
+                      </li>
+                    }
+                  </ul>
+                }
+              }
+            </section>
+
+            @if (diagnostico()) {
+              <section class="bdj-rev__seccion bdj__ia" aria-labelledby="bdj-rev-ia">
+                <header class="bdj-rev__cabeza">
+                  <span class="bdj-rev__paso" aria-hidden="true">3</span>
+                  <div class="bdj-rev__titulos">
+                    <h3 id="bdj-rev-ia" class="bdj-rev__titulo">¿Cómo debería quedar la carta?</h3>
+                    <p class="bdj-rev__ayuda">
+                      La inteligencia artificial revisa la carta y propone nombres y ajustes concretos.
+                      Son sugerencias: nada cambia hasta que lo edites en Menú.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    class="bdj__auto-guardar"
+                    [disabled]="recomendando()"
+                    (click)="pedirRecomendaciones(!!recomendaciones())"
+                  >
+                    {{
+                      recomendando()
+                        ? 'Analizando… (medio minuto)'
+                        : recomendaciones()
+                          ? 'Analizar otra vez'
+                          : 'Pedir recomendaciones con IA'
+                    }}
+                  </button>
+                </header>
+
+                @if (recomendaciones(); as r) {
+                  @if (r.resumen) {
+                    <p class="bdj__ia-resumen">{{ r.resumen }}</p>
+                  }
+                  @if (r.cambios.length > 0) {
+                    <ul class="bdj__ia-cambios">
+                      @for (c of r.cambios; track $index) {
+                        <li class="bdj__ia-cambio" [class.bdj__ia-cambio--alta]="c.prioridad === 'alta'">
+                          <p class="bdj__ia-linea">
+                            <span class="bdj__prep-nivel">{{ ACCION_TEXTO[c.accion] }}</span>
+                            <span class="bdj__ia-hoy">{{ c.producto }}</span>
+                            <span aria-hidden="true">→</span>
+                            <strong class="bdj__ia-nuevo">{{ c.propuesta }}</strong>
+                          </p>
+                          @if (c.motivo) {
+                            <p class="bdj__prep-texto">{{ c.motivo }}</p>
+                          }
+                        </li>
+                      }
+                    </ul>
+                  } @else {
+                    <p class="bdj__prep-ok">
+                      <lucide-icon name="check" [size]="14" aria-hidden="true" />
+                      La IA no propone cambios en la carta
+                    </p>
+                  }
+                  @if (r.preguntas.length > 0) {
+                    <p class="bdj__diag-resumen">Lo que solo tú puedes contestar</p>
+                    <ul class="bdj__diag-detalles">
+                      @for (q of r.preguntas; track q) {
+                        <li>{{ q }}</li>
+                      }
+                    </ul>
+                  }
+                  <p class="bdj__prep-donde">Los cambios se hacen en: App del restaurante → Menú</p>
+                }
+              </section>
+            }
+          }
+        </div>
+      </div>
+    </div>
+  }
+}
+
+<!-- ── Ventana «Informe»: cómo le fue al asistente con las conversaciones reales ───── -->
+@if (informeAbierto()) {
+  <div class="bdj-modal" (click)="informeAbierto.set(false)" (keydown.escape)="informeAbierto.set(false)">
+    <div
+      class="bdj-modal__card bdj-rev"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="bdj-inf-title"
+      (click)="$event.stopPropagation()"
+    >
+      <app-modal-cabecera
+        icono="calendar-range"
+        titulo="Cómo le fue a tu asistente"
+        [subtitulo]="'Con las conversaciones de los últimos ' + informeDias() + ' días'"
+        tituloId="bdj-inf-title"
+        (cerrar)="informeAbierto.set(false)"
+      />
+      <div class="bdj-modal__body bdj-rev__body bdj__informe">
+        <div class="bdj__informe-periodo" role="group" aria-label="Periodo del informe">
+          @for (d of [7, 30]; track d) {
+            <button
+              type="button"
+              class="bdj__chip"
+              [class.bdj__chip--on]="informeDias() === d"
+              [disabled]="cargandoInforme()"
+              (click)="cargarInforme(d)"
+            >
+              {{ d }} días
+            </button>
+          }
+        </div>
+
+        @if (cargandoInforme()) {
+          <p class="bdj-rev__cargando">
+            <lucide-icon name="loader-2" [size]="16" class="bdj-rev__giro" aria-hidden="true" />
+            Revisando las conversaciones… tarda unos segundos.
+          </p>
+        } @else if (informe(); as inf) {
+          @if (!inf.con_actividad) {
+            <p class="bdj__prep-texto">El asistente no tuvo conversaciones en los últimos {{ inf.dias }} días.</p>
+          } @else {
+            <div class="bdj__informe-cifras">
+              <div class="bdj__informe-cifra">
+                <span class="bdj__informe-numero">{{ inf.actual.conversaciones }}</span>
+                <span class="bdj__informe-nombre">conversaciones</span>
+                <span class="bdj__informe-nota">{{ variacion(inf.actual.conversaciones, inf.anterior.conversaciones) }}</span>
+              </div>
+              <div class="bdj__informe-cifra">
+                <span class="bdj__informe-numero">{{ inf.actual.pedidos.total }}</span>
+                <span class="bdj__informe-nombre">pedidos tomados por el asistente</span>
+                <span class="bdj__informe-nota">{{ variacion(inf.actual.pedidos.total, inf.anterior.pedidos.total) }}</span>
+              </div>
+              <div class="bdj__informe-cifra">
+                <span class="bdj__informe-numero">{{ inf.actual.pedidos.de_carta }}</span>
+                <span class="bdj__informe-nombre">desde la carta digital</span>
+                <span class="bdj__informe-nota">{{ inf.actual.pedidos.por_chat }} conversando por chat</span>
+              </div>
+              <div class="bdj__informe-cifra">
+                <span class="bdj__informe-numero">{{ inf.a_persona.total }}</span>
+                <span class="bdj__informe-nombre">chats que terminó atendiendo una persona</span>
+                <span class="bdj__informe-nota">
+                  @if (inf.a_persona.esperan_respuesta_ahora > 0) {
+                    {{ inf.a_persona.esperan_respuesta_ahora }} esperan respuesta ahora
+                  }
+                </span>
+              </div>
+              <!-- El gasto en IA es de EscalApp: el backend solo lo manda al super admin. -->
+              @if (inf.costo; as c) {
+                <div class="bdj__informe-cifra bdj__informe-cifra--interna">
+                  <span class="bdj__informe-numero">US$ {{ c.usd | number: '1.2-2' }}</span>
+                  <span class="bdj__informe-nombre">gasto en IA (solo lo ves tú)</span>
+                  <span class="bdj__informe-nota">
+                    ≈ US$ {{ c.usd_proyeccion_mes | number: '1.2-2' }} al mes
+                    @if (c.usd_por_pedido !== null) {
+                      · US$ {{ c.usd_por_pedido | number: '1.3-3' }} por pedido
+                    }
+                  </span>
+                </div>
+              }
+            </div>
+
+            @if (inf.que_hacer.length === 0) {
+              <p class="bdj__prep-ok">
+                <lucide-icon name="check" [size]="14" aria-hidden="true" />
+                No encontramos nada que corregir en este periodo
+              </p>
+            } @else {
+              <h3 class="bdj-rev__titulo">Qué puedes hacer</h3>
+              <ul class="bdj__prep-lista">
+                @for (a of inf.que_hacer; track a.clave) {
+                  <li class="bdj__prep-punto">
+                    <span class="bdj__prep-marca" aria-hidden="true">
+                      <lucide-icon name="alert-circle" [size]="16" />
+                    </span>
+                    <div>
+                      <p class="bdj__prep-nombre">{{ a.titulo }}</p>
+                      <p class="bdj__prep-texto">{{ a.por_que }}</p>
+                      @if (a.detalles.length > 0) {
+                        <ul class="bdj__diag-detalles bdj__diag-detalles--columnas">
+                          @for (x of a.detalles; track x) {
+                            <li>{{ x }}</li>
+                          }
+                        </ul>
+                      }
+                      <p class="bdj__prep-donde">Dónde: {{ a.donde }}</p>
+                    </div>
+                  </li>
+                }
+              </ul>
+            }
+          }
+        }
+      </div>
+    </div>
+  </div>
+}

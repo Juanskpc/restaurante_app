@@ -844,6 +844,25 @@ $pos-btn-h: 38px;
   padding-right: 30px;
 }
 
+/**
+ * Las secciones del salón dentro del desplegable.
+ *
+ * El `<optgroup>` lo pinta el sistema operativo, no nosotros: lo poco que se puede influir es el
+ * color y el peso del rótulo, y conviene hacerlo porque el gris de fábrica se confunde con una
+ * opción deshabilitada. Las mesas van con su color normal — sin esto heredan el del grupo y el
+ * desplegable entero se ve apagado.
+ */
+.mesa-select optgroup {
+  color: var(--color-text-secondary);
+  font-weight: 700;
+  font-style: normal;
+}
+
+.mesa-select optgroup option {
+  color: var(--color-text-primary);
+  font-weight: 400;
+}
+
 .mesa-select.error {
   border-color: var(--color-error);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-error) 20%, transparent);

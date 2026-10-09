@@ -124,27 +124,31 @@
         <!-- Filtros por forma de pago: salen de los movimientos del turno, así que un
              negocio con Efectivo y Transferencia ve exactamente esos dos. -->
         @if (filtrosMetodo().length > 1) {
+          <!-- La etiqueta va fija a la izquierda y los chips en su propio grupo: así, cuando no
+               caben en una línea, bajan alineados entre ellos y no debajo de la etiqueta. -->
           <div class="filtros-metodo">
             <span class="filtros-metodo__label">
               <lucide-icon name="filter" size="14" />
               Forma de pago
             </span>
-            @for (f of filtrosMetodo(); track f.clave) {
-              <button type="button"
-                      class="chip-metodo"
-                      [class.chip-metodo--activo]="f.activo"
-                      [attr.aria-pressed]="f.activo"
-                      (click)="alternarMetodo(f.clave)">
-                <lucide-icon [name]="f.activo ? 'check' : 'plus'" size="13" />
-                {{ f.nombre }}
-                <span class="chip-metodo__conteo">{{ f.movimientos }}</span>
-              </button>
-            }
-            @if (hayFiltroMetodo()) {
-              <button type="button" class="filtros-metodo__limpiar" (click)="limpiarFiltroMetodo()">
-                Ver todas
-              </button>
-            }
+            <div class="filtros-metodo__chips">
+              @for (f of filtrosMetodo(); track f.clave) {
+                <button type="button"
+                        class="chip-metodo"
+                        [class.chip-metodo--activo]="f.activo"
+                        [attr.aria-pressed]="f.activo"
+                        (click)="alternarMetodo(f.clave)">
+                  <lucide-icon [name]="f.activo ? 'check' : 'plus'" size="13" />
+                  <span class="chip-metodo__nombre">{{ f.nombre }}</span>
+                  <span class="chip-metodo__conteo">{{ f.movimientos }}</span>
+                </button>
+              }
+              @if (hayFiltroMetodo()) {
+                <button type="button" class="filtros-metodo__limpiar" (click)="limpiarFiltroMetodo()">
+                  Ver todas
+                </button>
+              }
+            </div>
           </div>
         }
 
@@ -178,8 +182,11 @@
                   <th [attr.aria-sort]="ariaOrden('formaPago')">
                     <ng-container *ngTemplateOutlet="btnOrden; context: { campo: 'formaPago', texto: 'Forma de pago' }" />
                   </th>
-                  <th [attr.aria-sort]="ariaOrden('usuario')">
-                    <ng-container *ngTemplateOutlet="btnOrden; context: { campo: 'usuario', texto: 'Usuario' }" />
+                  <th [attr.aria-sort]="ariaOrden('tomo')">
+                    <ng-container *ngTemplateOutlet="btnOrden; context: { campo: 'tomo', texto: 'Tomó' }" />
+                  </th>
+                  <th [attr.aria-sort]="ariaOrden('cobro')">
+                    <ng-container *ngTemplateOutlet="btnOrden; context: { campo: 'cobro', texto: 'Cobró' }" />
                   </th>
                   @if (puedeVerIngresos()) {
                     <th class="num" [attr.aria-sort]="ariaOrden('monto')">
@@ -228,7 +235,8 @@
                     <td>{{ tipoPedidoMovimiento(m) }}</td>
                     <td>{{ conceptoCorto(m) }}</td>
                     <td class="col-metodo">{{ formasPagoTexto(m) }}</td>
-                    <td>{{ m.usuario?.primer_nombre }} {{ m.usuario?.primer_apellido }}</td>
+                    <td class="col-persona" [title]="tomoPedido(m)">{{ tomoPedido(m) }}</td>
+                    <td class="col-persona" [title]="cobroMovimiento(m)">{{ cobroMovimiento(m) }}</td>
                     @if (puedeVerIngresos()) {
                       <td class="num">
                         <strong [class.pos]="m.tipo === 'INGRESO'" [class.neg]="m.tipo === 'EGRESO'">
@@ -345,8 +353,11 @@
                   <th [attr.aria-sort]="ariaOrden('concepto')">
                     <ng-container *ngTemplateOutlet="btnOrden; context: { campo: 'concepto', texto: 'Concepto' }" />
                   </th>
-                  <th [attr.aria-sort]="ariaOrden('usuario')">
-                    <ng-container *ngTemplateOutlet="btnOrden; context: { campo: 'usuario', texto: 'Usuario' }" />
+                  <th [attr.aria-sort]="ariaOrden('tomo')">
+                    <ng-container *ngTemplateOutlet="btnOrden; context: { campo: 'tomo', texto: 'Tomó' }" />
+                  </th>
+                  <th [attr.aria-sort]="ariaOrden('cobro')">
+                    <ng-container *ngTemplateOutlet="btnOrden; context: { campo: 'cobro', texto: 'Cobró' }" />
                   </th>
                   @if (puedeVerIngresos()) {
                     <th class="num" [attr.aria-sort]="ariaOrden('monto')">
@@ -391,7 +402,8 @@
                     </td>
                     <td>{{ tipoPedidoMovimiento(m) }}</td>
                     <td>{{ conceptoCorto(m) }}</td>
-                    <td>{{ m.usuario?.primer_nombre }} {{ m.usuario?.primer_apellido }}</td>
+                    <td class="col-persona" [title]="tomoPedido(m)">{{ tomoPedido(m) }}</td>
+                    <td class="col-persona" [title]="cobroMovimiento(m)">{{ cobroMovimiento(m) }}</td>
                     @if (puedeVerIngresos()) {
                       <td class="num">
                         <strong [class.pos]="m.tipo === 'INGRESO'" [class.neg]="m.tipo === 'EGRESO'">
@@ -543,7 +555,7 @@
           <strong class="rk__val">{{ c.monto_apertura | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
           <span class="rk__pie">
             Abrió {{ c.usuario?.primer_nombre }} {{ c.usuario?.primer_apellido }} ·
-            {{ c.fecha_apertura | date:'hh:mm a':undefined:'en-US' }}
+            {{ diaApertura(c.fecha_apertura) }} {{ c.fecha_apertura | date:'hh:mm a':undefined:'en-US' }}
           </span>
         </article>
         <article class="rk rk--exito">
@@ -615,7 +627,9 @@
         </article>
         <article class="rk rk--primario">
           <span class="rk__lab">Apertura</span>
-          <strong class="rk__val rk__val--texto">{{ c.fecha_apertura | date:'dd/MM/yyyy hh:mm a':undefined:'en-US' }}</strong>
+          <strong class="rk__val rk__val--texto">
+            {{ diaApertura(c.fecha_apertura) }} {{ c.fecha_apertura | date:'hh:mm a':undefined:'en-US' }}
+          </strong>
           <span class="rk__pie">Inicio del turno</span>
         </article>
       </div>

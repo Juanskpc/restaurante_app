@@ -65,7 +65,14 @@ export interface MovimientoCaja {
   id_usuario: number;
   fecha: string;
   usuario?: CajaUsuario | null;
-  orden?: { id_orden: number; numero_orden: string; tipo_pedido?: string | null; estado?: string | null } | null;
+  /** El pedido de la fila. Su `usuario` es quien lo TOMÓ, no quien lo cobró. */
+  orden?: {
+    id_orden: number;
+    numero_orden: string;
+    tipo_pedido?: string | null;
+    estado?: string | null;
+    usuario?: CajaUsuario | null;
+  } | null;
   /** La fila reversa a otro movimiento (es el compensatorio de una anulación). */
   es_anulacion?: boolean;
   /** A esta fila la reversó otra: el pedido fue eliminado, pero el registro queda. */

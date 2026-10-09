@@ -61,6 +61,7 @@ export class SidebarComponent {
     { icon: 'flame',             label: 'Cocina',          route: '/cocina',          section: 'main' },
     { icon: 'mesa',              label: 'Mesas',           route: '/mesas',           section: 'main' },
     { icon: 'utensils-crossed',  label: 'Menú',            route: '/menu',            section: 'secondary' },
+    { icon: 'message-circle',    label: 'Conversaciones',  route: '/conversaciones',  section: 'main' },
     { icon: 'users',             label: 'Clientes',        route: '/clientes',        section: 'secondary' },
     { icon: 'wallet',            label: 'Caja',            route: '/caja',            section: 'secondary' },
     { icon: 'package',           label: 'Inventario',      route: '/inventario',      section: 'secondary' },

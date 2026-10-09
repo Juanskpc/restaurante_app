@@ -145,6 +145,10 @@
       text-align: left;
       border-bottom: 1px solid var(--color-border);
       white-space: nowrap;
+      // Las celdas con un chip dentro (Tipo) medían por la BASE del texto, no por el centro:
+      // el alto de la fila lo marca el chip, que es más alto que una línea, y lo que sobraba
+      // quedaba todo abajo. Con esto el contenido de cualquier celda queda a media fila.
+      vertical-align: middle;
     }
     th {
       font-weight: 700; color: var(--color-text-muted); font-size: .7rem;
@@ -178,6 +182,13 @@
       font-size: .85rem;
     }
 
+    // «Tomó» y «Cobró»: dos nombres, con el mismo peso visual que la forma de pago. Son datos
+    // de contexto, no la cifra ni el concepto, así que no compiten con ellos.
+    td.col-persona {
+      color: var(--color-text-secondary);
+      font-size: .85rem;
+    }
+
     // La fecha corta (año de 2 dígitos) es para el móvil.
     .f-corta { display: none; }
   }
@@ -186,6 +197,11 @@
     display: inline-flex; align-items: center; gap: .3rem;
     padding: .2rem .55rem; border-radius: var(--radius-full);
     font-size: .76rem; font-weight: 600; white-space: nowrap;
+    // Un `inline-flex` toma su línea base de su PRIMER hijo, que aquí es el icono: el navegador
+    // alineaba la base del icono con la base del texto de las otras celdas y empujaba el chip
+    // hacia arriba. `middle` lo alinea por el centro, que es lo que se quiere ver.
+    vertical-align: middle;
+    line-height: 1.25;
     &--in  { background: var(--color-success-bg); color: var(--color-success); }
     &--out { background: var(--color-error-bg);   color: var(--color-error); }
 
@@ -252,6 +268,7 @@
     table th, table td { padding: .22rem .32rem; }
     table th { font-size: .58rem; }
     table td.col-metodo { font-size: .68rem; }
+    table td.col-persona { font-size: .68rem; }
     table .f-larga { display: none; }
     table .f-corta { display: inline; }
     .badge { padding: .04rem .38rem; font-size: .6rem; gap: .2rem; }
@@ -723,6 +740,11 @@
 .hist-conteo { margin: 0; text-align: center; font-size: .78rem; color: var(--color-text-secondary); }
 
 
+// Alto común de la etiqueta y de los chips de la barra de filtros. Es lo que hace que la barra se
+// lea como UNA línea: sin él la etiqueta mide lo que mide su texto, los chips lo que miden con su
+// relleno, y los dos quedaban centrados sobre ejes distintos.
+$alto-chip: 1.75rem;
+
 /**
  * Barra de filtros por forma de pago.
  *
@@ -731,40 +753,62 @@
  * desapercibido hace pensar que a la caja le faltan pedidos.
  */
 .filtros-metodo {
-  display: flex; align-items: center; flex-wrap: wrap;
-  gap: .4rem;
-  margin: 0 0 .85rem;
+  // La etiqueta ocupa su ancho y los chips el resto: cuando no caben, bajan dentro de SU grupo y
+  // quedan alineados entre ellos, en vez de empezar la segunda línea bajo la etiqueta.
+  display: flex; align-items: flex-start; flex-wrap: wrap;
+  gap: .4rem .65rem;
+  margin: 0;
+  padding: .5rem .65rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-secondary);
 
   &__label {
-    display: inline-flex; align-items: center; gap: .3rem;
-    font-size: .72rem; font-weight: 600;
+    display: inline-flex; align-items: center; gap: .35rem;
+    flex: 0 0 auto;
+    height: $alto-chip;
+    font-size: .72rem; font-weight: 700;
+    letter-spacing: .03em;
     text-transform: uppercase;
-    color: var(--color-text-secondary);
-    margin-right: .15rem;
+    white-space: nowrap;
+    color: var(--color-text-muted);
     lucide-icon { opacity: .7; }
   }
 
+  &__chips {
+    display: flex; align-items: center; flex-wrap: wrap;
+    gap: .4rem;
+    flex: 1 1 auto; min-width: 0;
+  }
+
   &__limpiar {
-    border: none; background: none; padding: .2rem .35rem;
+    display: inline-flex; align-items: center;
+    height: $alto-chip;
+    border: none; background: none; padding: 0 .35rem;
     color: var(--color-primary);
+    font-family: inherit;
     font-size: .78rem; font-weight: 600;
     cursor: pointer;
     text-decoration: underline;
+    white-space: nowrap;
   }
 }
 
 .chip-metodo {
-  display: inline-flex; align-items: center; gap: .3rem;
-  padding: .25rem .6rem;
+  display: inline-flex; align-items: center; gap: .35rem;
+  height: $alto-chip;
+  padding: 0 .3rem 0 .6rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-full);
   background: var(--color-surface);
   color: var(--color-text-secondary);
-  font-size: .8rem; font-weight: 500;
+  font-family: inherit;
+  font-size: .8rem; font-weight: 500; line-height: 1;
   cursor: pointer;
   transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
 
   &:hover { border-color: var(--color-primary); }
+  &:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 
   &--activo {
     background: color-mix(in srgb, var(--color-primary) 12%, var(--color-surface));
@@ -773,12 +817,18 @@
     font-weight: 600;
   }
 
+  &__nombre { white-space: nowrap; }
+
   &__conteo {
     display: inline-flex; align-items: center; justify-content: center;
-    min-width: 1.1rem; padding: 0 .25rem;
+    min-width: 1.25rem; height: 1.25rem; padding: 0 .3rem;
     border-radius: var(--radius-full);
-    background: var(--color-bg-secondary);
-    font-size: .7rem; font-variant-numeric: tabular-nums;
+    background: color-mix(in srgb, var(--color-text-primary) 8%, transparent);
+    font-size: .7rem; font-weight: 700; font-variant-numeric: tabular-nums;
+  }
+
+  &--activo .chip-metodo__conteo {
+    background: color-mix(in srgb, var(--color-primary) 18%, transparent);
   }
 }
 

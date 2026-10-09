@@ -30,6 +30,8 @@ import {
   PanelLeft, PanelLeftClose, PanelTop, Percent, Tag, Filter, Check, Info, Monitor, Smartphone,
   RotateCcw, Palette, CircleAlert, Ban, Salad, ChevronUp, Layers,
   ArrowUp, ArrowDown, ArrowUpDown, EllipsisVertical, Ticket, SearchX, UserPlus,
+  // Conversaciones (el asistente de WhatsApp)
+  Sparkles,
   // Proveedores
   Scale, Bookmark, BookmarkPlus, Archive, ArchiveRestore, Flag, Award, Handshake,
   PackageCheck, CircleSlash, Link, MessageSquare, FileText, Paperclip, TriangleAlert,
@@ -53,6 +55,8 @@ export const icons = {
   PanelLeft, PanelLeftClose, PanelTop, Percent, Tag, Filter, Check, Info, Monitor, Smartphone,
   RotateCcw, Palette, CircleAlert, Ban, Salad, Mesa, ChevronUp, Layers,
   ArrowUp, ArrowDown, ArrowUpDown, EllipsisVertical, Ticket, SearchX, UserPlus,
+  // Conversaciones (el asistente de WhatsApp)
+  Sparkles,
   Scale, Bookmark, BookmarkPlus, Archive, ArchiveRestore, Flag, Award, Handshake,
   PackageCheck, CircleSlash, Link, MessageSquare, FileText, Paperclip, TriangleAlert,
   LoaderCircle
