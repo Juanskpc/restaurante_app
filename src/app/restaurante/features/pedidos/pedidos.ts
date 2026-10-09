@@ -26,7 +26,8 @@ import {
   PagoSeleccion,
   avisoFacturaIncompleta,
 } from '../../shared/multipago-selector/multipago-selector';
-import { FacturaResumen, tonoDeFactura } from '../../../core/services/facturacion.service';
+import { FacturaResumen, FacturacionService, tonoDeFactura } from '../../../core/services/facturacion.service';
+import { FacturaChipComponent, SeleccionFactura, SIN_FACTURA } from '../../shared/factura-chip/factura-chip';
 
 // ============================================================
 // Interfaces
@@ -196,7 +197,7 @@ interface ItemOrdenCache {
  */
 @Component({
   selector: 'app-pedidos',
-  imports: [LucideAngularModule, FormsModule, CurrencyPipe, RouterLink, MultipagoSelectorComponent, CajaSelectorComponent],
+  imports: [LucideAngularModule, FormsModule, CurrencyPipe, RouterLink, MultipagoSelectorComponent, CajaSelectorComponent, FacturaChipComponent],
   templateUrl: './pedidos.html',
   styleUrl: './pedidos.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -242,6 +243,13 @@ export class PedidosComponent implements OnInit, OnDestroy {
   readonly metodoPagoId = signal<number | null>(null);
   readonly metodoPagoRequeridoError = signal(false);
   readonly pagoSeleccion = signal<PagoSeleccion | null>(null);
+  /**
+   * La factura electrónica pedida para ESTE pedido. Vive aquí y no en el interruptor porque la
+   * fila donde se pinta se destruye y se vuelve a crear al cambiar de «En mesa» a «Para llevar»,
+   * y lo que el cajero ya puso no puede perderse por eso.
+   */
+  protected readonly facturacion = inject(FacturacionService);
+  readonly facturaPedido = signal<SeleccionFactura>(SIN_FACTURA);
   readonly permiteMultipago = computed(() => this.auth.permiteMultipago());
   /**
    * Desglose de multipago en crudo. Cada tipo de pedido (mesa / llevar / domicilio)
@@ -1102,6 +1110,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
     this.mesaRequeridaError.set(false);
     this.metodoPagoId.set(null);
     this.pagoSeleccion.set(null);
+    this.facturaPedido.set(SIN_FACTURA);
     this.filasPago.set([]);
     this.metodoPagoRequeridoError.set(false);
     this.efectivoRecibidoInput.set('');
@@ -1291,7 +1300,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
     const s = this.pagoSeleccion();
     // `id_cuenta` sale del selector, que es quien preguntó de quién es la tiquetera.
     const cuenta = s?.idCuenta ? { id_cuenta: s.idCuenta } : {};
-    // «Factura a nombre de», si el negocio factura y el cajero la pidió. Sin ella, consumidor final.
+    // La factura electrónica, si el cajero la pidió para este pedido. Sin ella no se factura.
     const factura = s?.factura ? { factura: s.factura } : {};
 
     if (s?.modo === 'multi') {

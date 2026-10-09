@@ -11,8 +11,12 @@ import {
 import { CurrencyPipe } from '@angular/common';
 import { LucideAngularModule } from 'lucide-angular';
 
-import { DatosFactura, FacturacionService } from '../../../core/services/facturacion.service';
-import { DatosFacturaComponent, SeleccionFactura } from '../datos-factura/datos-factura';
+import {
+  FacturaSolicitada,
+  FacturacionService,
+  esFacturaAnonima,
+} from '../../../core/services/facturacion.service';
+import { FacturaChipComponent, SeleccionFactura, SIN_FACTURA } from '../factura-chip/factura-chip';
 
 export interface MetodoPagoLite {
   id_metodo_pago: number;
@@ -63,10 +67,10 @@ export interface PagoSeleccion {
    */
   idCuenta: number | null;
   /**
-   * «Factura a nombre de», para un negocio con facturación electrónica. `null` = consumidor
-   * final, que es también lo que vale siempre en un negocio que no factura.
+   * La factura electrónica pedida para este cobro: anónima o a nombre del cliente. `null` = este
+   * cobro no se factura, que es también lo que vale siempre en un negocio sin facturación.
    */
-  factura: DatosFactura | null;
+  factura: FacturaSolicitada | null;
   /**
    * ¿Están bien los datos de la factura? Va aparte de `valido` (que ya lo incluye) para que la
    * pantalla pueda decir QUÉ falta: «elige una forma de pago» no ayuda a quien ya la eligió.
@@ -80,14 +84,18 @@ export interface PagoSeleccion {
  */
 export function avisoFacturaIncompleta(s: PagoSeleccion | null): { title: string; message: string } | null {
   if (!s || s.facturaValida) return null;
-  return {
-    title: 'Faltan los datos de la factura',
-    message: 'Completa el documento y el nombre de «Factura a nombre de un cliente» antes de cobrar.',
-  };
+  return esFacturaAnonima(s.factura)
+    ? {
+        title: 'La factura necesita los datos del cliente',
+        message: 'Por el valor de este pedido la factura no puede ser anónima. Abre «Factura electrónica» y pon los datos del cliente, o quítale la factura.',
+      }
+    : {
+        title: 'Faltan los datos de la factura',
+        message: 'Abre «Factura electrónica» y completa el documento y el nombre del cliente antes de cobrar.',
+      };
 }
 
 const MULTI_VALUE = '__multi__';
-const SIN_FACTURA: SeleccionFactura = { datos: null, valido: true };
 
 /**
  * Selector de forma de pago reutilizable para Pedidos, Mesas y Despacho.
@@ -102,14 +110,14 @@ const SIN_FACTURA: SeleccionFactura = { datos: null, valido: true };
 @Component({
   selector: 'app-multipago-selector',
   standalone: true,
-  imports: [CurrencyPipe, LucideAngularModule, DatosFacturaComponent],
+  imports: [CurrencyPipe, LucideAngularModule, FacturaChipComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './multipago-selector.html',
   styleUrl: './multipago-selector.scss',
   // En multipago el selector ocupa una fila completa (para que quepa el
   // desglose); en pago simple comparte fila con el <select> vecino.
-  // Con facturación electrónica también: «Factura a nombre de» y sus campos no caben en media
-  // fila, y un interruptor apretado junto al selector de mesa se lee como si fuera de la mesa.
+  // Con facturación electrónica también: el interruptor «Factura electrónica» ocupa el hueco
+  // de al lado (Pedidos) o va debajo del desplegable (Mesas, Despacho).
   host: { '[class.mp--multi]': 'modo() === "multi" || facturacion.activa()' },
 })
 export class MultipagoSelectorComponent {
@@ -135,6 +143,12 @@ export class MultipagoSelectorComponent {
    * cajero ya lo hubiera dicho en el POS.
    */
   readonly idCuentaInicial = input<number | null>(null);
+  /**
+   * La pantalla pinta ella misma el interruptor «Factura electrónica» (Pedidos lo pone junto al
+   * selector de mesa) y nos pasa lo elegido por `factura`. Sin esto, el selector pinta el suyo.
+   */
+  readonly facturaAparte = input<boolean>(false);
+  readonly factura = input<SeleccionFactura>(SIN_FACTURA);
 
   /** Emite la selección actual cada vez que cambia. */
   readonly seleccionChange = output<PagoSeleccion>();
@@ -154,9 +168,14 @@ export class MultipagoSelectorComponent {
   protected readonly facturacion = inject(FacturacionService);
   protected readonly facturaElegida = signal<SeleccionFactura>(SIN_FACTURA);
   /** Lo que cuenta: si el negocio no factura (o dejó de hacerlo), no hay factura que valga. */
-  protected readonly facturaActual = computed(() =>
-    this.facturacion.activa() ? this.facturaElegida() : SIN_FACTURA
-  );
+  protected readonly facturaActual = computed<SeleccionFactura>(() => {
+    if (!this.facturacion.activa()) return SIN_FACTURA;
+    const f = this.facturaAparte() ? this.factura() : this.facturaElegida();
+    // Una anónima deja de valer si el pedido crece por encima del tope: ahí la factura tiene que
+    // identificar al cliente. Se mira aquí, que es donde se conoce el total en cada momento.
+    const anonimaDeMas = esFacturaAnonima(f.datos) && this.total() > this.facturacion.tope();
+    return anonimaDeMas ? { datos: f.datos, valido: false } : f;
+  });
 
   /**
    * ¿El cobro va contra la cuenta de un cliente? Vale tanto en pago simple como dentro de un

@@ -2024,3 +2024,15 @@ $pos-btn-h: 38px;
     color: var(--color-primary);
   }
 }
+
+// ── Con facturación electrónica ──
+// El interruptor «Factura electrónica» ocupa el hueco junto al selector de mesa (o al aviso de
+// «Para llevar», o al botón del domicilio) y la forma de pago baja a su propia fila. El orden se
+// fija aquí y no en la plantilla para no mover nada en los negocios que no facturan.
+.mesa-pago-row--fe {
+  align-items: stretch;
+
+  app-factura-chip { min-width: 0; }
+  .btn-release { order: 1; }
+  app-multipago-selector { order: 2; }
+}

@@ -1,81 +1,59 @@
 <div class="df">
-  @if (!siempre()) {
-    <label class="df__interruptor" [class.is-fijo]="obligatorio()">
-      <input
-        type="checkbox"
-        [checked]="encendido()"
-        [disabled]="disabled() || obligatorio()"
-        (change)="alternar($any($event.target).checked)"
-      />
-      <span>Factura a nombre de un cliente</span>
-    </label>
-    @if (obligatorio()) {
-      <p class="df__nota">
-        Por encima de {{ tope() | currency: 'COP' : 'symbol-narrow' : '1.0-0' }} la factura debe
-        llevar los datos del comprador.
-      </p>
-    }
-  }
-
-  @if (encendido()) {
-    <div class="df__campos">
-      <label class="df__campo">
-        <span>Tipo de documento</span>
-        <select class="df__input" [disabled]="disabled()" (change)="setTipo($any($event.target).value)">
-          <option value="13" [selected]="tipo() === '13'">Cédula</option>
-          <option value="31" [selected]="tipo() === '31'">NIT</option>
-          <option value="22" [selected]="tipo() === '22'">Cédula de extranjería</option>
-          <option value="41" [selected]="tipo() === '41'">Pasaporte</option>
-        </select>
-      </label>
-      <label class="df__campo">
-        <span>Número{{ esEmpresa() ? ' (sin dígito de verificación)' : '' }}</span>
-        <input
-          class="df__input"
-          [attr.inputmode]="tipo() === '41' ? 'text' : 'numeric'"
-          maxlength="20"
-          autocomplete="off"
-          [value]="numero()"
-          [disabled]="disabled()"
-          (input)="numero.set($any($event.target).value)"
-        />
-      </label>
-      <label class="df__campo df__campo--ancho">
-        <span>{{ esEmpresa() ? 'Razón social' : 'Nombre completo' }}</span>
-        <input
-          class="df__input"
-          maxlength="255"
-          autocomplete="off"
-          [value]="nombre()"
-          [disabled]="disabled()"
-          (input)="nombre.set($any($event.target).value)"
-        />
-      </label>
-      <label class="df__campo">
-        <span>Correo (para enviarle la factura)</span>
-        <input
-          class="df__input"
-          type="email"
-          inputmode="email"
-          autocomplete="off"
-          [class.is-mal]="correoMal()"
-          [value]="correo()"
-          [disabled]="disabled()"
-          (input)="correo.set($any($event.target).value)"
-        />
-      </label>
-      <label class="df__campo">
-        <span>Teléfono (opcional)</span>
-        <input
-          class="df__input"
-          inputmode="tel"
-          maxlength="30"
-          autocomplete="off"
-          [value]="telefono()"
-          [disabled]="disabled()"
-          (input)="telefono.set($any($event.target).value)"
-        />
-      </label>
-    </div>
-  }
+  <label class="df__campo">
+    <span>Tipo de documento</span>
+    <select class="df__input" [disabled]="disabled()" (change)="setTipo($any($event.target).value)">
+      <option value="13" [selected]="tipo() === '13'">Cédula</option>
+      <option value="31" [selected]="tipo() === '31'">NIT</option>
+      <option value="22" [selected]="tipo() === '22'">Cédula de extranjería</option>
+      <option value="41" [selected]="tipo() === '41'">Pasaporte</option>
+    </select>
+  </label>
+  <label class="df__campo">
+    <span>Número{{ esEmpresa() ? ' (sin dígito de verificación)' : '' }}</span>
+    <input
+      class="df__input"
+      [attr.inputmode]="tipo() === '41' ? 'text' : 'numeric'"
+      maxlength="20"
+      autocomplete="off"
+      [value]="numero()"
+      [disabled]="disabled()"
+      (input)="numero.set($any($event.target).value)"
+    />
+  </label>
+  <label class="df__campo df__campo--ancho">
+    <span>{{ esEmpresa() ? 'Razón social' : 'Nombre completo' }}</span>
+    <input
+      class="df__input"
+      maxlength="255"
+      autocomplete="off"
+      [value]="nombre()"
+      [disabled]="disabled()"
+      (input)="nombre.set($any($event.target).value)"
+    />
+  </label>
+  <label class="df__campo">
+    <span>Correo (para enviarle la factura)</span>
+    <input
+      class="df__input"
+      type="email"
+      inputmode="email"
+      autocomplete="off"
+      [class.is-mal]="correoMal()"
+      [value]="correo()"
+      [disabled]="disabled()"
+      (input)="correo.set($any($event.target).value)"
+    />
+  </label>
+  <label class="df__campo">
+    <span>Teléfono (opcional)</span>
+    <input
+      class="df__input"
+      inputmode="tel"
+      maxlength="30"
+      autocomplete="off"
+      [value]="telefono()"
+      [disabled]="disabled()"
+      (input)="telefono.set($any($event.target).value)"
+    />
+  </label>
 </div>

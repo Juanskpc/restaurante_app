@@ -8,7 +8,12 @@ import { MultipagoSelectorComponent } from './multipago-selector';
 /** Un negocio que no factura: es el caso de casi todos, y el que estas pruebas dan por hecho. */
 const SIN_FACTURACION = {
   provide: FacturacionService,
-  useValue: { activa: signal(false), estado: signal(null), tope: signal(Number.POSITIVE_INFINITY) },
+  useValue: {
+    activa: signal(false),
+    facturarTodo: signal(false),
+    estado: signal(null),
+    tope: signal(Number.POSITIVE_INFINITY),
+  },
 };
 
 /**

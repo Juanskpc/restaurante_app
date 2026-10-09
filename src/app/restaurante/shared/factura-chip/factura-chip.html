@@ -1,0 +1,75 @@
+<div class="fch" [class.is-on]="marcada()" [class.is-mal]="anonimaInvalida()">
+  <input
+    type="checkbox"
+    class="fch__check"
+    aria-label="Factura electrónica"
+    [checked]="marcada()"
+    [disabled]="disabled() || siempre()"
+    (change)="alternar($any($event.target).checked); $any($event.target).checked = marcada()"
+  />
+  <button type="button" class="fch__texto" [disabled]="disabled()" (click)="abrir()"
+          [title]="marcada() ? 'Cambiar los datos de la factura' : 'Facturar este pedido'">
+    <span class="fch__titulo">Factura electrónica</span>
+    @if (marcada()) {
+      <span class="fch__resumen">{{ resumen() }}</span>
+    }
+  </button>
+</div>
+
+@if (anonimaInvalida()) {
+  <p class="fch__aviso">Supera {{ tope() | currency: 'COP' : 'symbol-narrow' : '1.0-0' }}: pide los datos del cliente.</p>
+}
+
+@if (abierto()) {
+  <div class="fch-fondo" (click)="cerrar()">
+    <div class="fch-modal" role="dialog" aria-modal="true" aria-labelledby="fch-titulo"
+         (click)="$event.stopPropagation()">
+      <header class="fch-modal__cabecera">
+        <h3 id="fch-titulo">Factura electrónica</h3>
+        <button type="button" class="fch-modal__cerrar" aria-label="Cerrar" (click)="cerrar()">
+          <lucide-icon name="x" [size]="18" />
+        </button>
+      </header>
+
+      <div class="fch-tabs" role="tablist">
+        <button type="button" role="tab" class="fch-tab" [class.is-on]="pestana() === 'cliente'"
+                [attr.aria-selected]="pestana() === 'cliente'" (click)="pestana.set('cliente')">
+          Con datos del cliente
+        </button>
+        <button type="button" role="tab" class="fch-tab" [class.is-on]="pestana() === 'anonima'"
+                [attr.aria-selected]="pestana() === 'anonima'" (click)="pestana.set('anonima')">
+          Anónima
+        </button>
+      </div>
+
+      <!-- El formulario se queda montado al cambiar de pestaña: ir a mirar «Anónima» y volver no
+           puede borrar lo que el cajero ya había escrito. -->
+      <div class="fch-modal__cuerpo" [hidden]="pestana() !== 'cliente'">
+        <app-datos-factura [inicial]="datosCliente()" (cambio)="borrador.set($event)" />
+      </div>
+
+      @if (pestana() === 'anonima') {
+        <div class="fch-modal__cuerpo">
+          @if (superaTope()) {
+            <p class="fch-modal__nota fch-modal__nota--aviso">
+              Este pedido supera {{ tope() | currency: 'COP' : 'symbol-narrow' : '1.0-0' }}. Por
+              encima de ese valor la factura debe llevar los datos del cliente.
+            </p>
+          } @else {
+            <p class="fch-modal__nota">
+              Se emite a <strong>consumidor final</strong>, sin datos del cliente. Úsala cuando el
+              cliente quiere su factura pero no la necesita a su nombre.
+            </p>
+          }
+        </div>
+      }
+
+      <footer class="fch-modal__pie">
+        <button type="button" class="fch-btn" (click)="cerrar()">Cancelar</button>
+        <button type="button" class="fch-btn fch-btn--primario" [disabled]="!puedeGuardar()" (click)="guardar()">
+          Facturar este pedido
+        </button>
+      </footer>
+    </div>
+  </div>
+}

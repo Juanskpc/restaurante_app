@@ -12,6 +12,7 @@ const estado = (extra: Partial<EstadoFe> = {}): EstadoFe => ({
   activa: false,
   modo: 'NINGUNO',
   ambiente: null,
+  facturar_todo: false,
   tope_identificacion: 261870,
   motivo: 'MODO_NINGUNO',
   medios_pago: [],

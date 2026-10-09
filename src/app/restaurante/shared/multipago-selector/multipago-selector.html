@@ -117,13 +117,13 @@
     </div>
   }
 
-  <!-- «Factura a nombre de»: solo si el negocio factura. Aquí dentro y no en cada pantalla, por
-       la misma razón que el selector de cuenta de arriba. -->
-  @if (facturacion.activa()) {
-    <app-datos-factura
+  <!-- «Factura electrónica»: solo si el negocio factura. Aquí dentro y no en cada pantalla, por
+       la misma razón que el selector de cuenta de arriba — salvo que la pantalla lo pinte ella
+       en otro sitio (`facturaAparte`). -->
+  @if (facturacion.activa() && !facturaAparte()) {
+    <app-factura-chip
+      [valor]="facturaElegida()"
       [total]="total()"
-      [tope]="facturacion.tope()"
-      [modo]="facturacion.estado()?.modo ?? 'POS'"
       [disabled]="disabled()"
       (cambio)="facturaElegida.set($event)"
     />

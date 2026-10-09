@@ -20,6 +20,11 @@ export interface EstadoFe {
   activa: boolean;
   modo: ModoFacturacion;
   ambiente: 'PRUEBAS' | 'PRODUCCION' | null;
+  /**
+   * `false` (lo normal): se factura solo el cobro en el que el cajero lo pide.
+   * `true`: el negocio factura todos sus cobros.
+   */
+  facturar_todo: boolean;
   /** Por encima de este total la factura tiene que llevar los datos del comprador (5 UVT). */
   tope_identificacion: number;
   motivo: string | null;
@@ -41,6 +46,18 @@ export interface DatosFactura {
   nombres?: string | null;
   correo?: string | null;
   telefono?: string | null;
+}
+
+/** Factura pedida sin datos del cliente: sale a consumidor final. */
+export interface FacturaAnonima {
+  consumidor_final: true;
+}
+
+/** Lo que viaja en el cobro cuando se pide factura: anónima o a nombre del cliente. */
+export type FacturaSolicitada = DatosFactura | FacturaAnonima;
+
+export function esFacturaAnonima(f: FacturaSolicitada | null | undefined): f is FacturaAnonima {
+  return !!f && (f as FacturaAnonima).consumidor_final === true;
 }
 
 /** El resumen de la factura que devuelve un cobro. `null` si el negocio no factura. */
@@ -98,6 +115,8 @@ export class FacturacionService {
   /** El negocio activó la facturación en sus datos fiscales, aunque todavía no esté emitiendo. */
   readonly configurable = computed(() => this.activa() || (this._estado()?.modo ?? 'NINGUNO') !== 'NINGUNO');
   readonly tope = computed(() => this._estado()?.tope_identificacion ?? Number.POSITIVE_INFINITY);
+  /** El negocio factura todos sus cobros (si no, solo los que el cajero marca). */
+  readonly facturarTodo = computed(() => this.activa() && this._estado()?.facturar_todo === true);
 
   constructor() {
     // Sigue al negocio activo: al cambiar de negocio en el selector de arriba, el estado del

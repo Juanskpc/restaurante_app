@@ -213,7 +213,7 @@
 
       @if (requiereMesa()) {
         @if (mesas().length > 0) {
-          <div class="mesa-pago-row mesa-pago-row--mesa">
+          <div class="mesa-pago-row mesa-pago-row--mesa" [class.mesa-pago-row--fe]="facturacion.activa()">
             <select class="mesa-select"
                     [class.error]="mesaRequeridaError()"
                     (change)="seleccionarMesa($any($event.target).value)">
@@ -226,6 +226,12 @@
               }
             </select>
 
+            <!-- «Factura electrónica»: en el hueco de al lado. Solo si el negocio factura. -->
+            @if (facturacion.activa()) {
+              <app-factura-chip [valor]="facturaPedido()" [total]="total()"
+                                [disabled]="enviando()" (cambio)="facturaPedido.set($event)" />
+            }
+
             <app-multipago-selector
               [metodos]="metodosPago()"
               [total]="total()"
@@ -233,6 +239,8 @@
               [idMetodoPagoInicial]="metodoPagoId()"
               [pagosIniciales]="filasPago()"
               [cuentas]="cuentasCliente()"
+              [facturaAparte]="true"
+              [factura]="facturaPedido()"
               (seleccionChange)="onPagoSeleccion($event)"
             />
 
@@ -267,11 +275,16 @@
           }
         }
       } @else if (tipoPedido() === 'LLEVAR') {
-        <div class="mesa-pago-row">
+        <div class="mesa-pago-row" [class.mesa-pago-row--fe]="facturacion.activa()">
           <div class="takeaway-info">
             <lucide-icon name="check-circle" [size]="14" />
             <span>Para llevar</span>
           </div>
+          <!-- «Factura electrónica»: en el hueco de al lado. Solo si el negocio factura. -->
+          @if (facturacion.activa()) {
+            <app-factura-chip [valor]="facturaPedido()" [total]="total()"
+                              [disabled]="enviando()" (cambio)="facturaPedido.set($event)" />
+          }
           <app-multipago-selector
             [metodos]="metodosPago()"
             [total]="total()"
@@ -279,12 +292,14 @@
             [idMetodoPagoInicial]="metodoPagoId()"
             [pagosIniciales]="filasPago()"
             [cuentas]="cuentasCliente()"
+            [facturaAparte]="true"
+            [factura]="facturaPedido()"
             (seleccionChange)="onPagoSeleccion($event)"
           />
         </div>
 
       } @else {
-        <div class="mesa-pago-row">
+        <div class="mesa-pago-row" [class.mesa-pago-row--fe]="facturacion.activa()">
           <button type="button" class="domicilio-btn"
                   [class.ready]="domicilioListo()"
                   (click)="abrirModalDomicilio()"
@@ -298,6 +313,11 @@
               }
             </span>
           </button>
+          <!-- «Factura electrónica»: en el hueco de al lado. Solo si el negocio factura. -->
+          @if (facturacion.activa()) {
+            <app-factura-chip [valor]="facturaPedido()" [total]="total()"
+                              [disabled]="enviando()" (cambio)="facturaPedido.set($event)" />
+          }
           <app-multipago-selector
             [metodos]="metodosPago()"
             [total]="total()"
@@ -305,6 +325,8 @@
             [idMetodoPagoInicial]="metodoPagoId()"
             [pagosIniciales]="filasPago()"
             [cuentas]="cuentasCliente()"
+            [facturaAparte]="true"
+            [factura]="facturaPedido()"
             (seleccionChange)="onPagoSeleccion($event)"
           />
         </div>

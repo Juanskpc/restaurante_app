@@ -110,12 +110,11 @@ describe('FacturasCajaComponent', () => {
       expect(el.textContent).toContain('Factus no responde');
     });
 
-    it('«Completar datos» abre los campos del comprador, sin interruptor', () => {
+    it('«Completar datos» abre los campos del comprador', () => {
       const { fixture, el } = montar([documento('PENDIENTE_DATOS')]);
       el.querySelector<HTMLButtonElement>('.fc__btn--primario')?.click();
       fixture.detectChanges();
       expect(el.querySelector('app-datos-factura')).not.toBeNull();
-      expect(el.querySelector('app-datos-factura input[type="checkbox"]')).toBeNull();
       expect(el.textContent).toContain('Guardar y enviar la factura');
     });
 

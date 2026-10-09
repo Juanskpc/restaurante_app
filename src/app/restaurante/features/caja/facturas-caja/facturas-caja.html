@@ -101,10 +101,10 @@
               <tr class="fc__fila-detalle">
                 <td colspan="7">
                   <div class="fc__completar">
-                    <app-datos-factura [siempre]="true" [disabled]="ocupado() === d.id_documento"
+                    <app-datos-factura [disabled]="ocupado() === d.id_documento"
                                        (cambio)="comprador.set($event)" />
                     <button type="button" class="fc__btn fc__btn--primario"
-                            [disabled]="!comprador().valido || ocupado() === d.id_documento"
+                            [disabled]="!comprador()?.valido || ocupado() === d.id_documento"
                             (click)="guardarComprador(d)">
                       Guardar y enviar la factura
                     </button>

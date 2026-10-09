@@ -22,7 +22,7 @@ import {
 } from '../../../../core/services/facturacion.service';
 import { RealtimeService } from '../../../../core/services/realtime.service';
 import { UiFeedbackService } from '../../../../core/ui-feedback/ui-feedback.service';
-import { DatosFacturaComponent, SeleccionFactura } from '../../../shared/datos-factura/datos-factura';
+import { DatosFacturaCambio, DatosFacturaComponent } from '../../../shared/datos-factura/datos-factura';
 
 type Accion = 'pdf' | 'ver' | 'reintentar' | 'completar';
 
@@ -102,7 +102,7 @@ export class FacturasCajaComponent implements OnDestroy {
   protected readonly ocupado = signal<string | null>(null);
   /** El documento al que se le están completando los datos del comprador. */
   protected readonly completando = signal<string | null>(null);
-  protected readonly comprador = signal<SeleccionFactura>({ datos: null, valido: false });
+  protected readonly comprador = signal<DatosFacturaCambio | null>(null);
 
   private readonly dejarDeEscuchar: () => void;
 
@@ -171,12 +171,12 @@ export class FacturasCajaComponent implements OnDestroy {
   }
 
   protected abrirCompletar(d: DocumentoFe): void {
-    this.comprador.set({ datos: null, valido: false });
+    this.comprador.set(null);
     this.completando.set(this.completando() === d.id_documento ? null : d.id_documento);
   }
 
   protected guardarComprador(d: DocumentoFe): void {
-    const { datos, valido } = this.comprador();
+    const { datos, valido } = this.comprador() ?? { datos: null, valido: false };
     if (!datos || !valido) return;
     this.ocupado.set(d.id_documento);
     this.api.completarComprador(this.idNegocio(), d.id_documento, datos).subscribe({

@@ -6,50 +6,43 @@ import {
   input,
   output,
   signal,
+  untracked,
 } from '@angular/core';
-import { CurrencyPipe } from '@angular/common';
 
-import { DatosFactura, ModoFacturacion } from '../../../core/services/facturacion.service';
+import { DatosFactura } from '../../../core/services/facturacion.service';
 
 type TipoDocumento = DatosFactura['tipo_documento'];
 
-export interface SeleccionFactura {
-  /** `null` = sin datos: sale a consumidor final. */
-  datos: DatosFactura | null;
+/** Los datos del cliente tal como están escritos, y si ya sirven para facturar. */
+export interface DatosFacturaCambio {
+  datos: DatosFactura;
   valido: boolean;
 }
 
 const CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
- * «Factura a nombre de»: los datos del comprador en un cobro, para un negocio que factura.
+ * Los datos del cliente para una factura a su nombre: documento, nombre o razón social, y a
+ * dónde enviársela.
  *
- * Apagado, la factura sale a consumidor final y no se pide nada: es lo normal en un restaurante.
- * Se enciende sola —y no se puede apagar— cuando el total supera el tope a partir del cual la
- * factura tiene que identificar al comprador.
+ * Es solo el formulario. Quién decide si se piden —y cuándo— es quien lo contiene: el modal de
+ * «Factura electrónica» en el cobro, o la fila de una factura que espera datos en Caja.
  *
  * El dígito de verificación del NIT no se pide: lo calcula el servidor.
  */
 @Component({
   selector: 'app-datos-factura',
   standalone: true,
-  imports: [CurrencyPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './datos-factura.html',
   styleUrl: './datos-factura.scss',
 })
 export class DatosFacturaComponent {
-  readonly total = input<number>(0);
-  readonly tope = input<number>(Number.POSITIVE_INFINITY);
-  readonly modo = input<ModoFacturacion>('POS');
   readonly disabled = input<boolean>(false);
-  /** Sin interruptor: los datos se piden siempre (para completar una factura que los espera). */
-  readonly siempre = input<boolean>(false);
+  /** Con qué abre el formulario: los datos que ya se habían puesto, para corregirlos. */
+  readonly inicial = input<DatosFactura | null>(null);
 
-  readonly cambio = output<SeleccionFactura>();
-
-  /** Lo que eligió la persona. `null` = todavía no tocó el interruptor: manda el modo del negocio. */
-  private readonly elegido = signal<boolean | null>(null);
+  readonly cambio = output<DatosFacturaCambio>();
 
   protected readonly tipo = signal<TipoDocumento>('13');
   protected readonly numero = signal('');
@@ -57,13 +50,9 @@ export class DatosFacturaComponent {
   protected readonly correo = signal('');
   protected readonly telefono = signal('');
 
-  /** Por encima del tope los datos son obligatorios: el interruptor queda encendido y fijo. */
-  readonly obligatorio = computed(() => this.siempre() || this.total() > this.tope());
-  readonly encendido = computed(() => this.obligatorio() || (this.elegido() ?? this.modo() === 'COMPLETO'));
   protected readonly esEmpresa = computed(() => this.tipo() === '31');
 
-  readonly datos = computed<DatosFactura | null>(() => {
-    if (!this.encendido()) return null;
+  readonly datos = computed<DatosFactura>(() => {
     const nombre = this.nombre().trim();
     return {
       tipo_persona: this.esEmpresa() ? '1' : '2',
@@ -76,7 +65,6 @@ export class DatosFacturaComponent {
   });
 
   readonly valido = computed(() => {
-    if (!this.encendido()) return true;
     const correo = this.correo().trim();
     return (
       this.numero().trim().replace(/[^0-9A-Za-z]/g, '').length >= 3 &&
@@ -91,12 +79,19 @@ export class DatosFacturaComponent {
   });
 
   constructor() {
+    // Siembra los datos que ya había. Solo cuando cambia `inicial`: después manda lo que se escriba.
+    effect(() => {
+      const d = this.inicial();
+      if (!d) return;
+      untracked(() => {
+        this.tipo.set(d.tipo_documento);
+        this.numero.set(d.numero_documento ?? '');
+        this.nombre.set(d.razon_social ?? d.nombres ?? '');
+        this.correo.set(d.correo ?? '');
+        this.telefono.set(d.telefono ?? '');
+      });
+    });
     effect(() => this.cambio.emit({ datos: this.datos(), valido: this.valido() }));
-  }
-
-  protected alternar(valor: boolean): void {
-    if (this.obligatorio()) return;
-    this.elegido.set(valor);
   }
 
   protected setTipo(valor: string): void {
