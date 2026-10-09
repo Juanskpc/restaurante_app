@@ -108,8 +108,9 @@ const SIN_FACTURA: SeleccionFactura = { datos: null, valido: true };
   styleUrl: './multipago-selector.scss',
   // En multipago el selector ocupa una fila completa (para que quepa el
   // desglose); en pago simple comparte fila con el <select> vecino.
-  // Con «Factura a nombre de» abierta también: sus campos no caben en media fila.
-  host: { '[class.mp--multi]': 'modo() === "multi" || facturaActual().datos !== null' },
+  // Con facturación electrónica también: «Factura a nombre de» y sus campos no caben en media
+  // fila, y un interruptor apretado junto al selector de mesa se lee como si fuera de la mesa.
+  host: { '[class.mp--multi]': 'modo() === "multi" || facturacion.activa()' },
 })
 export class MultipagoSelectorComponent {
   readonly metodos = input<MetodoPagoLite[]>([]);

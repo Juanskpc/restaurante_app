@@ -68,7 +68,8 @@
               <td>
                 <span class="fc__chip" [attr.data-tono]="tono(d.estado)">{{ etiqueta(d.estado) }}</span>
               </td>
-              <td class="fc__acciones">
+              <td>
+                <div class="fc__acciones">
                 @if (puede(d, 'pdf')) {
                   <button type="button" class="fc__btn fc__btn--mini" [disabled]="ocupado() === d.id_documento"
                           (click)="verPdf(d)">Ver PDF</button>
@@ -88,6 +89,7 @@
                     {{ completando() === d.id_documento ? 'Cerrar' : 'Completar datos' }}
                   </button>
                 }
+                </div>
               </td>
             </tr>
             @if (d.ultimo_error && d.estado !== 'ACEPTADO' && d.estado !== 'ANULADO') {

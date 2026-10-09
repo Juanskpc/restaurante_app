@@ -22,7 +22,11 @@
   <header class="caja-header">
     <div>
       <!-- Sin título: el nombre de la vista ya está en el encabezado de la app. -->
-      <p class="subtitle">Control del turno operativo: apertura, movimientos y cierre.</p>
+      <p class="subtitle">
+        {{ pestana() === 'facturas'
+          ? 'Las facturas electrónicas del negocio: verlas, reintentar la que no salió o completar los datos del comprador.'
+          : 'Control del turno operativo: apertura, movimientos y cierre.' }}
+      </p>
       <!-- Solo aparece si el usuario maneja más de una caja (rubro). -->
       <div class="caja-header__selector">
         <app-caja-selector (cambio)="alCambiarCaja()" />
