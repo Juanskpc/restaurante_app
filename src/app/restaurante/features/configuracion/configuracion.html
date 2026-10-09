@@ -178,6 +178,12 @@
       </app-carta-diseno-panel>
     }
 
+    <!-- ───────── Tiquete ─────────
+         Fuera del <form> por la misma razón que la carta: tiene su propio botón de guardar. -->
+    @if (tab() === 'tiquete') {
+      <app-tiquete-diseno-panel [idNegocio]="config.id_negocio" />
+    }
+
     <!-- ───────── Cobros ───────── -->
     @if (tab() === 'cobros') {
       <article class="panel panel--wide" id="metodos-pago">

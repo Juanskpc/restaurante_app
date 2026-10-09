@@ -1,0 +1,532 @@
+:host {
+  display: block;
+}
+
+// Mismo lenguaje que el editor de la carta (carta-diseno-panel.scss): tarjeta, cabecera con
+// estado y acciones, controles a la izquierda y vista previa fija a la derecha.
+
+.td {
+  color: var(--color-text-primary);
+}
+
+.td-tarjeta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+// ── Cabecera ──
+.td-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+.td-head__txt {
+  display: grid;
+  gap: 4px;
+  max-width: 62ch;
+
+  h2 {
+    margin: 0;
+    font-size: var(--font-size-base);
+  }
+}
+
+.td-hint {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+}
+
+.td-head__acciones {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.td-estado {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  white-space: nowrap;
+
+  &[data-tono='ok'] {
+    background: var(--color-success-bg);
+    color: var(--color-success);
+  }
+
+  &[data-tono='pendiente'] {
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+  }
+}
+
+.td-estado__punto {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+// ── Botones ──
+.td-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 7px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast);
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  &--primary {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: var(--color-on-primary);
+
+    &:hover:not(:disabled) {
+      background: var(--color-primary-hover);
+      border-color: var(--color-primary-hover);
+    }
+  }
+
+  &--ghost {
+    background: var(--color-surface);
+    border-color: var(--color-border);
+    color: var(--color-text-primary);
+
+    &:hover:not(:disabled) {
+      border-color: var(--color-primary);
+      color: var(--color-primary);
+    }
+  }
+}
+
+.td-spin {
+  animation: td-girar 1s linear infinite;
+}
+
+@keyframes td-girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+// ── Común / Factura electrónica ──
+.td-tipos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+
+  @media (max-width: 640px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.td-tipo {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--transition-fast),
+    background-color var(--transition-fast);
+
+  lucide-icon {
+    flex: none;
+    margin-top: 2px;
+    color: var(--color-text-secondary);
+  }
+
+  &:hover {
+    border-color: color-mix(in srgb, var(--color-primary) 50%, var(--color-border));
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+
+  &.is-on {
+    border-color: var(--color-primary);
+    background: color-mix(in srgb, var(--color-primary) 7%, var(--color-surface));
+
+    lucide-icon {
+      color: var(--color-primary);
+    }
+  }
+}
+
+.td-tipo__txt {
+  display: grid;
+  gap: 2px;
+
+  strong {
+    font-size: var(--font-size-sm);
+  }
+
+  small {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+  }
+}
+
+.td-tipo__punto {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-warning);
+}
+
+// ── Estados ──
+.td-carga,
+.td-error,
+.td-nota {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+}
+
+.td-carga {
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+}
+
+.td-error {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  background: var(--color-error-bg);
+  color: var(--color-error);
+}
+
+.td-nota {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+
+.td-aviso {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.45;
+
+  lucide-icon {
+    flex: none;
+    margin-top: 2px;
+  }
+
+  &--atencion {
+    background: var(--color-warning-bg);
+    // Ámbar oscuro: el --color-warning del tema no llega a 4.5:1 en texto pequeño.
+    color: #9a4a00;
+  }
+}
+
+// ── Rejilla: opciones a la izquierda, vista previa a la derecha ──
+.td-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+  gap: var(--spacing-lg);
+  align-items: start;
+
+  @media (max-width: 1000px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.td-controles {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--spacing-lg);
+  min-width: 0;
+}
+
+.td-bloque {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+
+  &--fijo {
+    padding: 12px 14px;
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-secondary);
+  }
+}
+
+.td-bloque__titulo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 2px;
+  padding: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+// Papel, letra y separador: una fila con etiqueta y un control segmentado.
+.td-opciones {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.td-opciones__etq {
+  font-size: var(--font-size-sm);
+}
+
+.td-segmento {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-secondary);
+
+  button {
+    min-height: 32px;
+    padding: 4px 12px;
+    border: 0;
+    border-radius: calc(var(--radius-md) - 3px);
+    background: transparent;
+    color: var(--color-text-secondary);
+    font: inherit;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    cursor: pointer;
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: var(--focus-ring);
+    }
+
+    &.is-on {
+      background: var(--color-surface);
+      color: var(--color-primary);
+      box-shadow: var(--shadow-sm);
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+    }
+  }
+}
+
+// Los campos: casillas en dos columnas cuando hay espacio.
+.td-campos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 6px 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.td-campo {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
+
+  &:hover {
+    border-color: color-mix(in srgb, var(--color-primary) 45%, var(--color-border));
+  }
+
+  &:has(input:checked) {
+    border-color: color-mix(in srgb, var(--color-primary) 55%, var(--color-border));
+    background: color-mix(in srgb, var(--color-primary) 5%, var(--color-surface));
+  }
+
+  &:has(input:focus-visible) {
+    box-shadow: var(--focus-ring);
+  }
+
+  input {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    margin: 2px 0 0;
+    accent-color: var(--color-primary);
+  }
+}
+
+.td-campo__txt {
+  display: grid;
+  gap: 1px;
+  font-size: var(--font-size-sm);
+
+  small {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    line-height: 1.35;
+  }
+}
+
+.td-obligatorios {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 4px 14px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.td-texto {
+  display: grid;
+  gap: 4px;
+  font-size: var(--font-size-sm);
+
+  textarea {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text-primary);
+    font: inherit;
+    resize: vertical;
+
+    &:focus {
+      outline: none;
+      border-color: var(--color-primary);
+      box-shadow: var(--focus-ring);
+    }
+  }
+
+  small {
+    justify-self: end;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+  }
+}
+
+.td-acciones-sec {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+// ── Vista previa ──
+// Acompaña al scroll mientras se ajustan los controles (el único scroll es .content del shell).
+.td-previa {
+  position: sticky;
+  top: var(--spacing-md);
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+
+  @media (max-width: 1000px) {
+    position: static;
+  }
+}
+
+.td-previa__cab {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+
+  small {
+    color: var(--color-text-secondary);
+    font-weight: 400;
+  }
+}
+
+// La «mesa» donde se apoya el papel: un fondo gris para que el blanco del tiquete se lea.
+.td-previa__mesa {
+  display: flex;
+  justify-content: center;
+  padding: 18px 12px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-text-primary) 8%, var(--color-bg-secondary));
+  overflow: auto;
+}
+
+.td-previa__papel {
+  flex: none;
+  max-width: 100%;
+  padding: 0 16px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.12), 0 8px 24px rgb(0 0 0 / 0.1);
+
+  iframe {
+    display: block;
+    width: 100%;
+    border: 0;
+  }
+}
+
+.td-previa__nota {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  line-height: 1.45;
+}
