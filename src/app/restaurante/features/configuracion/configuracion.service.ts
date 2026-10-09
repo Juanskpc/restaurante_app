@@ -91,9 +91,22 @@ export class ConfiguracionService {
       .pipe(map((res) => res.data));
   }
 
-  actualizarMetodoPago(idMetodo: number, idNegocio: number, nombre: string): Observable<MetodoPago> {
+  /**
+   * `codigoMedioPagoDian` solo viaja cuando se pasa: quien renombra una forma de pago no le
+   * cambia —ni le borra— el tipo con el que sale en la factura.
+   */
+  actualizarMetodoPago(
+    idMetodo: number,
+    idNegocio: number,
+    nombre: string,
+    codigoMedioPagoDian?: string | null,
+  ): Observable<MetodoPago> {
     return this.http
-      .put<ApiResponse<MetodoPago>>(`${environment.apiUrl}/metodos-pago/${idMetodo}`, { id_negocio: idNegocio, nombre })
+      .put<ApiResponse<MetodoPago>>(`${environment.apiUrl}/metodos-pago/${idMetodo}`, {
+        id_negocio: idNegocio,
+        nombre,
+        ...(codigoMedioPagoDian !== undefined ? { codigo_medio_pago_dian: codigoMedioPagoDian } : {}),
+      })
       .pipe(map((res) => res.data));
   }
 
@@ -113,6 +126,8 @@ export interface MetodoPago {
   estado: 'A' | 'I';
   /** La forma de pago «Cuenta / Tiquetera». Ese dinero no está en el cajón. */
   es_cuenta?: boolean;
+  /** Con qué tipo de pago sale en la factura electrónica (10 efectivo, 47 transferencia…). null = «otro». */
+  codigo_medio_pago_dian?: string | null;
   fecha_creacion: string;
 }
 

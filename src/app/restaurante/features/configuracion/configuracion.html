@@ -230,6 +230,22 @@
                   <button type="button" class="btn btn-ghost" (click)="cancelarEdicionMetodo()">Cancelar</button>
                 } @else {
                   <strong class="flex-1">{{ m.nombre }}</strong>
+                  <!-- Solo con facturación electrónica: con qué tipo de pago sale en la factura.
+                       La cuenta del cliente no lo pregunta: siempre va como «otro». -->
+                  @if (facturacion.configurable() && !m.es_cuenta) {
+                    <select class="input metodo-tipo-factura" title="Tipo de pago en la factura electrónica"
+                            aria-label="Tipo de pago en la factura electrónica"
+                            (change)="cambiarTipoFactura(m, $any($event.target).value)">
+                      <option value="" [selected]="!m.codigo_medio_pago_dian">En la factura: otro</option>
+                      @for (t of facturacion.estado()?.medios_pago ?? []; track t.codigo) {
+                        @if (t.codigo !== 'ZZZ') {
+                          <option [value]="t.codigo" [selected]="m.codigo_medio_pago_dian === t.codigo">
+                            En la factura: {{ t.nombre }}
+                          </option>
+                        }
+                      }
+                    </select>
+                  }
                   <button type="button" class="btn btn-ghost" (click)="iniciarEdicionMetodo(m)" title="Editar">
                     <lucide-icon name="pencil" [size]="14" />
                   </button>

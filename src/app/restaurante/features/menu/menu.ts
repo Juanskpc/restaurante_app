@@ -9,6 +9,7 @@ import { isPlatformBrowser } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
 
 import { AuthService } from '../../../core/services/auth.service';
+import { FacturacionService, claveImpuesto } from '../../../core/services/facturacion.service';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 import { environment } from '../../../../environments/environment';
 import { ImageCropperComponent } from './image-cropper/image-cropper';
@@ -57,6 +58,10 @@ export interface ProductoAdmin {
   /** Empaque que el asistente suma en pedidos para llevar y a domicilio (null = ninguno). */
   id_producto_empaque?: number | null;
   cantidad_empaque?: number;
+  /** Datos fiscales, para un negocio con facturación electrónica. `null` = el impuesto del negocio. */
+  codigo_impuesto?: string | null;
+  tarifa_impuesto?: string | number | null;
+  codigo_producto?: string | null;
   ingredientes: ProductoIngrediente[];
 }
 
@@ -91,6 +96,9 @@ interface ProdFormData {
   id_categoria: number | null;
   id_producto_empaque: number | null;
   cantidad_empaque: number;
+  /** Impuesto del producto como «código|tarifa»; vacío = el impuesto por defecto del negocio. */
+  impuesto: string;
+  codigo_producto: string;
   ingredientes: IngredienteForm[];
 }
 
@@ -117,6 +125,9 @@ export class MenuComponent implements OnInit, OnDestroy {
   private readonly http = inject(HttpClient);
   private readonly auth = inject(AuthService);
   private readonly uiFeedback = inject(UiFeedbackService);
+  /** Los datos fiscales del producto solo existen para un negocio con facturación electrónica. */
+  protected readonly facturacion = inject(FacturacionService);
+  protected readonly claveImpuesto = claveImpuesto;
   private readonly platformId = inject(PLATFORM_ID);
   private readonly isBrowser = isPlatformBrowser(this.platformId);
 
@@ -144,7 +155,8 @@ export class MenuComponent implements OnInit, OnDestroy {
   readonly prodForm         = signal<ProdFormData>({
     nombre: '', descripcion: '', precio: null, icono: '🍔',
     imagen_url: '', es_popular: false, disponible: true,
-    visible: true, id_categoria: null, id_producto_empaque: null, cantidad_empaque: 1, ingredientes: [],
+    visible: true, id_categoria: null, id_producto_empaque: null, cantidad_empaque: 1,
+    impuesto: '', codigo_producto: '', ingredientes: [],
   });
 
   /** Productos que se pueden elegir como empaque (los de una categoría «Empaques», o todos si no hay). */
@@ -348,6 +360,21 @@ export class MenuComponent implements OnInit, OnDestroy {
 
   updateCatField<K extends keyof CatFormData>(field: K, value: CatFormData[K]): void {
     this.catForm.update(f => ({ ...f, [field]: value }));
+  }
+
+  /**
+   * Los datos fiscales del producto, **solo si el negocio factura**. Un negocio que no factura no
+   * los ve y no los manda: sin la clave, el servidor los deja como están.
+   */
+  private datosFiscalesDelProducto(form: ProdFormData): Record<string, unknown> {
+    if (!this.facturacion.configurable()) return {};
+    const [codigo, tarifa] = form.impuesto ? form.impuesto.split('|') : [null, null];
+    return {
+      // null = sin impuesto propio: usa el por defecto del negocio.
+      codigo_impuesto: codigo,
+      tarifa_impuesto: codigo ? Number(tarifa) : null,
+      codigo_producto: form.codigo_producto.trim() || null,
+    };
   }
 
   updateProdField<K extends keyof ProdFormData>(field: K, value: ProdFormData[K]): void {
@@ -647,6 +674,8 @@ export class MenuComponent implements OnInit, OnDestroy {
         id_categoria: prod.id_categoria,
         id_producto_empaque: prod.id_producto_empaque ?? null,
         cantidad_empaque:    prod.cantidad_empaque ?? 1,
+        impuesto: prod.codigo_impuesto ? claveImpuesto(prod.codigo_impuesto, prod.tarifa_impuesto ?? 0) : '',
+        codigo_producto: prod.codigo_producto ?? '',
         ingredientes: prod.ingredientes.map(pi => ({
           id_producto_ingred: pi.id_producto_ingred,
           id_ingrediente:     pi.id_ingrediente,
@@ -661,7 +690,8 @@ export class MenuComponent implements OnInit, OnDestroy {
       this.prodForm.set({
         nombre: '', descripcion: '', precio: null, icono: '🍔',
         imagen_url: '', es_popular: false, disponible: true,
-        visible: true, id_categoria: this.categoriaActiva(), id_producto_empaque: null, cantidad_empaque: 1, ingredientes: [],
+        visible: true, id_categoria: this.categoriaActiva(), id_producto_empaque: null, cantidad_empaque: 1,
+        impuesto: '', codigo_producto: '', ingredientes: [],
       });
       this.ingredientesModificados.set(false);
     }
@@ -715,6 +745,7 @@ export class MenuComponent implements OnInit, OnDestroy {
       // null = sin empaque (lo quita); el backend vuelve la cantidad a 1.
       id_producto_empaque: form.id_producto_empaque,
       cantidad_empaque:    form.id_producto_empaque ? Math.max(1, Math.floor(form.cantidad_empaque || 1)) : 1,
+      ...this.datosFiscalesDelProducto(form),
     };
 
     try {

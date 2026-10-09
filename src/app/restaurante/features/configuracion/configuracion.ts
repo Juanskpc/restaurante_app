@@ -16,6 +16,7 @@ import { CatalogoCacheService } from '../../../core/services/catalogo-cache.serv
 import { PaletteService } from '../../../core/theme/palette.service';
 import { PaletaColor } from '../../../core/theme/palette.model';
 import { ConfiguracionService, MetodoPago } from './configuracion.service';
+import { FacturacionService } from '../../../core/services/facturacion.service';
 import { ConfiguracionNegocio } from './configuracion.models';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 import { CartaDisenoPanelComponent } from './carta-diseno/carta-diseno-panel';
@@ -81,6 +82,8 @@ export class ConfiguracionComponent {
   private readonly paletteService = inject(PaletteService);
   private readonly configuracionService = inject(ConfiguracionService);
   private readonly uiFeedback = inject(UiFeedbackService);
+  /** El tipo de pago para la factura solo se pregunta a un negocio con facturación electrónica. */
+  protected readonly facturacion = inject(FacturacionService);
 
   /**
    * Pestañas de la pantalla.
@@ -285,6 +288,25 @@ export class ConfiguracionComponent {
         const msg = e?.error?.message || 'No se pudo crear el método de pago.';
         this.errorMetodo.set(msg);
         this.uiFeedback.error(msg);
+      },
+    });
+  }
+
+  /** Con qué tipo de pago sale esta forma de pago en la factura electrónica. Se guarda al elegir. */
+  cambiarTipoFactura(m: MetodoPago, codigo: string): void {
+    const idNegocio = this.negocioActivoId();
+    if (!idNegocio) return;
+    this.configuracionService.actualizarMetodoPago(m.id_metodo_pago, idNegocio, m.nombre, codigo || null).subscribe({
+      next: () => {
+        this.invalidarCacheMetodos();
+        this.metodosPago.update((lista) =>
+          lista.map((x) => (x.id_metodo_pago === m.id_metodo_pago ? { ...x, codigo_medio_pago_dian: codigo || null } : x)),
+        );
+      },
+      error: (e) => {
+        this.uiFeedback.error(e?.error?.message || 'No se pudo guardar el tipo de pago.');
+        // El desplegable ya cambió en pantalla: se vuelve a leer para que diga la verdad.
+        this.cargarMetodosPago(idNegocio);
       },
     });
   }

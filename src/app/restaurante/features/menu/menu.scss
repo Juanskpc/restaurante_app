@@ -1289,3 +1289,28 @@
 }
 
 
+
+// ── Datos para la factura electrónica (solo si el negocio factura) ──
+.form-fiscal {
+  padding: 0.6rem 0.75rem;
+  border: 1px dashed var(--color-border);
+  border-radius: 0.6rem;
+
+  summary {
+    color: var(--color-text-primary);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  &[open] summary {
+    margin-bottom: 0.6rem;
+  }
+
+  &__nota {
+    margin: 0.4rem 0 0;
+    color: var(--color-text-muted);
+    font-size: 0.75rem;
+    line-height: 1.4;
+  }
+}

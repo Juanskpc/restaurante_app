@@ -24,8 +24,13 @@ export interface EstadoFe {
   tope_identificacion: number;
   motivo: string | null;
   medios_pago: { codigo: string; nombre: string }[];
+  /** Los impuestos que se le pueden poner a un producto de la carta. */
+  impuestos: { codigo: string; nombre: string; tarifa: number }[];
   alertas: string[];
 }
+
+/** Cómo se guarda en un `<select>` la pareja código + tarifa de un impuesto. */
+export const claveImpuesto = (codigo: string, tarifa: number | string) => `${codigo}|${Number(tarifa)}`;
 
 /** «Factura a nombre de»: lo que viaja en el cobro. El dígito de verificación lo calcula el servidor. */
 export interface DatosFactura {

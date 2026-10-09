@@ -501,6 +501,48 @@
           </div>
         }
 
+        <!-- ── Datos fiscales ──
+             Solo para un negocio con facturación electrónica: los demás no lo ven. -->
+        @if (facturacion.configurable()) {
+          <details class="form-fiscal">
+            <summary>Datos para la factura electrónica</summary>
+            <div class="form-row">
+              <div class="form-group" style="flex:1">
+                <label class="form-label">Impuesto</label>
+                <select
+                  class="form-select"
+                  (change)="updateProdField('impuesto', $any($event.target).value)"
+                >
+                  <option value="" [selected]="!prodForm().impuesto">Usar el del negocio</option>
+                  @for (imp of facturacion.estado()?.impuestos ?? []; track claveImpuesto(imp.codigo, imp.tarifa)) {
+                    <option
+                      [value]="claveImpuesto(imp.codigo, imp.tarifa)"
+                      [selected]="prodForm().impuesto === claveImpuesto(imp.codigo, imp.tarifa)"
+                    >
+                      {{ imp.codigo === 'ZZ' ? 'Sin impuesto' : imp.nombre + ' ' + imp.tarifa + '%' }}
+                    </option>
+                  }
+                </select>
+              </div>
+              <div class="form-group" style="flex:1">
+                <label class="form-label">Código <span class="form-label-optional">(opcional)</span></label>
+                <input
+                  type="text"
+                  class="form-input"
+                  maxlength="50"
+                  placeholder="El de tu inventario o contabilidad"
+                  [value]="prodForm().codigo_producto"
+                  (input)="updateProdField('codigo_producto', $any($event.target).value)"
+                />
+              </div>
+            </div>
+            <p class="form-fiscal__nota">
+              Confírmalo con tu contador: nosotros no lo decidimos por ti. El precio de la carta ya
+              incluye el impuesto.
+            </p>
+          </details>
+        }
+
         <!-- ── Descripción ── -->
         <div class="form-group">
           <label class="form-label">Descripción</label>

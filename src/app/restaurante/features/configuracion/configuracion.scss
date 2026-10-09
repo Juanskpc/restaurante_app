@@ -481,3 +481,10 @@
     &:disabled { cursor: not-allowed; }
   }
 }
+
+// Tipo de pago para la factura electrónica, en la fila de cada forma de pago.
+.metodo-tipo-factura {
+  flex: 0 1 13rem;
+  min-width: 0;
+  font-size: 0.8rem;
+}
