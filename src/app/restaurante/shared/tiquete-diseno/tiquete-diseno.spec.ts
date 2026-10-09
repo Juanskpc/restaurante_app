@@ -9,6 +9,7 @@ import {
   datosDeEjemplo,
   diferenciasConDefecto,
   resolverDiseno,
+  urlAbsoluta,
 } from './tiquete-diseno';
 
 const FUENTE: FuenteEjemplo = {
@@ -130,5 +131,18 @@ describe('construirTiqueteHtml', () => {
     const angosto = construirTiqueteHtml({ ...DISENO_DEFECTO.comun, papel: '58' }, datos(), 'comun');
     expect(angosto).toContain('size: 58mm auto');
     expect(angosto).toContain('width: 200px');
+  });
+});
+
+describe('urlAbsoluta', () => {
+  it('pone el servidor delante de una ruta de /uploads', () => {
+    expect(urlAbsoluta('/uploads/reserva/logos/17/logo.png?v=1', 'http://localhost:3000')).toBe(
+      'http://localhost:3000/uploads/reserva/logos/17/logo.png?v=1',
+    );
+  });
+
+  it('deja quietas las direcciones completas y la ausencia de logo', () => {
+    expect(urlAbsoluta('https://cdn.x/logo.png', 'http://a')).toBe('https://cdn.x/logo.png');
+    expect(urlAbsoluta(null, 'http://a')).toBeNull();
   });
 });

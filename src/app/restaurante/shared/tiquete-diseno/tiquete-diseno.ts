@@ -332,6 +332,16 @@ export function escaparHtml(texto: string | null | undefined): string {
     .replace(/'/g, '&#39;');
 }
 
+/**
+ * Los archivos subidos (el logo) se guardan como `/uploads/...` y los sirve la API. Para pintarlos
+ * en un iframe o en la ventana de impresión hace falta la dirección completa.
+ */
+export function urlAbsoluta(ruta: string | null | undefined, origen: string): string | null {
+  if (!ruta) return null;
+  if (/^(https?:|data:|blob:)/i.test(ruta)) return ruta;
+  return `${origen.replace(/\/+$/, '')}${ruta.startsWith('/') ? '' : '/'}${ruta}`;
+}
+
 /** La dirección de consulta de la DIAN que va dentro del QR. */
 export function urlConsultaDian(cufe: string): string {
   return `https://catalogo-vpfe.dian.gov.co/document/searchqr?documentkey=${encodeURIComponent(cufe)}`;

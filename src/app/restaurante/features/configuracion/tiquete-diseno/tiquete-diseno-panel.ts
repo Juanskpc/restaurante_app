@@ -15,6 +15,7 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { LucideAngularModule } from 'lucide-angular';
 import { finalize } from 'rxjs/operators';
 
+import { environment } from '../../../../../environments/environment';
 import { UiFeedbackService } from '../../../../core/ui-feedback/ui-feedback.service';
 import {
   CUFE_EJEMPLO,
@@ -36,6 +37,7 @@ import {
   datosDeEjemplo,
   diferenciasConDefecto,
   resolverDiseno,
+  urlAbsoluta,
   urlConsultaDian,
 } from '../../../shared/tiquete-diseno/tiquete-diseno';
 import { TiqueteDisenoAdmin, TiqueteDisenoService } from './tiquete-diseno.service';
@@ -74,6 +76,8 @@ export class TiqueteDisenoPanelComponent {
   private readonly ui = inject(UiFeedbackService);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly esNavegador = isPlatformBrowser(inject(PLATFORM_ID));
+  /** Donde se sirven los archivos subidos (`/uploads`): la API sin el prefijo del vertical. */
+  private readonly apiOrigin = environment.apiUrl.replace(/\/restaurante\/?$/, '');
 
   readonly papeles = PAPELES;
   readonly letras = LETRAS;
@@ -150,7 +154,10 @@ export class TiqueteDisenoPanelComponent {
   readonly htmlPrevia = computed<SafeHtml | null>(() => {
     const d = this.datos();
     if (!d) return null;
-    const datos = datosDeEjemplo(d, this.qr());
+    // El logo se guarda como `/uploads/...`: dentro del iframe esa ruta apuntaría a esta app y no
+    // al servidor, la imagen fallaría y el tiquete la quitaría sin avisar.
+    const negocio = { ...d.negocio, logo_url: urlAbsoluta(d.negocio.logo_url, this.apiOrigin) };
+    const datos = datosDeEjemplo({ ...d, negocio }, this.qr());
     const html = construirTiqueteHtml(this.actual(), datos, this.tipo());
     // El HTML lo arma `construirTiqueteHtml`, que escapa todo lo que viene del negocio.
     return this.sanitizer.bypassSecurityTrustHtml(html);
