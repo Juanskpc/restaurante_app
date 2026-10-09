@@ -114,85 +114,91 @@
           }
 
           <fieldset class="td-bloque" [disabled]="!canEdit()">
-            <legend class="td-bloque__titulo">Papel y letra</legend>
-            <div class="td-opciones">
-              <span class="td-opciones__etq">Ancho del papel</span>
-              <div class="td-segmento">
-                @for (p of papeles; track p.id) {
-                  <button
-                    type="button"
-                    [class.is-on]="actual().papel === p.id"
-                    [attr.aria-pressed]="actual().papel === p.id"
-                    [attr.title]="p.ayuda"
-                    (click)="elegirPapel(p.id)"
-                  >
-                    {{ p.etiqueta }}
-                  </button>
-                }
+            <legend class="td-bloque__titulo">Formato</legend>
+            <div class="td-formato">
+              <div class="td-formato__item">
+                <span class="td-formato__etq">Ancho del papel</span>
+                <div class="td-segmento">
+                  @for (p of papeles; track p.id) {
+                    <button
+                      type="button"
+                      [class.is-on]="actual().papel === p.id"
+                      [attr.aria-pressed]="actual().papel === p.id"
+                      [attr.title]="p.ayuda"
+                      (click)="elegirPapel(p.id)"
+                    >
+                      {{ p.etiqueta }}
+                    </button>
+                  }
+                </div>
               </div>
-            </div>
-            <div class="td-opciones">
-              <span class="td-opciones__etq">Tamaño de letra</span>
-              <div class="td-segmento">
-                @for (l of letras; track l.id) {
-                  <button
-                    type="button"
-                    [class.is-on]="actual().letra === l.id"
-                    [attr.aria-pressed]="actual().letra === l.id"
-                    (click)="elegirLetra(l.id)"
-                  >
-                    {{ l.etiqueta }}
-                  </button>
-                }
+              <div class="td-formato__item">
+                <span class="td-formato__etq">Tamaño de letra</span>
+                <div class="td-segmento">
+                  @for (l of letras; track l.id) {
+                    <button
+                      type="button"
+                      [class.is-on]="actual().letra === l.id"
+                      [attr.aria-pressed]="actual().letra === l.id"
+                      (click)="elegirLetra(l.id)"
+                    >
+                      {{ l.etiqueta }}
+                    </button>
+                  }
+                </div>
               </div>
-            </div>
-            <div class="td-opciones">
-              <span class="td-opciones__etq">Líneas separadoras</span>
-              <div class="td-segmento">
-                @for (s of separadores; track s.id) {
-                  <button
-                    type="button"
-                    [class.is-on]="actual().separador === s.id"
-                    [attr.aria-pressed]="actual().separador === s.id"
-                    (click)="elegirSeparador(s.id)"
-                  >
-                    {{ s.etiqueta }}
-                  </button>
-                }
+              <div class="td-formato__item">
+                <span class="td-formato__etq">Líneas separadoras</span>
+                <div class="td-segmento">
+                  @for (s of separadores; track s.id) {
+                    <button
+                      type="button"
+                      [class.is-on]="actual().separador === s.id"
+                      [attr.aria-pressed]="actual().separador === s.id"
+                      (click)="elegirSeparador(s.id)"
+                    >
+                      {{ s.etiqueta }}
+                    </button>
+                  }
+                </div>
               </div>
             </div>
           </fieldset>
 
-          @for (g of grupos(); track g.titulo) {
-            <fieldset class="td-bloque" [disabled]="!canEdit()">
-              <legend class="td-bloque__titulo">{{ g.titulo }}</legend>
-              <ul class="td-campos">
-                @for (c of g.campos; track c.id) {
-                  <li>
-                    <label class="td-campo">
-                      <input
-                        type="checkbox"
-                        [checked]="campoActivo(c.id)"
-                        (change)="alternarCampo(c)"
-                      />
-                      <span class="td-campo__txt">
-                        <span>{{ c.etiqueta }}</span>
-                        @if (c.ayuda) {
-                          <small>{{ c.ayuda }}</small>
-                        }
-                      </span>
-                    </label>
-                  </li>
-                }
-              </ul>
-            </fieldset>
-          }
+          <!-- Todos los datos en filas de la misma altura, dos por renglón. La explicación de
+               cada uno va en la nota emergente para no romper la rejilla. -->
+          <fieldset class="td-bloque" [disabled]="!canEdit()">
+            <legend class="td-bloque__titulo">Qué datos salen</legend>
+            <div class="td-datos">
+              @for (g of grupos(); track g.titulo) {
+                <div class="td-datos__grupo">
+                  <span class="td-datos__titulo">{{ g.titulo }}</span>
+                  <ul class="td-filas">
+                    @for (c of g.campos; track c.id) {
+                      <li>
+                        <label class="td-fila" [attr.title]="c.ayuda ?? null">
+                          <span class="td-fila__txt">{{ c.etiqueta }}</span>
+                          <input
+                            type="checkbox"
+                            role="switch"
+                            class="td-switch"
+                            [checked]="campoActivo(c.id)"
+                            (change)="alternarCampo(c)"
+                          />
+                        </label>
+                      </li>
+                    }
+                  </ul>
+                </div>
+              }
+            </div>
+          </fieldset>
 
           @if (esFe()) {
             <div class="td-bloque td-bloque--fijo">
               <span class="td-bloque__titulo">
                 <lucide-icon name="lock" [size]="13" />
-                Siempre salen (los exige la DIAN)
+                Siempre salen en la factura (los exige la DIAN)
               </span>
               <ul class="td-obligatorios">
                 @for (o of obligatoriosFe; track o) {
@@ -203,29 +209,35 @@
           }
 
           <fieldset class="td-bloque" [disabled]="!canEdit()">
-            <legend class="td-bloque__titulo">Textos propios</legend>
-            <label class="td-texto">
-              <span>Mensaje arriba</span>
-              <textarea
-                rows="2"
-                [maxLength]="maxTexto"
-                placeholder="Ej.: ¡Bienvenidos! Síguenos en Instagram @minegocio"
-                [value]="actual().encabezado"
-                (input)="cambiarTexto('encabezado', $event)"
-              ></textarea>
-              <small>{{ actual().encabezado.length }}/{{ maxTexto }}</small>
-            </label>
-            <label class="td-texto">
-              <span>Mensaje al final</span>
-              <textarea
-                rows="2"
-                [maxLength]="maxTexto"
-                placeholder="Ej.: ¡Gracias por tu compra! Vuelve pronto."
-                [value]="actual().pie"
-                (input)="cambiarTexto('pie', $event)"
-              ></textarea>
-              <small>{{ actual().pie.length }}/{{ maxTexto }}</small>
-            </label>
+            <legend class="td-bloque__titulo">Mensajes propios</legend>
+            <div class="td-textos">
+              <label class="td-texto">
+                <span class="td-texto__cab">
+                  Arriba
+                  <small>{{ actual().encabezado.length }}/{{ maxTexto }}</small>
+                </span>
+                <textarea
+                  rows="2"
+                  [maxLength]="maxTexto"
+                  placeholder="Ej.: ¡Bienvenidos! Síguenos en @minegocio"
+                  [value]="actual().encabezado"
+                  (input)="cambiarTexto('encabezado', $event)"
+                ></textarea>
+              </label>
+              <label class="td-texto">
+                <span class="td-texto__cab">
+                  Al final
+                  <small>{{ actual().pie.length }}/{{ maxTexto }}</small>
+                </span>
+                <textarea
+                  rows="2"
+                  [maxLength]="maxTexto"
+                  placeholder="Ej.: ¡Gracias por tu compra!"
+                  [value]="actual().pie"
+                  (input)="cambiarTexto('pie', $event)"
+                ></textarea>
+              </label>
+            </div>
           </fieldset>
 
           <div class="td-acciones-sec">

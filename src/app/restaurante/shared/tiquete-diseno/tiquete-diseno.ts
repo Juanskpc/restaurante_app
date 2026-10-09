@@ -17,7 +17,10 @@
  * ## Lo que exige la DIAN no es una opción
  *
  * En la factura electrónica, los datos del emisor, el número con prefijo, la resolución, el CUFE,
- * el QR, el comprador, los impuestos y la forma de pago se imprimen siempre. No están en `CAMPOS`
+ * el QR, el comprador, los impuestos y la forma de pago se imprimen siempre.
+ *
+ * **Nada del proveedor tecnológico sale impreso** (decisión del 2026-10-09): ni su nombre ni su
+ * marca. El tiquete dice «Software: EscalApp», que es el programa con el que se elaboró. No están en `CAMPOS`
  * y el servidor rechaza un diseño que intente apagarlos (`CAMPO_DESCONOCIDO`).
  *
  * ## El backend conoce los nombres, no los valores
@@ -119,7 +122,6 @@ export const OBLIGATORIOS_FE: string[] = [
   'Forma de pago',
   'CUFE (código único de la factura)',
   'Código QR para consultarla en la DIAN',
-  'Proveedor tecnológico que la emitió',
 ];
 
 export const PAPELES: { id: PapelId; etiqueta: string; ayuda: string; anchoPx: number }[] = [
@@ -271,7 +273,6 @@ export interface DatosFacturaElectronica {
   cufe: string;
   /** La imagen del QR ya generada (data URL). Sin ella se imprime solo el CUFE. */
   qr_data_url: string | null;
-  proveedor: string;
 }
 
 export interface DatosTiquete {
@@ -505,7 +506,7 @@ export function construirTiqueteHtml(
         <div class="subtitulo">CUFE</div>
         <div class="cufe">${e(fe.cufe)}</div>
         <div class="meta">Representación gráfica de la factura electrónica.</div>
-        <div class="meta">Proveedor tecnológico: ${e(fe.proveedor)}</div>
+        <div class="meta">Software: EscalApp</div>
       </div>`
     : '';
 
@@ -668,7 +669,6 @@ export function datosDeEjemplo(fuente: FuenteEjemplo, qrDataUrl: string | null):
       impuestos: [{ nombre: 'INC', tarifa, base, valor: total - base }],
       cufe: CUFE_EJEMPLO,
       qr_data_url: qrDataUrl,
-      proveedor: 'Factus',
     },
   };
 }

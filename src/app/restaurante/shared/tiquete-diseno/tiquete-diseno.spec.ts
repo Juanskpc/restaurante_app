@@ -111,7 +111,8 @@ describe('construirTiqueteHtml', () => {
     expect(html).toContain('Base INC 8%');
     expect(html).toContain(CUFE_EJEMPLO);
     expect(html).toContain('data:image/png;base64,QR');
-    expect(html).toContain('Proveedor tecnológico: Factus');
+    expect(html).toContain('Software: EscalApp');
+    expect(html.toLowerCase()).not.toContain('factus');
   });
 
   it('en la factura, apagar un campo obligatorio no lo quita', () => {
