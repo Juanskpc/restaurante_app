@@ -174,8 +174,11 @@ export class TiqueteDisenoPanelComponent {
 
   private async generarQr(): Promise<void> {
     try {
-      const { toDataURL } = await import('qrcode');
-      this.qr.set(await toDataURL(urlConsultaDian(CUFE_EJEMPLO), { margin: 0, width: 240 }));
+      // `qrcode` es CommonJS: el build de producción lo deja solo como `default`, y el de
+      // desarrollo además con nombre. Leer solo el nombre deja la vista previa sin QR en producción.
+      const modulo = await import('qrcode');
+      const qrcode = modulo.default ?? modulo;
+      this.qr.set(await qrcode.toDataURL(urlConsultaDian(CUFE_EJEMPLO), { margin: 0, width: 240 }));
     } catch {
       // Sin QR la vista previa sigue sirviendo: se ve el CUFE.
     }
