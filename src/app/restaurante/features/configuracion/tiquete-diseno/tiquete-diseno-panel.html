@@ -1,0 +1,283 @@
+<section class="td" aria-labelledby="td-titulo">
+  <article class="td-tarjeta">
+    <header class="td-head">
+      <div class="td-head__txt">
+        <h2 id="td-titulo">Tiquete impreso</h2>
+        <p class="td-hint">
+          Elige qué datos salen en tus tiquetes. A la derecha ves cómo queda con un pedido de
+          ejemplo y los datos de tu negocio. Nada cambia en la impresora hasta que guardes.
+        </p>
+      </div>
+
+      <div class="td-head__acciones">
+        @if (datos()) {
+          <span class="td-estado" [attr.data-tono]="estado().tono">
+            <span class="td-estado__punto" aria-hidden="true"></span>
+            {{ estado().texto }}
+          </span>
+        }
+        <button
+          type="button"
+          class="td-btn td-btn--ghost"
+          [disabled]="!hayCambios() || guardando()"
+          (click)="descartar()"
+        >
+          <lucide-icon name="rotate-ccw" [size]="15" />
+          Descartar
+        </button>
+        <button
+          type="button"
+          class="td-btn td-btn--primary"
+          [disabled]="!canEdit() || !hayCambios() || guardando()"
+          (click)="guardar()"
+        >
+          @if (guardando()) {
+            <lucide-icon name="loader" [size]="15" class="td-spin" />
+            Guardando…
+          } @else {
+            <lucide-icon name="save" [size]="15" />
+            Guardar tiquete
+          }
+        </button>
+      </div>
+    </header>
+
+    <div class="td-tipos" role="tablist" aria-label="Tipo de tiquete">
+      <button
+        type="button"
+        role="tab"
+        class="td-tipo"
+        [class.is-on]="tipo() === 'comun'"
+        [attr.aria-selected]="tipo() === 'comun'"
+        (click)="elegirTipo('comun')"
+      >
+        <lucide-icon name="receipt" [size]="16" />
+        <span class="td-tipo__txt">
+          <strong>Tiquete común</strong>
+          <small>El de siempre. También sirve de comanda.</small>
+        </span>
+        @if (cambiosPorTipo().comun) {
+          <span class="td-tipo__punto" title="Cambios sin guardar"></span>
+        }
+      </button>
+      <button
+        type="button"
+        role="tab"
+        class="td-tipo"
+        [class.is-on]="tipo() === 'electronica'"
+        [attr.aria-selected]="tipo() === 'electronica'"
+        (click)="elegirTipo('electronica')"
+      >
+        <lucide-icon name="file-text" [size]="16" />
+        <span class="td-tipo__txt">
+          <strong>Factura electrónica</strong>
+          <small>Validada por la DIAN, con CUFE y QR.</small>
+        </span>
+        @if (cambiosPorTipo().electronica) {
+          <span class="td-tipo__punto" title="Cambios sin guardar"></span>
+        }
+      </button>
+    </div>
+
+    @if (cargando()) {
+      <div class="td-carga">Cargando el diseño de tu tiquete…</div>
+    } @else if (error(); as mensaje) {
+      <div class="td-error" role="alert">
+        <span>{{ mensaje }}</span>
+        <button type="button" class="td-btn td-btn--ghost" (click)="recargar()">Reintentar</button>
+      </div>
+    } @else if (datos(); as d) {
+      @if (!canEdit()) {
+        <p class="td-nota">
+          Solo un administrador del negocio puede cambiar el tiquete. Puedes explorar la vista previa.
+        </p>
+      }
+
+      <div class="td-grid">
+        <!-- ── Opciones ── -->
+        <div class="td-controles">
+          @if (esFe()) {
+            @if (!d.facturacion_habilitada) {
+              <p class="td-aviso">
+                <lucide-icon name="info" [size]="15" />
+                Tu plan todavía no incluye facturación electrónica. Puedes dejar el diseño listo:
+                se usará el día que la actives.
+              </p>
+            }
+            @if (faltantesFiscales().length) {
+              <p class="td-aviso td-aviso--atencion">
+                <lucide-icon name="triangle-alert" [size]="15" />
+                Faltan datos para la factura: {{ faltantesFiscales().join(', ') }}. En la vista
+                previa salen con un valor de ejemplo.
+              </p>
+            }
+          }
+
+          <fieldset class="td-bloque" [disabled]="!canEdit()">
+            <legend class="td-bloque__titulo">Formato</legend>
+            <div class="td-formato">
+              <div class="td-formato__item">
+                <span class="td-formato__etq">Ancho del papel</span>
+                <div class="td-segmento">
+                  @for (p of papeles; track p.id) {
+                    <button
+                      type="button"
+                      [class.is-on]="actual().papel === p.id"
+                      [attr.aria-pressed]="actual().papel === p.id"
+                      [attr.title]="p.ayuda"
+                      (click)="elegirPapel(p.id)"
+                    >
+                      {{ p.etiqueta }}
+                    </button>
+                  }
+                </div>
+              </div>
+              <div class="td-formato__item">
+                <span class="td-formato__etq">Tamaño de letra</span>
+                <div class="td-segmento">
+                  @for (l of letras; track l.id) {
+                    <button
+                      type="button"
+                      [class.is-on]="actual().letra === l.id"
+                      [attr.aria-pressed]="actual().letra === l.id"
+                      (click)="elegirLetra(l.id)"
+                    >
+                      {{ l.etiqueta }}
+                    </button>
+                  }
+                </div>
+              </div>
+              <div class="td-formato__item">
+                <span class="td-formato__etq">Líneas separadoras</span>
+                <div class="td-segmento">
+                  @for (s of separadores; track s.id) {
+                    <button
+                      type="button"
+                      [class.is-on]="actual().separador === s.id"
+                      [attr.aria-pressed]="actual().separador === s.id"
+                      (click)="elegirSeparador(s.id)"
+                    >
+                      {{ s.etiqueta }}
+                    </button>
+                  }
+                </div>
+              </div>
+            </div>
+          </fieldset>
+
+          <!-- Todos los datos en filas de la misma altura, dos por renglón. La explicación de
+               cada uno va en la nota emergente para no romper la rejilla. -->
+          <fieldset class="td-bloque" [disabled]="!canEdit()">
+            <legend class="td-bloque__titulo">Qué datos salen</legend>
+            <div class="td-datos">
+              @for (g of grupos(); track g.titulo) {
+                <div class="td-datos__grupo">
+                  <span class="td-datos__titulo">{{ g.titulo }}</span>
+                  <ul class="td-filas">
+                    @for (c of g.campos; track c.id) {
+                      <li>
+                        <label class="td-fila" [attr.title]="c.ayuda ?? null">
+                          <span class="td-fila__txt">{{ c.etiqueta }}</span>
+                          <input
+                            type="checkbox"
+                            role="switch"
+                            class="td-switch"
+                            [checked]="campoActivo(c.id)"
+                            (change)="alternarCampo(c)"
+                          />
+                        </label>
+                      </li>
+                    }
+                  </ul>
+                </div>
+              }
+            </div>
+          </fieldset>
+
+          @if (esFe()) {
+            <div class="td-bloque td-bloque--fijo">
+              <span class="td-bloque__titulo">
+                <lucide-icon name="lock" [size]="13" />
+                Siempre salen en la factura (los exige la DIAN)
+              </span>
+              <ul class="td-obligatorios">
+                @for (o of obligatoriosFe; track o) {
+                  <li>{{ o }}</li>
+                }
+              </ul>
+            </div>
+          }
+
+          <fieldset class="td-bloque" [disabled]="!canEdit()">
+            <legend class="td-bloque__titulo">Mensajes propios</legend>
+            <div class="td-textos">
+              <label class="td-texto">
+                <span class="td-texto__cab">
+                  Arriba
+                  <small>{{ actual().encabezado.length }}/{{ maxTexto }}</small>
+                </span>
+                <textarea
+                  rows="2"
+                  [maxLength]="maxTexto"
+                  placeholder="Ej.: ¡Bienvenidos! Síguenos en @minegocio"
+                  [value]="actual().encabezado"
+                  (input)="cambiarTexto('encabezado', $event)"
+                ></textarea>
+              </label>
+              <label class="td-texto">
+                <span class="td-texto__cab">
+                  Al final
+                  <small>{{ actual().pie.length }}/{{ maxTexto }}</small>
+                </span>
+                <textarea
+                  rows="2"
+                  [maxLength]="maxTexto"
+                  placeholder="Ej.: ¡Gracias por tu compra!"
+                  [value]="actual().pie"
+                  (input)="cambiarTexto('pie', $event)"
+                ></textarea>
+              </label>
+            </div>
+          </fieldset>
+
+          <div class="td-acciones-sec">
+            <button type="button" class="td-btn td-btn--ghost" [disabled]="!canEdit()" (click)="copiarDelOtro()">
+              <lucide-icon name="copy" [size]="15" />
+              {{ esFe() ? 'Usar papel y textos del tiquete común' : 'Usar papel y textos de la factura' }}
+            </button>
+            <button type="button" class="td-btn td-btn--ghost" [disabled]="!canEdit()" (click)="restablecer()">
+              <lucide-icon name="rotate-ccw" [size]="15" />
+              Volver al diseño por defecto
+            </button>
+          </div>
+        </div>
+
+        <!-- ── Vista previa ── -->
+        <aside class="td-previa" aria-label="Vista previa del tiquete">
+          <div class="td-previa__cab">
+            <span>Vista previa · papel de {{ actual().papel }} mm</span>
+            <small>Pedido de ejemplo</small>
+          </div>
+          <div class="td-previa__mesa">
+            <div class="td-previa__papel" [style.width.px]="anchoPrevia()">
+              @if (htmlPrevia(); as html) {
+                <iframe
+                  title="Vista previa del tiquete"
+                  [srcdoc]="html"
+                  [style.height.px]="altoPrevia()"
+                  (load)="ajustarAlto($event)"
+                ></iframe>
+              }
+            </div>
+          </div>
+          @if (esFe()) {
+            <p class="td-previa__nota">
+              El CUFE y el QR son de ejemplo. En una factura real, el QR abre la consulta del
+              documento en la DIAN.
+            </p>
+          }
+        </aside>
+      </div>
+    }
+  </article>
+</section>

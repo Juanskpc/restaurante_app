@@ -20,6 +20,7 @@ import { FacturacionService } from '../../../core/services/facturacion.service';
 import { ConfiguracionNegocio } from './configuracion.models';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 import { CartaDisenoPanelComponent } from './carta-diseno/carta-diseno-panel';
+import { TiqueteDisenoPanelComponent } from './tiquete-diseno/tiquete-diseno-panel';
 import { CajasPanelComponent } from './cajas-panel/cajas-panel';
 import { BarriosPanelComponent } from './barrios-panel/barrios-panel';
 import { MiPlanPanelComponent } from './mi-plan/mi-plan-panel';
@@ -63,13 +64,14 @@ function optionalUrlValidator(control: AbstractControl): ValidationErrors | null
   return { url: true };
 }
 
-type TabConfig = 'general' | 'apariencia' | 'cobros' | 'cajas' | 'operacion';
+type TabConfig = 'general' | 'apariencia' | 'tiquete' | 'cobros' | 'cajas' | 'operacion';
 
 @Component({
   selector: 'app-configuracion',
   imports: [
     ReactiveFormsModule, LucideAngularModule,
-    CartaDisenoPanelComponent, CajasPanelComponent, BarriosPanelComponent, MiPlanPanelComponent,
+    CartaDisenoPanelComponent, TiqueteDisenoPanelComponent, CajasPanelComponent,
+    BarriosPanelComponent, MiPlanPanelComponent,
   ],
   templateUrl: './configuracion.html',
   styleUrl: './configuracion.scss',
@@ -95,6 +97,7 @@ export class ConfiguracionComponent {
   private readonly todasLasTabs = [
     { id: 'general'    as const, label: 'General',    icono: 'settings' },
     { id: 'apariencia' as const, label: 'Apariencia', icono: 'palette' },
+    { id: 'tiquete'    as const, label: 'Tiquete',    icono: 'printer' },
     { id: 'cobros'     as const, label: 'Cobros',     icono: 'wallet' },
     { id: 'cajas'      as const, label: 'Cajas',      icono: 'banknote' },
     { id: 'operacion'  as const, label: 'Operación',  icono: 'toggle-right' },
@@ -107,6 +110,8 @@ export class ConfiguracionComponent {
 
   /** El editor de la carta: se le pregunta si hay cambios sin publicar antes de salir. */
   private readonly panelCarta = viewChild(CartaDisenoPanelComponent);
+  /** El editor del tiquete: igual que la carta, su borrador vive en pantalla hasta guardar. */
+  private readonly panelTiquete = viewChild(TiqueteDisenoPanelComponent);
 
   /**
    * Cambia de pestaña sin perder en silencio un diseño de carta a medio hacer.
@@ -120,6 +125,16 @@ export class ConfiguracionComponent {
       const salir = await this.uiFeedback.confirm({
         title: 'Cambios sin publicar',
         message: 'Hiciste cambios en la carta virtual que tus clientes todavía no ven. Si cambias de pestaña se descartan.',
+        confirmText: 'Descartar y salir',
+        cancelText: 'Seguir editando',
+        tone: 'warning',
+      });
+      if (!salir) return;
+    }
+    if (this.tab() === 'tiquete' && this.panelTiquete()?.hayCambios()) {
+      const salir = await this.uiFeedback.confirm({
+        title: 'Cambios sin guardar',
+        message: 'Hiciste cambios en el diseño del tiquete que todavía no guardas. Si cambias de pestaña se descartan.',
         confirmText: 'Descartar y salir',
         cancelText: 'Seguir editando',
         tone: 'warning',
