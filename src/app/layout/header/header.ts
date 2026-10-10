@@ -53,6 +53,22 @@ export class HeaderComponent implements OnDestroy {
   /** Lista de negocios del usuario. */
   readonly negocios = computed(() => this.auth.negocios());
 
+  /**
+   * ¿Este negocio es una sede de otro?
+   *
+   * Ausente se lee como matriz: una sesión anterior a esta columna no la trae, y ahí lo correcto
+   * es no enseñar nada — una etiqueta que sale siempre no distingue nada.
+   */
+  esSede(n: { id_negocio_padre?: number | null }): boolean {
+    return n.id_negocio_padre != null;
+  }
+
+  /** El nombre de la matriz de una sede, si está entre los negocios del usuario. */
+  nombreMatriz(n: { id_negocio_padre?: number | null }): string | null {
+    if (n.id_negocio_padre == null) return null;
+    return this.negocios().find((m) => m.id_negocio === n.id_negocio_padre)?.nombre ?? null;
+  }
+
   /** Nombre completo del usuario para el chip del header. */
   readonly displayName = computed(() => {
     const u = this.auth.usuario();

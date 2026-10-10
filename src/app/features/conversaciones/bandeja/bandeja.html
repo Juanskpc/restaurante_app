@@ -16,8 +16,16 @@
   <!-- ── Barra superior: identidad y negocios ──────────────────── -->
   <header class="bdj__top">
     <div class="bdj__marca">
-      <span class="bdj__marca-icono" aria-hidden="true">
-        <lucide-icon name="message-circle" [size]="18" />
+      <!-- El icono lleva la misma cuenta que la burbuja del menú: quien entra aquí desde otra
+           pantalla ve confirmado el número que le hizo entrar. -->
+      <span class="bdj__marca-icono">
+        <lucide-icon name="message-circle" [size]="18" aria-hidden="true" />
+        @if (pendientesTotal() > 0) {
+          <span class="bdj__marca-burbuja"
+                [attr.aria-label]="pendientesTotal() + ' conversaciones esperan respuesta'">
+            {{ pendientesTotal() > 99 ? '99+' : pendientesTotal() }}
+          </span>
+        }
       </span>
       <div class="bdj__marca-texto">
         <h1 class="bdj__title">Conversaciones</h1>
@@ -143,31 +151,38 @@
 
   <!-- ── Panel izquierdo: la lista ─────────────────────────────── -->
   <aside class="bdj__lista-panel">
-    <div class="bdj__buscador">
-      <lucide-icon name="search" [size]="15" aria-hidden="true" />
-      <input
-        type="search"
-        placeholder="Buscar una conversación"
-        [ngModel]="busqueda()"
-        (ngModelChange)="busqueda.set($event)"
-      />
-    </div>
+    <!-- Buscador y filtro. En el teléfono comparten renglón: una fila entera para un solo
+         botón son ~44px menos de lista, y la lista ES la pantalla. El contenedor no pinta nada
+         en escritorio (ver `&__fila-busqueda`). -->
+    <div class="bdj__fila-busqueda">
+      <div class="bdj__buscador">
+        <lucide-icon name="search" [size]="15" aria-hidden="true" />
+        <input
+          type="search"
+          placeholder="Buscar una conversación"
+          [ngModel]="busqueda()"
+          (ngModelChange)="busqueda.set($event)"
+        />
+      </div>
 
-    <!-- «Esperan respuesta» sobre la lista que filtra, como estuvo hasta septiembre (pedido del
-         dueño, 2026-10-02): en la cabecera quedaba lejos de lo que filtra. -->
-    <div class="bdj__lista-filtros">
-      <button
-        type="button"
-        class="bdj__chip bdj__chip--espera"
-        [class.bdj__chip--on]="soloEscaladas()"
-        [class.bdj__chip--alerta]="escaladas() > 0"
-        (click)="alternarEscaladas()"
-      >
-        Esperan respuesta
-        @if (escaladas() > 0) {
-          <span class="bdj__contador bdj__contador--alerta">{{ escaladas() }}</span>
-        }
-      </button>
+      <!-- «Esperan respuesta» sobre la lista que filtra, como estuvo hasta septiembre (pedido
+           del dueño, 2026-10-02): en la cabecera quedaba lejos de lo que filtra. -->
+      <div class="bdj__lista-filtros">
+        <button
+          type="button"
+          class="bdj__chip bdj__chip--espera"
+          [class.bdj__chip--on]="soloEscaladas()"
+          [class.bdj__chip--alerta]="escaladas() > 0"
+          (click)="alternarEscaladas()"
+          [attr.aria-label]="escaladas() + ' conversaciones esperan respuesta'"
+        >
+          <lucide-icon name="clock" [size]="13" aria-hidden="true" />
+          <span class="bdj__chip-texto">Esperan respuesta</span>
+          @if (escaladas() > 0) {
+            <span class="bdj__contador bdj__contador--alerta">{{ escaladas() }}</span>
+          }
+        </button>
+      </div>
     </div>
 
     <div class="bdj__scroll">
@@ -217,7 +232,15 @@
                   </span>
                   <span class="bdj__item-fila">
                     <span class="bdj__item-texto">{{ c.ultimo_texto || '—' }}</span>
-                    @if (c.escalada) {
+                    <!-- Cuántos mensajes seguidos mandó sin que nadie contestara. Con uno solo
+                         no se pinta: «1» al lado de un mensaje sin responder no dice nada que
+                         no diga ya el propio mensaje. Desde dos, sí: es alguien insistiendo. -->
+                    @if ((c.sin_responder ?? 0) > 1) {
+                      <span class="bdj__item-cuenta"
+                            [attr.title]="c.sin_responder + ' mensajes sin responder'">
+                        {{ c.sin_responder! > 99 ? '99+' : c.sin_responder }}
+                      </span>
+                    } @else if (c.escalada) {
                       <span class="bdj__punto" title="Espera respuesta"></span>
                     }
                   </span>

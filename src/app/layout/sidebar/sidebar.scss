@@ -474,3 +474,24 @@ $bottom-nav-height: 64px;
   from { transform: translateY(100%); }
   to { transform: translateY(0); }
 }
+
+/**
+ * Burbujas de alerta del menú (`badgeAlerta`).
+ *
+ * Rojo en vez del color de marca porque lo que cuentan es **gente esperando**, no cosas
+ * pendientes: con la paleta de un inquilino el color de marca puede ser un verde que invita a
+ * no mirarlo. Una cuenta neutra futura se queda con el estilo de arriba.
+ *
+ * Van al FINAL del archivo y con la misma anidación que las reglas base a propósito: puestas
+ * antes, o planas, la regla base las pisaba — misma especificidad, gana la que va después, y
+ * `.bottom-badge` además vive anidada dentro de `.bottom-nav`.
+ */
+.nav-badge.nav-badge--alerta {
+  background-color: var(--color-error);
+  color: #fff;
+}
+
+.bottom-nav .bottom-badge.bottom-badge--alerta {
+  background-color: var(--color-error);
+  color: #fff;
+}

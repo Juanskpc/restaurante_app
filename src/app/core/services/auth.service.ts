@@ -57,6 +57,17 @@ export interface EstadoPlan {
 export interface NegocioRestaurante {
   id_negocio: number;
   nombre: string;
+  /**
+   * De qué matriz cuelga, cuando este negocio es una SEDE. `null` = es una matriz.
+   *
+   * Solo sirve para etiquetar: una sede es un negocio completo —su propio id, su caja, su
+   * inventario y su plan—, así que el aislamiento sigue siendo por `id_negocio` exactamente
+   * igual que antes. Lo que arregla es el selector del header: un dueño con dos sedes veía dos
+   * entradas con el mismo nombre del tipo y sin saber cuál era cuál.
+   *
+   * Ausente en una sesión anterior a esta columna, y entonces se lee como matriz.
+   */
+  id_negocio_padre?: number | null;
   tipo_negocio: string | null;
   paleta: { id_paleta: number; nombre: string; colores: Record<string, string> } | null;
   permite_multipago?: boolean;

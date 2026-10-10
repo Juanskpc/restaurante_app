@@ -42,7 +42,10 @@
   grid-template-rows: auto minmax(0, 1fr);
   /* `--bdj-extra`: alto de lo que una pantalla anfitriona ponga encima (p. ej. el selector de
      negocio de WhatsApp), para que la bandeja no se salga del área visible. Sin nada encima, 0. */
-  height: calc(100dvh - 8rem - var(--bdj-extra, 0rem));
+  /* `--bdj-cromo`: lo que ocupa la app de alrededor (cabecera y relleno). Es un token y no un
+     número en duro porque la Bandeja vive en dos apps con cromos distintos, y el que no encaja
+     no se nota como un error: se nota como un hueco muerto abajo. */
+  height: calc(100dvh - var(--bdj-cromo, 8rem) - var(--bdj-extra, 0rem));
   min-height: 26rem;
   border: 1px solid var(--color-border);
   border-radius: 0.875rem;
@@ -51,9 +54,13 @@
 
   /* En móvil no caben dos paneles: manda la lista, y el hilo se superpone al abrirlo. */
   @media (max-width: 48rem) {
-    /* Descuenta la barra de navegación inferior del móvil (62px + área segura). */
+    /* En móvil el cromo es otro: cambia el relleno y aparece la barra inferior. El valor por
+       defecto es el del panel, que NO reserva sitio para esa barra y por eso la descuenta aquí.
+       Una app que sí la reserve pisa el token y evita descontarla dos veces — que es lo que
+       dejaba un dedo de hueco muerto bajo la lista. */
     height: calc(
-      100dvh - 8rem - var(--bdj-extra, 0rem) - 62px - env(safe-area-inset-bottom, 0px)
+      100dvh - var(--bdj-cromo-movil, calc(8rem + 62px + env(safe-area-inset-bottom, 0px)))
+      - var(--bdj-extra, 0rem)
     );
     grid-template-columns: 1fr;
   }
@@ -78,14 +85,38 @@
   }
 
   &__marca-icono {
+    position: relative;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    flex: 0 0 auto;
     width: 2.25rem;
     height: 2.25rem;
     border-radius: 0.75rem;
     background: var(--bdj-verde-hondo);
     color: #fff;
+  }
+
+  /* Cuántas esperan respuesta, sobre el icono. Va en el borde y no dentro: dentro taparía el
+     icono, y lo que hace reconocible la pantalla es el icono, no el número. */
+  &__marca-burbuja {
+    position: absolute;
+    top: -0.3rem;
+    right: -0.3rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.15rem;
+    height: 1.15rem;
+    padding: 0 0.3rem;
+    border-radius: 999px;
+    border: 2px solid var(--color-surface);
+    background: var(--color-error);
+    color: #fff;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
   }
 
   &__marca-texto {
@@ -119,11 +150,40 @@
     padding-left: 0.25rem;
   }
 
+  /* Las acciones («Gestionar número», «Pausar asistente», el informe…) van SIEMPRE en una fila.
+     Envolverlas se probó y queda peor: con cuatro botones de ancho distinto la cabecera crecía
+     a tres renglones y se comía la lista. Lo que faltaba era poder llegar a los que no caben —
+     antes se salían de la pantalla sin forma de alcanzarlos. */
   &__top-acciones {
     display: flex;
     align-items: center;
     gap: 0.375rem;
     margin-left: auto;
+    flex-wrap: nowrap;
+    min-width: 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    /* Un pelo de aire abajo para que la barra de scroll no se coma el borde de los botones. */
+    padding-bottom: 0.125rem;
+
+    /* Sin esto el navegador encoge los botones hasta romper su texto en vez de desbordar, que
+       es justo lo que hace que no haya nada que arrastrar. */
+    > * {
+      flex: 0 0 auto;
+    }
+
+    /* Angosto: la fila pasa a ocupar el ancho completo bajo la marca, que es donde de verdad
+       tiene sitio para arrastrarse. */
+    @media (max-width: 48rem) {
+      flex: 1 1 100%;
+      margin-left: 0;
+      /* Se sale del relleno de la cabecera para que el primer y el último botón lleguen al
+         borde: si no, parece que la fila se acaba antes de donde se acaba. */
+      margin-inline: -0.875rem;
+      padding-inline: 0.875rem;
+    }
   }
 
   /* ── Panel de la lista ──────────────────────────────────────── */
@@ -144,6 +204,39 @@
     flex-wrap: wrap;
     gap: 0.375rem;
     margin: 0 0.875rem 0.5rem;
+
+    /* En el teléfono una fila entera para un solo botón es cara: son ~44px menos de lista, y
+       la lista es la pantalla. El filtro sigue estando —hace falta para aislar lo que espera—
+       pero comparte renglón con el buscador, y su cuenta ya se ve en el menú y en el icono. */
+    @media (max-width: 48rem) {
+      flex: 0 0 auto;
+      margin: 0;
+    }
+  }
+
+  /* Por debajo de 23rem (un teléfono pequeño) el rótulo del filtro se va y queda el icono con
+     su cuenta: entre poder buscar y poder leer «Esperan respuesta», buscar gana. El botón
+     sigue teniendo su `aria-label` completo. */
+  &__chip-texto {
+    @media (max-width: 23rem) {
+      display: none;
+    }
+  }
+
+  /* Buscador y filtro, juntos en móvil (ver `&__lista-filtros`). */
+  &__fila-busqueda {
+    @media (max-width: 48rem) {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin: 0.625rem 0.875rem 0.5rem;
+
+      .bdj__buscador {
+        flex: 1 1 auto;
+        min-width: 0;
+        margin: 0;
+      }
+    }
   }
 
   &__buscador {
@@ -420,12 +513,37 @@
     color: var(--color-text-secondary);
   }
 
+  /* El último mensaje, en una línea y con puntos suspensivos. `min-width: 0` es lo que hace
+     que de verdad se recorte: sin él un hijo de flex mide por su contenido, nunca baja de lo
+     que ocupa el texto entero y el `ellipsis` no llega a aplicarse — la fila se estiraba y la
+     conversación se salía de la columna. */
   &__item-texto {
+    flex: 1 1 auto;
+    min-width: 0;
     font-size: 0.8125rem;
     color: var(--color-text-secondary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  /* Cuántos mensajes seguidos lleva sin respuesta. Es un número, no un punto: «3» dice que
+     alguien escribió tres veces y nadie contestó, y eso ordena la cola de trabajo. */
+  &__item-cuenta {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.125rem;
+    height: 1.125rem;
+    padding: 0 0.3125rem;
+    border-radius: 999px;
+    background: var(--color-error);
+    color: #fff;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
   }
 
   &__punto {

@@ -42,6 +42,12 @@ function authFalso(opciones: {
     negocio,
     tieneFeature: (codigo: string) => (opciones.features ?? []).includes(codigo),
     canAccessSubnivel: (codigo: string) => (opciones.subniveles ?? []).includes(codigo),
+    // Los usa `ConversacionesPendientesService`, que la Bandeja inyecta para la burbuja del
+    // menú. Sin ellos, montar `app-bandeja` revienta con «no es una función» — y revienta en
+    // tiempo de EJECUCIÓN, con el build en verde, que es por lo que estas pruebas montan de
+    // verdad en vez de comprobar solo los computed.
+    isAuthenticated: () => true,
+    canAccessRoute: (ruta: string) => ruta === '/conversaciones',
   };
 }
 
@@ -114,6 +120,28 @@ describe('ConversacionesComponent', () => {
 
     expect(comp.vista()).toBe('conversaciones');
     expect(fixture.nativeElement.querySelector('app-bandeja')).not.toBeNull();
+  });
+
+  it('«Gestionar número» NO rebota a las conversaciones (regresión 2026-10-10)', () => {
+    // El fallo: la pantalla de conexión avisa de su estado nada más montarse, y ese primer
+    // aviso reseteaba la vista elegida. El botón ponía «numero», el componente se montaba,
+    // decía «conectado: true» y volvía solo a las conversaciones. Desde fuera, el botón no
+    // hacía nada. La primera lectura informa; solo un CAMBIO real mueve la vista.
+    const fixture = montar(authFalso({
+      features: ['asistente_ia'],
+      subniveles: ['whatsapp_numero'],
+    }));
+    const comp = fixture.componentInstance;
+
+    comp.alCambiarEstadoDelCanal({ idNegocio: 6, conectado: true });
+    expect(comp.vista()).toBe('conversaciones');
+
+    comp.irA('numero');
+    // Lo que hacía la pantalla de conexión al montarse: repetir el estado que ya se sabía.
+    comp.alCambiarEstadoDelCanal({ idNegocio: 6, conectado: true });
+    fixture.detectChanges();
+
+    expect(comp.vista()).toBe('numero');
   });
 
   it('«Gestionar número» vuelve a la conexión sin perder que está conectado', () => {

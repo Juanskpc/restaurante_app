@@ -37,6 +37,16 @@ export interface ConversacionBandeja {
    * Llega en 0 cuando el entorno todavía no tiene la tabla migrada.
    */
   reportes: number;
+  /**
+   * Cuántos mensajes del cliente quedaron SIN contestar: los que entraron después de la última
+   * salida nuestra (del asistente o de una persona).
+   *
+   * No es lo mismo que `escalada`. Una conversación puede estar escalada con un solo mensaje
+   * esperando, y otra puede tener tres mensajes seguidos que el asistente sí contestó. Este
+   * número contesta «cuánto lleva acumulado esta persona sin respuesta», que es lo que decide a
+   * quién se atiende primero.
+   */
+  sin_responder?: number;
   /** Última vez que una persona del negocio intervino (ADR-023, Enmienda 2). Solo en el detalle. */
   humano_ultimo_en?: string | null;
   /** Minutos tras los cuales el asistente vuelve solo; 0 = nunca. Solo en el detalle. */

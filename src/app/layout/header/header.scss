@@ -355,3 +355,26 @@
     display: none;
   }
 }
+
+// La etiqueta «Sede» del selector de negocio.
+//
+// Una sede es un negocio aparte (`id_negocio_padre`); esto solo existe para que un dueño con
+// dos locales sepa en cuál está. `color-mix` y nunca `rgba(var(--color-primary-rgb))`: las
+// paletas por inquilino no inyectan la variante `-rgb`.
+.opt-sede {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--color-primary) 14%, transparent);
+  color: var(--color-primary);
+  vertical-align: middle;
+}
+
+// Dentro de la opción activa el fondo ya es el primario: la etiqueta se invierte para que se lea.
+.selector-option.active .opt-sede {
+  background: color-mix(in srgb, var(--color-on-primary) 22%, transparent);
+  color: var(--color-on-primary);
+}

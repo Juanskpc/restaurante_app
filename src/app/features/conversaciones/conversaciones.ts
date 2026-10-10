@@ -89,11 +89,25 @@ export class ConversacionesComponent {
     this.vistaElegida.set(vista);
   }
 
+  /**
+   * Lo que cuenta la pantalla de conexión cada vez que consulta el estado del canal.
+   *
+   * ⚠️ **Solo se cambia de vista cuando el estado CAMBIA de verdad.** La primera versión
+   * reseteaba `vistaElegida` siempre, y eso rompía «Gestionar número»: el botón ponía la vista
+   * en «numero», la pantalla de conexión se montaba, consultaba el estado, avisaba «conectado:
+   * true» con ese mismo aviso, y el reset devolvía a las conversaciones antes de que diera
+   * tiempo a ver nada. Desde fuera el botón no hacía absolutamente nada.
+   *
+   * Ahora la primera lectura solo informa. Conectar o desconectar sí mueve la vista, porque ahí
+   * el cambio lo provocó la persona y quedarse donde estaba parecería que no pasó nada.
+   */
   alCambiarEstadoDelCanal(evento: { idNegocio: number; conectado: boolean }): void {
+    const antes = this.conectado();
     this.conectado.set(evento.conectado);
-    // Al conectar se pasa solo a las conversaciones: es lo que la persona venía buscando, y
-    // quedarse en la pantalla de conexión después de conectar parece que no pasó nada.
-    // Al DESconectar se vuelve a la de conexión por el mismo motivo, al revés.
+
+    if (antes === null) return;          // primera lectura: no se sabía nada, no se decide nada
+    if (antes === evento.conectado) return;  // un refresco que dice lo mismo no mueve a nadie
+
     this.vistaElegida.set(null);
   }
 

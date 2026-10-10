@@ -25,8 +25,16 @@
                     class="selector-option"
                     [class.active]="neg.id_negocio === auth.negocio()?.id_negocio"
                     (click)="selectNegocio(neg.id_negocio); $event.stopPropagation()">
-              <span class="opt-name">{{ neg.nombre }}</span>
-              <span class="opt-tipo">{{ neg.tipo_negocio }}</span>
+              <span class="opt-name">
+                {{ neg.nombre }}
+                <!-- La etiqueta solo aparece si de verdad hay sedes: una que sale siempre no
+                     distingue nada. -->
+                @if (esSede(neg)) { <span class="opt-sede">Sede</span> }
+              </span>
+              <span class="opt-tipo">
+                @if (nombreMatriz(neg); as matriz) { de {{ matriz }} · }
+                {{ neg.tipo_negocio }}
+              </span>
             </button>
           }
         </div>

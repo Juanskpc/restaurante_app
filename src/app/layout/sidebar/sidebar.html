@@ -46,7 +46,9 @@
         <lucide-icon [name]="item.icon" [size]="20" />
         <span class="nav-label">{{ item.label }}</span>
         @if (item.badge) {
-          <span class="nav-badge">{{ item.badge }}</span>
+          <span class="nav-badge" [class.nav-badge--alerta]="item.badgeAlerta">
+            {{ item.badge > 99 ? '99+' : item.badge }}
+          </span>
         }
       </a>
     }
@@ -87,7 +89,9 @@
       <lucide-icon [name]="item.icon" [size]="22" />
       <span>{{ item.label }}</span>
       @if (item.badge) {
-        <span class="bottom-badge">{{ item.badge }}</span>
+        <span class="bottom-badge" [class.bottom-badge--alerta]="item.badgeAlerta">
+          {{ item.badge > 99 ? '99+' : item.badge }}
+        </span>
       }
     </a>
   }

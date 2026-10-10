@@ -19,19 +19,22 @@
 }
 
 /**
- * El alto de la Bandeja, comprobado al traerla.
+ * El cromo de ESTA app, que es lo que la Bandeja tiene que descontar del alto de la pantalla.
  *
- * `bandeja.scss` calcula `100dvh - 8rem - var(--bdj-extra, 0)`, donde los 8rem son el cromo de
- * la app anfitriona. En `negocio_app` el cromo de escritorio son 64px de cabecera + 2rem de
- * relleno arriba y 2rem abajo = **exactamente 8rem**, así que no hay que corregir nada y por eso
- * no se fija `--bdj-extra`.
+ * Escritorio: 64px de cabecera + 2rem de relleno arriba + 2rem abajo = exactamente 8rem, que es
+ * el valor por defecto de la Bandeja. No hay nada que corregir y por eso no se fija el token.
  *
- * ⚠️ En móvil la cuenta queda **unos 30px corta**: el layout ya reserva `padding-bottom: 64px`
- * para la barra inferior y `bandeja.scss` vuelve a descontar 62px por su cuenta. No se sale de
- * la pantalla —se queda más baja de lo que podría—, así que se deja como está hasta verlo en un
- * teléfono de verdad. Si hace falta, se corrige aquí con un `--bdj-extra` negativo en la
- * media query, no tocando el componente: es cromo de ESTA app, no de la Bandeja.
+ * Móvil: 64px de cabecera + 1rem de relleno arriba + 64px abajo = **144px**. El valor por
+ * defecto de la Bandeja (8rem + 62px ≈ 190px) es el del panel de administración, que no reserva
+ * sitio para una barra inferior y por eso la descuenta él mismo. Aquí el layout YA la reserva
+ * con `padding-bottom: 64px`, así que descontarla otra vez dejaba casi un dedo de hueco muerto
+ * entre la última conversación y la barra — el margen de más que se veía en el teléfono.
  */
+.conv {
+  @media (max-width: 48rem) {
+    --bdj-cromo-movil: 144px;
+  }
+}
 
 .conv__cabecera {
   display: flex;

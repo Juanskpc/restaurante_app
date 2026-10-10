@@ -9,6 +9,7 @@ import { HeaderComponent } from './header/header';
 import { NavProgressComponent } from './nav-progress/nav-progress';
 import { PlanAvisoComponent } from './plan-aviso/plan-aviso';
 import { AuthService } from '../core/services/auth.service';
+import { ConversacionesPendientesService } from '../core/services/conversaciones-pendientes.service';
 import { SidebarService } from '../core/services/sidebar.service';
 import { RealtimeService } from '../core/services/realtime.service';
 import { SonidoAlertaService } from '../core/services/sonido-alerta.service';
@@ -53,6 +54,7 @@ export class LayoutComponent {
   private readonly realtime = inject(RealtimeService);
   private readonly sonido = inject(SonidoAlertaService);
   private readonly ui = inject(UiFeedbackService);
+  private readonly pendientes = inject(ConversacionesPendientesService);
 
   /** Lo decide el botón del sidebar; aquí solo se usa para correr el contenido. */
   readonly sidebarColapsado = inject(SidebarService).colapsado;
@@ -95,6 +97,11 @@ export class LayoutComponent {
     this.destroyRef.onDestroy(
       this.realtime.alAvisar('escalada', () => this.alEscalarseUnaConversacion()),
     );
+
+    // La burbuja del menú con cuántas conversaciones esperan a una persona. Se arranca aquí y
+    // no en la pantalla de Conversaciones porque su gracia es verse DESDE las demás: quien está
+    // en Pedidos o en Caja es justo quien no se iba a enterar.
+    this.pendientes.iniciar();
   }
 
   /**

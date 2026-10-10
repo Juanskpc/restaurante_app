@@ -48,6 +48,24 @@ export class BandejaService {
    */
   private readonly API = environment.adminApiUrl;
 
+  /**
+   * Solo el número de conversaciones que esperan a una persona.
+   *
+   * Lo usa la campanita del menú, que vive fuera de esta pantalla y pregunta cada pocos
+   * segundos. Por eso no reutiliza `getConversaciones`: traer hasta 100 conversaciones con su
+   * último mensaje para contarlas sale caro, y el número saldría mal pasadas las 100.
+   */
+  getPendientes(idNegocio?: number | null): Observable<number> {
+    let params = new HttpParams();
+    if (idNegocio) params = params.set('id_negocio', `${idNegocio}`);
+    return this.http
+      .get<ApiResponse<{ disponible: boolean; total: number }>>(
+        `${this.API}/intelligence/bandeja/pendientes`,
+        { params },
+      )
+      .pipe(map((res) => Number(res.data?.total ?? 0)));
+  }
+
   getConversaciones(filtros: { id_negocio?: number; solo_escaladas?: boolean } = {}):
     Observable<BandejaListado> {
     let params = new HttpParams();

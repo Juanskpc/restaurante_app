@@ -25,6 +25,7 @@ import {
 
 import { BandejaService } from '../../../core/services/bandeja.service';
 import { PantallaAnchaService } from '../../../core/services/pantalla-ancha.service';
+import { ConversacionesPendientesService } from '../../../core/services/conversaciones-pendientes.service';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 import { ModalCabeceraComponent } from '../shared/modal-cabecera';
 import {
@@ -169,6 +170,7 @@ export class BandejaComponent implements OnInit, OnDestroy {
   private readonly platformId = inject(PLATFORM_ID);
   private readonly pantallaAncha = inject(PantallaAnchaService);
   private readonly ui = inject(UiFeedbackService);
+  private readonly pendientes = inject(ConversacionesPendientesService);
   /** ¿Esta instancia tiene pedido el ancho completo al layout? Para soltarlo una sola vez. */
   private anchoPedido = false;
 
@@ -546,7 +548,18 @@ export class BandejaComponent implements OnInit, OnDestroy {
     () => this.negocioFijo() === null && this.negocios().length > 1,
   );
 
+  /**
+   * Cuántas esperan respuesta, para el chip que filtra.
+   *
+   * ⚠️ Cuenta sobre lo que hay EN PANTALLA, y la lista viene con un límite: pasadas 30
+   * conversaciones esta cifra se queda corta. Sirve para el chip —que filtra justo esa lista—
+   * pero **no** para la burbuja del menú ni la del icono, que tienen que decir la verdad desde
+   * cualquier pantalla. Esas leen `pendientesTotal`, que es un COUNT del servidor.
+   */
   readonly escaladas = computed(() => this.conversaciones().filter((c) => c.escalada).length);
+
+  /** El número de verdad: un COUNT del servidor, sin el techo del listado. */
+  readonly pendientesTotal = this.pendientes.total;
 
   /** La búsqueda sí es local: filtra lo que ya está en pantalla, como la de WhatsApp. */
   // ── Conversaciones que esperan respuesta y YA se abrieron ──
@@ -1112,6 +1125,7 @@ export class BandejaComponent implements OnInit, OnDestroy {
           conversacion: { ...actual.conversacion, escalada: false },
         });
         this.cargar(true);
+        this.pendientes.refrescar();
       },
       error: () => this.errorEnvio.set('No se pudo marcar como atendida.'),
     });
@@ -1132,6 +1146,7 @@ export class BandejaComponent implements OnInit, OnDestroy {
       next: () => {
         this.cargarHilo(actual.conversacion.id_conversacion, true);
         this.cargar(true);
+        this.pendientes.refrescar();
       },
       error: () => this.errorEnvio.set('No se pudo devolver la conversación al asistente.'),
     });
@@ -1171,6 +1186,7 @@ export class BandejaComponent implements OnInit, OnDestroy {
           this.bloqueando.set(false);
           this.ui.success('Usuario reportado y bloqueado: el asistente ya no le contestará.');
           this.cargar(true);
+          this.pendientes.refrescar();
         },
         error: (err) => {
           this.bloqueando.set(false);
@@ -1197,6 +1213,7 @@ export class BandejaComponent implements OnInit, OnDestroy {
         this.bloqueando.set(false);
         this.ui.success('Usuario desbloqueado: el asistente vuelve a contestarle.');
         this.cargar(true);
+        this.pendientes.refrescar();
       },
       error: (err) => {
         this.bloqueando.set(false);
@@ -1233,6 +1250,7 @@ export class BandejaComponent implements OnInit, OnDestroy {
         // real que puso el backend, y no uno optimista que podría ser mentira.
         this.cargarHilo(actual.conversacion.id_conversacion, true);
         this.cargar(true);
+        this.pendientes.refrescar();
       },
       error: (err) => {
         this.enviando.set(false);

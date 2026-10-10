@@ -3,6 +3,7 @@ import { RouterLink, RouterLinkActive, IsActiveMatchOptions } from '@angular/rou
 import { LucideAngularModule } from 'lucide-angular';
 
 import { AuthService } from '../../core/services/auth.service';
+import { ConversacionesPendientesService } from '../../core/services/conversaciones-pendientes.service';
 import { SidebarService } from '../../core/services/sidebar.service';
 import { UiFeedbackService } from '../../core/ui-feedback/ui-feedback.service';
 
@@ -21,6 +22,14 @@ export interface NavItem {
   label: string;
   route: string;
   badge?: number;
+  /**
+   * La burbuja va en rojo y no en el color de marca.
+   *
+   * Se usa cuando lo que cuenta es gente esperando, no cosas pendientes: «4 clientes sin
+   * respuesta» es urgencia, y con la paleta del inquilino podría salir en un verde que invita
+   * a no mirarlo. Las cuentas neutras que vengan después se quedan con el estilo de siempre.
+   */
+  badgeAlerta?: boolean;
   /** 'main' aparece en el bottom nav móvil; 'secondary' solo en sidebar/menú "Más" */
   section: 'main' | 'secondary';
 }
@@ -33,6 +42,7 @@ export interface NavItem {
 })
 export class SidebarComponent {
   readonly auth = inject(AuthService);
+  private readonly pendientes = inject(ConversacionesPendientesService);
   private readonly ui = inject(UiFeedbackService);
   private readonly sidebar = inject(SidebarService);
 
@@ -80,13 +90,31 @@ export class SidebarComponent {
     '/mesas': 'pedidos_en_mesa',
   };
 
-  readonly navItemsPermitidos = computed(() =>
-    this.navItems.filter((item) => {
-      if (!this.auth.canAccessRoute(item.route)) return false;
-      const subnivel = this.subnivelPorRuta[item.route];
-      return !subnivel || this.auth.canAccessSubnivel(subnivel);
-    })
-  );
+  /**
+   * Contadores que se pintan como burbuja sobre el icono del menú.
+   *
+   * Son de la app entera y no de una pantalla: la gracia de la burbuja de Conversaciones es
+   * que se vea desde Pedidos o desde Caja, que es donde está el cajero cuando un cliente
+   * escribe. Al ser un `computed` sobre un signal, sube y baja sola.
+   */
+  private readonly badgePorRuta = computed<Record<string, number>>(() => ({
+    '/conversaciones': this.pendientes.total(),
+  }));
+
+  readonly navItemsPermitidos = computed(() => {
+    const badges = this.badgePorRuta();
+    return this.navItems
+      .filter((item) => {
+        if (!this.auth.canAccessRoute(item.route)) return false;
+        const subnivel = this.subnivelPorRuta[item.route];
+        return !subnivel || this.auth.canAccessSubnivel(subnivel);
+      })
+      .map((item) =>
+        badges[item.route] === undefined
+          ? item
+          : { ...item, badge: badges[item.route], badgeAlerta: true },
+      );
+  });
 
   /** Items principales (bottom nav). */
   readonly mainItems = computed(() => this.navItemsPermitidos().filter(i => i.section === 'main'));
