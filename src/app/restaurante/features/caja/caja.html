@@ -634,6 +634,51 @@
           </section>
         }
       }
+
+      <!-- ───────── Venta por sector ─────────
+           NO es un segundo arqueo: el arqueo es «Por forma de pago», que cuadra el cajón.
+           Esto contesta otra pregunta —de lo que cobré hoy, cuánto fue de cada sector— y se
+           mide sobre los pedidos, no sobre los movimientos. Solo aparece si el negocio creó
+           sectores en Configuración → Sectores. -->
+      @if (filasRubro(c); as r) {
+        <section class="panel">
+          <header class="panel__head">
+            <div>
+              <h2>Venta por sector</h2>
+              <p>
+                De los {{ r.ordenes }} {{ r.ordenes === 1 ? 'pedido cobrado' : 'pedidos cobrados' }}
+                en este turno. Se reparte por producto, así que una mesa que pidió de varios
+                sectores cuenta en cada uno. No tiene que cuadrar con el cajón: ahí también hay
+                abonos y egresos sin pedido detrás.
+              </p>
+            </div>
+          </header>
+          <ul class="ranking">
+            @for (f of r.filas; track f.nombre) {
+              <li>
+                <div class="ranking__fila">
+                  <span class="ranking__nombre">{{ f.nombre }}</span>
+                  <strong class="ranking__valor">{{ f.total | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+                </div>
+                <div class="ranking__barra">
+                  <div [style.width.%]="f.pct" [style.background]="f.color || null"></div>
+                </div>
+                <span class="ranking__pie">{{ f.unidades }} unidad(es)</span>
+              </li>
+            }
+          </ul>
+
+          <ul class="rubro-cuadre">
+            @for (l of r.lineas; track l.label) {
+              <li [class.total]="l.total">
+                <span class="rubro-cuadre__signo">{{ l.signo }}</span>
+                <span class="rubro-cuadre__label">{{ l.label }}</span>
+                <strong>{{ l.valor | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+              </li>
+            }
+          </ul>
+        </section>
+      }
     } @else {
       <!-- Sin `caja_ver_ingresos` se sigue viendo quién abrió y cuándo, pero no el dinero. -->
       <div class="resumen">
@@ -720,6 +765,36 @@
               </div>
             }
           </div>
+        }
+
+        <!-- El corte por sector, para cerrar el día sabiendo cuánto dejó cada uno. Va después
+             de las formas de pago porque el cuadre del cajón es lo urgente al cerrar; esto es
+             lo que el dueño mira después. -->
+        @if (puedeVerIngresos()) {
+          @if (filasRubro(caja()); as r) {
+            <div class="resumen-metodos">
+              <p class="resumen-metodos__titulo">Venta por sector (de los pedidos del turno)</p>
+              @for (f of r.filas; track f.nombre) {
+                <div class="resumen-metodos__item">
+                  <span>
+                    @if (f.color) {
+                      <span class="resumen-punto" [style.background]="f.color" aria-hidden="true"></span>
+                    }
+                    {{ f.nombre }}
+                  </span>
+                  <strong>{{ f.total | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+                </div>
+              }
+              @for (l of r.lineas; track l.label) {
+                @if (l.total) {
+                  <div class="resumen-metodos__item resumen-metodos__item--total">
+                    <span>{{ l.label }}</span>
+                    <strong>{{ l.valor | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+                  </div>
+                }
+              }
+            </div>
+          }
         }
         <label>
           Monto contado físicamente (opcional)

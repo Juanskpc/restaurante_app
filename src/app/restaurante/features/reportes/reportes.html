@@ -47,7 +47,7 @@
   </header>
 
   <nav class="tipo-tabs" role="tablist" aria-label="Tipo de reporte">
-    @for (tipo of tipoOptions; track tipo.value) {
+    @for (tipo of tipoOptions(); track tipo.value) {
       <button
         type="button"
         role="tab"
@@ -95,6 +95,107 @@
           <lucide-icon name="search" [size]="14" />
           Aplicar
         </button>
+      </div>
+    }
+
+    <!-- ───────── Cruce con productos ─────────
+         Solo en «Ventas por usuario». Sin selección la pestaña se comporta como siempre; con
+         selección las cifras pasan a ser de esos productos y las columnas cambian. -->
+    @if (esVentasUsuarios()) {
+      <div class="prod-filtro">
+        <div class="prod-filtro__barra">
+          <button type="button" class="prod-btn" [disabled]="cargando()" (click)="abrirSelectorProductos()">
+            <lucide-icon name="list-checks" [size]="14" />
+            @if (productosDelReporte().length === 0) {
+              Cruzar con productos
+            } @else {
+              Cambiar productos ({{ productosDelReporte().length }})
+            }
+          </button>
+
+          @if (productosDelReporte().length === 0) {
+            <span class="prod-filtro__hint">
+              Elige uno o varios productos para ver quién vende más de cada uno.
+            </span>
+          } @else {
+            <span class="prod-chips">
+              @for (p of productosDelReporte(); track p.id_producto) {
+                <span class="prod-chip">
+                  {{ p.nombre }}
+                  <button type="button" class="prod-chip__x" [attr.aria-label]="'Quitar ' + p.nombre" (click)="quitarProducto(p.id_producto)">
+                    <lucide-icon name="x" [size]="11" />
+                  </button>
+                </span>
+              }
+              <button type="button" class="prod-chip prod-chip--limpiar" (click)="limpiarProductos()">
+                Quitar todos
+              </button>
+            </span>
+          }
+        </div>
+
+        @if (selectorAbierto()) {
+          <div class="prod-panel">
+            <div class="prod-panel__head">
+              <label class="prod-buscar">
+                <lucide-icon name="search" [size]="14" />
+                <input
+                  type="text"
+                  placeholder="Buscar producto o categoría…"
+                  [value]="busquedaProducto()"
+                  (input)="busquedaProducto.set($any($event.target).value)"
+                />
+              </label>
+              <span class="prod-panel__cuenta" [class.lleno]="selectorLleno()">
+                {{ productosSeleccionados().length }} de {{ maxProductos() }}
+              </span>
+            </div>
+
+            @if (!catalogoCargado()) {
+              <p class="prod-panel__muted">Cargando productos…</p>
+            } @else if (productosFiltrados().length === 0) {
+              <p class="prod-panel__muted">Ningún producto coincide con la búsqueda.</p>
+            } @else {
+              <div class="prod-grupos">
+                @for (grupo of productosFiltrados(); track grupo.categoria) {
+                  <div class="prod-grupo">
+                    <h4>{{ grupo.categoria }}</h4>
+                    <div class="prod-items">
+                      @for (p of grupo.productos; track p.id_producto) {
+                        <label
+                          class="prod-item"
+                          [class.prod-item--on]="estaElegido(p.id_producto)"
+                          [class.prod-item--off]="selectorLleno() && !estaElegido(p.id_producto)"
+                        >
+                          <input
+                            type="checkbox"
+                            [checked]="estaElegido(p.id_producto)"
+                            [disabled]="selectorLleno() && !estaElegido(p.id_producto)"
+                            (change)="alternarProducto(p.id_producto)"
+                          />
+                          <span>{{ p.nombre }}</span>
+                        </label>
+                      }
+                    </div>
+                  </div>
+                }
+              </div>
+            }
+
+            <div class="prod-panel__pie">
+              @if (selectorLleno()) {
+                <span class="prod-panel__muted">
+                  Llegaste al máximo de {{ maxProductos() }} productos. Quita alguno para añadir otro.
+                </span>
+              }
+              <button type="button" class="apply-btn" [disabled]="cargando()" (click)="aplicarSeleccionProductos()">
+                <lucide-icon name="check" [size]="14" />
+                {{ productosSeleccionados().length === 0 ? 'Ver todas las ventas' : 'Aplicar ' + productosSeleccionados().length + ' producto(s)' }}
+              </button>
+              <button type="button" class="pager-btn" (click)="cerrarSelectorProductos()">Cancelar</button>
+            </div>
+          </div>
+        }
       </div>
     }
   </section>
@@ -178,6 +279,40 @@
       </article>
     }
   </section>
+
+  <!-- ───────── Cuadre de «Ventas por sector» ─────────
+       La suma de los sectores no es el total cobrado: el domicilio, el impuesto y el
+       descuento son del pedido completo. Van en líneas aparte y no prorrateados, para que
+       cada cifra de la tabla se pueda verificar contra los tiquetes. -->
+  @if (conciliacion(); as c) {
+    <section class="cuadre-card">
+      <header class="chart-head">
+        <div>
+          <h3>Cómo cuadra con lo cobrado</h3>
+          <p>La venta de los sectores, más lo que no es producto, da el total del período.</p>
+        </div>
+        <span class="cuadre-pedidos">{{ c.ordenes }} {{ c.ordenes === 1 ? 'pedido' : 'pedidos' }}</span>
+      </header>
+
+      <ul class="cuadre-lista">
+        @for (l of c.lineas; track l.label) {
+          <li [class.total]="l.total">
+            <span class="cuadre-signo">{{ l.signo }}</span>
+            <span class="cuadre-label">{{ l.label }}</span>
+            <strong class="cuadre-valor">{{ formatCurrency(l.valor) }}</strong>
+          </li>
+        }
+      </ul>
+
+      @if (c.descuadre !== 0) {
+        <p class="cuadre-alerta">
+          <lucide-icon name="triangle-alert" [size]="14" />
+          Las líneas no suman al total cobrado: sobran {{ formatCurrency(c.descuadre) }}. Avisa al
+          soporte de EscalApp con el rango de fechas, porque eso apunta a un dato dañado.
+        </p>
+      }
+    </section>
+  }
 
   @if (graficas()) {
     <section class="charts-grid">
@@ -269,7 +404,13 @@
                     <strong class="bar-value">{{ b.valor }}</strong>
                   </div>
                   <div class="bar-track">
-                    <span class="bar-fill" [class.lead]="b.rank === 0" [style.width.%]="b.pct"></span>
+                    <span
+                      class="bar-fill"
+                      [class.lead]="b.rank === 0"
+                      [class.last]="b.ultimo"
+                      [style.width.%]="b.pct"
+                      [style.background]="b.color || null"
+                    ></span>
                   </div>
                   <span class="bar-detail">{{ b.detalle }}</span>
                 </li>
@@ -302,6 +443,7 @@
                     [attr.r]="donut().r"
                     [attr.stroke-dasharray]="s.dash"
                     [attr.stroke-dashoffset]="s.offset"
+                    [attr.stroke]="s.color || null"
                     transform="rotate(-90 70 70)"
                   />
                 }
@@ -315,7 +457,7 @@
             <ul class="donut-legend">
               @for (s of donut().segmentos; track s.key) {
                 <li>
-                  <span class="legend-dot {{ s.clase }}"></span>
+                  <span class="legend-dot {{ s.clase }}" [style.background]="s.color || null"></span>
                   <span class="legend-name" [title]="s.label">{{ s.label }}</span>
                   <span class="legend-pct">{{ formatPct(s.pct) }}</span>
                   <span class="legend-amount">{{ formatCurrency(s.valor) }} · {{ s.conteo }}</span>
@@ -326,6 +468,123 @@
         }
       </article>
     </section>
+
+    <!-- ───────── Evolución diaria en «Ventas por día» ─────────
+         El ranking de arriba dice QUÉ día vende más; esto dice cómo fue el rango día a día,
+         que es lo que enseña una semana rara o un festivo. -->
+    @if (tipoActual() === 'ventas_dia_semana' && chartVentas().hayVentas) {
+      <section class="chart-card chart-card--ancha">
+        <header class="chart-head">
+          <div>
+            <h3>Día por día del rango</h3>
+            <p>Cada fecha, no el promedio del día de la semana</p>
+          </div>
+          <strong class="chart-total">{{ formatCurrency(chartVentas().total) }}</strong>
+        </header>
+
+        <div class="area-wrap" #areaWrap>
+          <svg
+            class="area-chart"
+            [attr.viewBox]="'0 0 ' + chartW() + ' ' + chartH"
+            role="img"
+            aria-label="Gráfica de área: ventas por fecha del rango"
+            (mousemove)="onChartMove($event)"
+            (touchstart)="onChartMove($event)"
+            (touchmove)="onChartMove($event)"
+            (mouseleave)="onChartLeave()"
+          >
+            <defs>
+              <linearGradient id="areaFillDia" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" class="stop-top" />
+                <stop offset="100%" class="stop-bottom" />
+              </linearGradient>
+            </defs>
+
+            @for (t of chartVentas().ticks; track t.y) {
+              <line class="grid-line" x1="58" [attr.x2]="chartW() - 16" [attr.y1]="t.y" [attr.y2]="t.y" />
+              <text class="axis-label" x="50" [attr.y]="t.y + 4" text-anchor="end">{{ t.label }}</text>
+            }
+
+            @for (e of chartVentas().etiquetas; track e.x) {
+              <text class="axis-label" [attr.x]="e.x" [attr.y]="chartH - 8" text-anchor="middle">{{ e.label }}</text>
+            }
+
+            @if (chartVentas().area) {
+              <path class="area-fill" [attr.d]="chartVentas().area" fill="url(#areaFillDia)" />
+            }
+            <path class="area-line" [attr.d]="chartVentas().linea" />
+
+            @if (hoverPunto(); as h) {
+              <line class="hover-line" [attr.x1]="h.x" [attr.x2]="h.x" [attr.y1]="16" [attr.y2]="chartVentas().baseY" />
+              <circle class="hover-dot" [attr.cx]="h.x" [attr.cy]="h.y" r="5" />
+            }
+          </svg>
+
+          @if (hoverPunto(); as h) {
+            <div
+              class="chart-tooltip"
+              [class.flip]="h.x > chartW() * 0.7"
+              [style.left.%]="(h.x / chartW()) * 100"
+              [style.top.%]="(h.y / chartH) * 100"
+            >
+              <span class="tt-date">{{ formatFechaLarga(h.fecha) }}</span>
+              <strong>{{ formatCurrency(h.ventas) }}</strong>
+              <span class="tt-orders">{{ h.ordenes }} {{ h.ordenes === 1 ? 'orden' : 'órdenes' }}</span>
+            </div>
+          }
+        </div>
+      </section>
+    }
+
+    <!-- ───────── Matriz usuario × producto ─────────
+         La respuesta literal a «quién vende más hamburguesas». La barra de fondo compara por
+         COLUMNA: dentro de un mismo producto, a las personas entre sí. -->
+    @if (matriz(); as m) {
+      <section class="matriz-card">
+        <header class="chart-head">
+          <div>
+            <h3>Quién vende cada producto</h3>
+            <p>Unidades por persona y producto. El valor pequeño es lo que facturó.</p>
+          </div>
+        </header>
+
+        <div class="table-wrap">
+          <table class="matriz-table">
+            <thead>
+              <tr>
+                <th>Usuario</th>
+                @for (p of m.productos; track p.id_producto) {
+                  <th class="num" [title]="p.nombre">{{ p.nombre }}</th>
+                }
+                <th class="num matriz-total">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (f of m.filas; track f.id_usuario) {
+                <tr>
+                  <td class="matriz-usuario">{{ f.usuario }}</td>
+                  @for (c of f.celdas; track c.id_producto) {
+                    <td class="num matriz-celda" [class.cero]="c.unidades === 0">
+                      <span class="matriz-barra" [style.width.%]="c.pct" [class.lider]="c.lider"></span>
+                      <span class="matriz-cifra">
+                        <strong>{{ c.unidades }}</strong>
+                        @if (c.unidades > 0) {
+                          <em>{{ formatCurrency(c.ingresos) }}</em>
+                        }
+                      </span>
+                    </td>
+                  }
+                  <td class="num matriz-total">
+                    <strong>{{ f.unidades }}</strong>
+                    <em>{{ formatCurrency(f.ingresos) }}</em>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+    }
   }
 
   <section class="table-card">

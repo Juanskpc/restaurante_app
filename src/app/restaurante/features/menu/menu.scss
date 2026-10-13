@@ -683,7 +683,9 @@
   gap: var(--spacing-xs);
 }
 
-.form-group-icon  { width: 72px; flex-shrink: 0; }
+// 92 y no 72: el campo del ícono dejó de ser un input suelto y ahora lleva pegado el botón que
+// abre el selector de emojis (ver shared/icono-selector). Con 72 el emoji quedaba contra el borde.
+.form-group-icon  { width: 92px; flex-shrink: 0; }
 .form-group-orden { width: 72px; flex-shrink: 0; }
 .form-group-toggles { flex-shrink: 0; }
 .form-group-toggles-inline {
@@ -771,12 +773,8 @@
   }
 }
 
-.input-icon {
-  text-align: center;
-  font-size: 1.4rem;
-  padding-left: 4px;
-  padding-right: 4px;
-}
+// `.input-icon` se fue con el input suelto del ícono: ahora ese campo lo pinta
+// `shared/icono-selector`, que trae su propio estilo.
 
 .form-textarea { resize: vertical; min-height: 64px; }
 

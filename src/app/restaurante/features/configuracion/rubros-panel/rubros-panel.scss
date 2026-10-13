@@ -1,0 +1,241 @@
+// Mismo lenguaje que el resto de Configuración (.panel, .hint), redeclarado porque los
+// estilos del componente padre no alcanzan a este. Copiado de cajas-panel a propósito: las
+// dos pestañas son hermanas y tienen que leerse igual.
+.panel {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  padding: var(--spacing-md);
+  display: grid;
+  gap: 12px;
+
+  h2 {
+    margin: 0;
+    color: var(--color-text-primary);
+    font-size: var(--font-size-base);
+  }
+}
+
+.hint {
+  margin: 4px 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+}
+
+.rp__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.rp__cuenta {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+}
+
+.rp__vacio {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-md, 8px);
+  background: var(--color-bg-secondary, var(--color-bg));
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+}
+
+.rp__nuevo,
+.rp__editar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+
+  @media (min-width: 720px) {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto;
+    align-items: center;
+  }
+}
+
+.rp__lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.rp__fila {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 8px);
+  background: var(--color-bg);
+
+  &--inactivo { opacity: 0.65; }
+}
+
+.rp__cuerpo {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.rp__info {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+
+  strong {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+  }
+
+  small { color: var(--color-text-secondary); font-size: var(--font-size-xs); }
+}
+
+// El color del sector: el mismo que lo pinta en las gráficas de informes, para que la lista y
+// el anillo se lean como una sola cosa.
+.rp__punto {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+.rp__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+// Un sector sin categorías está creado pero no separa nada: es el error que hay que señalar.
+.rp__alerta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-warning, #b45309);
+  font-weight: 600;
+}
+
+.rp__chips {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.rp__chip {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-primary) 9%, transparent);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+}
+
+.rp__acciones {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.rp__icono { padding: 6px 8px; }
+
+.rp__peligro:not(:disabled):hover {
+  color: var(--color-error);
+  border-color: color-mix(in srgb, var(--color-error) 45%, transparent);
+}
+
+// ── Reparto de categorías ────────────────────────────────────────────────
+.rp__reparto {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px dashed color-mix(in srgb, var(--color-primary) 35%, transparent);
+  border-radius: var(--radius-md, 8px);
+  background: color-mix(in srgb, var(--color-primary) 4%, transparent);
+}
+
+.rp__reparto-titulo {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+.rp__cats {
+  display: grid;
+  gap: 6px;
+
+  @media (min-width: 640px) {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+}
+
+.rp__cat {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: 2px 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 8px);
+  background: var(--color-surface);
+  cursor: pointer;
+
+  input { grid-row: span 2; margin: 0; cursor: pointer; }
+
+  &--on {
+    border-color: var(--color-primary);
+    background: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface));
+  }
+}
+
+.rp__cat-nombre {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.rp__cat-meta {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+
+  em { font-style: normal; color: var(--color-warning, #b45309); }
+}
+
+.rp__muted {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+}
+
+.rp__error {
+  margin: 0;
+  color: var(--color-error);
+  font-size: var(--font-size-sm);
+}

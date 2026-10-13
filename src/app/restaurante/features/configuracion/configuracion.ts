@@ -22,6 +22,7 @@ import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service
 import { CartaDisenoPanelComponent } from './carta-diseno/carta-diseno-panel';
 import { TiqueteDisenoPanelComponent } from './tiquete-diseno/tiquete-diseno-panel';
 import { CajasPanelComponent } from './cajas-panel/cajas-panel';
+import { RubrosPanelComponent } from './rubros-panel/rubros-panel';
 import { BarriosPanelComponent } from './barrios-panel/barrios-panel';
 import { MiPlanPanelComponent } from './mi-plan/mi-plan-panel';
 
@@ -64,13 +65,13 @@ function optionalUrlValidator(control: AbstractControl): ValidationErrors | null
   return { url: true };
 }
 
-type TabConfig = 'general' | 'apariencia' | 'tiquete' | 'cobros' | 'cajas' | 'operacion';
+type TabConfig = 'general' | 'apariencia' | 'tiquete' | 'cobros' | 'cajas' | 'sectores' | 'operacion';
 
 @Component({
   selector: 'app-configuracion',
   imports: [
     ReactiveFormsModule, LucideAngularModule,
-    CartaDisenoPanelComponent, TiqueteDisenoPanelComponent, CajasPanelComponent,
+    CartaDisenoPanelComponent, TiqueteDisenoPanelComponent, CajasPanelComponent, RubrosPanelComponent,
     BarriosPanelComponent, MiPlanPanelComponent,
   ],
   templateUrl: './configuracion.html',
@@ -100,12 +101,20 @@ export class ConfiguracionComponent {
     { id: 'tiquete'    as const, label: 'Tiquete',    icono: 'printer' },
     { id: 'cobros'     as const, label: 'Cobros',     icono: 'wallet' },
     { id: 'cajas'      as const, label: 'Cajas',      icono: 'banknote' },
+    { id: 'sectores'   as const, label: 'Sectores',   icono: 'chart-pie' },
     { id: 'operacion'  as const, label: 'Operación',  icono: 'toggle-right' },
   ];
-  /** «Cajas» solo aparece para quien tiene el permiso de gestionarlas. */
-  readonly tabs = computed(() =>
-    this.todasLasTabs.filter((t) => t.id !== 'cajas' || this.auth.canAccessSubnivel('caja_gestionar')),
-  );
+  /**
+   * «Cajas» y «Sectores» solo aparecen para quien tiene `caja_gestionar`: las dos deciden
+   * cómo se parte el ingreso del negocio y las toca la misma persona. Reusar el permiso de
+   * cajas en vez de inventar uno evita sembrar un subnivel nuevo para la misma decisión.
+   */
+  readonly tabs = computed(() => {
+    const puedeGestionarCajas = this.auth.canAccessSubnivel('caja_gestionar');
+    return this.todasLasTabs.filter(
+      (t) => (t.id !== 'cajas' && t.id !== 'sectores') || puedeGestionarCajas,
+    );
+  });
   readonly tab = signal<TabConfig>('general');
 
   /** El editor de la carta: se le pregunta si hay cambios sin publicar antes de salir. */

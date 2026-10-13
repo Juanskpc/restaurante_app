@@ -121,6 +121,12 @@
   &.lead {
     background: var(--color-primary);
   }
+
+  // El peor del ranking. En «qué día vende menos» el último es la mitad de la pregunta,
+  // así que se marca igual que el primero en vez de quedar como una barra corta más.
+  &.last {
+    background: color-mix(in srgb, var(--color-warning, #b45309) 55%, transparent);
+  }
 }
 
 .bar-detail {
@@ -1381,4 +1387,444 @@
 
 @media (prefers-reduced-motion: reduce) {
   .sk, .fade-in { animation: none; }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Cruce con productos («quién vende más hamburguesas»)
+//
+// Vive dentro de .filters-card y solo en «Ventas por usuario». Es un filtro de dos pasos:
+// la barra de chips enseña lo que está aplicado, y el panel es la edición, que no toca el
+// reporte hasta pulsar Aplicar.
+// ═══════════════════════════════════════════════════════════════════════════
+.prod-filtro {
+  display: grid;
+  gap: 10px;
+  padding-top: 10px;
+  margin-top: 2px;
+  border-top: 1px solid var(--color-border);
+}
+
+.prod-filtro__barra {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.prod-filtro__hint {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.prod-btn {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-elevated);
+  color: var(--color-text-primary);
+  padding: 7px 12px;
+  font-size: var(--font-size-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+
+  &:hover:not(:disabled) {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+.prod-chips {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.prod-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 6px 4px 10px;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  color: var(--color-primary);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  white-space: nowrap;
+
+  &--limpiar {
+    padding: 4px 10px;
+    background: transparent;
+    border: 1px dashed var(--color-border);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    font-weight: 500;
+  }
+}
+
+.prod-chip__x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  background: color-mix(in srgb, var(--color-primary) 22%, transparent);
+  color: inherit;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--color-primary);
+    color: var(--color-surface);
+  }
+}
+
+.prod-panel {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 35%, var(--color-border));
+  border-radius: var(--radius-md);
+  background: var(--color-surface-elevated);
+}
+
+.prod-panel__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.prod-buscar {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: 1 1 220px;
+  padding: 7px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+
+  input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+    font-family: inherit;
+  }
+}
+
+.prod-panel__cuenta {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  color: var(--color-primary);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+
+  &.lleno {
+    color: var(--color-warning, #b45309);
+    background: color-mix(in srgb, var(--color-warning, #b45309) 14%, transparent);
+  }
+}
+
+.prod-grupos {
+  display: grid;
+  gap: 12px;
+  // Un catálogo de restaurante cabe entero; el tope evita que un negocio con 200 productos
+  // empuje la tabla fuera de la pantalla.
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.prod-grupo h4 {
+  margin: 0 0 6px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.prod-items {
+  display: grid;
+  gap: 5px;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+}
+
+.prod-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 9px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+
+  input {
+    margin: 0;
+    cursor: pointer;
+  }
+
+  span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &--on {
+    border-color: var(--color-primary);
+    background: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface));
+  }
+
+  &--off {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+}
+
+.prod-panel__pie {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.prod-panel__muted {
+  margin: 0;
+  flex: 1 1 auto;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Cuadre de «Ventas por sector»
+//
+// Se lee como un recibo a propósito: lo que importa es ver que las líneas suman al total.
+// ═══════════════════════════════════════════════════════════════════════════
+.cuadre-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.cuadre-pedidos {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  color: var(--color-primary);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+}
+
+.cuadre-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+  // Columna angosta: la tabla de sectores ya ocupa el ancho, y un recibo de 1200 px de largo
+  // no se lee como un recibo.
+  max-width: 420px;
+
+  li {
+    display: grid;
+    grid-template-columns: 16px minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px dashed var(--color-border);
+
+    &.total {
+      margin-top: 4px;
+      padding-top: 10px;
+      border-top: 2px solid var(--color-text-primary);
+      border-bottom: 0;
+
+      .cuadre-label {
+        font-weight: 700;
+        color: var(--color-text-primary);
+      }
+
+      .cuadre-valor {
+        font-size: var(--font-size-lg);
+      }
+    }
+  }
+}
+
+.cuadre-signo {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  text-align: center;
+}
+
+.cuadre-label {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.cuadre-valor {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.cuadre-alerta {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 0;
+  padding: 9px 11px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-warning, #b45309) 12%, transparent);
+  color: var(--color-warning, #b45309);
+  font-size: var(--font-size-xs);
+  line-height: 1.5;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Matriz usuario × producto
+// ═══════════════════════════════════════════════════════════════════════════
+.chart-card--ancha {
+  grid-column: 1 / -1;
+}
+
+.matriz-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.matriz-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+
+  th {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--color-border);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    text-align: left;
+    white-space: nowrap;
+
+    &.num {
+      text-align: right;
+    }
+  }
+
+  td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: middle;
+
+    &.num {
+      text-align: right;
+    }
+  }
+
+  tbody tr:last-child td {
+    border-bottom: 0;
+  }
+}
+
+.matriz-usuario {
+  color: var(--color-text-primary);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+// La barra va DETRÁS de la cifra, no al lado: así la columna sigue leyéndose como número y
+// la comparación entre personas se ve de un golpe.
+.matriz-celda {
+  position: relative;
+  min-width: 86px;
+
+  &.cero {
+    color: var(--color-text-secondary);
+    opacity: 0.55;
+  }
+}
+
+.matriz-barra {
+  position: absolute;
+  inset: 4px auto 4px 4px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-primary) 13%, transparent);
+  transition: width 0.4s ease;
+
+  &.lider {
+    background: color-mix(in srgb, var(--color-primary) 26%, transparent);
+  }
+}
+
+.matriz-cifra {
+  position: relative;
+  display: inline-grid;
+  gap: 1px;
+  justify-items: end;
+
+  strong {
+    color: var(--color-text-primary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  em {
+    font-style: normal;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    white-space: nowrap;
+  }
+}
+
+.matriz-total {
+  background: color-mix(in srgb, var(--color-primary) 5%, transparent);
+
+  strong {
+    display: block;
+    color: var(--color-text-primary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  em {
+    font-style: normal;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    white-space: nowrap;
+  }
 }

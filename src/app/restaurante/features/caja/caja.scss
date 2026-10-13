@@ -596,6 +596,39 @@
   &__pie { font-size: .72rem; color: var(--color-text-muted); }
 }
 
+// ── Cuadre del corte por sector ──
+//
+// Debajo del ranking de sectores, en el panel de Caja. Se lee como un recibo: lo que no es
+// producto (impuesto, domicilio, descuento) es del pedido completo y no se reparte entre
+// sectores, así que va en líneas aparte que suman al total de los pedidos.
+.rubro-cuadre {
+  list-style: none; margin: .6rem 0 0; padding: .6rem 0 0;
+  border-top: 1px dashed var(--color-border);
+  display: flex; flex-direction: column; gap: .15rem;
+
+  li {
+    display: grid; grid-template-columns: 14px minmax(0, 1fr) auto;
+    align-items: baseline; gap: .5rem;
+    font-size: .82rem;
+
+    strong {
+      color: var(--color-text-primary); font-weight: 600;
+      font-variant-numeric: tabular-nums; white-space: nowrap;
+    }
+
+    &.total {
+      margin-top: .2rem; padding-top: .4rem;
+      border-top: 1px solid var(--color-text-primary);
+
+      .rubro-cuadre__label { color: var(--color-text-primary); font-weight: 700; }
+      strong { font-size: .95rem; }
+    }
+  }
+
+  &__signo { color: var(--color-text-muted); font-weight: 700; text-align: center; }
+  &__label { color: var(--color-text-secondary); }
+}
+
 // ── Historial (pestaña) ──
 .tabla-wrap {
   overflow-x: auto;
@@ -936,9 +969,23 @@ $alto-chip: 1.75rem;
       display: flex; justify-content: space-between; align-items: center;
       font-size: .82rem;
 
-      span   { color: var(--color-text-secondary); }
+      span   { color: var(--color-text-secondary); display: inline-flex; align-items: center; gap: .4rem; }
       strong { color: var(--color-text-primary); font-weight: 600; }
+
+      // La línea que cierra el bloque: lo de arriba son las partes, esto es la suma.
+      &--total {
+        margin-top: .15rem; padding-top: .35rem;
+        border-top: 1px solid var(--color-border);
+
+        span   { color: var(--color-text-primary); font-weight: 600; }
+        strong { font-size: .9rem; }
+      }
     }
+  }
+
+  // El color del sector, el mismo con el que se ve en Configuración y en los informes.
+  .resumen-punto {
+    width: 8px; height: 8px; flex-shrink: 0; border-radius: 50%;
   }
 
   .diferencia {

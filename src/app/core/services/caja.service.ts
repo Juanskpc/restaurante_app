@@ -12,6 +12,27 @@ export interface CajaUsuario {
   primer_apellido: string;
 }
 
+/**
+ * El corte por sector de un turno. Lo que no es producto —impuesto, domicilio, descuento— va
+ * en campos propios y no prorrateado entre los sectores: así cada cifra se puede verificar
+ * contra los tiquetes, y la suma de sectores más estas líneas da `total_pedidos`.
+ */
+export interface VentaPorRubro {
+  rubros: Array<{
+    id_rubro: number | null;
+    nombre: string;
+    color: string | null;
+    unidades: number;
+    ingresos: number;
+  }>;
+  venta_productos: number;
+  impuestos: number;
+  domicilios: number;
+  descuentos: number;
+  total_pedidos: number;
+  ordenes: number;
+}
+
 export interface Caja {
   id_caja: number;
   id_negocio: number;
@@ -38,6 +59,15 @@ export interface Caja {
    * con `ingresos - egresos`.
    */
   ingresos_por_metodo?: Array<{ id_metodo_pago: number | null; nombre: string; total: number }>;
+  /**
+   * Qué se vendió en el turno partido por sector de ingreso. **No es un segundo arqueo**: el
+   * arqueo es `ingresos_por_metodo`, que cuadra el cajón. Esto se mide sobre los pedidos
+   * cobrados en el turno, así que no incluye abonos ni egresos manuales.
+   *
+   * `null` cuando el negocio no creó sectores (son todos hasta que alguien cree el primero)
+   * o cuando el rol no tiene `caja_ver_ingresos`. En los dos casos no se pinta nada.
+   */
+  venta_por_rubro?: VentaPorRubro | null;
   /**
    * El backend vació las cifras porque el rol no tiene el subnivel
    * `caja_ver_ingresos`. El turno sigue llegando entero (id, usuario, fechas):

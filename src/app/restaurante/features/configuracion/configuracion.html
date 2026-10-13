@@ -272,6 +272,14 @@
       <app-cajas-panel />
     }
 
+    <!-- ───────── Sectores de ingreso ─────────
+         Los rubros: agrupan categorías de la carta para partir los informes. NO son las
+         cajas de arriba — la caja es del pedido (turno y arqueo) y el sector es del
+         producto, que es lo que deja repartir un pedido mixto con un solo pago. -->
+    @if (tab() === 'sectores') {
+      <app-rubros-panel />
+    }
+
     <!-- ───────── Operación ─────────
          Los interruptores viven juntos en una lista compacta: cada uno es solo un
          sí/no, y darle un panel entero a cada uno hacía scrollear la pantalla para

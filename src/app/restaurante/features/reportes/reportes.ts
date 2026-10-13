@@ -7,6 +7,7 @@ import { finalize } from 'rxjs';
 import { LucideAngularModule } from 'lucide-angular';
 
 import { AuthService } from '../../../core/services/auth.service';
+import { RubroService } from '../../../core/services/rubro.service';
 import { environment } from '../../../../environments/environment';
 
 type ReporteTipo =
@@ -14,7 +15,9 @@ type ReporteTipo =
   | 'productos_mas_vendidos'
   | 'rendimiento_mesas'
   | 'rendimiento_usuarios'
-  | 'estado_cocina';
+  | 'estado_cocina'
+  | 'ventas_rubro'
+  | 'ventas_dia_semana';
 
 type ReportValueType = 'text' | 'number' | 'currency' | 'date';
 
@@ -73,11 +76,69 @@ interface GraficaUsuario {
   ordenes: number;
   ventas: number;
   ticket_promedio: number;
+  /** Solo con productos seleccionados: unidades de lo elegido que vendió esa persona. */
+  unidades?: number;
+}
+
+interface GraficaRubro {
+  id_rubro: number;
+  rubro: string;
+  /** El color que el administrador le puso al sector. `null` = la paleta por defecto. */
+  color: string | null;
+  unidades: number;
+  ordenes: number;
+  ingresos: number;
+}
+
+/**
+ * Lo que no es producto va en la orden, no en el ítem, y **no se prorratea**: se enseña en
+ * líneas aparte para que cada cifra de la tabla sea una que el administrador pueda verificar
+ * contra sus tiquetes. `descuadre` debería ser siempre 0; si no, hay un dato roto.
+ */
+interface Conciliacion {
+  venta_productos: number;
+  impuestos: number;
+  domicilios: number;
+  descuentos: number;
+  total_cobrado: number;
+  descuadre: number;
+  ordenes: number;
+}
+
+interface GraficaDiaSemana {
+  dow: number;
+  dia: string;
+  /** Cuántas veces cayó ese día en el rango. Es lo que hace honesto el promedio. */
+  dias_en_rango: number;
+  ordenes: number;
+  ventas: number;
+  promedio_por_dia: number;
+  ticket_promedio: number;
+}
+
+interface MatrizCelda {
+  id_producto: number;
+  unidades: number;
+  ingresos: number;
+}
+
+interface MatrizFila {
+  id_usuario: number;
+  usuario: string;
+  unidades: number;
+  ingresos: number;
+  /** Una celda por producto seleccionado, en el orden de las columnas, con ceros incluidos. */
+  celdas: MatrizCelda[];
+}
+
+interface MatrizUsuarioProducto {
+  productos: Array<{ id_producto: number; nombre: string }>;
+  filas: MatrizFila[];
 }
 
 /** Cada reporte trae solo las series que le corresponden. */
 interface ReportesGraficas {
-  // ventas_periodo
+  // ventas_periodo · ventas_dia_semana
   serie_diaria?: GraficaPunto[];
   por_tipo?: GraficaTipo[];
   periodo_anterior?: {
@@ -90,12 +151,37 @@ interface ReportesGraficas {
   por_categoria?: GraficaCategoria[];
   // rendimiento_usuarios
   por_usuario?: GraficaUsuario[];
+  /** Con productos seleccionados las cifras son de esos productos, no del pedido entero. */
+  modo_producto?: boolean;
+  productos_seleccionados?: Array<{ id_producto: number; nombre: string }>;
+  matriz?: MatrizUsuarioProducto;
+  // ventas_rubro
+  por_rubro?: GraficaRubro[];
+  conciliacion?: Conciliacion;
+  // ventas_dia_semana
+  por_dia_semana?: GraficaDiaSemana[];
+}
+
+/** Un producto del selector de «ventas por usuario». */
+interface ProductoCatalogo {
+  id_producto: number;
+  nombre: string;
+  id_categoria: number;
+  categoria: string;
+  id_rubro: number | null;
+  rubro: string | null;
 }
 
 interface DonutSegmento {
   key: string;
   label: string;
   clase: string;
+  /**
+   * Color explícito en #RRGGBB. Solo lo traen los sectores, que lo eligió el administrador:
+   * el anillo tiene que usar el mismo color con el que los ve en Configuración. Sin él manda
+   * `clase` (c0…c7), la paleta del tema.
+   */
+  color?: string | null;
   valor: number;
   conteo: number;
   pct: number;
@@ -110,6 +196,10 @@ interface BarraItem {
   detalle: string;
   pct: number;
   rank: number;
+  /** Marca la barra más baja: en «qué día vende menos» el peor es la mitad de la pregunta. */
+  ultimo?: boolean;
+  /** Color propio del sector, igual que en el anillo. */
+  color?: string | null;
 }
 
 type RangoRapido = 'hoy' | '7d' | '30d' | 'mes' | 'custom';
@@ -243,6 +333,14 @@ const KPI_ICONOS: Record<string, string> = {
   ordenes_abiertas: 'clock',
   ordenes_totales: 'receipt',
   monto_total: 'dollar-sign',
+  // ventas_rubro
+  venta_productos: 'shopping-bag',
+  total_cobrado: 'dollar-sign',
+  sectores_con_venta: 'chart-pie',
+  // ventas_dia_semana
+  mejor_dia: 'trending-up',
+  peor_dia: 'trending-down',
+  promedio_por_dia: 'banknote',
 };
 
 const TIPO_PEDIDO_ORDEN = ['MESA', 'LLEVAR', 'DOMICILIO'];
@@ -309,7 +407,13 @@ export class ReportesComponent {
   private readonly auth = inject(AuthService);
   private readonly defaultRange = buildDefaultRange();
 
-  readonly tipoOptions: ReportTypeOption[] = [
+  private readonly rubroSvc = inject(RubroService);
+
+  /**
+   * Las pestañas fijas. «Ventas por sector» se añade aparte: solo existe para el negocio que
+   * creó sectores de ingreso, y meterla aquí la enseñaría a todos.
+   */
+  private readonly tipoOptionsBase: ReportTypeOption[] = [
     {
       value: 'ventas_periodo',
       label: 'Ventas por pedido',
@@ -323,9 +427,30 @@ export class ReportesComponent {
     {
       value: 'rendimiento_usuarios',
       label: 'Ventas por usuario',
-      description: 'Ventas y ticket promedio de cada cajero o mesero.',
+      description: 'Ventas de cada cajero o mesero. Puedes cruzarlo con productos para ver quién vende más de qué.',
+    },
+    {
+      value: 'ventas_dia_semana',
+      label: 'Ventas por día',
+      description: 'Qué día de la semana vende más y cuál menos, comparando por promedio.',
     },
   ];
+
+  /**
+   * «Ventas por sector» aparece solo si el negocio separa sus ingresos por sector. No hay
+   * interruptor: lo decide que existan sectores creados en Configuración → Sectores.
+   */
+  readonly tipoOptions = computed<ReportTypeOption[]>(() => {
+    if (!this.rubroSvc.tieneRubros()) return this.tipoOptionsBase;
+    return [
+      ...this.tipoOptionsBase,
+      {
+        value: 'ventas_rubro' as const,
+        label: 'Ventas por sector',
+        description: 'Cuánto deja cada sector de tu negocio, repartido por producto vendido.',
+      },
+    ];
+  });
 
   readonly negocioId = computed(() => this.auth.negocio()?.id_negocio ?? null);
 
@@ -363,11 +488,65 @@ export class ReportesComponent {
     tipo: ReporteTipo;
     fecha_desde: string;
     fecha_hasta: string;
+    id_productos: number[];
   }>({
     tipo: 'ventas_periodo',
     fecha_desde: this.defaultRange.fechaDesde,
     fecha_hasta: this.defaultRange.fechaHasta,
+    id_productos: [],
   });
+
+  // ─── Cruce con productos («quién vende más hamburguesas») ───────────────
+  //
+  // Vive en «Ventas por usuario» y no en una pestaña aparte: la pregunta es sobre las personas,
+  // y sin selección la pestaña se comporta exactamente como antes. Con selección cambian las
+  // columnas, porque las cifras pasan a ser de esos productos y no del pedido completo —
+  // mezclarlas en las mismas columnas invitaría a sumar peras con manzanas.
+  readonly catalogoProductos = signal<ProductoCatalogo[]>([]);
+  readonly catalogoCargado = signal(false);
+  readonly maxProductos = signal(20);
+  /** La selección en edición. No se aplica hasta pulsar «Aplicar». */
+  readonly productosSeleccionados = signal<number[]>([]);
+  readonly selectorAbierto = signal(false);
+  readonly busquedaProducto = signal('');
+
+  readonly esVentasUsuarios = computed(() => this.tipoSeleccionado() === 'rendimiento_usuarios');
+
+  /** Los productos del catálogo que coinciden con la búsqueda, agrupados por categoría. */
+  readonly productosFiltrados = computed(() => {
+    const texto = this.busquedaProducto().trim().toLowerCase();
+    const lista = texto
+      ? this.catalogoProductos().filter(
+          (p) => p.nombre.toLowerCase().includes(texto) || p.categoria.toLowerCase().includes(texto),
+        )
+      : this.catalogoProductos();
+
+    const grupos = new Map<string, ProductoCatalogo[]>();
+    for (const p of lista) {
+      const clave = p.rubro ? `${p.categoria} · ${p.rubro}` : p.categoria;
+      if (!grupos.has(clave)) grupos.set(clave, []);
+      grupos.get(clave)!.push(p);
+    }
+    return [...grupos.entries()].map(([categoria, productos]) => ({ categoria, productos }));
+  });
+
+  readonly productosElegidos = computed(() => {
+    const ids = new Set(this.productosSeleccionados());
+    return this.catalogoProductos().filter((p) => ids.has(p.id_producto));
+  });
+
+  /** Los que están DE VERDAD aplicados al reporte en pantalla, no los que se están editando. */
+  readonly productosDelReporte = computed(() => this.graficas()?.productos_seleccionados ?? []);
+
+  readonly hayCambiosEnSeleccion = computed(() => {
+    const editando = [...this.productosSeleccionados()].sort((a, b) => a - b).join(',');
+    const aplicado = [...this.filtrosAplicados().id_productos].sort((a, b) => a - b).join(',');
+    return editando !== aplicado;
+  });
+
+  readonly selectorLleno = computed(
+    () => this.productosSeleccionados().length >= this.maxProductos(),
+  );
 
   readonly cargando = signal(false);
   readonly exportando = signal<'xlsx' | 'pdf' | null>(null);
@@ -516,7 +695,7 @@ export class ReportesComponent {
   readonly donut = computed(() => {
     const g = this.graficas();
     const tipo = this.tipoActual();
-    let items: Array<{ key: string; label: string; clase: string; valor: number; conteo: number }> = [];
+    let items: Array<{ key: string; label: string; clase: string; color?: string | null; valor: number; conteo: number }> = [];
     let titulo = '';
     let subtitulo = '';
     let unidad = { uno: 'orden', varios: 'órdenes' };
@@ -549,15 +728,47 @@ export class ReportesComponent {
         conteo: c.unidades,
       }));
     } else if (tipo === 'rendimiento_usuarios') {
-      titulo = 'Participación en las ventas';
-      subtitulo = 'Cuánto aporta cada usuario';
+      const porProducto = g?.modo_producto === true;
+      titulo = porProducto ? 'Quién vende lo seleccionado' : 'Participación en las ventas';
+      subtitulo = porProducto
+        ? 'Reparto de la venta de los productos elegidos'
+        : 'Cuánto aporta cada usuario';
+      if (porProducto) unidad = { uno: 'unidad', varios: 'unidades' };
       items = (g?.por_usuario ?? []).map((u, i) => ({
         key: u.usuario,
         label: u.usuario,
         clase: `c${i % 8}`,
         valor: u.ventas,
-        conteo: u.ordenes,
+        // Con productos elegidos el centro del anillo cuenta unidades: «124 pedidos» no dice
+        // nada de cuántas hamburguesas salieron.
+        conteo: porProducto ? (u.unidades ?? 0) : u.ordenes,
       }));
+    } else if (tipo === 'ventas_rubro') {
+      titulo = 'Participación por sector';
+      subtitulo = 'Qué parte de la venta deja cada sector';
+      unidad = { uno: 'unidad', varios: 'unidades' };
+      items = (g?.por_rubro ?? []).map((r, i) => ({
+        key: String(r.id_rubro),
+        label: r.rubro,
+        clase: `c${i % 8}`,
+        // El color que el administrador le puso en Configuración: el anillo y la lista de
+        // sectores tienen que verse como la misma cosa.
+        color: r.color,
+        valor: r.ingresos,
+        conteo: r.unidades,
+      }));
+    } else if (tipo === 'ventas_dia_semana') {
+      titulo = 'Reparto de la semana';
+      subtitulo = 'Qué parte de la venta cae en cada día';
+      items = (g?.por_dia_semana ?? [])
+        .filter((d) => d.ventas > 0)
+        .map((d, i) => ({
+          key: String(d.dow),
+          label: d.dia,
+          clase: `c${i % 8}`,
+          valor: d.ventas,
+          conteo: d.ordenes,
+        }));
     }
 
     const total = items.reduce((a, t) => a + t.valor, 0);
@@ -602,20 +813,112 @@ export class ReportesComponent {
         rank: i,
       }));
     } else if (tipo === 'rendimiento_usuarios') {
-      titulo = 'Ventas por usuario';
-      subtitulo = 'Total cobrado por cada cajero o mesero';
+      const porProducto = g?.modo_producto === true;
       const datos = g?.por_usuario ?? [];
-      const max = Math.max(1, ...datos.map((d) => d.ventas));
+      titulo = porProducto ? 'Quién vende más de lo seleccionado' : 'Ventas por usuario';
+      subtitulo = porProducto
+        ? 'Unidades de los productos elegidos'
+        : 'Total cobrado por cada cajero o mesero';
+      // Con productos elegidos el ranking va por UNIDADES: es la pregunta literal («quién
+      // vende más hamburguesas»), y ordenar por plata la contestaría al revés en cuanto una
+      // persona venda pocas unidades de algo caro.
+      const valorDe = (d: GraficaUsuario) => (porProducto ? (d.unidades ?? 0) : d.ventas);
+      const max = Math.max(1, ...datos.map(valorDe));
       items = datos.map((d, i) => ({
         key: d.usuario,
         label: d.usuario,
-        valor: this.formatCurrency(d.ventas),
-        detalle: `${d.ordenes} ${d.ordenes === 1 ? 'orden' : 'órdenes'} · ticket ${this.formatCurrency(d.ticket_promedio)}`,
-        pct: (d.ventas / max) * 100,
+        valor: porProducto
+          ? `${this.numberFormatter.format(d.unidades ?? 0)} uds`
+          : this.formatCurrency(d.ventas),
+        detalle: porProducto
+          ? `${this.formatCurrency(d.ventas)} · ${d.ordenes} ${d.ordenes === 1 ? 'pedido' : 'pedidos'}`
+          : `${d.ordenes} ${d.ordenes === 1 ? 'orden' : 'órdenes'} · ticket ${this.formatCurrency(d.ticket_promedio)}`,
+        pct: (valorDe(d) / max) * 100,
         rank: i,
+      }));
+    } else if (tipo === 'ventas_rubro') {
+      titulo = 'Venta por sector';
+      subtitulo = 'Solo productos: el domicilio y el impuesto van aparte';
+      const datos = g?.por_rubro ?? [];
+      const max = Math.max(1, ...datos.map((d) => d.ingresos));
+      items = datos.map((d, i) => ({
+        key: String(d.id_rubro),
+        label: d.rubro,
+        valor: this.formatCurrency(d.ingresos),
+        detalle: `${this.numberFormatter.format(d.unidades)} uds · ${d.ordenes} ${d.ordenes === 1 ? 'pedido' : 'pedidos'}`,
+        pct: (d.ingresos / max) * 100,
+        rank: i,
+        color: d.color,
+      }));
+    } else if (tipo === 'ventas_dia_semana') {
+      titulo = 'Qué día vende más';
+      subtitulo = 'Promedio por cada vez que cae ese día, no el total';
+      // El ranking va por PROMEDIO y no por total: un rango de 30 días trae cinco lunes y
+      // cuatro martes, y ordenar por total pondría primero al lunes solo por eso.
+      const datos = [...(g?.por_dia_semana ?? [])]
+        .filter((d) => d.dias_en_rango > 0)
+        .sort((a, b) => b.promedio_por_dia - a.promedio_por_dia);
+      const max = Math.max(1, ...datos.map((d) => d.promedio_por_dia));
+      items = datos.map((d, i) => ({
+        key: String(d.dow),
+        label: d.dia,
+        valor: this.formatCurrency(d.promedio_por_dia),
+        detalle: `${this.formatCurrency(d.ventas)} en ${d.dias_en_rango} ${d.dias_en_rango === 1 ? 'vez' : 'veces'} · ${d.ordenes} ${d.ordenes === 1 ? 'pedido' : 'pedidos'}`,
+        pct: (d.promedio_por_dia / max) * 100,
+        rank: i,
+        // «Cuál vende menos» es la mitad de la pregunta, así que la última barra se marca.
+        ultimo: i === datos.length - 1 && datos.length > 1 && d.promedio_por_dia > 0,
       }));
     }
     return { titulo, subtitulo, items };
+  });
+
+  /**
+   * El cuadre de «Ventas por sector»: la suma de los sectores, las líneas de lo que no es
+   * producto, y el total cobrado. Se pinta como una lista y no como KPIs porque lo que
+   * importa es que las líneas sumen a la vista — es el documento que el administrador va a
+   * contrastar contra sus tiquetes.
+   */
+  readonly conciliacion = computed(() => {
+    const c = this.graficas()?.conciliacion;
+    if (!c) return null;
+    return {
+      lineas: [
+        { label: 'Venta de productos', valor: c.venta_productos, signo: '', total: false },
+        { label: 'Impuestos', valor: c.impuestos, signo: '+', total: false },
+        { label: 'Domicilios', valor: c.domicilios, signo: '+', total: false },
+        { label: 'Descuentos', valor: c.descuentos, signo: '−', total: false },
+        { label: 'Total cobrado', valor: c.total_cobrado, signo: '', total: true },
+      ].filter((l) => l.total || l.label === 'Venta de productos' || l.valor !== 0),
+      ordenes: c.ordenes,
+      descuadre: c.descuadre,
+    };
+  });
+
+  /**
+   * La matriz usuario × producto: la respuesta visual a «quién vende más hamburguesas».
+   * La arma el backend (celdas en el orden de las columnas, ceros incluidos) para que la
+   * pantalla y la exportación miren exactamente lo mismo.
+   */
+  readonly matriz = computed(() => {
+    const m = this.graficas()?.matriz;
+    if (!m || m.filas.length === 0 || m.productos.length === 0) return null;
+    // El máximo por COLUMNA, no por tabla: la barra de fondo compara a las personas entre sí
+    // dentro de un mismo producto, que es la comparación que se está buscando.
+    const maximos = m.productos.map((_, col) =>
+      Math.max(1, ...m.filas.map((f) => f.celdas[col]?.unidades ?? 0)),
+    );
+    return {
+      productos: m.productos,
+      filas: m.filas.map((f) => ({
+        ...f,
+        celdas: f.celdas.map((c, col) => ({
+          ...c,
+          pct: (c.unidades / maximos[col]) * 100,
+          lider: c.unidades > 0 && c.unidades === maximos[col],
+        })),
+      })),
+    };
   });
 
   private readonly currencyFormatter = new Intl.NumberFormat('es-CO', {
@@ -634,9 +937,76 @@ export class ReportesComponent {
 
     untracked(() => {
       this.page.set(1);
+      // Los sectores deciden si existe la pestaña «Ventas por sector». Se piden en paralelo
+      // con el reporte: la pestaña aparece cuando llega la lista, sin retrasar la tabla.
+      this.rubroSvc.cargar(idNegocio).subscribe();
       this.loadReportes();
     });
   });
+
+  // ─── Selector de productos ─────────────────────────────────────────────
+
+  /** El catálogo se pide una sola vez, y solo cuando alguien abre el selector. */
+  abrirSelectorProductos(): void {
+    this.selectorAbierto.set(true);
+    const idNegocio = this.negocioId();
+    if (!idNegocio || this.catalogoCargado()) return;
+
+    this.http.get<{ data: { rows: ProductoCatalogo[]; max_seleccion: number } }>(
+      `${environment.apiUrl}/reportes/productos?id_negocio=${idNegocio}`,
+    ).subscribe({
+      next: (res) => {
+        this.catalogoProductos.set(res?.data?.rows ?? []);
+        this.maxProductos.set(res?.data?.max_seleccion ?? 20);
+        this.catalogoCargado.set(true);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.error.set(this.getHttpErrorMessage(err) || 'No se pudo cargar la lista de productos.');
+        this.selectorAbierto.set(false);
+      },
+    });
+  }
+
+  cerrarSelectorProductos(): void {
+    this.selectorAbierto.set(false);
+    this.busquedaProducto.set('');
+    // Se descarta lo que se estaba editando sin aplicar: lo que manda es el reporte en
+    // pantalla, no una selección a medias que nadie pidió.
+    this.productosSeleccionados.set([...this.filtrosAplicados().id_productos]);
+  }
+
+  estaElegido(idProducto: number): boolean {
+    return this.productosSeleccionados().includes(idProducto);
+  }
+
+  alternarProducto(idProducto: number): void {
+    const actual = this.productosSeleccionados();
+    if (actual.includes(idProducto)) {
+      this.productosSeleccionados.set(actual.filter((id) => id !== idProducto));
+      return;
+    }
+    if (actual.length >= this.maxProductos()) return;
+    this.productosSeleccionados.set([...actual, idProducto]);
+  }
+
+  quitarProducto(idProducto: number): void {
+    this.productosSeleccionados.set(
+      this.productosSeleccionados().filter((id) => id !== idProducto),
+    );
+    this.aplicarFiltros();
+  }
+
+  limpiarProductos(): void {
+    this.productosSeleccionados.set([]);
+    this.busquedaProducto.set('');
+    this.aplicarFiltros();
+  }
+
+  aplicarSeleccionProductos(): void {
+    this.selectorAbierto.set(false);
+    this.busquedaProducto.set('');
+    this.aplicarFiltros();
+  }
 
   seleccionarRango(rango: RangoRapido): void {
     this.rangoRapido.set(rango);
@@ -683,9 +1053,15 @@ export class ReportesComponent {
   }
 
   setTipo(value: string): void {
-    const option = this.tipoOptions.find((item) => item.value === value);
+    const option = this.tipoOptions().find((item) => item.value === value);
     if (!option) return;
     this.tipoSeleccionado.set(option.value);
+    // La selección de productos solo significa algo en «Ventas por usuario»: salir de ahí la
+    // suelta, para no volver con un filtro invisible puesto.
+    if (option.value !== 'rendimiento_usuarios') {
+      this.productosSeleccionados.set([]);
+      this.selectorAbierto.set(false);
+    }
   }
 
   setFechaDesde(value: string): void {
@@ -720,10 +1096,13 @@ export class ReportesComponent {
     }
 
     this.error.set('');
+    const tipo = this.tipoSeleccionado();
     this.filtrosAplicados.set({
-      tipo: this.tipoSeleccionado(),
+      tipo,
       fecha_desde: fechaDesde,
       fecha_hasta: fechaHasta,
+      // Los productos solo viajan en «Ventas por usuario»: es el único reporte que los lee.
+      id_productos: tipo === 'rendimiento_usuarios' ? [...this.productosSeleccionados()] : [],
     });
     this.page.set(1);
     this.loadReportes();
@@ -765,6 +1144,9 @@ export class ReportesComponent {
       fecha_hasta: filtros.fecha_hasta,
       formato,
     });
+    if (filtros.id_productos.length > 0) {
+      params.set('id_producto', filtros.id_productos.join(','));
+    }
 
     this.http.get(`${environment.apiUrl}/reportes/exportar?${params.toString()}`, {
       observe: 'response',
@@ -842,7 +1224,7 @@ export class ReportesComponent {
   }
 
   getTipoDescripcion(): string {
-    const selected = this.tipoOptions.find((opt) => opt.value === this.filtrosAplicados().tipo);
+    const selected = this.tipoOptions().find((opt) => opt.value === this.filtrosAplicados().tipo);
     return selected?.description ?? '';
   }
 
@@ -1051,6 +1433,10 @@ export class ReportesComponent {
       page: String(this.page()),
       page_size: String(this.pageSize()),
     });
+    // CSV y no un parámetro repetido: así la URL del reporte se puede copiar y pegar.
+    if (filtros.id_productos.length > 0) {
+      params.set('id_producto', filtros.id_productos.join(','));
+    }
 
     this.http.get<ReportesApiResponse>(`${environment.apiUrl}/reportes?${params.toString()}`).subscribe({
       next: (response) => {

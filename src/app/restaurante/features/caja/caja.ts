@@ -1022,6 +1022,44 @@ export class CajaComponent implements OnInit, OnDestroy {
   }
 
   /**
+   * El corte por sector de un turno, listo para pintar.
+   *
+   * Devuelve `null` —y la pantalla no enseña nada— cuando el negocio no creó sectores o el rol
+   * no puede ver importes. Las barras van contra el sector que más vendió, y las líneas de
+   * abajo son lo que no es producto: no se reparten entre sectores, se enseñan aparte, porque
+   * el domicilio y el impuesto son del pedido completo.
+   */
+  filasRubro(c: Caja | null | undefined): {
+    filas: Array<{ nombre: string; color: string | null; unidades: number; total: number; pct: number }>;
+    lineas: Array<{ label: string; signo: string; valor: number; total: boolean }>;
+    ordenes: number;
+  } | null {
+    const v = c?.venta_por_rubro;
+    if (!v || v.rubros.length === 0) return null;
+
+    const maximo = Math.max(1, ...v.rubros.map((r) => Math.max(0, r.ingresos)));
+    return {
+      filas: v.rubros.map((r) => ({
+        nombre: r.nombre,
+        color: r.color,
+        unidades: r.unidades,
+        total: r.ingresos,
+        pct: (Math.max(0, r.ingresos) / maximo) * 100,
+      })),
+      // Las que están en cero no se pintan: un restaurante sin domicilios no necesita una
+      // línea que diga «domicilios $0» en cada cierre.
+      lineas: [
+        { label: 'Venta de productos', signo: '', valor: v.venta_productos, total: false },
+        { label: 'Impuestos', signo: '+', valor: v.impuestos, total: false },
+        { label: 'Domicilios', signo: '+', valor: v.domicilios, total: false },
+        { label: 'Descuentos', signo: '−', valor: v.descuentos, total: false },
+        { label: 'Total de los pedidos', signo: '', valor: v.total_pedidos, total: true },
+      ].filter((l) => l.total || l.label === 'Venta de productos' || l.valor !== 0),
+      ordenes: v.ordenes,
+    };
+  }
+
+  /**
    * En la columna "Tipo pedido": el egreso del domiciliario se etiqueta como
    * Domicilio aunque el pedido sea Para llevar, para saber de qué es ese egreso.
    */

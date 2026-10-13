@@ -13,6 +13,7 @@ import { FacturacionService, claveImpuesto } from '../../../core/services/factur
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 import { environment } from '../../../../environments/environment';
 import { ImageCropperComponent } from './image-cropper/image-cropper';
+import { IconoSelectorComponent } from '../../shared/icono-selector/icono-selector';
 
 // ============================================================
 // Interfaces
@@ -116,7 +117,7 @@ function normalizeSearchValue(value: string): string {
 
 @Component({
   selector: 'app-menu',
-  imports: [LucideAngularModule, FormsModule, ImageCropperComponent],
+  imports: [LucideAngularModule, FormsModule, ImageCropperComponent, IconoSelectorComponent],
   templateUrl: './menu.html',
   styleUrl: './menu.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

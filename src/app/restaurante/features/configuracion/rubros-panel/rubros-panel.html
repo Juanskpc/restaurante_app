@@ -1,0 +1,201 @@
+<article class="panel panel--wide rp" id="sectores">
+  <header class="rp__head">
+    <div>
+      <h2>Sectores de ingreso</h2>
+      <p class="hint">
+        Si manejas varios tipos de comida —parrilla, sushi, pizza— y quieres ver cuánto deja cada
+        uno al cerrar el día y el mes, agrúpalos aquí. Una mesa puede pedir de todos y pagar una
+        sola vez: el reparto lo hace el sistema con la categoría de cada producto. Si no creas
+        ninguno, nada cambia en tu panel.
+      </p>
+    </div>
+    @if (rubros().length > 0) {
+      <span class="rp__cuenta">{{ rubros().length }} {{ rubros().length === 1 ? 'sector' : 'sectores' }}</span>
+    }
+  </header>
+
+  <div class="rp__nuevo">
+    <input
+      class="input"
+      type="text"
+      maxlength="60"
+      placeholder="Nombre del sector (ej: Parrilla)"
+      [value]="nuevoNombre()"
+      (input)="nuevoNombre.set($any($event.target).value)"
+      (keydown.enter)="crear()"
+    />
+    <input
+      class="input"
+      type="text"
+      maxlength="160"
+      placeholder="Descripción (opcional)"
+      [value]="nuevaDescripcion()"
+      (input)="nuevaDescripcion.set($any($event.target).value)"
+      (keydown.enter)="crear()"
+    />
+    <button
+      type="button"
+      class="btn btn--primary"
+      [disabled]="guardando() || nuevoNombre().trim().length < 2"
+      (click)="crear()"
+    >
+      <lucide-icon name="circle-plus" [size]="16" /> Crear sector
+    </button>
+  </div>
+
+  @if (cargando()) {
+    <p class="rp__muted">Cargando…</p>
+  } @else if (error()) {
+    <p class="rp__error">{{ error() }}</p>
+  } @else {
+    @if (rubros().length === 0) {
+      <p class="rp__vacio">
+        <lucide-icon name="info" [size]="15" aria-hidden="true" />
+        Todavía no separas tus ingresos por sector. Mientras no crees ninguno, los informes y el
+        cierre de caja se ven exactamente como hoy.
+      </p>
+    }
+
+    <ul class="rp__lista">
+      @for (r of rubros(); track r.id_rubro) {
+        <li class="rp__fila" [class.rp__fila--inactivo]="r.estado === 'I'">
+          @if (editandoId() === r.id_rubro) {
+            <div class="rp__editar">
+              <input
+                class="input"
+                type="text"
+                maxlength="60"
+                [value]="editandoNombre()"
+                (input)="editandoNombre.set($any($event.target).value)"
+                (keydown.enter)="guardarEdicion()"
+              />
+              <input
+                class="input"
+                type="text"
+                maxlength="160"
+                placeholder="Descripción (opcional)"
+                [value]="editandoDescripcion()"
+                (input)="editandoDescripcion.set($any($event.target).value)"
+                (keydown.enter)="guardarEdicion()"
+              />
+              <div class="rp__acciones">
+                <button type="button" class="btn btn--primary" [disabled]="guardando()" (click)="guardarEdicion()">
+                  Guardar
+                </button>
+                <button type="button" class="btn btn--outline" (click)="cancelarEdicion()">Cancelar</button>
+              </div>
+            </div>
+          } @else {
+            <div class="rp__cuerpo">
+              <div class="rp__info">
+                <strong>
+                  @if (r.color) {
+                    <span class="rp__punto" [style.background]="r.color" aria-hidden="true"></span>
+                  }
+                  {{ r.nombre }}
+                </strong>
+                @if (r.descripcion) {
+                  <small>{{ r.descripcion }}</small>
+                }
+                <span class="rp__meta">
+                  @if (r.estado === 'I') {
+                    <span class="es-badge">Inactivo</span>
+                  }
+                  @if (r.categorias === 0) {
+                    <span class="rp__alerta">
+                      <lucide-icon name="triangle-alert" [size]="12" />
+                      Sin categorías: todavía no separa nada
+                    </span>
+                  } @else {
+                    <span>{{ r.categorias }} {{ r.categorias === 1 ? 'categoría' : 'categorías' }}</span>
+                  }
+                </span>
+                @if (categoriasDe(r.id_rubro).length > 0) {
+                  <span class="rp__chips">
+                    @for (c of categoriasDe(r.id_rubro); track c.id_categoria) {
+                      <span class="rp__chip">{{ c.nombre }}</span>
+                    }
+                  </span>
+                }
+              </div>
+              <div class="rp__acciones">
+                <button type="button" class="btn btn--outline" [disabled]="guardando()" (click)="abrirReparto(r.id_rubro)">
+                  <lucide-icon name="list-checks" [size]="14" /> Categorías
+                </button>
+                <button type="button" class="btn btn--outline rp__icono" title="Renombrar" (click)="iniciarEdicion(r)">
+                  <lucide-icon name="pencil" [size]="14" />
+                </button>
+                <button type="button" class="btn btn--outline" [disabled]="guardando()" (click)="cambiarEstado(r)">
+                  {{ r.estado === 'A' ? 'Desactivar' : 'Activar' }}
+                </button>
+                <button type="button" class="btn btn--outline rp__icono rp__peligro" title="Eliminar" [disabled]="guardando()" (click)="eliminar(r)">
+                  <lucide-icon name="trash-2" [size]="14" />
+                </button>
+              </div>
+            </div>
+
+            @if (repartiendoId() === r.id_rubro) {
+              <div class="rp__reparto">
+                <p class="rp__reparto-titulo">
+                  Qué categorías de la carta son de «{{ r.nombre }}»
+                </p>
+                <p class="rp__muted">
+                  Una categoría solo puede estar en un sector. Las que dejes sin marcar en ningún
+                  sector cuentan como <strong>General</strong> —las bebidas, por ejemplo, que se
+                  venden en todos—.
+                </p>
+                <div class="rp__cats">
+                  @for (c of categorias(); track c.id_categoria) {
+                    <label class="rp__cat" [class.rp__cat--on]="estaMarcada(c.id_categoria)">
+                      <input
+                        type="checkbox"
+                        [checked]="estaMarcada(c.id_categoria)"
+                        (change)="alternar(c.id_categoria)"
+                      />
+                      <span class="rp__cat-nombre">{{ c.nombre }}</span>
+                      <span class="rp__cat-meta">
+                        {{ c.productos }} {{ c.productos === 1 ? 'producto' : 'productos' }}
+                        @if (sectorDe(c); as otro) {
+                          · <em>hoy en {{ otro }}</em>
+                        }
+                      </span>
+                    </label>
+                  }
+                </div>
+                <div class="rp__acciones">
+                  <button type="button" class="btn btn--primary" [disabled]="guardando()" (click)="guardarReparto()">
+                    {{ guardando() ? 'Guardando…' : 'Guardar categorías' }}
+                  </button>
+                  <button type="button" class="btn btn--outline" (click)="cerrarReparto()">Cancelar</button>
+                </div>
+              </div>
+            }
+          }
+        </li>
+      }
+    </ul>
+
+    @if (rubros().length > 0) {
+      <p class="rp__muted">
+        @if (sinSector().length > 0) {
+          En <strong>General</strong> quedan
+          {{ sinSector().length }} {{ sinSector().length === 1 ? 'categoría' : 'categorías' }}:
+          <span class="rp__chips">
+            @for (c of sinSector(); track c.id_categoria) {
+              <span class="rp__chip">{{ c.nombre }}</span>
+            }
+          </span>
+          Su venta sale en una fila aparte de los informes.
+        } @else {
+          Todas tus categorías están repartidas. Si más adelante añades una a la carta, empieza en
+          «General» hasta que la asignes.
+        }
+      </p>
+      <p class="rp__muted">
+        El corte por sector lo ves en <strong>Informes → Ventas por sector</strong> y en el
+        <strong>cierre de caja</strong>. El domicilio, el impuesto y el descuento van en líneas
+        aparte: son del pedido completo y no de un sector.
+      </p>
+    }
+  }
+</article>

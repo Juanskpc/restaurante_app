@@ -234,14 +234,11 @@
         <!-- Ícono + Nombre en fila -->
         <div class="form-row">
           <div class="form-group form-group-icon">
-            <label class="form-label">Ícono</label>
-            <input
-              class="form-input input-icon"
-              type="text"
-              maxlength="4"
-              placeholder="🍔"
-              [value]="catForm().icono"
-              (input)="updateCatField('icono', $any($event.target).value)"
+            <label class="form-label" for="cat-icono">Ícono</label>
+            <app-icono-selector
+              campoId="cat-icono"
+              [valor]="catForm().icono"
+              (valorChange)="updateCatField('icono', $event)"
             />
           </div>
           <div class="form-group" style="flex:1">
@@ -364,14 +361,11 @@
         <!-- ── Fila: Ícono + Nombre ── -->
         <div class="form-row">
           <div class="form-group form-group-icon">
-            <label class="form-label">Ícono</label>
-            <input
-              class="form-input input-icon"
-              type="text"
-              maxlength="4"
-              placeholder="🍔"
-              [value]="prodForm().icono"
-              (input)="updateProdField('icono', $any($event.target).value)"
+            <label class="form-label" for="prod-icono">Ícono</label>
+            <app-icono-selector
+              campoId="prod-icono"
+              [valor]="prodForm().icono"
+              (valorChange)="updateProdField('icono', $event)"
             />
           </div>
           <div class="form-group" style="flex:1">

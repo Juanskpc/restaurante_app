@@ -1,0 +1,76 @@
+<div class="ics">
+  <!-- El input sigue siendo el campo: quien tenga el emoji a mano lo escribe o lo pega. El
+       botón de al lado abre la rejilla para quien no. -->
+  <input
+    class="ics__input"
+    type="text"
+    [id]="campoId()"
+    [attr.maxlength]="maxLargo"
+    [placeholder]="placeholder()"
+    [value]="valor()"
+    [disabled]="deshabilitado()"
+    autocomplete="off"
+    (input)="escribir($any($event.target).value)"
+  />
+
+  <button
+    type="button"
+    class="ics__abrir"
+    [class.ics__abrir--activo]="abierto()"
+    [disabled]="deshabilitado()"
+    [attr.aria-expanded]="abierto()"
+    aria-haspopup="true"
+    title="Elegir ícono de la lista"
+    (click)="alternar()"
+  >
+    <lucide-icon name="chevron-down" [size]="13" />
+  </button>
+
+  @if (abierto()) {
+    <div class="ics__panel" role="dialog" aria-label="Elegir ícono">
+      <div class="ics__buscar">
+        <lucide-icon name="search" [size]="14" aria-hidden="true" />
+        <input
+          #buscador
+          type="text"
+          placeholder="Buscar: hamburguesa, cerveza, postre…"
+          autocomplete="off"
+          [value]="busqueda()"
+          (input)="busqueda.set($any($event.target).value)"
+        />
+        @if (busqueda()) {
+          <button type="button" class="ics__limpiar" aria-label="Limpiar búsqueda" (click)="limpiar()">
+            <lucide-icon name="x" [size]="12" />
+          </button>
+        }
+      </div>
+
+      <div class="ics__lista">
+        @for (g of grupos(); track trackGrupo($index, g)) {
+          <div class="ics__grupo">
+            <h4>{{ g.nombre }}</h4>
+            <div class="ics__rejilla">
+              @for (x of g.emojis; track trackEmoji($index, x)) {
+                <button
+                  type="button"
+                  class="ics__emoji"
+                  [class.ics__emoji--elegido]="x.e === muestra()"
+                  [title]="x.n"
+                  [attr.aria-label]="x.n"
+                  (click)="elegir(x.e)"
+                >{{ x.e }}</button>
+              }
+            </div>
+          </div>
+        }
+
+        @if (sinResultados()) {
+          <p class="ics__vacio">
+            Ningún ícono de la lista coincide con «{{ busqueda() }}».
+            Puedes escribirlo directamente en el campo.
+          </p>
+        }
+      </div>
+    </div>
+  }
+</div>
