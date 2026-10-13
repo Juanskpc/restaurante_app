@@ -73,6 +73,7 @@ export class SidebarComponent {
     { icon: 'utensils-crossed',  label: 'Menú',            route: '/menu',            section: 'secondary' },
     { icon: 'message-circle',    label: 'Conversaciones',  route: '/conversaciones',  section: 'main' },
     { icon: 'users',             label: 'Clientes',        route: '/clientes',        section: 'secondary' },
+    { icon: 'megaphone',         label: 'Promociones',     route: '/promociones',     section: 'secondary' },
     { icon: 'wallet',            label: 'Caja',            route: '/caja',            section: 'secondary' },
     { icon: 'package',           label: 'Inventario',      route: '/inventario',      section: 'secondary' },
     { icon: 'truck',             label: 'Proveedores',     route: '/proveedores',     section: 'secondary' },
@@ -101,11 +102,24 @@ export class SidebarComponent {
     '/conversaciones': this.pendientes.total(),
   }));
 
+  /**
+   * Rutas que además del permiso necesitan que EscalApp le haya encendido la función al negocio.
+   *
+   * No es lo mismo que un subnivel: un subnivel lo reparte el dueño entre sus roles, y esto lo
+   * decide EscalApp negocio por negocio. Promociones manda publicidad por el número del negocio y
+   * gasta dinero en Meta, así que mientras no esté en la lista el menú no la nombra.
+   */
+  private readonly banderaPorRuta: Record<string, () => boolean> = {
+    '/promociones': () => this.auth.permitePromociones(),
+  };
+
   readonly navItemsPermitidos = computed(() => {
     const badges = this.badgePorRuta();
     return this.navItems
       .filter((item) => {
         if (!this.auth.canAccessRoute(item.route)) return false;
+        const bandera = this.banderaPorRuta[item.route];
+        if (bandera && !bandera()) return false;
         const subnivel = this.subnivelPorRuta[item.route];
         return !subnivel || this.auth.canAccessSubnivel(subnivel);
       })

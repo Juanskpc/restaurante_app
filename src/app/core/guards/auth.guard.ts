@@ -157,6 +157,15 @@ function evaluateRoutePermission(
     return true;
   }
 
+  // `/promociones` es lista blanca de EscalApp antes que permiso del rol: mientras el negocio no
+  // la tenga encendida la ruta no existe para él, aunque su administrador tenga el permiso puesto
+  // (la matriz lo siembra solo con el valor de la plantilla del rol). La API dice lo mismo con un
+  // 403 `PROMOS_NO_HABILITADO`.
+  if (requestedPath === '/promociones' && !authService.permitePromociones()) {
+    const alternativa = authService.getFirstAccessibleRoute();
+    return alternativa ? router.parseUrl(alternativa) : router.parseUrl('/sin-acceso');
+  }
+
   if (authService.canAccessRoute(requestedPath)) {
     return true;
   }

@@ -76,6 +76,15 @@ export const routes: Routes = [
           import('./restaurante/features/clientes/clientes').then(m => m.ClientesComponent),
       },
       {
+        // Transversal, como `conversaciones`: el backend ya sirve a reserva cambiando el
+        // adaptador de hechos, así que la vista no vive dentro de `restaurante/`.
+        path: 'promociones',
+        title: 'Promociones',
+        canActivate: [planGuard],
+        loadComponent: () =>
+          import('./features/promociones/promociones').then(m => m.PromocionesComponent),
+      },
+      {
         path: 'mesas',
         title: 'Mesas',
         canActivate: [planGuard],

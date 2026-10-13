@@ -78,6 +78,15 @@ export interface NegocioRestaurante {
   controla_inventario?: boolean;
   muestra_iconos_productos?: boolean;
   /**
+   * ¿Este negocio tiene las promociones masivas encendidas?
+   *
+   * No es un permiso del dueño ni una feature del plan: es la lista blanca de EscalApp, negocio
+   * por negocio (`app_core/promociones/habilitado.js` en el backend). Ausente —sesión vieja o
+   * backend sin la columna— se lee como APAGADO: una función que manda publicidad y gasta dinero
+   * no se enciende por omisión.
+   */
+  permite_promociones?: boolean;
+  /**
    * Lo que trae el PLAN de este negocio, por nombre de feature (ADR-021). Se pregunta por la
    * feature y nunca por el nombre del plan: el día que el asistente cambie de plan, esto no
    * cambia. Hoy la única que se mira aquí es `asistente_ia`, que enciende Conversaciones.
@@ -341,6 +350,14 @@ export class AuthService {
    * ni ruta, ni forma de pago en el cobro— para no meterle una función que no pidió.
    */
   readonly permiteCuentasCliente = computed(() => !!this.negocio()?.permite_cuentas_cliente);
+
+  /**
+   * ¿El negocio tiene las promociones masivas?
+   *
+   * Lista blanca, no permiso: la enciende EscalApp. Apagada, el módulo no existe para él —ni menú
+   * ni ruta—, y si alguien llega a la URL a mano la API contesta 403 `PROMOS_NO_HABILITADO`.
+   */
+  readonly permitePromociones = computed(() => !!this.negocio()?.permite_promociones);
 
   /**
    * ¿El POS revisa y descuenta el stock de insumos al facturar?
