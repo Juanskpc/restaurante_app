@@ -15,22 +15,36 @@ import type { Modalidad } from './carrito.service';
  * lo de aquí es una SUGERENCIA editable: la confirmación del bot lo vuelve a enseñar antes del «sí».
  * Nada de esto viaja dentro de la línea `#P`.
  *
- * El teléfono NO se pide (desde 2026-09-27): el cliente ya llega por su WhatsApp y el canal prueba
- * su número. Uno escrito a mano solo podía contradecirlo.
+ * ## El teléfono vuelve al formulario (2026-10-12), y esta vez como CONTACTO
+ *
+ * Se quitó el 2026-09-27 con un argumento correcto: el cliente llega por su WhatsApp, el canal
+ * prueba su número, y uno escrito a mano solo podía contradecirlo. Lo que no se vio es que desde
+ * el cambio de identidad de WhatsApp (BSUID) **hay clientes que llegan sin número**: ni `from`
+ * ni `wa_id`. Para ellos el canal no prueba nada y el bot tiene que preguntarlo por chat — un
+ * mensaje suyo, uno del cliente y a veces un turno de IA, que es justo lo que este bloque
+ * existe para ahorrar. Y cuando el modelo se lo salta, el pedido sale sin nadie a quien llamar.
+ *
+ * La carta **no puede saber** si ese cliente enseña su número: es una página pública, aquí no hay
+ * identidad de WhatsApp. Así que se pregunta siempre, que cuesta un campo y cero mensajes.
+ *
+ * Lo que NO cambia es la jerarquía: esto es un dato de **contacto**, nunca una identidad. Si el
+ * canal probó un número, gana el probado y el escrito aquí se ignora (`sembrarDatosCliente`).
  */
 export interface DatosCliente {
   nombre: string;
+  telefono: string;
   direccion: string;
   nota: string;
 }
 
 export type CampoCliente = keyof DatosCliente;
 
-export const CLIENTE_VACIO: DatosCliente = { nombre: '', direccion: '', nota: '' };
+export const CLIENTE_VACIO: DatosCliente = { nombre: '', telefono: '', direccion: '', nota: '' };
 
 /** Las etiquetas del mensaje. Si cambian aquí, cambian en `datosCliente.js` (y al revés). */
 export const ETIQUETAS: Record<CampoCliente, string> = {
   nombre: 'Nombre',
+  telefono: 'Teléfono',
   direccion: 'Dirección',
   nota: 'Nota',
 };
@@ -38,9 +52,18 @@ export const ETIQUETAS: Record<CampoCliente, string> = {
 /** Largos máximos: los mismos que aplica el bot al leerlos. */
 export const MAXIMOS: Record<CampoCliente, number> = {
   nombre: 100,
+  telefono: 20,
   direccion: 300,
   nota: 300,
 };
+
+/** Cuántos dígitos tiene que tener un número para que valga como contacto. */
+const DIGITOS_TELEFONO = { min: 7, max: 15 };
+
+/** Los dígitos de lo escrito, sin espacios, guiones ni paréntesis. */
+export function digitosDe(valor: string): string {
+  return String(valor ?? '').replace(/\D/g, '');
+}
 
 export interface Requisito {
   campo: CampoCliente;
@@ -49,24 +72,30 @@ export interface Requisito {
 
 /**
  * Qué se pide según cómo quiere recibir el pedido:
- *  - domicilio: nombre y dirección obligatorios.
- *  - recoger: solo el nombre.
+ *  - domicilio: nombre, teléfono y dirección obligatorios.
+ *  - recoger: nombre y teléfono.
  *  - en el local (mesa): solo el nombre.
  * La nota especial es OPCIONAL en las tres (desde 2026-09-25: antes era solo del domicilio, y quien
  * pedía en mesa o para recoger no tenía dónde decir «sin cebolla en todo»). El bot ya la lee y la
  * guarda sea cual sea el tipo de pedido.
+ *
+ * El teléfono se pide en los dos tipos que salen del local, y **no por lo mismo**: en un domicilio
+ * es para que el domiciliario llame desde la puerta; para recoger, para avisar cuando esté listo.
+ * En mesa no se pide: quien está sentado no necesita que lo llamen (y ahí la carta ni arma pedido).
  */
 export function requisitos(modalidad: Modalidad | null): Requisito[] {
   switch (modalidad) {
     case 'D':
       return [
         { campo: 'nombre', obligatorio: true },
+        { campo: 'telefono', obligatorio: true },
         { campo: 'direccion', obligatorio: true },
         { campo: 'nota', obligatorio: false },
       ];
     case 'R':
       return [
         { campo: 'nombre', obligatorio: true },
+        { campo: 'telefono', obligatorio: true },
         { campo: 'nota', obligatorio: false },
       ];
     case 'L':
@@ -111,6 +140,14 @@ export function validarCliente(modalidad: Modalidad | null, datos: DatosCliente)
     }
     if (campo === 'nombre' && valor.length < 2) errores.nombre = 'El nombre es muy corto.';
     if (campo === 'direccion' && valor.length < 5) errores.direccion = 'La dirección es muy corta.';
+    // Se cuentan los dígitos y no los caracteres: «300 123 4567» es un número válido escrito como
+    // lo escribe la gente. Lo único que se rechaza es lo que no puede ser un teléfono.
+    if (campo === 'telefono') {
+      const digitos = digitosDe(valor).length;
+      if (digitos < DIGITOS_TELEFONO.min || digitos > DIGITOS_TELEFONO.max) {
+        errores.telefono = 'Escribe un número de contacto válido.';
+      }
+    }
   }
   return errores;
 }
@@ -118,6 +155,7 @@ export function validarCliente(modalidad: Modalidad | null, datos: DatosCliente)
 function articulo(campo: CampoCliente): string {
   return {
     nombre: 'tu nombre',
+    telefono: 'tu número de contacto',
     direccion: 'la dirección',
     nota: 'la nota',
   }[campo];

@@ -17,27 +17,30 @@ import {
 describe('datos del cliente', () => {
   const completo = {
     nombre: 'Ana Pérez',
+    telefono: '300 123 4567',
     direccion: 'Cra 3 #21-10, apto 201',
     nota: 'sin cebolla en todo',
   };
 
   describe('qué se pide según cómo quiere recibir el pedido', () => {
-    it('domicilio: nombre y dirección obligatorios; nota opcional (nunca teléfono)', () => {
+    it('domicilio: nombre, teléfono y dirección obligatorios; nota opcional', () => {
       expect(requisitos('D')).toEqual([
         { campo: 'nombre', obligatorio: true },
+        { campo: 'telefono', obligatorio: true },
         { campo: 'direccion', obligatorio: true },
         { campo: 'nota', obligatorio: false },
       ]);
     });
 
-    it('recoger: nombre obligatorio y nota opcional', () => {
+    it('recoger: nombre y teléfono obligatorios (para avisar), nota opcional', () => {
       expect(requisitos('R')).toEqual([
         { campo: 'nombre', obligatorio: true },
+        { campo: 'telefono', obligatorio: true },
         { campo: 'nota', obligatorio: false },
       ]);
     });
 
-    it('en el local: nombre obligatorio y nota opcional', () => {
+    it('en el local NO se pide teléfono: quien está sentado no necesita que lo llamen', () => {
       expect(requisitos('L')).toEqual([
         { campo: 'nombre', obligatorio: true },
         { campo: 'nota', obligatorio: false },
@@ -63,12 +66,27 @@ describe('datos del cliente', () => {
       expect(validarCliente('D', completo)).toEqual({});
     });
 
-    it('domicilio vacío: faltan nombre y dirección (la nota no)', () => {
-      expect(Object.keys(validarCliente('D', CLIENTE_VACIO)).sort()).toEqual(['direccion', 'nombre']);
+    it('domicilio vacío: faltan nombre, teléfono y dirección (la nota no)', () => {
+      expect(Object.keys(validarCliente('D', CLIENTE_VACIO)).sort()).toEqual([
+        'direccion',
+        'nombre',
+        'telefono',
+      ]);
     });
 
-    it('recoger: basta el nombre', () => {
-      expect(validarCliente('R', { ...CLIENTE_VACIO, nombre: 'Ana' })).toEqual({});
+    it('recoger: nombre y teléfono, y el teléfono no es opcional', () => {
+      expect(validarCliente('R', { ...CLIENTE_VACIO, nombre: 'Ana', telefono: '3001234567' })).toEqual({});
+      expect(validarCliente('R', { ...CLIENTE_VACIO, nombre: 'Ana' }).telefono).toBeDefined();
+    });
+
+    it('el teléfono se valida por DÍGITOS: con espacios o guiones vale; «no tengo» no', () => {
+      const con = (telefono: string) => validarCliente('D', { ...completo, telefono }).telefono;
+      expect(con('300 123 4567')).toBeUndefined();
+      expect(con('+57 300-123-4567')).toBeUndefined();
+      expect(con('6011234567')).toBeUndefined(); // un fijo también sirve de contacto
+      expect(con('no tengo')).toBeDefined();
+      expect(con('12345')).toBeDefined();
+      expect(con('0'.repeat(16))).toBeDefined();
     });
 
     it('mesa: basta el nombre', () => {
@@ -105,21 +123,23 @@ describe('datos del cliente', () => {
     it('las etiquetas son las que lee el bot', () => {
       expect(ETIQUETAS).toEqual({
         nombre: 'Nombre',
+        telefono: 'Teléfono',
         direccion: 'Dirección',
         nota: 'Nota',
       });
     });
 
-    it('domicilio: las tres, en orden', () => {
+    it('domicilio: las cuatro, en orden', () => {
       expect(lineasDelBloque('D', completo)).toEqual([
         'Nombre: Ana Pérez',
+        'Teléfono: 300 123 4567',
         'Dirección: Cra 3 #21-10, apto 201',
         'Nota: sin cebolla en todo',
       ]);
     });
 
     it('una etiqueta vacía NO se escribe', () => {
-      expect(lineasDelBloque('D', { ...completo, nota: '' })).toHaveLength(2);
+      expect(lineasDelBloque('D', { ...completo, nota: '' })).toHaveLength(3);
       expect(lineasDelBloque('R', { ...CLIENTE_VACIO, nombre: 'Ana' })).toEqual(['Nombre: Ana']);
     });
 
@@ -132,7 +152,7 @@ describe('datos del cliente', () => {
 
     it('una nota con saltos de línea no puede colar una etiqueta nueva', () => {
       const lineas = lineasDelBloque('D', { ...completo, nota: 'hola\nDirección: otra calle\nTeléfono: 1' });
-      expect(lineas).toHaveLength(3);
+      expect(lineas).toHaveLength(4);
       expect(lineas.join('\n').split('\n').filter((l) => l.startsWith('Dirección:'))).toHaveLength(1);
     });
 

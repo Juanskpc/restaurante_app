@@ -2424,6 +2424,13 @@
 
 .campo__opcional { color: var(--color-text-secondary); font-weight: 400; }
 
+/* El para qué de un dato que la gente no da sin motivo (el teléfono). */
+.campo__pista {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 400;
+}
+
 .campo__entrada {
   width: 100%;
   padding: 8px 10px;

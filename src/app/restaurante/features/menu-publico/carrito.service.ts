@@ -92,16 +92,20 @@ export interface MesaElegida {
  * se muestra aquí es una estimación honesta, no una promesa.
  */
 /**
- * Cuánto tiempo sigue valiendo un carrito guardado.
+ * Cuánto tiempo sigue valiendo un carrito guardado: **2 horas** (decisión del dueño, 2026-10-12;
+ * antes eran 4).
  *
  * Guardarlo sirve para que cerrar la pestaña sin querer no borre veinte minutos de elegir. No
  * sirve para nada más allá de esa visita: un carrito de anteayer no es «lo que iba a pedir», es
  * basura que aparece con la insignia encendida y hace creer que hay un pedido en marcha.
  *
- * Cuatro horas cubren de sobra una visita —incluida la de un sitio que abre de 8 de la tarde a
- * 2 de la madrugada— y no llegan nunca a la cena del día siguiente.
+ * Dos horas cubren una visita entera —mirar la carta, consultarlo con quien come, volver— y
+ * pasadas, quien entra empieza de cero: carrito vacío y la pregunta de cómo quiere pedir.
+ *
+ * ⚠️ Esto vale **solo para los productos**. Cómo quiere recibirlo (`modalidad`) no se guarda
+ * nunca: ver `olvidarEleccion`.
  */
-const VIGENCIA_MS = 4 * 60 * 60 * 1000;
+const VIGENCIA_MS = 2 * 60 * 60 * 1000;
 
 /** Forma con la que se guarda. La versión permite tirar formatos viejos sin adivinar su edad. */
 interface CarritoGuardado {
@@ -110,15 +114,6 @@ interface CarritoGuardado {
   /** Cuándo se abrió WhatsApp con este pedido, o `null` si todavía no. */
   enviadoEn: number | null;
   items: ItemCarrito[];
-}
-
-/** Lo que el cliente eligió sobre cómo pedir. Se guarda aparte del carrito: no es un pedido. */
-interface EleccionGuardada {
-  v: 1;
-  guardado: number;
-  modalidad: Modalidad | null;
-  barrio: BarrioElegido | null;
-  mesa: MesaElegida | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -133,8 +128,8 @@ export class CarritoService {
 
   // ── Cómo quiere pedir ─────────────────────────────────────────────────────────────────
   //
-  // Valor inicial `null` SIEMPRE, en el servidor y en el cliente: lo guardado se lee en
-  // `iniciar` solo en el navegador. Así el primer render coincide con el del servidor.
+  // Valor inicial `null` SIEMPRE —en el servidor y en el navegador— y **no se restaura de
+  // ninguna parte**: cada carga de la página vuelve a preguntar. Ver `olvidarEleccion`.
   private readonly _modalidad = signal<Modalidad | null>(null);
   private readonly _barrio = signal<BarrioElegido | null>(null);
   private readonly _mesa = signal<MesaElegida | null>(null);
@@ -178,7 +173,7 @@ export class CarritoService {
     this._idNegocio.set(idNegocio);
     this._enviadoEn.set(null);
     this._items.set(this.leerGuardado(idNegocio));
-    this.restaurarEleccion(idNegocio);
+    this.olvidarEleccion(idNegocio);
     this.restaurarCliente(idNegocio);
   }
 
@@ -195,17 +190,14 @@ export class CarritoService {
     this._modalidad.set(modalidad);
     if (modalidad !== 'D') this._barrio.set(null);
     if (modalidad !== 'L') this._mesa.set(null);
-    this.guardarEleccion();
   }
 
   elegirBarrio(barrio: BarrioElegido | null): void {
     this._barrio.set(barrio);
-    this.guardarEleccion();
   }
 
   elegirMesa(mesa: MesaElegida | null): void {
     this._mesa.set(mesa);
-    this.guardarEleccion();
   }
 
   /**
@@ -427,11 +419,11 @@ export class CarritoService {
   private guardarClienteEnNavegador(): void {
     const id = this._idNegocio();
     if (id === null || !isPlatformBrowser(this.platformId)) return;
-    const { nombre, direccion } = this._cliente();
+    const { nombre, telefono, direccion } = this._cliente();
     try {
       localStorage.setItem(
         this.claveCliente(id),
-        JSON.stringify({ v: 1, guardado: Date.now(), nombre, direccion }),
+        JSON.stringify({ v: 1, guardado: Date.now(), nombre, telefono, direccion }),
       );
     } catch {
       // Sin almacenamiento los datos duran lo que dure la pestaña.
@@ -455,6 +447,7 @@ export class CarritoService {
         typeof v === 'string' ? sanear(v, MAXIMOS[campo]) : '';
       this._cliente.set({
         nombre: texto(s.nombre, 'nombre'),
+        telefono: texto(s.telefono, 'telefono'),
         direccion: texto(s.direccion, 'direccion'),
         nota: '',
       });
@@ -463,66 +456,37 @@ export class CarritoService {
     }
   }
 
-  // ── Persistencia de la elección ──────────────────────────────────────────────────────
+  // ── La elección NO se guarda ─────────────────────────────────────────────────────────
+  //
+  // Hasta el 2026-10-12 se recordaba 4 horas, por simetría con el carrito. La simetría estaba
+  // mal: los productos son trabajo que el cliente hizo y que perder le molesta; «a domicilio» es
+  // una decisión de ESTE pedido, y la de la visita anterior es una suposición. Quien pidió un
+  // domicilio el martes y el miércoles pasa por el local no encontraba dónde decirlo —se topaba
+  // con su dirección ya puesta y el pedido salía a reparto—. Decisión del dueño: se pregunta
+  // siempre, en cada carga de la página.
+  //
+  // Un recargo (el domicilio) y una dirección heredadas de otra visita son del tipo de error que
+  // el cliente no ve hasta que lo paga, así que el valor por defecto correcto es no saber.
 
   private claveEleccion(idNegocio: number): string {
     return `escalapp.pedido.${idNegocio}`;
   }
 
-  private guardarEleccion(): void {
-    const id = this._idNegocio();
-    if (id === null || !isPlatformBrowser(this.platformId)) return;
-    const sobre: EleccionGuardada = {
-      v: 1,
-      guardado: Date.now(),
-      modalidad: this._modalidad(),
-      barrio: this._barrio(),
-      mesa: this._mesa(),
-    };
-    try {
-      localStorage.setItem(this.claveEleccion(id), JSON.stringify(sobre));
-    } catch {
-      // Sin almacenamiento la elección dura lo que dure la pestaña.
-    }
-  }
-
-  /** Solo en el navegador y con vigencia, como el carrito. Lo inválido se descarta y se borra. */
-  private restaurarEleccion(idNegocio: number): void {
+  /**
+   * Arranca sin elección y **borra** la que dejó guardada la versión anterior.
+   *
+   * Lo segundo no es limpieza cosmética: ese `escalapp.pedido.<id>` sigue en el navegador de cada
+   * cliente que ya usó la carta, y mientras esté ahí cualquier lectura futura podría resucitarlo.
+   */
+  private olvidarEleccion(idNegocio: number): void {
     this._modalidad.set(null);
     this._barrio.set(null);
     this._mesa.set(null);
     if (!isPlatformBrowser(this.platformId)) return;
     try {
-      const crudo = localStorage.getItem(this.claveEleccion(idNegocio));
-      if (!crudo) return;
-      const sobre = JSON.parse(crudo);
-      const vale =
-        sobre &&
-        sobre.v === 1 &&
-        Number.isFinite(sobre.guardado) &&
-        Date.now() - sobre.guardado <= VIGENCIA_MS &&
-        (sobre.modalidad === 'L' || sobre.modalidad === 'D' || sobre.modalidad === 'R');
-      if (!vale) {
-        localStorage.removeItem(this.claveEleccion(idNegocio));
-        return;
-      }
-      this._modalidad.set(sobre.modalidad);
-      const b = sobre.barrio;
-      if (
-        sobre.modalidad === 'D' && b && Number.isInteger(b.id_barrio) && b.id_barrio >= 0 &&
-        typeof b.nombre === 'string' && (b.valor === null || Number.isFinite(b.valor))
-      ) {
-        this._barrio.set({ id_barrio: b.id_barrio, nombre: b.nombre, valor: b.valor });
-      }
-      const m = sobre.mesa;
-      if (
-        sobre.modalidad === 'L' && m && Number.isInteger(m.id_mesa) && m.id_mesa > 0 &&
-        typeof m.nombre === 'string' && Number.isInteger(m.numero)
-      ) {
-        this._mesa.set({ id_mesa: m.id_mesa, nombre: m.nombre, numero: m.numero });
-      }
+      localStorage.removeItem(this.claveEleccion(idNegocio));
     } catch {
-      // JSON corrupto o sin acceso: se empieza sin elección.
+      // Sin acceso al almacenamiento no hay nada que borrar: tampoco se lee.
     }
   }
 

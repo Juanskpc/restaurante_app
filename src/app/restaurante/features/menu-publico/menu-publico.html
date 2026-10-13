@@ -644,6 +644,9 @@
               <label class="campo__etiqueta" [for]="'cli-' + r.campo">
                 {{ etiquetaCampo(r.campo) }}
                 @if (!r.obligatorio) { <span class="campo__opcional">(opcional)</span> }
+                @if (pistaCampo(r.campo); as pista) {
+                  <span class="campo__pista">· {{ pista }}</span>
+                }
               </label>
               @if (r.campo === 'nota') {
                 <textarea
@@ -660,7 +663,8 @@
                 <input
                   class="campo__entrada"
                   [id]="'cli-' + r.campo"
-                  type="text"
+                  [type]="tipoCampo(r.campo)"
+                  [attr.inputmode]="modoCampo(r.campo)"
                   [attr.autocomplete]="autocompletar(r.campo)"
                   [attr.maxlength]="maximoCampo(r.campo)"
                   [value]="cliente()[r.campo]"

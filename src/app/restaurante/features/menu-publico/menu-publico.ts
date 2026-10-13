@@ -246,8 +246,9 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
   // ── ¿Cómo quieres pedir? ──────────────────────────────────────────────────────────────
   //
   // Antes de los productos: en el local / a domicilio / recoger. Solo cuando se puede pedir y el
-  // negocio atiende ahora. El estado inicial es el mismo en el servidor y en el navegador; lo
-  // que el cliente eligió antes se restaura DESPUÉS, en `carrito.iniciar` (solo navegador).
+  // negocio atiende ahora. **Se pregunta en cada carga de la página**: lo elegido no sobrevive a
+  // un recargo ni a cerrar el navegador (2026-10-12), aunque el carrito sí durante 2 horas. Lo
+  // único que se preselecciona es la mesa del QR (`?mesa=`).
 
   /** Barrios con precio (solo si el negocio cobra el domicilio por barrio) y mesas activas. */
   readonly barriosInfo = signal<{ habilitado: boolean; barrios: BarrioPublico[] }>({
@@ -270,7 +271,7 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
    *
    * «En el local» ya no pregunta la mesa (2026-09-29): en el local pide un mesero, no el cliente, así
    * que el número de mesa no sirve para nada. Un QR con `?mesa=` sigue reconociéndose (ver
-   * `reconciliarEleccion`) y solo se usa para decir en qué mesa está.
+   * `aplicarMesaDeLaUrl`) y solo se usa para decir en qué mesa está.
    */
   readonly pasoEleccion = computed<PasoEleccion | null>(() => {
     const modalidad = this.carrito.modalidad();
@@ -388,40 +389,26 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
     }).subscribe(({ barrios, mesas }) => {
       this.barriosInfo.set(barrios?.data ?? { habilitado: false, barrios: [] });
       this.mesas.set(mesas?.data ?? []);
-      this.reconciliarEleccion();
+      this.aplicarMesaDeLaUrl();
       this.eleccionCargada.set(true);
     });
   }
 
   /**
-   * Lo guardado de otra visita puede haber dejado de valer: un barrio borrado, una mesa
-   * desactivada, «en el local» en un negocio sin mesas. Se suelta y se vuelve a preguntar.
-   * Y una mesa en la URL (`?mesa=<id>`, el QR de la mesa) manda sobre lo guardado.
+   * La única elección que no se pregunta: `?mesa=<id>`, el QR pegado en la mesa.
+   *
+   * Nada más se preselecciona. Desde el 2026-10-12 la elección no se recuerda entre visitas (ver
+   * `CarritoService#olvidarEleccion`), así que ya no hay nada guardado que reconciliar —antes se
+   * soltaba aquí un barrio borrado o una mesa desactivada—. La mesa de la URL sí se comprueba
+   * contra las activas del negocio: el id llega en un enlace que cualquiera puede editar.
    */
-  private reconciliarEleccion(): void {
-    const modalidad = this.carrito.modalidad();
-    const barrio = this.carrito.barrio();
-    if (modalidad === 'D' && barrio && barrio.id_barrio !== 0) {
-      const sigue = this.barriosInfo().barrios.some((b) => b.id_barrio === barrio.id_barrio);
-      if (!sigue || !this.hayBarrios()) this.carrito.elegirBarrio(null);
-    }
-    if (modalidad === 'D' && barrio && !this.hayBarrios()) this.carrito.elegirBarrio(null);
-    if (modalidad === 'L') {
-      const mesa = this.carrito.mesa();
-      if (!this.hayMesas()) this.carrito.elegirModalidad(null);
-      else if (mesa && !this.mesas().some((m) => m.id_mesa === mesa.id_mesa)) {
-        this.carrito.elegirMesa(null);
-      }
-    }
-
+  private aplicarMesaDeLaUrl(): void {
     const deLaUrl = Number(this.route.snapshot.queryParamMap.get('mesa'));
-    if (Number.isInteger(deLaUrl) && deLaUrl > 0) {
-      const mesa = this.mesas().find((m) => m.id_mesa === deLaUrl);
-      if (mesa) {
-        this.carrito.elegirModalidad('L');
-        this.carrito.elegirMesa(mesa);
-      }
-    }
+    if (!Number.isInteger(deLaUrl) || deLaUrl <= 0) return;
+    const mesa = this.mesas().find((m) => m.id_mesa === deLaUrl);
+    if (!mesa) return;
+    this.carrito.elegirModalidad('L');
+    this.carrito.elegirMesa(mesa);
   }
 
   /** El panel de pre-pedido, para revisar antes de mandar. */
@@ -1007,7 +994,29 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   protected autocompletar(campo: CampoCliente): string | null {
-    return { nombre: 'name', direccion: 'street-address', nota: null }[campo];
+    return { nombre: 'name', telefono: 'tel', direccion: 'street-address', nota: null }[campo];
+  }
+
+  /**
+   * El para qué de un dato, cuando no es obvio. Solo el teléfono lo necesita, y **el motivo no es
+   * el mismo** en las dos modalidades: un bot que pide un número sin explicarse parece que está
+   * recogiendo datos, y el motivo de verdad es justo lo que hace que la gente lo dé. Es el mismo
+   * texto que usa el asistente cuando le toca preguntarlo por chat (`motivoDelTelefono`).
+   */
+  protected pistaCampo(campo: CampoCliente): string | null {
+    if (campo !== 'telefono') return null;
+    return this.carrito.modalidad() === 'D'
+      ? 'para llamarte al llegar'
+      : 'para avisarte cuando esté listo';
+  }
+
+  /** `tel` saca el teclado numérico en el móvil, que es donde se rellena esto. */
+  protected tipoCampo(campo: CampoCliente): string {
+    return campo === 'telefono' ? 'tel' : 'text';
+  }
+
+  protected modoCampo(campo: CampoCliente): string | null {
+    return campo === 'telefono' ? 'tel' : null;
   }
 
   protected mostrarError(campo: CampoCliente): boolean {

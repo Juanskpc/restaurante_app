@@ -270,50 +270,47 @@ describe('MenuPublicoComponent — cómo quieres pedir', () => {
     expect(fixture.componentInstance.mostrarSelector()).toBe(true);
   });
 
-  it('un barrio guardado que ya no existe se suelta y se vuelve a preguntar', () => {
-    // Otra visita dejó «Norte» guardado; el negocio lo borró desde entonces.
+  /**
+   * La elección de otra visita ya no se restaura (2026-10-12): se pregunta SIEMPRE, se recargue la
+   * página, se cierre el navegador o se vuelva al día siguiente. Lo que antes había que
+   * reconciliar —un barrio borrado, una mesa desactivada— simplemente no llega.
+   */
+  it('una elección guardada por la versión anterior NO revive: se vuelve a preguntar y la clave se borra', () => {
     localStorage.setItem(
       `escalapp.pedido.${ID}`,
       JSON.stringify({
         v: 1,
         guardado: Date.now(),
         modalidad: 'D',
-        barrio: { id_barrio: 99, nombre: 'Norte viejo', valor: 1000 },
+        barrio: { id_barrio: 7, nombre: 'Centro', valor: 4500 },
         mesa: null,
       }),
     );
     const fixture = montar();
     responder({ barrios: BARRIOS });
+    fixture.detectChanges();
 
-    expect(TestBed.inject(CarritoService).barrio()).toBeNull();
-    expect(fixture.componentInstance.pasoEleccion()).toBe('barrio');
+    const carrito = TestBed.inject(CarritoService);
+    expect(carrito.modalidad()).toBeNull();
+    expect(carrito.barrio()).toBeNull();
+    expect(carrito.domicilio()).toBe(0);
+    expect(localStorage.getItem(`escalapp.pedido.${ID}`)).toBeNull();
+
+    const comp = fixture.componentInstance;
+    expect(comp.pasoEleccion()).toBe('modalidad');
+    expect(comp.mostrarSelector()).toBe(true);
+    expect(comp.mostrarChip()).toBe(false);
   });
 
-  it('«en el local» guardado en un negocio que ya no tiene mesas se suelta', () => {
-    localStorage.setItem(
-      `escalapp.pedido.${ID}`,
-      JSON.stringify({
-        v: 1,
-        guardado: Date.now(),
-        modalidad: 'L',
-        barrio: null,
-        mesa: { id_mesa: 3, nombre: 'Mesa 3', numero: 3 },
-      }),
-    );
-    montar();
-    responder({ mesas: [] });
-
-    expect(TestBed.inject(CarritoService).modalidad()).toBeNull();
-  });
-
-  it('una elección completa de otra visita no vuelve a preguntar, y ofrece cambiarla', () => {
-    localStorage.setItem(
-      `escalapp.pedido.${ID}`,
-      JSON.stringify({ v: 1, guardado: Date.now(), modalidad: 'R', barrio: null, mesa: null }),
-    );
+  it('elegir en ESTA visita no deja nada guardado, pero sí ofrece cambiarlo', () => {
     const fixture = montar();
     responder();
     fixture.detectChanges();
+
+    fixture.componentInstance.elegirModalidad('R');
+    fixture.detectChanges();
+
+    expect(localStorage.getItem(`escalapp.pedido.${ID}`)).toBeNull();
 
     const comp = fixture.componentInstance;
     expect(comp.mostrarSelector()).toBe(false);
@@ -674,18 +671,34 @@ describe('MenuPublicoComponent — quitar ingredientes al agregar', () => {
         (e.textContent ?? '').replace(/\s+/g, ' ').trim(),
       );
 
-    it('domicilio: pide nombre, dirección y nota (opcional); nunca teléfono', () => {
+    it('domicilio: nombre, teléfono y dirección obligatorios, y la nota opcional', () => {
       const { fixture } = panel('D');
-      expect(etiquetas(fixture)).toEqual(['Nombre', 'Dirección', 'Nota (opcional)']);
+      // El teléfono dice para qué se pide: un campo así, sin motivo, es el que la gente no rellena.
+      expect(etiquetas(fixture)).toEqual([
+        'Nombre',
+        'Teléfono · para llamarte al llegar',
+        'Dirección',
+        'Nota (opcional)',
+      ]);
+      // Teclado numérico y autocompletado del móvil: esto se rellena con el pulgar.
+      const tel = fixture.nativeElement.querySelector('#cli-telefono') as HTMLInputElement;
+      expect(tel.type).toBe('tel');
+      expect(tel.getAttribute('inputmode')).toBe('tel');
+      expect(tel.getAttribute('autocomplete')).toBe('tel');
+    });
+
+    it('recoger: nombre y teléfono, y el motivo CAMBIA (avisar, no llamar al llegar)', () => {
+      expect(etiquetas(panel('R').fixture)).toEqual([
+        'Nombre',
+        'Teléfono · para avisarte cuando esté listo',
+        'Nota (opcional)',
+      ]);
+    });
+
+    it('en mesa NO se pide teléfono: ahí no llaman a nadie', () => {
+      const { fixture } = panel('L');
+      expect(etiquetas(fixture)).toEqual(['Nombre', 'Nota (opcional)']);
       expect(fixture.nativeElement.querySelector('#cli-telefono')).toBeNull();
-    });
-
-    it('recoger: nombre y nota (opcional)', () => {
-      expect(etiquetas(panel('R').fixture)).toEqual(['Nombre', 'Nota (opcional)']);
-    });
-
-    it('en mesa: nombre y nota (opcional)', () => {
-      expect(etiquetas(panel('L').fixture)).toEqual(['Nombre', 'Nota (opcional)']);
     });
 
     describe('texto bajo el total', () => {
@@ -726,14 +739,14 @@ describe('MenuPublicoComponent — quitar ingredientes al agregar', () => {
 
       expect(abrir).not.toHaveBeenCalled();
       const errores = fixture.nativeElement.querySelectorAll('.campo__error');
-      expect(errores).toHaveLength(2);
+      expect(errores).toHaveLength(3); // nombre, teléfono y dirección (la nota es opcional)
       expect((fixture.nativeElement.querySelector('#cli-nombre') as HTMLInputElement).getAttribute('aria-invalid')).toBe('true');
     });
 
     it('con los datos completos abre WhatsApp con el bloque ANTES de la línea #P', () => {
       const { fixture, comp, carrito } = panel('D');
       carrito.guardarCliente({
-        nombre: 'Ana Pérez', direccion: 'Cra 3 #21-10', nota: 'sin cebolla',
+        nombre: 'Ana Pérez', telefono: '300 123 4567', direccion: 'Cra 3 #21-10', nota: 'sin cebolla',
       });
       comp.enviarPorWhatsApp();
       fixture.detectChanges();
@@ -743,7 +756,8 @@ describe('MenuPublicoComponent — quitar ingredientes al agregar', () => {
       const lineas = texto.split('\n');
       expect(lineas).toContain('Nombre: Ana Pérez');
       expect(lineas).toContain('Nota: sin cebolla');
-      expect(lineas.some((l) => l.startsWith('Teléfono:'))).toBe(false);
+      // El teléfono vuelve al bloque (2026-10-12): es el contacto de quien llega sin número visible.
+      expect(lineas).toContain('Teléfono: 300 123 4567');
       expect(lineas[lineas.length - 1]).toBe('#P12-9x1~m=D');
     });
 

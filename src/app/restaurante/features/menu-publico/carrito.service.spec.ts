@@ -183,6 +183,20 @@ describe('CarritoService', () => {
       carrito.iniciar(12);
       expect(carrito.cantidadTotal()).toBe(1);
     });
+
+    it('la vigencia son 2 horas: a las 3 el carrito ya está vacío (2026-10-12)', () => {
+      // Antes eran 4 y un carrito de media tarde seguía vivo a la hora de la cena. Pasadas las 2
+      // horas quien entra empieza un pedido completamente nuevo.
+      carrito.agregar(hamburguesa);
+
+      const sobre = JSON.parse(localStorage.getItem('escalapp.carrito.12')!);
+      sobre.guardado = Date.now() - 3 * 60 * 60 * 1000;
+      localStorage.setItem('escalapp.carrito.12', JSON.stringify(sobre));
+
+      carrito.iniciar(12);
+      expect(carrito.vacio()).toBe(true);
+      expect(localStorage.getItem('escalapp.carrito.12')).toBeNull();
+    });
   });
 
   describe('un pedido que ya salió no resucita', () => {
@@ -270,29 +284,33 @@ describe('CarritoService', () => {
       expect(carrito.codigoCompacto()).toBe('#P12-39x1~m=R');
     });
 
-    it('la elección se recuerda entre visitas, por negocio', () => {
+    it('la elección NO se recuerda: cada carga de la página vuelve a preguntar (2026-10-12)', () => {
+      // El carrito sobrevive al recargo; cómo quiere recibirlo, no. Un domicilio heredado de la
+      // visita anterior es un recargo y una dirección que el cliente no eligió para ESTE pedido.
       carrito.elegirModalidad('D');
       carrito.elegirBarrio({ id_barrio: 7, nombre: 'Centro', valor: 4500 });
 
       carrito.iniciar(12);
-      expect(carrito.modalidad()).toBe('D');
-      expect(carrito.barrio()?.id_barrio).toBe(7);
 
-      carrito.iniciar(99);
       expect(carrito.modalidad()).toBeNull();
+      expect(carrito.barrio()).toBeNull();
+      expect(carrito.domicilio()).toBe(0);
+      expect(carrito.cantidadTotal()).toBe(1); // los productos sí siguen ahí
     });
 
-    it('lo guardado con otra forma o vencido se ignora', () => {
-      localStorage.setItem('escalapp.pedido.12', JSON.stringify({ v: 9 }));
-      carrito.iniciar(12);
-      expect(carrito.modalidad()).toBeNull();
-
+    it('ni se guarda, ni queda rastro: la clave de la versión anterior se borra', () => {
+      // Ese `escalapp.pedido.<id>` está hoy en el navegador de cada cliente que usó la carta.
       localStorage.setItem(
         'escalapp.pedido.12',
-        JSON.stringify({ v: 1, guardado: Date.now() - 5 * 60 * 60 * 1000, modalidad: 'R', barrio: null, mesa: null }),
+        JSON.stringify({ v: 1, guardado: Date.now(), modalidad: 'R', barrio: null, mesa: null }),
       );
+
       carrito.iniciar(12);
       expect(carrito.modalidad()).toBeNull();
+      expect(localStorage.getItem('escalapp.pedido.12')).toBeNull();
+
+      carrito.elegirModalidad('R');
+      expect(localStorage.getItem('escalapp.pedido.12')).toBeNull();
     });
   });
 
@@ -429,6 +447,7 @@ describe('CarritoService', () => {
   describe('datos del cliente en el mensaje', () => {
     const datos = {
       nombre: 'Ana Pérez',
+      telefono: '300 123 4567',
       direccion: 'Cra 3 #21-10, apto 201',
       nota: 'sin cebolla en todo',
     };
@@ -446,8 +465,9 @@ describe('CarritoService', () => {
       const lineas = carrito.mensajeParaWhatsApp().split('\n');
 
       const i = lineas.indexOf('Nombre: Ana Pérez');
-      expect(lineas.slice(i, i + 3)).toEqual([
+      expect(lineas.slice(i, i + 4)).toEqual([
         'Nombre: Ana Pérez',
+        'Teléfono: 300 123 4567',
         'Dirección: Cra 3 #21-10, apto 201',
         'Nota: sin cebolla en todo',
       ]);
@@ -463,15 +483,20 @@ describe('CarritoService', () => {
       expect(codigo).not.toContain('Ana');
     });
 
-    it('en mesa solo viaja el nombre; en recoger también solo el nombre, y nunca un teléfono', () => {
+    it('en mesa solo viaja el nombre (ni dirección ni teléfono: ahí no llaman a nadie)', () => {
       carrito.guardarCliente(datos);
       carrito.elegirModalidad('L');
       expect(carrito.mensajeParaWhatsApp()).toContain('Nombre: Ana Pérez');
       expect(carrito.mensajeParaWhatsApp()).not.toContain('Dirección:');
       expect(carrito.mensajeParaWhatsApp()).not.toContain('Teléfono:');
+    });
 
+    it('para recoger viaja el teléfono (para avisar) pero no la dirección', () => {
+      carrito.guardarCliente(datos);
       carrito.elegirModalidad('R');
-      expect(carrito.mensajeParaWhatsApp()).not.toContain('Teléfono:');
+      const mensaje = carrito.mensajeParaWhatsApp();
+      expect(mensaje).toContain('Teléfono: 300 123 4567');
+      expect(mensaje).not.toContain('Dirección:');
     });
 
     it('los saltos de línea del valor no pueden colar etiquetas', () => {
@@ -481,7 +506,7 @@ describe('CarritoService', () => {
       expect(lineas.filter((l) => l.startsWith('Dirección:'))).toHaveLength(1);
     });
 
-    it('se recuerdan por negocio (sin la nota) para quien repite', () => {
+    it('se recuerdan por negocio (nombre, teléfono y dirección; la nota no) para quien repite', () => {
       carrito.guardarCliente(datos);
       carrito.iniciar(12);
       expect(carrito.cliente()).toEqual({ ...datos, nota: '' });
