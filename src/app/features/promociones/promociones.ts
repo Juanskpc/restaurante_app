@@ -1,7 +1,9 @@
 import {
-  ChangeDetectionStrategy, Component, OnInit, computed, inject, signal,
+  ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal,
 } from '@angular/core';
-import { CurrencyPipe, DatePipe, DecimalPipe, TitleCasePipe } from '@angular/common';
+import {
+  CurrencyPipe, DatePipe, DecimalPipe, NgTemplateOutlet, TitleCasePipe,
+} from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
 
@@ -11,6 +13,7 @@ import {
   PlantillaPromo, PromocionesService, Segmento, Simulacion,
 } from '../../core/services/promociones.service';
 import { UiFeedbackService } from '../../core/ui-feedback/ui-feedback.service';
+import { ModalCabeceraComponent } from '../conversaciones/shared/modal-cabecera';
 
 /** Cuántos clientes se piden de una vez. La clientela de un restaurante son cientos, no miles. */
 const LIMITE_LISTA = 500;
@@ -23,6 +26,34 @@ const LIMITE_LISTA = 500;
  * se dice.
  */
 type Paso = 'audiencia' | 'mensaje' | 'enviar' | 'historial';
+
+/** Los tres pasos del envío, en orden. `historial` no es un paso: es otro sitio. */
+type PasoEnvio = Exclude<Paso, 'historial'>;
+const PASOS_ENVIO: PasoEnvio[] = ['audiencia', 'mensaje', 'enviar'];
+
+/** Cada cuánto se le pregunta al servidor si la prueba ya llegó, y cuántas veces (~2 minutos). */
+const PRUEBA_INTERVALO_MS = 4000;
+const PRUEBA_INTENTOS = 30;
+
+/** Lo que acepta WhatsApp en el encabezado de una plantilla, que es lo que valida el servidor. */
+const IMAGEN_TIPOS = ['image/jpeg', 'image/png'];
+const IMAGEN_MAX_BYTES = 5 * 1024 * 1024;
+
+/** El color de la etiqueta de estado en el historial: clases `tag--*` de la hoja de estilos. */
+type TonoEstado = 'neutro' | 'marca' | 'bien' | 'alerta' | 'mal';
+
+/** En qué va la prueba al móvil del dueño, para pintarlo sin que tenga que recargar. */
+type EstadoPrueba = 'sin_mandar' | 'esperando' | 'tardando' | 'llego' | 'fallo';
+
+/** Un icono por grupo: se reconoce antes de leerlo. Todos están en el registro de `app.config`. */
+const ICONO_SEGMENTO: Record<CodigoSegmento, string> = {
+  en_riesgo: 'clock',
+  dormido: 'moon',
+  ocasional: 'user-plus',
+  intermedio: 'trending-up',
+  frecuente: 'star',
+  sin_actividad: 'circle-slash',
+};
 
 /**
  * Promociones — a quién le puedes escribir y cuánto costaría (F1).
@@ -54,15 +85,23 @@ type Paso = 'audiencia' | 'mensaje' | 'enviar' | 'historial';
 @Component({
   selector: 'app-promociones',
   standalone: true,
-  imports: [FormsModule, CurrencyPipe, DatePipe, DecimalPipe, TitleCasePipe, LucideAngularModule],
+  imports: [
+    FormsModule, CurrencyPipe, DatePipe, DecimalPipe, NgTemplateOutlet, TitleCasePipe,
+    LucideAngularModule, ModalCabeceraComponent,
+  ],
   templateUrl: './promociones.html',
   styleUrl: './promociones.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '(document:keydown.escape)': 'cerrarInforme()' },
 })
 export class PromocionesComponent implements OnInit {
   private readonly promociones = inject(PromocionesService);
   private readonly auth = inject(AuthService);
   private readonly ui = inject(UiFeedbackService);
+
+  constructor() {
+    inject(DestroyRef).onDestroy(() => this.dejarDeVigilarPrueba());
+  }
 
   readonly cargando = signal(true);
   readonly error = signal('');
@@ -125,6 +164,9 @@ export class PromocionesComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    this.horaVistaPrevia.set(
+      new Date().toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit', hour12: true }),
+    );
     this.cargarAudiencia();
   }
 
@@ -334,6 +376,10 @@ export class PromocionesComponent implements OnInit {
     return this.segmentos().find((s) => s.codigo === codigo)?.nombre ?? codigo;
   }
 
+  iconoSegmento(codigo: CodigoSegmento): string {
+    return ICONO_SEGMENTO[codigo] ?? 'users';
+  }
+
   // ── F2: el mensaje, el envío y el historial ───────────────────────────────────────────
 
   readonly paso = signal<Paso>('audiencia');
@@ -346,6 +392,8 @@ export class PromocionesComponent implements OnInit {
   readonly nombreCampana = signal('');
   readonly imagenUrl = signal<string | null>(null);
   readonly subiendoImagen = signal(false);
+  /** Hay un archivo encima de la zona de la imagen: se resalta para que se vea dónde soltarlo. */
+  readonly arrastrando = signal(false);
 
   readonly gate = signal<Elegibilidad | null>(null);
   readonly campana = signal<Campana | null>(null);
@@ -362,6 +410,16 @@ export class PromocionesComponent implements OnInit {
 
   readonly historial = signal<Campana[]>([]);
   readonly informe = signal<InformeCampana | null>(null);
+  /** La promoción cuyo informe se está pidiendo, para marcar su botón mientras llega. */
+  readonly cargandoInforme = signal<string | null>(null);
+
+  // ── La vista previa de WhatsApp ──
+
+  readonly nombreNegocio = computed(() => this.auth.negocio()?.nombre ?? 'Tu negocio');
+  readonly inicialNegocio = computed(() => this.nombreNegocio().trim().charAt(0).toUpperCase());
+
+  /** La hora de la burbuja: la de ahora, que es como se vería si llegara en este momento. */
+  readonly horaVistaPrevia = signal('');
 
   /** La plantilla que se va a usar, con su texto y su estado. */
   readonly plantilla = computed(
@@ -399,11 +457,28 @@ export class PromocionesComponent implements OnInit {
       && (!this.plantilla()?.necesita_imagen || Boolean(this.imagenUrl())),
   );
 
+  /** El paso del envío en el que se estaba, para volver a él al salir del historial. */
+  private readonly ultimoPasoEnvio = signal<PasoEnvio>('audiencia');
+
+  /** Un paso ya recorrido se marca con un visto: es el que queda antes del actual. */
+  pasoHecho(paso: PasoEnvio): boolean {
+    const actual = this.paso();
+    if (actual === 'historial') return false;
+    return PASOS_ENVIO.indexOf(paso) < PASOS_ENVIO.indexOf(actual);
+  }
+
   irA(paso: Paso): void {
     this.paso.set(paso);
+    if (paso !== 'historial') this.ultimoPasoEnvio.set(paso);
+    if (paso !== 'enviar') this.dejarDeVigilarPrueba();
     if (paso === 'mensaje' && this.plantillas().length === 0) this.cargarPlantillas();
-    if (paso === 'enviar') this.cargarGate();
+    if (paso === 'enviar') this.cargarGate(true);
     if (paso === 'historial') this.cargarHistorial();
+  }
+
+  /** Sale del historial al paso en el que se estaba armando la promoción. */
+  volverAlEnvio(): void {
+    this.irA(this.ultimoPasoEnvio());
   }
 
   cargarPlantillas(): void {
@@ -468,10 +543,40 @@ export class PromocionesComponent implements OnInit {
   }
 
   subirImagen(evento: Event): void {
-    const idNegocio = this.idNegocio;
     const input = evento.target as HTMLInputElement;
     const archivo = input.files?.[0];
-    if (!idNegocio || !archivo) return;
+    // Se vacía para que elegir otra vez el mismo archivo vuelva a disparar el cambio.
+    input.value = '';
+    if (archivo) this.subirArchivo(archivo);
+  }
+
+  /** Sin esto el navegador no deja soltar: por defecto abre el archivo en la pestaña. */
+  alArrastrar(evento: DragEvent): void {
+    evento.preventDefault();
+    if (!this.subiendoImagen()) this.arrastrando.set(true);
+  }
+
+  alSoltar(evento: DragEvent): void {
+    evento.preventDefault();
+    this.arrastrando.set(false);
+    const archivo = evento.dataTransfer?.files?.[0];
+    if (archivo && !this.subiendoImagen()) this.subirArchivo(archivo);
+  }
+
+  private subirArchivo(archivo: File): void {
+    const idNegocio = this.idNegocio;
+    if (!idNegocio) return;
+
+    // Lo mismo que rechaza el servidor, dicho antes de subir cinco megas para nada. Al soltar un
+    // archivo el `accept` del campo no filtra, así que aquí es donde se comprueba.
+    if (!IMAGEN_TIPOS.includes(archivo.type)) {
+      this.ui.error('La imagen tiene que ser JPG o PNG.');
+      return;
+    }
+    if (archivo.size > IMAGEN_MAX_BYTES) {
+      this.ui.error('La imagen pesa más de 5 MB. Prueba con una más liviana.');
+      return;
+    }
 
     this.subiendoImagen.set(true);
     this.promociones.subirImagen(idNegocio, archivo).subscribe({
@@ -490,7 +595,11 @@ export class PromocionesComponent implements OnInit {
     this.imagenUrl.set(null);
   }
 
-  cargarGate(): void {
+  /**
+   * @param vigilar si la prueba ya salió y todavía no se sabe si llegó, se sigue preguntando. Es
+   *   para quien vuelve a este paso con la prueba en camino.
+   */
+  cargarGate(vigilar = false): void {
     const idNegocio = this.idNegocio;
     if (!idNegocio) return;
     this.promociones
@@ -499,9 +608,84 @@ export class PromocionesComponent implements OnInit {
         destinatarios: this.totalSeleccionado(),
       })
       .subscribe({
-        next: (g) => this.gate.set(g),
+        next: (g) => {
+          this.gate.set(g);
+          if (vigilar && g.prueba.hecha && !g.prueba.entregada && !this.pruebaFallida(g)) {
+            this.vigilarPrueba();
+          }
+        },
         error: () => this.ui.error('No se pudo comprobar si se puede enviar.'),
       });
+  }
+
+  // ── La prueba: se sigue preguntando hasta que llega ───────────────────────────────────
+
+  private relojPrueba: ReturnType<typeof setInterval> | null = null;
+
+  /** Se agotó la espera sin respuesta de WhatsApp: se deja de preguntar y se ofrece reintentar. */
+  readonly pruebaTardando = signal(false);
+
+  private pruebaFallida(g: Elegibilidad): boolean {
+    const estado = String(g.prueba.estado ?? '').toLowerCase();
+    return Boolean(g.prueba.codigo_error) || estado === 'fallido' || estado === 'failed';
+  }
+
+  readonly estadoPrueba = computed<EstadoPrueba>(() => {
+    const g = this.gate();
+    if (!g?.prueba.hecha) return 'sin_mandar';
+    if (g.prueba.entregada) return 'llego';
+    if (this.pruebaFallida(g)) return 'fallo';
+    return this.pruebaTardando() ? 'tardando' : 'esperando';
+  });
+
+  /**
+   * Pregunta cada pocos segundos si la prueba llegó, y para sola.
+   *
+   * El acuse de WhatsApp tarda entre uno y unos cuantos segundos, y a veces más: mirar una sola
+   * vez dejaba la pantalla en «esperando» hasta que el dueño recargaba.
+   */
+  vigilarPrueba(): void {
+    const idNegocio = this.idNegocio;
+    const idCampana = this.campana()?.id_campana;
+    if (!idNegocio || !idCampana) return;
+
+    this.dejarDeVigilarPrueba();
+    this.pruebaTardando.set(false);
+
+    let intentos = 0;
+    this.relojPrueba = setInterval(() => {
+      intentos += 1;
+      this.promociones
+        .elegibilidad(idNegocio, { idCampana, destinatarios: this.totalSeleccionado() })
+        .subscribe({
+          next: (g) => {
+            // Una respuesta que llega después de parar (o de salir del paso) ya no se pinta.
+            if (!this.relojPrueba) return;
+            this.gate.set(g);
+            if (g.prueba.entregada) {
+              this.dejarDeVigilarPrueba();
+              this.ui.success('La prueba llegó. Ya puedes enviar la promoción.', 'Prueba recibida');
+            } else if (this.pruebaFallida(g)) {
+              this.dejarDeVigilarPrueba();
+            } else if (intentos >= PRUEBA_INTENTOS) {
+              this.dejarDeVigilarPrueba();
+              this.pruebaTardando.set(true);
+            }
+          },
+          error: () => {
+            // Un fallo de red suelto no corta la espera; el último sí la cierra.
+            if (this.relojPrueba && intentos >= PRUEBA_INTENTOS) {
+              this.dejarDeVigilarPrueba();
+              this.pruebaTardando.set(true);
+            }
+          },
+        });
+    }, PRUEBA_INTERVALO_MS);
+  }
+
+  private dejarDeVigilarPrueba(): void {
+    if (this.relojPrueba) clearInterval(this.relojPrueba);
+    this.relojPrueba = null;
   }
 
   /** Arma la campaña: congela la lista y deja el costo guardado. Todavía no manda nada. */
@@ -550,7 +734,7 @@ export class PromocionesComponent implements OnInit {
     // Se exige aquí y no solo en el servidor para no gastar una petición en lo que ya se sabe: sin
     // número no hay prueba, y el número es de quien la va a mirar en su móvil.
     const telefono = this.telefonoPrueba().trim();
-    if (telefono.replace(/D/g, '').length < 7) {
+    if (telefono.replace(/\D/g, '').length < 7) {
       this.ui.error('Escribe el WhatsApp al que quieres que llegue la prueba.');
       return;
     }
@@ -563,8 +747,10 @@ export class PromocionesComponent implements OnInit {
           `Mandamos la promoción al ${telefono}. Míralo en tu WhatsApp antes de enviársela a los clientes.`,
           'Prueba enviada',
         );
-        // La compuerta cambia en cuanto el acuse de Meta llega, así que se vuelve a mirar.
-        setTimeout(() => this.cargarGate(), 4000);
+        // La compuerta cambia en cuanto el acuse de Meta llega: se marca ya como mandada y se
+        // sigue preguntando hasta que llegue.
+        this.gate.update((g) => (g ? { ...g, prueba: { hecha: true, entregada: false } } : g));
+        this.vigilarPrueba();
       },
       error: (e) => {
         this.probando.set(false);
@@ -573,10 +759,56 @@ export class PromocionesComponent implements OnInit {
     });
   }
 
-  enviar(programada: string | null = null): void {
+  /**
+   * El resumen que se confirma antes de enviar: a cuántos, cuánto cobra Meta y en cuántos días
+   * sale. Es lo último que se lee antes de gastar plata, así que va en una frase cada cosa.
+   */
+  private resumenDeEnvio(c: Campana): string {
+    const numero = new Intl.NumberFormat('es-CO');
+    const n = c.destinatarios || this.totalSeleccionado();
+    const partes = [
+      `Vas a enviar esta promoción a ${numero.format(n)} ${n === 1 ? 'cliente' : 'clientes'}.`,
+    ];
+
+    const meta = this.simulacion()?.meta;
+    if (meta) {
+      const usd = meta.costo_usd.toLocaleString('es-CO', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+      partes.push(
+        meta.costo_estimado_local !== null
+          ? `Meta cobrará cerca de $${numero.format(Math.round(meta.costo_estimado_local))} (US$ ${usd}).`
+          : `Meta cobrará US$ ${usd}.`,
+      );
+    }
+
+    const linea = this.gate()?.numero;
+    if (linea && !linea.ilimitado && linea.tier && n > linea.tier) {
+      const dias = Math.ceil(n / linea.tier);
+      partes.push(
+        `Saldrá en unos ${dias} días: WhatsApp deja alcanzar ${numero.format(linea.tier)} `
+          + 'personas nuevas cada 24 horas.',
+      );
+    }
+
+    partes.push('Lo que ya salió no se puede deshacer.');
+    return partes.join(' ');
+  }
+
+  async enviar(programada: string | null = null): Promise<void> {
     const idNegocio = this.idNegocio;
     const c = this.campana();
     if (!idNegocio || !c) return;
+
+    const seguir = await this.ui.confirm({
+      title: 'Enviar la promoción',
+      message: this.resumenDeEnvio(c),
+      confirmText: 'Sí, enviar',
+      cancelText: 'Todavía no',
+      tone: 'warning',
+    });
+    if (!seguir) return;
 
     this.enviando.set(true);
     this.promociones.enviarCampana(idNegocio, c.id_campana, programada).subscribe({
@@ -611,14 +843,41 @@ export class PromocionesComponent implements OnInit {
   verInforme(c: Campana): void {
     const idNegocio = this.idNegocio;
     if (!idNegocio) return;
+    this.cargandoInforme.set(c.id_campana);
     this.promociones.informe(idNegocio, c.id_campana).subscribe({
-      next: (i) => this.informe.set(i),
-      error: () => this.ui.error('No se pudo leer el informe.'),
+      next: (i) => {
+        this.cargandoInforme.set(null);
+        this.informe.set(i);
+      },
+      error: () => {
+        this.cargandoInforme.set(null);
+        this.ui.error('No se pudo leer el informe.');
+      },
     });
   }
 
   cerrarInforme(): void {
-    this.informe.set(null);
+    if (this.informe()) this.informe.set(null);
+  }
+
+  /** Qué porcentaje de la promoción ya salió, para la barra del informe. */
+  avanceDe(i: InformeCampana): number {
+    const total = i.envio.destinatarios;
+    if (!total) return 0;
+    return Math.min(100, Math.round((i.envio.salieron / total) * 100));
+  }
+
+  tonoEstado(estado: EstadoCampana): TonoEstado {
+    const tonos: Partial<Record<EstadoCampana, TonoEstado>> = {
+      ENVIANDO: 'marca',
+      PROGRAMADA: 'marca',
+      LISTA: 'marca',
+      ENVIADA: 'bien',
+      PAUSADA: 'alerta',
+      PENDIENTE_PLANTILLA: 'alerta',
+      FALLIDA: 'mal',
+    };
+    return tonos[estado] ?? 'neutro';
   }
 
   pausar(c: Campana): void {
@@ -633,9 +892,21 @@ export class PromocionesComponent implements OnInit {
     });
   }
 
-  cancelar(c: Campana): void {
+  async cancelar(c: Campana): Promise<void> {
     const idNegocio = this.idNegocio;
     if (!idNegocio) return;
+
+    const seguir = await this.ui.confirm({
+      title: 'Cancelar la promoción',
+      message:
+        `Lo que quede por mandar de «${c.nombre}» ya no saldrá, y no se puede reanudar. `
+        + 'Lo que ya se envió no se deshace.',
+      confirmText: 'Sí, cancelar',
+      cancelText: 'Volver',
+      tone: 'warning',
+    });
+    if (!seguir) return;
+
     this.promociones.cancelarCampana(idNegocio, c.id_campana).subscribe({
       next: () => {
         this.ui.success('Cancelada. Lo que quedaba por mandar ya no sale.');

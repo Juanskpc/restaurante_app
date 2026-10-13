@@ -11,28 +11,76 @@
         decide.
       </p>
     </div>
+    <!-- El historial no es un paso del envío: es otro sitio, y se entra y se sale desde aquí. -->
+    @if (paso() === 'historial') {
+      <button type="button" class="btn btn--primary promos__cab-btn" (click)="volverAlEnvio()">
+        <lucide-icon name="arrow-left" [size]="16" aria-hidden="true" /> Volver a la promoción
+      </button>
+    } @else {
+      <button type="button" class="btn btn--outline promos__cab-btn" (click)="irA('historial')">
+        <lucide-icon name="history" [size]="16" aria-hidden="true" /> Historial
+      </button>
+    }
   </header>
 
   <!-- ── Los pasos ── -->
-  <nav class="pasos" aria-label="Pasos de la promoción">
-    <button type="button" class="pasos__p" [class.pasos__p--activo]="paso() === 'audiencia'"
-            (click)="irA('audiencia')">
-      <span class="pasos__n">1</span> A quién
-      @if (totalSeleccionado() > 0) { <span class="pasos__dato">{{ totalSeleccionado() | number }}</span> }
-    </button>
-    <button type="button" class="pasos__p" [class.pasos__p--activo]="paso() === 'mensaje'"
-            [disabled]="!hayAlgoElegido()" (click)="irA('mensaje')">
-      <span class="pasos__n">2</span> Qué dice
-    </button>
-    <button type="button" class="pasos__p" [class.pasos__p--activo]="paso() === 'enviar'"
-            [disabled]="!mensajeListo() && !campana()" (click)="irA('enviar')">
-      <span class="pasos__n">3</span> Revisar y enviar
-    </button>
-    <button type="button" class="pasos__p pasos__p--suelto"
-            [class.pasos__p--activo]="paso() === 'historial'" (click)="irA('historial')">
-      <lucide-icon name="history" [size]="15" aria-hidden="true" /> Historial
-    </button>
-  </nav>
+  @if (paso() !== 'historial') {
+    <nav aria-label="Pasos de la promoción">
+      <ol class="pasos">
+        <li class="pasos__item" [class.pasos__item--hecho]="pasoHecho('audiencia')">
+          <button type="button" class="pasos__p"
+                  [class.pasos__p--activo]="paso() === 'audiencia'"
+                  [class.pasos__p--hecho]="pasoHecho('audiencia')"
+                  [attr.aria-current]="paso() === 'audiencia' ? 'step' : null"
+                  (click)="irA('audiencia')">
+            <span class="pasos__n">
+              @if (pasoHecho('audiencia')) {
+                <lucide-icon name="check" [size]="14" aria-hidden="true" />
+              } @else { 1 }
+            </span>
+            <span class="pasos__txt">
+              <span class="pasos__nombre">A quién</span>
+              <span class="pasos__dato">
+                @if (totalSeleccionado() > 0) {
+                  {{ totalSeleccionado() | number }}
+                  {{ totalSeleccionado() === 1 ? 'cliente' : 'clientes' }}
+                } @else { Elige los grupos }
+              </span>
+            </span>
+          </button>
+        </li>
+        <li class="pasos__item" [class.pasos__item--hecho]="pasoHecho('mensaje')">
+          <button type="button" class="pasos__p"
+                  [class.pasos__p--activo]="paso() === 'mensaje'"
+                  [class.pasos__p--hecho]="pasoHecho('mensaje')"
+                  [attr.aria-current]="paso() === 'mensaje' ? 'step' : null"
+                  [disabled]="!hayAlgoElegido()" (click)="irA('mensaje')">
+            <span class="pasos__n">
+              @if (pasoHecho('mensaje')) {
+                <lucide-icon name="check" [size]="14" aria-hidden="true" />
+              } @else { 2 }
+            </span>
+            <span class="pasos__txt">
+              <span class="pasos__nombre">Qué dice</span>
+              <span class="pasos__dato">El texto y la imagen</span>
+            </span>
+          </button>
+        </li>
+        <li class="pasos__item">
+          <button type="button" class="pasos__p"
+                  [class.pasos__p--activo]="paso() === 'enviar'"
+                  [attr.aria-current]="paso() === 'enviar' ? 'step' : null"
+                  [disabled]="!mensajeListo() && !campana()" (click)="irA('enviar')">
+            <span class="pasos__n">3</span>
+            <span class="pasos__txt">
+              <span class="pasos__nombre">Revisar y enviar</span>
+              <span class="pasos__dato">La prueba y el envío</span>
+            </span>
+          </button>
+        </li>
+      </ol>
+    </nav>
+  }
 
   @if (cargando()) {
     <div class="panel" aria-busy="true" aria-label="Cargando audiencia">
@@ -83,23 +131,29 @@
     <div class="segmentos">
       @for (s of segmentos(); track s.codigo) {
         <button type="button"
-                class="seg"
+                [class]="'seg seg--' + s.codigo"
                 [class.seg--activo]="seleccionados().has(s.codigo)"
                 [class.seg--vacio]="s.contactables === 0"
                 [disabled]="s.contactables === 0"
                 [attr.aria-pressed]="seleccionados().has(s.codigo)"
                 (click)="alternarSegmento(s.codigo)">
           <span class="seg__cab">
+            <span class="seg__icono" aria-hidden="true">
+              <lucide-icon [name]="iconoSegmento(s.codigo)" [size]="18" />
+            </span>
+            <span class="seg__titulo">
+              <span class="seg__nombre">{{ s.nombre }}</span>
+              <span class="seg__desc">{{ s.descripcion }}</span>
+            </span>
             <span class="seg__check" aria-hidden="true">
               @if (seleccionados().has(s.codigo)) { <lucide-icon name="check" [size]="14" /> }
             </span>
-            <span class="seg__nombre">{{ s.nombre }}</span>
+          </span>
+          <span class="seg__cifra">
+            <span class="seg__n">{{ s.contactables | number }}</span>
+            <span class="seg__de">de {{ s.personas | number }}</span>
             @if (s.recomendado) { <span class="seg__tag">Recomendado</span> }
           </span>
-          <span class="seg__n">
-            {{ s.contactables | number }} <small>de {{ s.personas | number }}</small>
-          </span>
-          <span class="seg__desc">{{ s.descripcion }}</span>
           <span class="seg__para">{{ s.recomendado_para }}</span>
           @if (s.ticket_medio > 0) {
             <span class="seg__ticket">
@@ -139,7 +193,7 @@
             <p class="vacio">No hay clientes que coincidan.</p>
           } @else {
             <div class="tabla-env">
-              <table class="tabla">
+              <table class="tabla tabla--tarjetas">
                 <caption class="sr-only">Clientes de los grupos elegidos</caption>
                 <thead>
                   <tr>
@@ -165,10 +219,14 @@
                           }
                         </span>
                       </td>
-                      <td class="num">{{ d.eventos | number }}</td>
-                      <td>{{ haceCuanto(d.dias_desde_ultimo) }}</td>
-                      <td class="num">{{ d.valor_total | currency: 'COP' : 'symbol-narrow' : '1.0-0' }}</td>
-                      <td>
+                      <td class="num" [attr.data-label]="etiqueta().varios | titlecase">
+                        {{ d.eventos | number }}
+                      </td>
+                      <td data-label="Última vez">{{ haceCuanto(d.dias_desde_ultimo) }}</td>
+                      <td class="num" data-label="Ha gastado">
+                        {{ d.valor_total | currency: 'COP' : 'symbol-narrow' : '1.0-0' }}
+                      </td>
+                      <td data-label="Grupo">
                         @if (d.contactable) {
                           <span class="tag">{{ nombreSegmento(d.segmento) }}</span>
                         } @else {
@@ -210,52 +268,42 @@
             @if (simulando() && !simulacion()) {
               <p class="sim__cargando">Calculando…</p>
             } @else if (simulacion(); as s) {
-              <p class="sim__dest">
-                <strong>{{ s.enviables | number }}</strong>
-                {{ s.enviables === 1 ? 'mensaje' : 'mensajes' }}
-              </p>
-
-              <div class="sim__fila sim__fila--total">
-                <span>Te cobra Meta</span>
-                <strong>
-                  @if (s.meta.costo_estimado_local !== null) {
-                    ≈ {{ s.meta.costo_estimado_local | currency: 'COP' : 'symbol-narrow' : '1.0-0' }}
-                  } @else { — }
-                </strong>
+              <div class="sim__cifras">
+                <div class="sim__cifra">
+                  <span class="sim__cifra-n">
+                    @if (s.meta.costo_estimado_local !== null) {
+                      ≈ {{ s.meta.costo_estimado_local | currency: 'COP' : 'symbol-narrow' : '1.0-0' }}
+                    } @else {
+                      US$ {{ s.meta.costo_usd | number: '1.2-2' }}
+                    }
+                  </span>
+                  <span class="sim__cifra-t">te cobra Meta</span>
+                  <span class="sim__cifra-p">
+                    por {{ s.enviables | number }}
+                    {{ s.enviables === 1 ? 'mensaje' : 'mensajes' }}
+                  </span>
+                </div>
+                @if (s.retorno.pedidos_para_empatar !== null) {
+                  <div class="sim__cifra sim__cifra--ok">
+                    <span class="sim__cifra-n">{{ s.retorno.pedidos_para_empatar | number }}</span>
+                    <span class="sim__cifra-t">
+                      {{ s.retorno.pedidos_para_empatar === 1 ? etiqueta().uno : etiqueta().varios }}
+                      para empatar
+                    </span>
+                    <span class="sim__cifra-p">con eso la promoción se pagó</span>
+                  </div>
+                }
               </div>
-              <p class="sim__nota">
-                Son <strong>US$ {{ s.meta.costo_usd | number: '1.2-2' }}</strong> y los cobra
-                <strong>Meta a la tarjeta de tu cuenta de WhatsApp</strong>, no EscalApp. El valor en
-                pesos es una referencia: Meta usa su propia tasa de cambio.
-              </p>
-
-              <div class="sim__fila">
-                <span>Te cobra EscalApp</span>
-                <strong>{{ s.escalapp.creditos | number }} envíos</strong>
-              </div>
-              <p class="sim__nota">{{ s.escalapp.nota }}</p>
 
               @if (s.retorno.pedidos_para_empatar !== null) {
-                <div class="sim__empate">
-                  <p>
-                    Con <strong>{{ s.retorno.pedidos_para_empatar }}</strong>
-                    {{ s.retorno.pedidos_para_empatar === 1 ? etiqueta().uno : etiqueta().varios }}
-                    que vuelvan, la promoción se pagó.
-                  </p>
-                  <label class="margen">
-                    Tu ganancia por {{ etiqueta().uno }}: {{ margen() }}%
-                    <input type="range" min="5" max="80" step="5" [value]="margen()"
-                           (change)="cambiarMargen($any($event.target).value)"
-                           aria-label="Porcentaje de ganancia sobre cada pedido" />
-                  </label>
-                  <p class="sim__nota">
-                    Calculado sobre tu <strong>ganancia</strong>, no sobre la venta: de un
-                    {{ etiqueta().uno }} de
-                    {{ s.retorno.ticket_medio | currency: 'COP' : 'symbol-narrow' : '1.0-0' }} te
-                    quedan
-                    {{ s.retorno.margen_por_pedido | currency: 'COP' : 'symbol-narrow' : '1.0-0' }}.
-                  </p>
-                </div>
+                <label class="margen">
+                  <span class="margen__et">
+                    Tu ganancia por {{ etiqueta().uno }} <strong>{{ margen() }}%</strong>
+                  </span>
+                  <input type="range" min="5" max="80" step="5" [value]="margen()"
+                         (change)="cambiarMargen($any($event.target).value)"
+                         aria-label="Porcentaje de ganancia sobre cada pedido" />
+                </label>
               }
 
               @if (s.sin_entrega > 0) {
@@ -286,10 +334,31 @@
                 </div>
               }
 
-              <p class="sim__pie">
-                Tarifa de Meta del {{ s.meta.vigencia_tarifa }}. Lo que el asistente gaste al
-                contestar es aparte.
-              </p>
+              <details class="sim__detalle">
+                <summary>¿Cómo se calcula?</summary>
+                <div class="sim__detalle-cuerpo">
+                  <p>
+                    <strong>Meta</strong> cobra
+                    <strong>US$ {{ s.meta.costo_usd | number: '1.2-2' }}</strong> a la tarjeta de tu
+                    cuenta de WhatsApp, no EscalApp. El valor en pesos es una referencia: Meta usa
+                    su propia tasa de cambio. Tarifa del {{ s.meta.vigencia_tarifa }}.
+                  </p>
+                  <p>
+                    <strong>EscalApp</strong> cuenta {{ s.escalapp.creditos | number }}
+                    {{ s.escalapp.creditos === 1 ? 'envío' : 'envíos' }}. {{ s.escalapp.nota }}
+                  </p>
+                  @if (s.retorno.pedidos_para_empatar !== null) {
+                    <p>
+                      <strong>Para empatar</strong> se usa tu ganancia, no la venta: de un
+                      {{ etiqueta().uno }} de
+                      {{ s.retorno.ticket_medio | currency: 'COP' : 'symbol-narrow' : '1.0-0' }} te
+                      quedan
+                      {{ s.retorno.margen_por_pedido | currency: 'COP' : 'symbol-narrow' : '1.0-0' }}.
+                    </p>
+                  }
+                  <p>Lo que el asistente gaste al contestar es aparte.</p>
+                </div>
+              </details>
 
               <button type="button" class="btn btn--primary sim__seguir" (click)="irA('mensaje')">
                 Seguir: qué les digo
@@ -376,21 +445,46 @@
         </label>
 
         @if (plantilla()?.necesita_imagen) {
-          <label class="campo">
-            <span class="campo__et">La imagen</span>
+          <div class="campo">
+            <span class="campo__et" id="promo-imagen-et">La imagen</span>
             @if (imagenUrl()) {
-              <span class="imagen-prev">
+              <div class="imagen-prev">
                 <img [src]="imagenUrl()" alt="Imagen de la promoción" />
-                <button type="button" class="mini" (click)="quitarImagen()">Quitar</button>
-              </span>
+                <div class="imagen-prev__acciones">
+                  <label class="mini imagen-prev__cambiar">
+                    Cambiar
+                    <input type="file" accept="image/jpeg,image/png" class="sr-only"
+                           [disabled]="subiendoImagen()" (change)="subirImagen($event)" />
+                  </label>
+                  <button type="button" class="mini mini--peligro" (click)="quitarImagen()">
+                    Quitar
+                  </button>
+                </div>
+              </div>
             } @else {
-              <input type="file" accept="image/jpeg,image/png" class="campo__archivo"
-                     [disabled]="subiendoImagen()" (change)="subirImagen($event)" />
+              <label class="zona"
+                     [class.zona--encima]="arrastrando()"
+                     [class.zona--ocupada]="subiendoImagen()"
+                     (dragover)="alArrastrar($event)"
+                     (dragleave)="arrastrando.set(false)"
+                     (drop)="alSoltar($event)">
+                <input type="file" accept="image/jpeg,image/png" class="sr-only"
+                       aria-labelledby="promo-imagen-et"
+                       [disabled]="subiendoImagen()" (change)="subirImagen($event)" />
+                @if (subiendoImagen()) {
+                  <lucide-icon name="loader-circle" [size]="26" class="gira" aria-hidden="true" />
+                  <span class="zona__t">Subiendo la imagen…</span>
+                } @else {
+                  <lucide-icon name="image-plus" [size]="26" aria-hidden="true" />
+                  <span class="zona__t">
+                    Arrastra la imagen aquí o <u>elige un archivo</u>
+                  </span>
+                  <span class="zona__p">JPG o PNG, menos de 5 MB</span>
+                }
+              </label>
             }
-            <span class="campo__ayuda">
-              JPG o PNG, menos de 5 MB. Se ve mejor apaisada (1.200 × 628).
-            </span>
-          </label>
+            <span class="campo__ayuda">Se ve mejor apaisada (1.200 × 628).</span>
+          </div>
         }
 
         <label class="campo">
@@ -409,30 +503,8 @@
         </div>
       </div>
 
-      <!-- La vista previa, con la pinta de WhatsApp -->
       <aside class="col-sim">
-        <div class="wa">
-          <p class="wa__t">Así le llega a tu cliente</p>
-          <div class="wa__burbuja">
-            @if (plantilla()?.necesita_imagen) {
-              @if (imagenUrl()) {
-                <img class="wa__img" [src]="imagenUrl()" alt="" />
-              } @else {
-                <span class="wa__img wa__img--hueco">Tu imagen aquí</span>
-              }
-            }
-            <p class="wa__texto">{{ vistaPrevia() }}</p>
-            @if (plantilla()?.pie) { <p class="wa__pie">{{ plantilla()!.pie }}</p> }
-            <span class="wa__hora">12:30</span>
-          </div>
-          @for (b of plantilla()?.botones ?? []; track b.texto) {
-            <div class="wa__boton">{{ b.texto }}</div>
-          }
-          <p class="wa__nota">
-            El botón y la última línea son la salida del cliente: si la usa, deja de recibir
-            promociones y <strong>sigue pudiendo pedir</strong> por WhatsApp.
-          </p>
-        </div>
+        <ng-container *ngTemplateOutlet="vistaWa; context: { titulo: 'Así le llega a tu cliente', nota: true }" />
       </aside>
     </div>
   }
@@ -484,10 +556,12 @@
           </div>
 
           <!-- La prueba: el centro de todo esto -->
-          <div class="prueba" [class.prueba--ok]="g.prueba.entregada">
+          <div class="prueba"
+               [class.prueba--ok]="estadoPrueba() === 'llego'"
+               [class.prueba--mal]="estadoPrueba() === 'fallo'">
             <div>
               <p class="prueba__t">
-                <lucide-icon [name]="g.prueba.entregada ? 'circle-check' : 'send'" [size]="18" aria-hidden="true" />
+                <lucide-icon [name]="estadoPrueba() === 'llego' ? 'circle-check' : 'send'" [size]="18" aria-hidden="true" />
                 Mándate la promoción a ti primero
               </p>
               <p class="prueba__d">
@@ -495,11 +569,38 @@
                 único que no se puede saber de otra forma: que tu cuenta de WhatsApp puede cobrar y
                 mandar publicidad. <strong>Sin esto no se puede enviar.</strong>
               </p>
-              @if (g.prueba.hecha && !g.prueba.entregada) {
-                <p class="prueba__estado">
-                  Mandada, esperando a que WhatsApp confirme que llegó…
-                </p>
-              }
+              <!-- En qué va la prueba. Se actualiza sola: nadie tiene que recargar. -->
+              <div aria-live="polite">
+                @switch (estadoPrueba()) {
+                  @case ('esperando') {
+                    <p class="prueba__estado prueba__estado--espera">
+                      <lucide-icon name="loader-circle" [size]="16" class="gira" aria-hidden="true" />
+                      Mandada. Esperando a que WhatsApp confirme que llegó…
+                    </p>
+                  }
+                  @case ('llego') {
+                    <p class="prueba__estado prueba__estado--ok">
+                      <lucide-icon name="circle-check" [size]="16" aria-hidden="true" />
+                      Llegó a tu WhatsApp. Ya puedes enviar la promoción.
+                    </p>
+                  }
+                  @case ('fallo') {
+                    <p class="prueba__estado prueba__estado--mal">
+                      <lucide-icon name="circle-x" [size]="16" aria-hidden="true" />
+                      No llegó: {{ errorDeMeta(g.prueba.codigo_error ?? null) }}.
+                    </p>
+                  }
+                  @case ('tardando') {
+                    <p class="prueba__estado prueba__estado--espera">
+                      <lucide-icon name="clock" [size]="16" aria-hidden="true" />
+                      WhatsApp está tardando más de lo normal en confirmar.
+                      <button type="button" class="mini" (click)="vigilarPrueba()">
+                        Volver a comprobar
+                      </button>
+                    </p>
+                  }
+                }
+              </div>
               <label class="prueba__campo">
                 <span>¿A qué WhatsApp te la mandamos?</span>
                 <input type="tel" inputmode="tel" placeholder="300 123 4567"
@@ -537,15 +638,7 @@
       </div>
 
       <aside class="col-sim">
-        <div class="wa">
-          <p class="wa__t">Lo que va a salir</p>
-          <div class="wa__burbuja">
-            @if (imagenUrl()) { <img class="wa__img" [src]="imagenUrl()" alt="" /> }
-            <p class="wa__texto">{{ vistaPrevia() }}</p>
-            @if (plantilla()?.pie) { <p class="wa__pie">{{ plantilla()!.pie }}</p> }
-            <span class="wa__hora">12:30</span>
-          </div>
-        </div>
+        <ng-container *ngTemplateOutlet="vistaWa; context: { titulo: 'Lo que va a salir', nota: false }" />
       </aside>
     </div>
   }
@@ -558,7 +651,7 @@
       <p class="vacio vacio--grande">Todavía no has mandado ninguna.</p>
     } @else {
       <div class="tabla-env">
-        <table class="tabla">
+        <table class="tabla tabla--tarjetas">
           <caption class="sr-only">Historial de promociones</caption>
           <thead>
             <tr>
@@ -574,14 +667,19 @@
           <tbody>
             @for (c of historial(); track c.id_campana) {
               <tr>
-                <td>{{ c.nombre }}</td>
-                <td><span class="tag">{{ estadoLegible(c.estado) }}</span></td>
-                <td class="num">{{ c.destinatarios | number }}</td>
-                <td class="num">{{ (c.encolados ?? 0) | number }}</td>
-                <td class="num">{{ (c.leidos ?? 0) | number }}</td>
-                <td>{{ c.creado_en | date: 'd MMM, HH:mm' }}</td>
+                <td><strong class="tabla__titulo">{{ c.nombre }}</strong></td>
+                <td data-label="Estado">
+                  <span [class]="'tag tag--' + tonoEstado(c.estado)">{{ estadoLegible(c.estado) }}</span>
+                </td>
+                <td class="num" data-label="Clientes">{{ c.destinatarios | number }}</td>
+                <td class="num" data-label="Salieron">{{ (c.encolados ?? 0) | number }}</td>
+                <td class="num" data-label="Leídos">{{ (c.leidos ?? 0) | number }}</td>
+                <td data-label="Cuándo">{{ c.creado_en | date: 'd MMM, HH:mm' }}</td>
                 <td class="acciones">
-                  <button type="button" class="mini" (click)="verInforme(c)">Ver</button>
+                  <button type="button" class="mini" [disabled]="cargandoInforme() === c.id_campana"
+                          (click)="verInforme(c)">
+                    {{ cargandoInforme() === c.id_campana ? 'Abriendo…' : 'Ver informe' }}
+                  </button>
                   @if (c.estado === 'ENVIANDO' || c.estado === 'PROGRAMADA') {
                     <button type="button" class="mini" (click)="pausar(c)">Pausar</button>
                     <button type="button" class="mini mini--peligro" (click)="cancelar(c)">
@@ -596,20 +694,40 @@
       </div>
     }
 
-    <!-- El informe -->
-    @if (informe(); as i) {
-      <div class="informe">
-        <div class="informe__cab">
-          <h3>{{ i.campana.nombre }}</h3>
-          <button type="button" class="mini" (click)="cerrarInforme()">Cerrar</button>
+  }
+</section>
+
+<!-- ── El informe de una promoción, en una ventana ── -->
+@if (informe(); as i) {
+  <div class="modal" (click)="cerrarInforme()">
+    <div class="modal__tarjeta" role="dialog" aria-modal="true" aria-labelledby="promo-inf-titulo"
+         (click)="$event.stopPropagation()">
+      <app-modal-cabecera icono="eye" [titulo]="i.campana.nombre"
+                          [subtitulo]="estadoLegible(i.campana.estado)"
+                          tituloId="promo-inf-titulo" (cerrar)="cerrarInforme()" />
+
+      <div class="modal__cuerpo">
+        <!-- El avance: cuánto ha salido de lo que hay que mandar -->
+        <div class="avance">
+          <div class="avance__cab">
+            <strong>{{ i.envio.salieron | number }} de {{ i.envio.destinatarios | number }}</strong>
+            <span>{{ avanceDe(i) }}%</span>
+          </div>
+          <div class="avance__barra" role="progressbar" aria-label="Avance del envío"
+               aria-valuemin="0" aria-valuemax="100" [attr.aria-valuenow]="avanceDe(i)">
+            <span class="avance__hecho" [style.width.%]="avanceDe(i)"></span>
+          </div>
+          <p class="avance__pie">
+            @if (i.envio.pendientes > 0) {
+              Quedan <strong>{{ i.envio.pendientes | number }}</strong> por salir. Se mandan poco a
+              poco; si WhatsApp solo deja un número de personas al día, sigue mañana.
+            } @else {
+              Ya salió todo lo que había que mandar.
+            }
+          </p>
         </div>
 
-        <div class="tarjetas">
-          <div class="tarjeta tarjeta--fuerte">
-            <span class="tarjeta__n">{{ i.envio.salieron | number }}</span>
-            <span class="tarjeta__t">Salieron</span>
-            <span class="tarjeta__p">de {{ i.envio.destinatarios | number }}</span>
-          </div>
+        <div class="tarjetas tarjetas--informe">
           <div class="tarjeta">
             <span class="tarjeta__n">{{ i.envio.leidos | number }}</span>
             <span class="tarjeta__t">Leídos</span>
@@ -627,12 +745,6 @@
           }
         </div>
 
-        @if (i.envio.pendientes > 0) {
-          <p class="informe__nota">
-            Quedan <strong>{{ i.envio.pendientes | number }}</strong> por salir. Se mandan poco a
-            poco; si WhatsApp solo deja un número de personas al día, sigue mañana.
-          </p>
-        }
         @if (i.envio.creditos_devueltos > 0) {
           <p class="informe__nota">
             <strong>{{ i.envio.creditos_devueltos | number }}</strong> envíos no se entregaron y
@@ -641,7 +753,7 @@
         }
 
         @if (i.omisiones.length > 0) {
-          <h4 class="informe__h4">A quién no se le mandó</h4>
+          <h3 class="informe__h4">A quién no se le mandó</h3>
           <ul class="lista-motivos">
             @for (o of i.omisiones; track o.motivo) {
               <li>{{ o.n }} — {{ motivoOmision(o.motivo) }}</li>
@@ -649,7 +761,7 @@
           </ul>
         }
         @if (i.errores.length > 0) {
-          <h4 class="informe__h4">Lo que WhatsApp rechazó</h4>
+          <h3 class="informe__h4">Lo que WhatsApp rechazó</h3>
           <ul class="lista-motivos">
             @for (e of i.errores; track e.codigo) {
               <li>{{ e.n }} — {{ errorDeMeta(e.codigo) }}</li>
@@ -657,6 +769,48 @@
           </ul>
         }
       </div>
+    </div>
+  </div>
+}
+
+<!-- ── La vista previa: el chat de WhatsApp tal como lo ve el cliente ── -->
+<ng-template #vistaWa let-titulo="titulo" let-nota="nota">
+  <div class="wa">
+    <p class="wa__t">{{ titulo }}</p>
+    <div class="wa__tel">
+      <div class="wa__barra">
+        <span class="wa__avatar" aria-hidden="true">{{ inicialNegocio() }}</span>
+        <span class="wa__quien">
+          <span class="wa__nombre">{{ nombreNegocio() }}</span>
+          <span class="wa__sub">Cuenta de empresa</span>
+        </span>
+      </div>
+      <div class="wa__chat">
+        <div class="wa__mensaje">
+          <div class="wa__burbuja">
+            @if (plantilla()?.necesita_imagen) {
+              @if (imagenUrl()) {
+                <img class="wa__img" [src]="imagenUrl()" alt="" />
+              } @else {
+                <span class="wa__img wa__img--hueco">Tu imagen aquí</span>
+              }
+            }
+            <p class="wa__texto">{{ vistaPrevia() }}</p>
+            @if (plantilla()?.pie) { <p class="wa__pie">{{ plantilla()!.pie }}</p> }
+            <span class="wa__hora">{{ horaVistaPrevia() }}</span>
+          </div>
+          @for (b of plantilla()?.botones ?? []; track b.texto) {
+            <div class="wa__boton">{{ b.texto }}</div>
+          }
+        </div>
+      </div>
+    </div>
+    @if (nota) {
+      <p class="wa__nota">
+        El botón y la última línea son la salida del cliente: si la usa, deja de recibir
+        promociones y <strong>sigue pudiendo pedir</strong> por WhatsApp.
+      </p>
     }
-  }
-</section>
+  </div>
+</ng-template>
+

@@ -35,7 +35,9 @@ import {
   // Proveedores
   Scale, Bookmark, BookmarkPlus, Archive, ArchiveRestore, Flag, Award, Handshake,
   PackageCheck, CircleSlash, Link, MessageSquare, FileText, Paperclip, TriangleAlert,
-  LoaderCircle, ListChecks, Megaphone
+  LoaderCircle, ListChecks, Megaphone,
+  // Promociones
+  History, CircleCheck, CircleX, ImageIcon, TypeIcon
 } from 'lucide-angular';
 
 export const icons = {
@@ -59,7 +61,8 @@ export const icons = {
   Sparkles,
   Scale, Bookmark, BookmarkPlus, Archive, ArchiveRestore, Flag, Award, Handshake,
   PackageCheck, CircleSlash, Link, MessageSquare, FileText, Paperclip, TriangleAlert,
-  LoaderCircle, ListChecks, Megaphone
+  LoaderCircle, ListChecks, Megaphone,
+  History, CircleCheck, CircleX, Image: ImageIcon, Type: TypeIcon
 };
 
 export const appConfig: ApplicationConfig = {
