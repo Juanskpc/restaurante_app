@@ -24,6 +24,7 @@ import {
   Power,
   Receipt,
   Search,
+  Send,
   Settings,
   ShieldCheck,
   Store,
@@ -83,8 +84,8 @@ import {
       useValue: new LucideIconProvider({
         Bot, Building2, CalendarClock, CalendarRange, Check, CircleAlert, CreditCard, Eye,
         FileText, History, Info, KeyRound, Layers, Lock, MessageSquare, Pencil, Phone, Plus,
-        Power, Receipt, Search, Settings, ShieldCheck, Store, Tag, Tags, Trash2, TriangleAlert,
-        User, UserMinus, UserPlus, UserRound, Users, Wallet, X,
+        Power, Receipt, Search, Send, Settings, ShieldCheck, Store, Tag, Tags, Trash2,
+        TriangleAlert, User, UserMinus, UserPlus, UserRound, Users, Wallet, X,
       }),
     },
   ],

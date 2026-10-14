@@ -889,6 +889,18 @@ export class PromocionesComponent implements OnInit {
       this.ui.error('Escribe el WhatsApp al que quieres que llegue la prueba.');
       return;
     }
+    // WhatsApp no deja que un número se escriba a sí mismo: con el número que ENVÍA, la prueba
+    // sale y nunca llega. Se compara por los últimos diez dígitos, con o sin el 57 delante.
+    const diez = (t: string | null | undefined) => String(t ?? '').replace(/\D/g, '').slice(-10);
+    const numeroQueEnvia = this.gate()?.numero.telefono;
+    if (numeroQueEnvia && diez(telefono) === diez(numeroQueEnvia)) {
+      this.ui.error(
+        'Ese es el número desde el que sale la promoción, y WhatsApp no se escribe a sí mismo. '
+          + 'Usa otro WhatsApp, por ejemplo tu número personal.',
+        'Usa otro número',
+      );
+      return;
+    }
 
     this.probando.set(true);
     this.promociones.prueba(idNegocio, c.id_campana, telefono).subscribe({
