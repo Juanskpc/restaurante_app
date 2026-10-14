@@ -436,6 +436,15 @@ export class PromocionesComponent implements OnInit {
   );
 
   /**
+   * Hay imagen subida y su plantilla aún no se ha pedido (o la rechazaron). Mientras la de texto
+   * espera revisión, es lo único que se puede pedir — y sin esto el botón quedaba escondido.
+   */
+  readonly falteImagenPorPedir = computed(() => {
+    const estado = this.plantillaImagen()?.estado;
+    return Boolean(this.imagenUrl()) && estado !== 'PENDIENTE' && estado !== 'APPROVED';
+  });
+
+  /**
    * La plantilla con la que sale la promoción. No se elige: la decide la imagen.
    *
    * Con imagen y la plantilla de imagen aprobada, esa; si no, la de texto. Preguntarle al dueño

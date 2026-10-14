@@ -55,10 +55,12 @@
                     }
                   </p>
                   <div class="aviso__acciones">
-                    @if (!algunaPendiente()) {
+                    @if (!algunaPendiente() || falteImagenPorPedir()) {
                       <button type="button" class="btn btn--primary btn--sm"
                               [disabled]="preparandoPlantillas()" (click)="prepararPlantillas()">
-                        {{ preparandoPlantillas() ? 'Pidiendo…' : 'Pedir aprobación' }}
+                        @if (preparandoPlantillas()) { Pidiendo… }
+                        @else if (algunaPendiente()) { Pedir también con imagen }
+                        @else { Pedir aprobación }
                       </button>
                     }
                     <button type="button" class="btn btn--outline btn--sm"
