@@ -34,31 +34,6 @@
   &--lleno { color: var(--color-warning, #b45309); }
 }
 
-.tabs {
-  display: inline-flex;
-  gap: var(--spacing-xs);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: 6px;
-  margin-top: var(--spacing-lg);
-}
-
-.tabs__btn {
-  border: 0;
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--color-text-secondary);
-  padding: 8px 14px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.tabs__btn--active {
-  background: var(--color-primary);
-  color: var(--color-on-primary);
-}
-
 .panel {
   margin-top: var(--spacing-lg);
   background: var(--color-surface);
@@ -634,4 +609,8 @@ th {
   }
 
   .hint { margin: 0; }
+}
+
+.usuarios-pestanas {
+  margin-top: var(--spacing-lg);
 }

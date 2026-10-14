@@ -47,16 +47,16 @@
   <!-- Pestañas por sección: «Todas» deja el salón como siempre (agrupado, con títulos) y cada una de las
        demás enseña solo sus mesas. Sin secciones no hay pestañas. -->
   @if (tabs().length > 0) {
-    <div class="tabs-seccion" role="tablist" aria-label="Secciones del salón">
+    <div class="ui-pestanas" role="tablist" aria-label="Secciones del salón">
       @for (t of tabs(); track t.clave) {
         <button type="button"
                 role="tab"
-                class="tab-seccion"
-                [class.active]="tabSeccion() === t.clave"
+                class="ui-pestana"
+                [class.ui-pestana--on]="tabSeccion() === t.clave"
                 [attr.aria-selected]="tabSeccion() === t.clave"
                 (click)="seleccionarTab(t.clave)">
           {{ t.etiqueta }}
-          <span class="tab-seccion__cuenta">{{ t.total }}</span>
+          <span class="ui-pestana__n">{{ t.total }}</span>
         </button>
       }
     </div>

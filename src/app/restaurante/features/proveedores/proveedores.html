@@ -23,23 +23,23 @@
   </header>
 
   <!-- ── Secciones ── -->
-  <div class="secciones" role="tablist" aria-label="Secciones de proveedores">
-    <button type="button" role="tab" class="seccion"
-            [class.seccion--activa]="seccion() === 'lista'"
+  <div class="ui-filtros" role="tablist" aria-label="Secciones de proveedores">
+    <button type="button" role="tab" class="ui-filtro"
+            [class.ui-filtro--on]="seccion() === 'lista'"
             [attr.aria-selected]="seccion() === 'lista'"
             (click)="seccion.set('lista')">
       <lucide-icon name="truck" [size]="16" aria-hidden="true" />
       Proveedores
     </button>
-    <button type="button" role="tab" class="seccion"
-            [class.seccion--activa]="seccion() === 'comparador'"
+    <button type="button" role="tab" class="ui-filtro"
+            [class.ui-filtro--on]="seccion() === 'comparador'"
             [attr.aria-selected]="seccion() === 'comparador'"
             (click)="seccion.set('comparador')">
       <lucide-icon name="scale" [size]="16" aria-hidden="true" />
       Comparador
     </button>
-    <button type="button" role="tab" class="seccion"
-            [class.seccion--activa]="seccion() === 'compras'"
+    <button type="button" role="tab" class="ui-filtro"
+            [class.ui-filtro--on]="seccion() === 'compras'"
             [attr.aria-selected]="seccion() === 'compras'"
             (click)="seccion.set('compras')">
       <lucide-icon name="receipt" [size]="16" aria-hidden="true" />
@@ -69,10 +69,10 @@
         </div>
 
         <div class="barra__acciones">
-          <div class="filtros" role="radiogroup" aria-label="Qué proveedores mostrar">
+          <div class="ui-filtros" role="radiogroup" aria-label="Qué proveedores mostrar">
             @for (a of ambitos; track a.valor) {
-              <button type="button" role="radio" class="filtro"
-                      [class.filtro--activo]="ambito() === a.valor"
+              <button type="button" role="radio" class="ui-filtro"
+                      [class.ui-filtro--on]="ambito() === a.valor"
                       [attr.aria-checked]="ambito() === a.valor"
                       (click)="ambito.set(a.valor)">
                 {{ a.texto }}

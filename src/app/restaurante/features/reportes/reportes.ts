@@ -25,6 +25,7 @@ interface ReportTypeOption {
   value: ReporteTipo;
   label: string;
   description: string;
+  icon: string;
 }
 
 interface ReportColumn {
@@ -417,21 +418,25 @@ export class ReportesComponent {
     {
       value: 'ventas_periodo',
       label: 'Ventas por pedido',
+      icon: 'receipt',
       description: 'Detalle por pedido cobrado.',
     },
     {
       value: 'productos_mas_vendidos',
       label: 'Productos más vendidos',
+      icon: 'star',
       description: 'Ranking por unidades e ingresos.',
     },
     {
       value: 'rendimiento_usuarios',
       label: 'Ventas por usuario',
+      icon: 'user',
       description: 'Ventas de cada cajero o mesero. Puedes cruzarlo con productos para ver quién vende más de qué.',
     },
     {
       value: 'ventas_dia_semana',
       label: 'Ventas por día',
+      icon: 'calendar',
       description: 'Qué día de la semana vende más y cuál menos, comparando por promedio.',
     },
   ];
@@ -447,6 +452,7 @@ export class ReportesComponent {
       {
         value: 'ventas_rubro' as const,
         label: 'Ventas por sector',
+        icon: 'layers',
         description: 'Cuánto deja cada sector de tu negocio, repartido por producto vendido.',
       },
     ];

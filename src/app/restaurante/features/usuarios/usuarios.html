@@ -15,22 +15,26 @@
     <div class="users-page__error" role="alert">{{ error }}</div>
   }
 
-  <nav class="tabs" aria-label="Navegación de administración de usuarios">
+  <nav class="usuarios-pestanas ui-pestanas" role="tablist" aria-label="Navegación de administración de usuarios">
     <button
       type="button"
-      class="tabs__btn"
-      [class.tabs__btn--active]="activeTab() === 'usuarios'"
+      class="ui-pestana" role="tab"
+      [class.ui-pestana--on]="activeTab() === 'usuarios'"
+      [attr.aria-selected]="activeTab() === 'usuarios'"
       (click)="changeTab('usuarios')"
     >
+      <lucide-icon name="users" [size]="16" aria-hidden="true" />
       Usuarios
     </button>
     <button
       type="button"
-      class="tabs__btn"
-      [class.tabs__btn--active]="activeTab() === 'roles'"
+      class="ui-pestana" role="tab"
+      [class.ui-pestana--on]="activeTab() === 'roles'"
+      [attr.aria-selected]="activeTab() === 'roles'"
       (click)="changeTab('roles')"
     >
-      Roles y Permisos
+      <lucide-icon name="lock" [size]="16" aria-hidden="true" />
+      Roles y permisos
     </button>
   </nav>
 

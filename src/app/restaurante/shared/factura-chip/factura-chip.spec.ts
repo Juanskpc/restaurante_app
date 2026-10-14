@@ -67,7 +67,7 @@ describe('FacturaChipComponent', () => {
     check().click();
     fixture.detectChanges();
     expect(el().querySelector('[role="dialog"]')).not.toBeNull();
-    expect(el().querySelector('.fch-tab.is-on')?.textContent?.trim()).toBe('Con datos del cliente');
+    expect(el().querySelector('.ui-pestana--on')?.textContent?.trim()).toBe('Con datos del cliente');
     expect(fixture.componentInstance.valor().datos).toBeNull();
 
     boton('Cancelar').click();

@@ -585,13 +585,13 @@
         tituloId="bdj-asis-title"
         (cerrar)="cerrarAsistente()"
       />
-      <div class="bdj-tabs" role="tablist" aria-label="Secciones del asistente">
+      <div class="bdj-tabs ui-pestanas" role="tablist" aria-label="Secciones del asistente">
         @if (preparacion(); as prep) {
           <button
             type="button"
             role="tab"
-            class="bdj-tabs__tab"
-            [class.bdj-tabs__tab--on]="pestana === 'revision'"
+            class="ui-pestana"
+            [class.ui-pestana--on]="pestana === 'revision'"
             [attr.aria-selected]="pestana === 'revision'"
             (click)="irAPestanaAsistente('revision')"
           >
@@ -609,8 +609,8 @@
           <button
             type="button"
             role="tab"
-            class="bdj-tabs__tab"
-            [class.bdj-tabs__tab--on]="pestana === 'ajustes'"
+            class="ui-pestana"
+            [class.ui-pestana--on]="pestana === 'ajustes'"
             [attr.aria-selected]="pestana === 'ajustes'"
             (click)="irAPestanaAsistente('ajustes')"
           >
@@ -621,8 +621,8 @@
           <button
             type="button"
             role="tab"
-            class="bdj-tabs__tab"
-            [class.bdj-tabs__tab--on]="pestana === 'informe'"
+            class="ui-pestana"
+            [class.ui-pestana--on]="pestana === 'informe'"
             [attr.aria-selected]="pestana === 'informe'"
             (click)="irAPestanaAsistente('informe')"
           >

@@ -46,29 +46,30 @@
     </div>
   </header>
 
-  <nav class="tipo-tabs" role="tablist" aria-label="Tipo de reporte">
+  <nav class="ui-pestanas" role="tablist" aria-label="Tipo de reporte">
     @for (tipo of tipoOptions(); track tipo.value) {
       <button
         type="button"
         role="tab"
-        class="tipo-tab"
-        [class.active]="tipoSeleccionado() === tipo.value"
+        class="ui-pestana"
+        [class.ui-pestana--on]="tipoSeleccionado() === tipo.value"
         [attr.aria-selected]="tipoSeleccionado() === tipo.value"
         [disabled]="cargando()"
         (click)="onTipoChange(tipo.value)"
       >
+        <lucide-icon [name]="tipo.icon" [size]="16" aria-hidden="true" />
         {{ tipo.label }}
       </button>
     }
   </nav>
 
   <section class="filters-card">
-    <div class="range-group" role="group" aria-label="Rango de fechas">
+    <div class="ui-filtros" role="group" aria-label="Rango de fechas">
       @for (r of rangosRapidos; track r.value) {
         <button
           type="button"
-          class="range-chip"
-          [class.active]="rangoRapido() === r.value"
+          class="ui-filtro"
+          [class.ui-filtro--on]="rangoRapido() === r.value"
           [attr.aria-pressed]="rangoRapido() === r.value"
           [disabled]="cargando() && r.value !== 'custom'"
           (click)="seleccionarRango(r.value)"

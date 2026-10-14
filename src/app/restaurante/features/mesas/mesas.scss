@@ -72,66 +72,6 @@
 
 // Pestañas por sección. Son pestañas de verdad (subrayado), no botones-píldora como los filtros de
 // estado de abajo: así se distingue «DÓNDE estoy» (sección) de «QUÉ estoy viendo» (estado).
-.tabs-seccion {
-  display: flex;
-  flex-wrap: nowrap;
-  flex-shrink: 0;
-  gap: 2px;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
-  border-bottom: 1px solid var(--color-border);
-
-  &::-webkit-scrollbar { display: none; }
-}
-
-.tab-seccion {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  margin-bottom: -1px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: none;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: color var(--transition-fast), border-color var(--transition-fast);
-
-  &:hover { color: var(--color-text-primary); }
-
-  &:focus-visible {
-    outline: none;
-    box-shadow: inset var(--focus-ring);
-    border-radius: var(--radius-sm);
-  }
-
-  &.active {
-    color: var(--color-primary);
-    border-bottom-color: var(--color-primary);
-  }
-}
-
-.tab-seccion__cuenta {
-  min-width: 20px;
-  padding: 1px 7px;
-  border-radius: var(--radius-full);
-  background: var(--color-bg-secondary);
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-xs);
-  font-weight: 700;
-  text-align: center;
-
-  .tab-seccion.active & {
-    background: color-mix(in srgb, var(--color-primary) 12%, var(--color-surface));
-    color: var(--color-primary);
-  }
-}
-
 // Una sola fila: si no caben todos los filtros se desliza de lado, en vez de partirse en dos o
 // tres renglones y quitarle alto al salón.
 .stats-strip {

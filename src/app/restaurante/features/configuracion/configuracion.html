@@ -25,17 +25,17 @@
     }
   </header>
 
-  <nav class="tabs" role="tablist" aria-label="Secciones de configuración">
+  <nav class="ui-pestanas" role="tablist" aria-label="Secciones de configuración">
     @for (t of tabs(); track t.id) {
       <button
         type="button"
         role="tab"
-        class="tab"
-        [class.tab--on]="tab() === t.id"
+        class="ui-pestana"
+        [class.ui-pestana--on]="tab() === t.id"
         [attr.aria-selected]="tab() === t.id"
         (click)="cambiarTab(t.id)"
       >
-        <lucide-icon [name]="t.icono" [size]="15" />
+        <lucide-icon [name]="t.icono" [size]="16" aria-hidden="true" />
         {{ t.label }}
       </button>
     }

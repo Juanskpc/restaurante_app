@@ -2,18 +2,21 @@
   <!-- Las pestañas van AL PRINCIPIO de la página: son lo primero que se decide, y de ellas cuelgan
        los botones que siguen — cada pestaña ofrece solo los suyos, no los de la otra. El historial
        ya no es un modal, así que se ven con o sin caja abierta. -->
-  <div class="tabs" role="tablist">
-    <button type="button" role="tab" class="tab" [class.tab--on]="pestana() === 'turno'"
+  <div class="ui-pestanas" role="tablist">
+    <button type="button" role="tab" class="ui-pestana" [class.ui-pestana--on]="pestana() === 'turno'"
             [attr.aria-selected]="pestana() === 'turno'" (click)="cambiarPestana('turno')">
+      <lucide-icon name="wallet" [size]="16" aria-hidden="true" />
       Turno actual
     </button>
-    <button type="button" role="tab" class="tab" [class.tab--on]="pestana() === 'historial'"
+    <button type="button" role="tab" class="ui-pestana" [class.ui-pestana--on]="pestana() === 'historial'"
             [attr.aria-selected]="pestana() === 'historial'" (click)="cambiarPestana('historial')">
+      <lucide-icon name="history" [size]="16" aria-hidden="true" />
       Historial
     </button>
     @if (facturacion.activa()) {
-      <button type="button" role="tab" class="tab" [class.tab--on]="pestana() === 'facturas'"
+      <button type="button" role="tab" class="ui-pestana" [class.ui-pestana--on]="pestana() === 'facturas'"
               [attr.aria-selected]="pestana() === 'facturas'" (click)="cambiarPestana('facturas')">
+        <lucide-icon name="file-text" [size]="16" aria-hidden="true" />
         Facturas
       </button>
     }

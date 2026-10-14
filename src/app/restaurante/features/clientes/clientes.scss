@@ -132,64 +132,6 @@
 }
 
 // Filtros segmentados
-.filtros {
-  display: inline-flex;
-  gap: 4px;
-  padding: 4px;
-  border-radius: 10px;
-  background: var(--color-bg);
-}
-
-.filtro {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 36px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: var(--cl-radio-sm);
-  background: transparent;
-  color: var(--color-text-secondary);
-  font: inherit;
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: background-color var(--transition-fast), color var(--transition-fast);
-
-  &:hover:not(.filtro--activo) {
-    background: var(--color-surface);
-    color: var(--color-text-primary);
-  }
-
-  &:active { transform: translateY(1px); }
-  &:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-
-  &--activo {
-    background: var(--color-primary);
-    color: var(--color-on-primary);
-
-    .filtro__n {
-      background: color-mix(in srgb, var(--color-on-primary) 22%, transparent);
-      color: var(--color-on-primary);
-    }
-  }
-}
-
-.filtro__n {
-  min-width: 22px;
-  height: 20px;
-  padding: 0 6px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--color-text-primary) 8%, transparent);
-  font-size: 0.72rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
 // Acción principal
 .btn-nuevo {
   min-height: var(--cl-toque);
@@ -1053,19 +995,6 @@ th[aria-sort='descending'] .orden {
     gap: 10px;
   }
 
-  .filtros {
-    display: flex;
-    overflow-x: auto;
-    scrollbar-width: none;
-    &::-webkit-scrollbar { display: none; }
-  }
-
-  .filtro {
-    flex: 1 0 auto;
-    justify-content: center;
-    height: 40px;
-  }
-
   .btn-nuevo { width: 100%; }
 
   .tabla { display: none; }
@@ -1101,71 +1030,6 @@ th[aria-sort='descending'] .orden {
 
 // Pestañas subrayadas: navegan entre dos listas, así que se distinguen de los filtros
 // segmentados de dentro del panel (que solo acotan la lista actual).
-.secciones {
-  display: flex;
-  gap: 4px;
-  border-bottom: 1px solid var(--color-border);
-  overflow-x: auto;
-  scrollbar-width: none;
-  &::-webkit-scrollbar { display: none; }
-}
-
-.seccion {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: var(--cl-toque);
-  padding: 0 14px;
-  border: 0;
-  background: transparent;
-  color: var(--color-text-secondary);
-  font: inherit;
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: pointer;
-  border-radius: var(--cl-radio-sm) var(--cl-radio-sm) 0 0;
-  transition: color var(--transition-fast), background-color var(--transition-fast);
-
-  lucide-icon { display: flex; line-height: 0; }
-
-  &::after {
-    content: '';
-    position: absolute;
-    left: 8px;
-    right: 8px;
-    bottom: -1px;
-    height: 2px;
-    border-radius: 2px;
-    background: transparent;
-  }
-
-  &:hover { color: var(--color-text-primary); background: var(--cl-tinte); }
-  &:active { background: var(--cl-tinte-fuerte); }
-  &:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-
-  &--activa {
-    color: var(--color-primary);
-    &::after { background: var(--color-primary); }
-    .seccion__n { background: var(--cl-tinte-fuerte); color: var(--color-primary); }
-  }
-}
-
-.seccion__n {
-  min-width: 22px;
-  height: 20px;
-  padding: 0 6px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: var(--color-bg);
-  font-size: 0.72rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
 // Explica de dónde salen los clientes, sin competir con la lista.
 .aviso-auto {
   display: flex;
@@ -1250,7 +1114,6 @@ a.menu-ctx__item { text-decoration: none; }
 .ficha__acciones { flex-wrap: wrap; }
 
 @media (max-width: 767px) {
-  .seccion { flex: 1 0 auto; justify-content: center; }
   .aviso-auto { padding: 10px 12px; align-items: flex-start; }
   .ficha__acciones > * { flex: 1 1 140px; min-height: var(--cl-toque); }
 }

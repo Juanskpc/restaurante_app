@@ -83,14 +83,14 @@
         <div class="table-header">
           <h3>Inventario en tiempo real</h3>
           <div class="table-header-tools">
-            <div class="stock-filters" aria-label="Filtros de inventario">
-              <button class="stock-filter-btn"
-                      [class.active]="stockFilter() === 'normal'"
+            <div class="ui-filtros" role="group" aria-label="Filtros de inventario">
+              <button type="button" class="ui-filtro"
+                      [class.ui-filtro--on]="stockFilter() === 'normal'"
                       (click)="setStockFilter('normal')">
                 Normal
               </button>
-              <button class="stock-filter-btn"
-                      [class.active]="stockFilter() === 'agotado'"
+              <button type="button" class="ui-filtro"
+                      [class.ui-filtro--on]="stockFilter() === 'agotado'"
                       (click)="setStockFilter('agotado')">
                 Agotado
               </button>

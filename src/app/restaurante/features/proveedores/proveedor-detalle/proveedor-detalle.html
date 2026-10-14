@@ -83,29 +83,29 @@
   </div>
 
   <!-- ── Pestañas ── -->
-  <div class="pestanas" role="tablist" aria-label="Secciones del proveedor">
-    <button type="button" role="tab" class="pestana"
-            [class.pestana--activa]="pestana() === 'info'"
+  <div class="pestanas ui-pestanas" role="tablist" aria-label="Secciones del proveedor">
+    <button type="button" role="tab" class="ui-pestana"
+            [class.ui-pestana--on]="pestana() === 'info'"
             [attr.aria-selected]="pestana() === 'info'"
             (click)="irAPestana('info')">
       Información
     </button>
-    <button type="button" role="tab" class="pestana"
-            [class.pestana--activa]="pestana() === 'insumos'"
+    <button type="button" role="tab" class="ui-pestana"
+            [class.ui-pestana--on]="pestana() === 'insumos'"
             [attr.aria-selected]="pestana() === 'insumos'"
             (click)="irAPestana('insumos')">
       Insumos
-      <span class="pestana__n">{{ insumos().length }}</span>
+      <span class="ui-pestana__n">{{ insumos().length }}</span>
     </button>
     @if (esPropio()) {
-      <button type="button" role="tab" class="pestana"
-              [class.pestana--activa]="pestana() === 'compras'"
+      <button type="button" role="tab" class="ui-pestana"
+              [class.ui-pestana--on]="pestana() === 'compras'"
               [attr.aria-selected]="pestana() === 'compras'"
               (click)="irAPestana('compras')">
         Mis compras
       </button>
-      <button type="button" role="tab" class="pestana"
-              [class.pestana--activa]="pestana() === 'notas'"
+      <button type="button" role="tab" class="ui-pestana"
+              [class.ui-pestana--on]="pestana() === 'notas'"
               [attr.aria-selected]="pestana() === 'notas'"
               (click)="irAPestana('notas')">
         Notas privadas

@@ -31,12 +31,12 @@
         </button>
       </header>
 
-      <div class="fch-tabs" role="tablist">
-        <button type="button" role="tab" class="fch-tab" [class.is-on]="pestana() === 'cliente'"
+      <div class="fch-tabs ui-pestanas" role="tablist">
+        <button type="button" role="tab" class="ui-pestana" [class.ui-pestana--on]="pestana() === 'cliente'"
                 [attr.aria-selected]="pestana() === 'cliente'" (click)="pestana.set('cliente')">
           Con datos del cliente
         </button>
-        <button type="button" role="tab" class="fch-tab" [class.is-on]="pestana() === 'anonima'"
+        <button type="button" role="tab" class="ui-pestana" [class.ui-pestana--on]="pestana() === 'anonima'"
                 [attr.aria-selected]="pestana() === 'anonima'" (click)="pestana.set('anonima')">
           Anónima
         </button>

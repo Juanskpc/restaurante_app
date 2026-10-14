@@ -1,5 +1,7 @@
 /* Importar sistema de temas (design tokens + helpers globales) */
 @use './styles/theme';
+/* Pestañas (secciones) y filtros: el estándar de toda la app */
+@use './styles/pestanas';
 
 /*
  * Urban Black — la tipografía de titular de las plantillas «Neón» y «Mural».

@@ -484,19 +484,6 @@
 }
 
 // ── Pestañas (como en Reserva) ──
-.tabs { display: flex; gap: .35rem; border-bottom: 1px solid var(--color-border); }
-.tab {
-  padding: .55rem .9rem; cursor: pointer; font-family: inherit;
-  border: 0; background: transparent; color: var(--color-text-muted);
-  font-size: .88rem; font-weight: 600;
-  border-bottom: 2px solid transparent; margin-bottom: -1px;
-  transition: color var(--transition-fast), border-color var(--transition-fast);
-
-  &:hover { color: var(--color-text-primary); }
-  &:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -2px; border-radius: var(--radius-sm); }
-  &--on { color: var(--color-primary); border-bottom-color: var(--color-primary); }
-}
-
 .pos { color: var(--color-success); }
 .neg { color: var(--color-error); }
 
@@ -1112,9 +1099,6 @@ $alto-chip: 1.75rem;
 }
 
 @media (max-width: 767px) {
-  .tabs { width: 100%; }
-  .tab { flex: 1; text-align: center; }
-
   // Dos por fila, no una: son cifras que se leen comparándolas —ingresos contra egresos, apertura
   // contra lo que debería haber— y para eso tienen que verse a la vez. `minmax(0, 1fr)` y no `1fr`:
   // un importe con `tabular-nums` desbordaría la columna en pantallas de 320 px en vez de encogerla.

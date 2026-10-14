@@ -23,12 +23,12 @@ import { IdSeccion, pestanasDisponibles } from '../secciones';
   imports: [RouterLink, RouterLinkActive, LucideAngularModule],
   template: `
     @if (pestanas().length > 1) {
-      <nav class="sp" [attr.aria-label]="etiqueta()">
+      <nav class="ui-pestanas" [attr.aria-label]="etiqueta()">
         @for (p of pestanas(); track p.route) {
           <a
-            class="sp__tab"
+            class="ui-pestana"
             [routerLink]="p.route"
-            routerLinkActive="sp__tab--on"
+            routerLinkActive="ui-pestana--on"
             #rla="routerLinkActive"
             [attr.aria-current]="rla.isActive ? 'page' : null"
           >
@@ -39,47 +39,9 @@ import { IdSeccion, pestanasDisponibles } from '../secciones';
       </nav>
     }
   `,
-  styles: `
-    :host { display: block; flex: none; }
-
-    /* Alto fijo: la Bandeja lo descuenta de su altura (\`--bdj-extra\` en Conversaciones). */
-    .sp {
-      display: flex;
-      gap: 0.25rem;
-      height: 2.75rem;
-      border-bottom: 1px solid var(--color-border);
-      overflow-x: auto;
-      scrollbar-width: none;
-    }
-
-    .sp__tab {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.4rem;
-      padding: 0 0.875rem;
-      margin-bottom: -1px;
-      border-bottom: 2px solid transparent;
-      color: var(--color-text-secondary);
-      font-size: 0.9375rem;
-      font-weight: 600;
-      text-decoration: none;
-      white-space: nowrap;
-      transition: color var(--transition-fast), border-color var(--transition-fast);
-    }
-
-    .sp__tab:hover { color: var(--color-text-primary); }
-
-    .sp__tab:focus-visible {
-      outline: none;
-      box-shadow: var(--focus-ring);
-      border-radius: var(--radius-md);
-    }
-
-    .sp__tab--on {
-      border-bottom-color: var(--color-primary);
-      color: var(--color-primary);
-    }
-  `,
+  // El aspecto es el estándar global de pestañas (`src/styles/_pestanas.scss`), el mismo de
+  // Caja, Configuración o Clientes. Alto fijo de 2,75 rem: la Bandeja lo descuenta (`--bdj-extra`).
+  styles: `:host { display: block; flex: none; }`,
 })
 export class SeccionPestanasComponent {
   private readonly auth = inject(AuthService);

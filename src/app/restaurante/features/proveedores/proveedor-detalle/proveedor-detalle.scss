@@ -100,44 +100,6 @@
   &::-webkit-scrollbar { display: none; }
 }
 
-.pestana {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 42px;
-  padding: 0 12px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: transparent;
-  color: var(--color-text-secondary);
-  font: inherit;
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: pointer;
-
-  &:hover:not(.pestana--activa) { color: var(--color-text-primary); }
-  &:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-
-  &--activa {
-    color: var(--color-primary);
-    border-bottom-color: var(--color-primary);
-  }
-}
-
-.pestana__n {
-  min-width: 20px;
-  height: 18px;
-  padding: 0 5px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--color-text-primary) 8%, transparent);
-  font-size: .68rem;
-  font-weight: 700;
-}
-
 // ── Cuerpo ──
 .cuerpo {
   display: flex;

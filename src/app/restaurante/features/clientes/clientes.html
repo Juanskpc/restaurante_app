@@ -5,24 +5,24 @@
 
   <!-- ── Secciones: el directorio (automático) y, si el negocio las usa, tiqueteras y fiado ── -->
   @if (permiteCuentas()) {
-    <div class="secciones" role="tablist" aria-label="Secciones de clientes">
-      <button type="button" role="tab" class="seccion" id="tab-clientes"
-              [class.seccion--activa]="seccion() === 'clientes'"
+    <div class="ui-pestanas" role="tablist" aria-label="Secciones de clientes">
+      <button type="button" role="tab" class="ui-pestana" id="tab-clientes"
+              [class.ui-pestana--on]="seccion() === 'clientes'"
               [attr.aria-selected]="seccion() === 'clientes'"
               aria-controls="panel-clientes"
               (click)="cambiarSeccion('clientes')">
         <lucide-icon name="users" [size]="16" aria-hidden="true" />
         Clientes
-        <span class="seccion__n">{{ directorio().length }}</span>
+        <span class="ui-pestana__n">{{ directorio().length }}</span>
       </button>
-      <button type="button" role="tab" class="seccion" id="tab-cuentas"
-              [class.seccion--activa]="seccion() === 'cuentas'"
+      <button type="button" role="tab" class="ui-pestana" id="tab-cuentas"
+              [class.ui-pestana--on]="seccion() === 'cuentas'"
               [attr.aria-selected]="seccion() === 'cuentas'"
               aria-controls="panel-cuentas"
               (click)="cambiarSeccion('cuentas')">
         <lucide-icon name="ticket" [size]="16" aria-hidden="true" />
         Tiqueteras y fiado
-        <span class="seccion__n">{{ cuentas().length }}</span>
+        <span class="ui-pestana__n">{{ cuentas().length }}</span>
       </button>
     </div>
   }
@@ -69,14 +69,14 @@
           </div>
 
           <div class="barra__acciones">
-            <div class="filtros" role="radiogroup" aria-label="Filtrar clientes">
+            <div class="ui-filtros" role="radiogroup" aria-label="Filtrar clientes">
               @for (f of filtrosDir; track f.valor) {
-                <button type="button" role="radio" class="filtro"
-                        [class.filtro--activo]="filtroDir() === f.valor"
+                <button type="button" role="radio" class="ui-filtro"
+                        [class.ui-filtro--on]="filtroDir() === f.valor"
                         [attr.aria-checked]="filtroDir() === f.valor"
                         (click)="filtroDir.set(f.valor)">
                   {{ f.texto }}
-                  <span class="filtro__n" [attr.aria-label]="conteosDir()[f.valor] + ' clientes'">
+                  <span class="ui-filtro__n" [attr.aria-label]="conteosDir()[f.valor] + ' clientes'">
                     {{ conteosDir()[f.valor] }}
                   </span>
                 </button>
@@ -334,14 +334,14 @@
         </div>
 
         <div class="barra__acciones">
-          <div class="filtros" role="radiogroup" aria-label="Filtrar clientes por saldo">
+          <div class="ui-filtros" role="radiogroup" aria-label="Filtrar clientes por saldo">
             @for (f of filtros; track f.valor) {
-              <button type="button" role="radio" class="filtro"
-                      [class.filtro--activo]="filtro() === f.valor"
+              <button type="button" role="radio" class="ui-filtro"
+                      [class.ui-filtro--on]="filtro() === f.valor"
                       [attr.aria-checked]="filtro() === f.valor"
                       (click)="filtro.set(f.valor)">
                 {{ f.texto }}
-                <span class="filtro__n" [attr.aria-label]="conteos()[f.valor] + ' clientes'">
+                <span class="ui-filtro__n" [attr.aria-label]="conteos()[f.valor] + ' clientes'">
                   {{ conteos()[f.valor] }}
                 </span>
               </button>
