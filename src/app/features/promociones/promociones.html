@@ -244,17 +244,42 @@
                 <span class="resumen__n">
                   @if (simulando() && !simulacion()) {
                     …
+                  } @else if (costoTotal() !== null) {
+                    {{ costoTotal() | currency: 'COP' : 'symbol-narrow' : '1.0-0' }}
                   } @else if (simulacion(); as s) {
+                    US$ {{ s.meta.costo_usd | number: '1.2-2' }}
+                  } @else { $0 }
+                </span>
+                <span class="resumen__p">aproximado, en total</span>
+              </div>
+            </div>
+            <!-- De dónde sale el total: lo de WhatsApp y lo de EscalApp, cada uno con su nombre. -->
+            @if (simulacion(); as s) {
+              <dl class="desglose">
+                <div class="desglose__f">
+                  <dt>WhatsApp (Meta)</dt>
+                  <dd>
                     @if (s.meta.costo_estimado_local !== null) {
-                      {{ s.meta.costo_estimado_local | currency: 'COP' : 'symbol-narrow' : '1.0-0' }}
+                      ≈ {{ s.meta.costo_estimado_local | currency: 'COP' : 'symbol-narrow' : '1.0-0' }}
                     } @else {
                       US$ {{ s.meta.costo_usd | number: '1.2-2' }}
                     }
-                  } @else { $0 }
-                </span>
-                <span class="resumen__p">aprox., lo cobra WhatsApp</span>
-              </div>
-            </div>
+                  </dd>
+                </div>
+                @if (s.escalapp.precio_local !== null) {
+                  <div class="desglose__f">
+                    <dt>
+                      EscalApp
+                      <small>
+                        {{ s.escalapp.precio_unitario_local | currency: 'COP' : 'symbol-narrow' : '1.0-0' }}
+                        por mensaje
+                      </small>
+                    </dt>
+                    <dd>{{ s.escalapp.precio_local | currency: 'COP' : 'symbol-narrow' : '1.0-0' }}</dd>
+                  </div>
+                }
+              </dl>
+            }
             <button type="button" class="enlace resumen__detalle" [disabled]="!simulacion()"
                     (click)="abrirModal('costo')">
               @if (hayAvisosDeCosto()) {
@@ -464,6 +489,18 @@
                 por {{ s.enviables | number }} {{ s.enviables === 1 ? 'mensaje' : 'mensajes' }}
               </span>
             </div>
+            @if (s.escalapp.precio_local !== null) {
+              <div class="sim__cifra">
+                <span class="sim__cifra-n">
+                  {{ s.escalapp.precio_local | currency: 'COP' : 'symbol-narrow' : '1.0-0' }}
+                </span>
+                <span class="sim__cifra-t">te cobra EscalApp</span>
+                <span class="sim__cifra-p">
+                  {{ s.escalapp.precio_unitario_local | currency: 'COP' : 'symbol-narrow' : '1.0-0' }}
+                  por mensaje entregado
+                </span>
+              </div>
+            }
             @if (s.retorno.pedidos_para_empatar !== null) {
               <div class="sim__cifra sim__cifra--ok">
                 <span class="sim__cifra-n">{{ s.retorno.pedidos_para_empatar | number }}</span>
@@ -523,8 +560,18 @@
               se cobran.
             </p>
             <p>
-              <strong>EscalApp</strong> cuenta {{ s.escalapp.creditos | number }}
-              {{ s.escalapp.creditos === 1 ? 'envío' : 'envíos' }}. {{ s.escalapp.nota }}
+              <strong>EscalApp</strong>
+              @if (s.escalapp.precio_local !== null) {
+                cobra
+                <strong>{{ s.escalapp.precio_unitario_local | currency: 'COP' : 'symbol-narrow' : '1.0-0' }}</strong>
+                por mensaje: {{ s.escalapp.creditos | number }}
+                {{ s.escalapp.creditos === 1 ? 'mensaje' : 'mensajes' }} son
+                <strong>{{ s.escalapp.precio_local | currency: 'COP' : 'symbol-narrow' : '1.0-0' }}</strong>.
+              } @else {
+                cuenta {{ s.escalapp.creditos | number }}
+                {{ s.escalapp.creditos === 1 ? 'envío' : 'envíos' }}.
+              }
+              {{ s.escalapp.nota }}
             </p>
             @if (s.retorno.pedidos_para_empatar !== null) {
               <p>
@@ -532,6 +579,7 @@
                 {{ etiqueta().uno }} de
                 {{ s.retorno.ticket_medio | currency: 'COP' : 'symbol-narrow' : '1.0-0' }} te quedan
                 {{ s.retorno.margen_por_pedido | currency: 'COP' : 'symbol-narrow' : '1.0-0' }}.
+                La cuenta incluye {{ s.retorno.base }}.
               </p>
             }
             <p>Lo que el asistente gaste al contestar es aparte.</p>

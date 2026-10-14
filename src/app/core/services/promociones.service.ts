@@ -88,7 +88,15 @@ export interface Simulacion {
     fx_referencia: { fecha: string; COP: number };
     lo_cobra: string;
   };
-  escalapp: { creditos: number; precio_local: number | null; nota: string };
+  escalapp: {
+    creditos: number;
+    /** Lo que costaría en EscalApp. `null` si no hay precio en la moneda del negocio. */
+    precio_local: number | null;
+    precio_unitario_local?: number | null;
+    /** `false` mientras solo se muestra y no se descuenta. */
+    se_cobra?: boolean;
+    nota: string;
+  };
   retorno: {
     ticket_medio: number;
     margen_usado: number;

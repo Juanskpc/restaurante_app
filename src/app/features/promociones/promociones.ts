@@ -546,6 +546,13 @@ export class PromocionesComponent implements OnInit {
       || Boolean(s.asistente.cupo && !s.asistente.cupo.alcanza);
   });
 
+  /** Lo de WhatsApp más lo de EscalApp, en pesos. `null` si lo de Meta no tiene valor en pesos. */
+  readonly costoTotal = computed<number | null>(() => {
+    const s = this.simulacion();
+    if (!s || s.meta.costo_estimado_local === null) return null;
+    return s.meta.costo_estimado_local + (s.escalapp.precio_local ?? 0);
+  });
+
   /** A cuántos sale: lo que congeló la promoción preparada, o lo elegido si aún no hay. */
   readonly destinatariosCampana = computed(
     () => this.campana()?.destinatarios || this.totalSeleccionado(),
@@ -924,6 +931,13 @@ export class PromocionesComponent implements OnInit {
         meta.costo_estimado_local !== null
           ? `Meta cobrará cerca de $${numero.format(Math.round(meta.costo_estimado_local))} (US$ ${usd}).`
           : `Meta cobrará US$ ${usd}.`,
+      );
+    }
+    const escalapp = this.simulacion()?.escalapp;
+    if (escalapp?.precio_local != null) {
+      partes.push(
+        `EscalApp: $${numero.format(escalapp.precio_local)}`
+          + (escalapp.se_cobra === false ? ' (por ahora no se cobra).' : '.'),
       );
     }
 
