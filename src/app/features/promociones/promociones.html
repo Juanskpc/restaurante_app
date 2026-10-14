@@ -769,8 +769,16 @@
       <div class="wa__chat">
         <div class="wa__mensaje">
           <div class="wa__burbuja">
-            @if (plantillaVista()?.necesita_imagen && imagenUrl()) {
-              <img class="wa__img" [src]="imagenUrl()" alt="" />
+            @if (imagenUrl()) {
+              @if (plantillaVista()?.necesita_imagen) {
+                <img class="wa__img" [src]="imagenUrl()" alt="" />
+              } @else if (plantillaImagen()?.estado === 'PENDIENTE') {
+                <!-- Se enseña, pero marcada: si se envía antes de la aprobación, sale sin ella. -->
+                <span class="wa__img-espera">
+                  <img class="wa__img" [src]="imagenUrl()" alt="" />
+                  <span class="wa__img-marca">Esperando que WhatsApp apruebe la imagen</span>
+                </span>
+              }
             }
             <p class="wa__texto">{{ vistaPrevia() }}</p>
             @if (plantillaVista()?.pie) { <p class="wa__pie">{{ plantillaVista()!.pie }}</p> }

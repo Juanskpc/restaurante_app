@@ -584,6 +584,27 @@ export class PromocionesComponent implements OnInit {
   }
 
   /**
+   * Pedir y comprobar devuelven solo el ESTADO de cada plantilla, sin su texto (eso lo trae
+   * `GET /plantillas`). Reemplazar la lista con esa respuesta dejaba la vista previa sin saludo,
+   * sin despedida y sin botón: se conserva el texto que ya se tenía, por nombre.
+   */
+  private conTextos(lista: PlantillaPromo[]): PlantillaPromo[] {
+    const previas = new Map(this.plantillas().map((p) => [p.nombre, p]));
+    const sinTexto = lista.some((p) => !p.cuerpo && !previas.get(p.nombre)?.cuerpo);
+    if (sinTexto) this.cargarPlantillas();
+    return lista.map((p) => {
+      const previa = previas.get(p.nombre);
+      return {
+        ...p,
+        cuerpo: p.cuerpo ?? previa?.cuerpo ?? null,
+        pie: p.pie ?? previa?.pie ?? null,
+        botones: p.botones ?? previa?.botones ?? [],
+        parametros: p.parametros ?? previa?.parametros ?? [],
+      };
+    });
+  }
+
+  /**
    * Le pide a Meta las plantillas que falten.
    *
    * Conviene hacerlo con tiempo: Meta tarda de minutos a 24 horas en revisarlas, y hasta que
@@ -595,11 +616,11 @@ export class PromocionesComponent implements OnInit {
     this.preparandoPlantillas.set(true);
     this.promociones.asegurarPlantillas(idNegocio, this.imagenUrl()).subscribe({
       next: (lista) => {
-        this.plantillas.set(lista);
+        this.plantillas.set(this.conTextos(lista));
         this.preparandoPlantillas.set(false);
         this.ui.success(
-          lista.some((p) => p.usable)
-            ? 'Ya tienes una plantilla aprobada.'
+          lista.every((p) => p.usable)
+            ? 'WhatsApp ya aprobó el formato.'
             : 'Pedido a WhatsApp. Suele tardar unos minutos; vuelve a comprobar en un rato.',
           'Plantillas',
         );
@@ -617,7 +638,7 @@ export class PromocionesComponent implements OnInit {
     this.preparandoPlantillas.set(true);
     this.promociones.sincronizarPlantillas(idNegocio).subscribe({
       next: (lista) => {
-        this.plantillas.set(lista);
+        this.plantillas.set(this.conTextos(lista));
         this.preparandoPlantillas.set(false);
         if (!lista.some((p) => p.usable)) {
           this.ui.info('Todavía no lo aprueba. Vuelve a comprobar en unos minutos.', 'WhatsApp');

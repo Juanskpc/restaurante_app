@@ -1129,6 +1129,25 @@
   margin-bottom: 0.375rem;
 }
 
+.wa__img-espera {
+  position: relative;
+  display: block;
+
+  .wa__img { opacity: 0.45; filter: grayscale(0.6); }
+}
+
+.wa__img-marca {
+  position: absolute;
+  inset: auto 0.5rem calc(0.375rem + 0.5rem) 0.5rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  background: rgba(17, 27, 33, 0.78);
+  color: #fff;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-align: center;
+}
+
 .wa__img--hueco {
   display: grid;
   place-items: center;
