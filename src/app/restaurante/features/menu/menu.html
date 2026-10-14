@@ -24,15 +24,15 @@
     <div class="header-actions">
       <button class="btn btn-secondary" (click)="abrirMenuDigital()" [disabled]="!negocioId()">
         <lucide-icon name="external-link" [size]="16" />
-        Ver menu digital
+        Ver menú digital
       </button>
       <button class="btn btn-secondary" (click)="abrirModalCat()">
         <lucide-icon name="circle-plus" [size]="16" />
-        Nueva Categoría
+        Nueva categoría
       </button>
       <button class="btn btn-primary" (click)="abrirModalProd()">
         <lucide-icon name="plus" [size]="16" />
-        Nuevo Producto
+        Nuevo producto
       </button>
     </div>
   </header>
@@ -90,7 +90,7 @@
 
       <button class="add-cat-btn" (click)="abrirModalCat()">
         <lucide-icon name="plus" [size]="16" />
-        Nueva Categoría
+        Nueva categoría
       </button>
     </aside>
 
@@ -103,10 +103,10 @@
           <span>{{ categoriaNombreActivo() }}</span>
           <span class="count-badge">{{ productosFiltrados().length }}</span>
         </div>
-        <div class="filter-bar">
-          <button class="filter-btn" [class.active]="filtro() === 'todos'"         (click)="setFiltro('todos')">Todos</button>
-          <button class="filter-btn" [class.active]="filtro() === 'disponibles'"   (click)="setFiltro('disponibles')">Disponibles</button>
-          <button class="filter-btn" [class.active]="filtro() === 'no_disponibles'"(click)="setFiltro('no_disponibles')">No Disponibles</button>
+        <div class="ui-filtros" role="group" aria-label="Filtrar productos">
+          <button type="button" class="ui-filtro" [class.ui-filtro--on]="filtro() === 'todos'"         (click)="setFiltro('todos')">Todos</button>
+          <button type="button" class="ui-filtro" [class.ui-filtro--on]="filtro() === 'disponibles'"   (click)="setFiltro('disponibles')">Disponibles</button>
+          <button type="button" class="ui-filtro" [class.ui-filtro--on]="filtro() === 'no_disponibles'"(click)="setFiltro('no_disponibles')">No disponibles</button>
         </div>
       </div>
 
@@ -223,7 +223,7 @@
       <div class="modal-header">
         <h2 class="modal-title">
           <lucide-icon name="folder" [size]="20" />
-          {{ editandoCatId() ? 'Editar Categoría' : 'Nueva Categoría' }}
+          {{ editandoCatId() ? 'Editar categoría' : 'Nueva categoría' }}
         </h2>
         <button class="close-btn" (click)="cerrarModalCat()">
           <lucide-icon name="x" [size]="20" />
@@ -349,7 +349,7 @@
       <div class="modal-header">
         <h2 class="modal-title">
           <lucide-icon name="package" [size]="20" />
-          {{ editandoProdId() ? 'Editar Producto' : 'Nuevo Producto' }}
+          {{ editandoProdId() ? 'Editar producto' : 'Nuevo producto' }}
         </h2>
         <button class="close-btn" (click)="cerrarModalProd()">
           <lucide-icon name="x" [size]="20" />

@@ -58,8 +58,8 @@
   min-width: 150px;
 
   > span {
-    font-size: .72rem;
-    font-weight: 700;
+    font-size: var(--font-size-xs);
+    font-weight: 600;
     letter-spacing: .02em;
     color: var(--color-text-secondary);
   }

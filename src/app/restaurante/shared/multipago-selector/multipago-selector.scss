@@ -29,6 +29,7 @@
   background: var(--color-bg);
   color: var(--color-text-primary);
   font: inherit;
+  font-size: var(--font-size-sm);
 
   &:focus {
     outline: none;

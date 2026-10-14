@@ -51,7 +51,7 @@
 .promos__sub {
   margin: 0.25rem 0 0;
   color: var(--color-text-secondary);
-  font-size: 0.925rem;
+  font-size: var(--font-size-sm);
   max-width: 60ch;
 }
 
@@ -207,8 +207,8 @@
 
 .bloque__titulo {
   margin: 0;
-  font-size: 1.0625rem;
-  font-weight: 650;
+  font-size: 1rem;
+  font-weight: 700;
   color: var(--color-text-primary);
 }
 

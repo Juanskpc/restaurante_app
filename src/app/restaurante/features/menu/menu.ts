@@ -213,7 +213,7 @@ export class MenuComponent implements OnInit, OnDestroy {
 
   readonly categoriaNombreActivo = computed(() => {
     const id = this.categoriaActiva();
-    if (!id) return 'Todos los Productos';
+    if (!id) return 'Todos los productos';
     return this.categorias().find(c => c.id_categoria === id)?.nombre ?? '';
   });
 
