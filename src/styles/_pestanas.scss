@@ -25,6 +25,9 @@
 // ── Pestañas de sección ──────────────────────────────────────────────────────
 
 .ui-pestanas {
+  /* Contiene a sus hijos posicionados: el texto `.sr-only` (absoluto) de una pestaña con aviso se
+     escapaba de la barra desplazable y ensanchaba la página en el celular (Terceros, 2026-10-14). */
+  position: relative;
   display: flex;
   flex: none;
   gap: 0.25rem;
