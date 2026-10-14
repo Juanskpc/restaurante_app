@@ -77,7 +77,8 @@
               </div>
             }
 
-            <label class="campo">
+            <div class="mensaje">
+            <label class="campo mensaje__texto">
               <span class="sr-only">Texto de la promoción</span>
               <textarea class="campo__area" rows="4" maxlength="400"
                         placeholder="Ej: Esta semana, 2 hamburguesas por $20.000 🍔"
@@ -89,7 +90,8 @@
             </label>
 
             <!-- La imagen es opcional y se puede subir siempre: la plantilla con imagen no se
-                 puede pedir a WhatsApp sin una de ejemplo. -->
+                 puede pedir a WhatsApp sin una de ejemplo. Va al lado del texto. -->
+            <div class="mensaje__imagen">
             @if (imagenUrl()) {
               <div class="imagen-prev">
                 <img [src]="imagenUrl()" alt="Imagen de la promoción" />
@@ -104,6 +106,30 @@
                   </button>
                 </div>
               </div>
+            } @else {
+              <label class="zona"
+                     [class.zona--encima]="arrastrando()"
+                     [class.zona--ocupada]="subiendoImagen()"
+                     (dragover)="alArrastrar($event)"
+                     (dragleave)="arrastrando.set(false)"
+                     (drop)="alSoltar($event)">
+                <input type="file" accept="image/jpeg,image/png" class="sr-only"
+                       aria-label="Agregar una imagen a la promoción"
+                       [disabled]="subiendoImagen()" (change)="subirImagen($event)" />
+                @if (subiendoImagen()) {
+                  <lucide-icon name="loader-circle" [size]="20" class="gira" aria-hidden="true" />
+                  <span class="zona__t">Subiendo la imagen…</span>
+                } @else {
+                  <lucide-icon name="image-plus" [size]="22" aria-hidden="true" />
+                  <span class="zona__t">Agregar una imagen <small>(opcional)</small></span>
+                  <span class="zona__p">JPG o PNG, hasta 5 MB. Mejor apaisada.</span>
+                }
+              </label>
+            }
+            </div>
+            </div>
+
+            @if (imagenUrl()) {
               @if (hayPlantillaUsable() && !plantillaImagen()?.usable) {
                 <div class="aviso aviso--info aviso--chico">
                   <lucide-icon name="info" [size]="16" aria-hidden="true" />
@@ -134,25 +160,6 @@
                   </div>
                 </div>
               }
-            } @else {
-              <label class="zona"
-                     [class.zona--encima]="arrastrando()"
-                     [class.zona--ocupada]="subiendoImagen()"
-                     (dragover)="alArrastrar($event)"
-                     (dragleave)="arrastrando.set(false)"
-                     (drop)="alSoltar($event)">
-                <input type="file" accept="image/jpeg,image/png" class="sr-only"
-                       aria-label="Agregar una imagen a la promoción"
-                       [disabled]="subiendoImagen()" (change)="subirImagen($event)" />
-                @if (subiendoImagen()) {
-                  <lucide-icon name="loader-circle" [size]="20" class="gira" aria-hidden="true" />
-                  <span class="zona__t">Subiendo la imagen…</span>
-                } @else {
-                  <lucide-icon name="image-plus" [size]="20" aria-hidden="true" />
-                  <span class="zona__t">Agregar una imagen <small>(opcional)</small></span>
-                  <span class="zona__p">JPG o PNG, hasta 5 MB. Mejor apaisada.</span>
-                }
-              </label>
             }
           </div>
 
@@ -166,26 +173,59 @@
               </button>
             </div>
 
-            <div class="chips" role="group" aria-label="Grupos de clientes">
+            <!-- Cada grupo es una tarjeta: se marca pulsándola, y «Más info» la despliega. -->
+            <div class="grupos" role="group" aria-label="Grupos de clientes">
               @for (s of segmentos(); track s.codigo) {
-                <button type="button"
-                        [class]="'chip seg--' + s.codigo"
-                        [class.chip--activo]="seleccionados().has(s.codigo)"
-                        [disabled]="s.contactables === 0"
-                        [attr.aria-pressed]="seleccionados().has(s.codigo)"
-                        [title]="s.descripcion"
-                        (click)="alternarSegmento(s.codigo)">
-                  <lucide-icon [name]="iconoSegmento(s.codigo)" [size]="15" class="chip__icono"
-                               aria-hidden="true" />
-                  <span class="chip__nombre">{{ s.nombre }}</span>
-                  <span class="chip__n">{{ s.contactables | number }}</span>
-                  @if (s.recomendado) { <span class="chip__rec" title="Recomendado">★</span> }
-                </button>
+                <div [class]="'grupo seg--' + s.codigo"
+                     [class.grupo--activo]="seleccionados().has(s.codigo)"
+                     [class.grupo--vacio]="s.contactables === 0">
+                  <button type="button" class="grupo__elegir"
+                          [disabled]="s.contactables === 0"
+                          [attr.aria-pressed]="seleccionados().has(s.codigo)"
+                          (click)="alternarSegmento(s.codigo)">
+                    <span class="grupo__check" aria-hidden="true">
+                      @if (seleccionados().has(s.codigo)) { <lucide-icon name="check" [size]="13" /> }
+                    </span>
+                    <span class="grupo__icono" aria-hidden="true">
+                      <lucide-icon [name]="iconoSegmento(s.codigo)" [size]="17" />
+                    </span>
+                    <span class="grupo__txt">
+                      <span class="grupo__nombre">
+                        {{ textoGrupo(s).titulo }}
+                        @if (s.recomendado) { <span class="grupo__rec">Recomendado</span> }
+                      </span>
+                      <span class="grupo__sub">{{ textoGrupo(s).sub }}</span>
+                    </span>
+                    <span class="grupo__n">{{ s.contactables | number }}</span>
+                  </button>
+                  <button type="button" class="grupo__info"
+                          [attr.aria-expanded]="grupoAbierto().has(s.codigo)"
+                          (click)="alternarInfoGrupo(s.codigo)">
+                    {{ grupoAbierto().has(s.codigo) ? 'Menos info' : 'Más info' }}
+                    <lucide-icon name="chevron-down" [size]="14" class="grupo__flecha"
+                                 aria-hidden="true" />
+                  </button>
+                  @if (grupoAbierto().has(s.codigo)) {
+                    <div class="grupo__mas">
+                      <p><strong>Quiénes son:</strong> {{ s.descripcion }}</p>
+                      <p><strong>Para qué sirve escribirles:</strong> {{ s.recomendado_para }}</p>
+                      <p>
+                        Puedes escribirle a <strong>{{ s.contactables | number }}</strong> de
+                        {{ s.personas | number }}.
+                        @if (s.ticket_medio > 0) {
+                          Gastan en promedio
+                          <strong>{{ s.ticket_medio | currency: 'COP' : 'symbol-narrow' : '1.0-0' }}</strong>
+                          por {{ etiqueta().uno }}.
+                        }
+                      </p>
+                    </div>
+                  }
+                </div>
               }
             </div>
             <p class="bloque__ayuda">
-              ★ Recomendados: los que hace rato no vuelven. Al que ya viene seguido no hace falta
-              escribirle, y cada mensaje que te ahorras es plata.
+              Te marcamos los recomendados. Al cliente que ya viene seguido no hace falta escribirle:
+              cada mensaje que te ahorras es plata.
             </p>
           </div>
         </div>
@@ -736,11 +776,16 @@
             @if (plantillaVista()?.pie) { <p class="wa__pie">{{ plantillaVista()!.pie }}</p> }
             <span class="wa__hora">{{ horaVistaPrevia() }}</span>
           </div>
-          @for (b of plantillaVista()?.botones ?? []; track b.texto) {
-            <div class="wa__boton">{{ b.texto }}</div>
-          }
         </div>
       </div>
     </div>
+    <!-- El botón para darse de baja va siempre en el mensaje (es parte del formato aprobado),
+         así que no se pinta aquí: se dice, que es lo único que el dueño necesita saber. -->
+    @if (plantillaVista()?.botones?.length) {
+      <p class="wa__nota">
+        Debajo del mensaje va automáticamente el botón «{{ plantillaVista()!.botones[0].texto }}»,
+        para que el cliente pueda dejar de recibirlas.
+      </p>
+    }
   </div>
 </ng-template>

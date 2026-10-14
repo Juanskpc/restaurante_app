@@ -55,6 +55,22 @@ const ICONO_SEGMENTO: Record<CodigoSegmento, string> = {
 };
 
 /**
+ * Cómo se le nombra cada grupo al dueño del negocio.
+ *
+ * Los nombres del servidor («De una sola vez», «Intermedios») son exactos pero de quien diseñó la
+ * segmentación; en la tarjeta va la frase que diría el dueño, y el detalle del servidor se lee al
+ * desplegarla. Si llega un grupo que no está aquí, se usan los textos del servidor.
+ */
+const TEXTO_GRUPO: Record<CodigoSegmento, { titulo: string; sub: string }> = {
+  en_riesgo: { titulo: 'Hace rato no vuelven', sub: 'Su último pedido fue hace 1 a 4 meses' },
+  dormido: { titulo: 'Hace mucho no vuelven', sub: 'Llevan más de 4 meses sin pedir' },
+  ocasional: { titulo: 'Pidieron una sola vez', sub: 'Probaron hace poco y no han repetido' },
+  intermedio: { titulo: 'Piden de vez en cuando', sub: '2 o 3 pedidos, el último hace poco' },
+  frecuente: { titulo: 'Tus clientes fieles', sub: 'Piden seguido: casi nunca hace falta escribirles' },
+  sin_actividad: { titulo: 'Registrados sin pedidos', sub: 'Están en tu lista pero nunca han pedido' },
+};
+
+/**
  * Promociones — a quién le puedes escribir y cuánto costaría (F1).
  *
  * ## Qué resuelve esta pantalla, con las palabras del dueño
@@ -381,6 +397,20 @@ export class PromocionesComponent implements OnInit {
 
   iconoSegmento(codigo: CodigoSegmento): string {
     return ICONO_SEGMENTO[codigo] ?? 'users';
+  }
+
+  textoGrupo(s: Segmento): { titulo: string; sub: string } {
+    return TEXTO_GRUPO[s.codigo] ?? { titulo: s.nombre, sub: s.descripcion };
+  }
+
+  /** Las tarjetas de grupo desplegadas. Se abren sin marcar el grupo: leer no es elegir. */
+  readonly grupoAbierto = signal<Set<CodigoSegmento>>(new Set());
+
+  alternarInfoGrupo(codigo: CodigoSegmento): void {
+    const abiertos = new Set(this.grupoAbierto());
+    if (abiertos.has(codigo)) abiertos.delete(codigo);
+    else abiertos.add(codigo);
+    this.grupoAbierto.set(abiertos);
   }
 
   // ── F2: el mensaje, el envío y el historial ───────────────────────────────────────────

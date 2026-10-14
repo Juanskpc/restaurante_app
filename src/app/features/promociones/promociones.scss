@@ -248,37 +248,59 @@
   font-size: 0.875rem;
 }
 
-/* ── Los grupos, como fichas que se marcan ──
+/* ── El mensaje y la imagen, en la misma fila ── */
+
+.mensaje {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 1rem;
+  align-items: start;
+
+  @media (max-width: 760px) { grid-template-columns: minmax(0, 1fr); }
+}
+
+.mensaje__texto .campo__area { min-height: 150px; }
+
+.mensaje__imagen {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+
+  .zona { min-height: 150px; }
+
+  .imagen-prev {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+
+    img { width: 100%; }
+  }
+}
+
+/* ── Los grupos: tarjetas que se marcan y se despliegan ──
    Cada grupo tiñe solo su icono con un color de significado (alerta, neutro, bien); la marca del
    inquilino queda para lo que está elegido. */
 
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
+.grupos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
+  gap: 0.625rem;
+  align-items: start;
 }
 
-.chip {
+.grupo {
   --seg-tono: var(--color-text-secondary);
 
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.5rem 0.75rem;
+  display: flex;
+  flex-direction: column;
   border: 1px solid var(--color-border);
-  border-radius: 999px;
+  border-radius: 12px;
   background: var(--color-bg);
-  color: var(--color-text-primary);
-  font: inherit;
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
 
-  &:hover:not(:disabled) {
+  &:hover:not(.grupo--vacio) {
     border-color: color-mix(in srgb, var(--color-primary) 45%, var(--color-border));
   }
-  &:disabled { opacity: 0.45; cursor: not-allowed; }
-  &:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
 }
 
 .seg--en_riesgo { --seg-tono: var(--color-warning); }
@@ -286,36 +308,144 @@
 .seg--intermedio { --seg-tono: var(--color-primary); }
 .seg--frecuente { --seg-tono: var(--color-success); }
 
-.chip__icono { color: var(--seg-tono); }
-
-.chip__nombre { font-weight: 600; }
-
-.chip__n {
-  min-width: 1.5rem;
-  padding: 0 0.4rem;
-  border-radius: 999px;
-  background: var(--color-bg-secondary);
-  font-size: 0.75rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  text-align: center;
-  color: var(--color-text-secondary);
-}
-
-.chip__rec {
-  font-size: 0.75rem;
-  color: var(--color-warning);
-}
-
-.chip--activo {
+.grupo--activo {
   border-color: var(--color-primary);
-  background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface));
+  background: color-mix(in srgb, var(--color-primary) 7%, var(--color-surface));
   box-shadow: 0 0 0 1px var(--color-primary);
 
-  .chip__n {
+  .grupo__check {
+    border-color: var(--color-primary);
     background: var(--color-primary);
     color: var(--color-on-primary);
   }
+}
+
+.grupo--vacio { opacity: 0.55; }
+
+.grupo__elegir {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  width: 100%;
+  padding: 0.75rem 0.75rem 0.5rem;
+  border: 0;
+  background: none;
+  color: var(--color-text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 12px 12px 0 0;
+
+  &:disabled { cursor: not-allowed; }
+  &:focus-visible { outline: 2px solid var(--color-focus); outline-offset: -2px; }
+}
+
+.grupo__check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border: 1.5px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+}
+
+.grupo__icono {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--seg-tono) 14%, var(--color-surface));
+  color: var(--seg-tono);
+}
+
+.grupo__txt {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.grupo__nombre {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+  font-size: 0.9375rem;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.grupo__rec {
+  padding: 0.0625rem 0.4375rem;
+  border-radius: 999px;
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: color-mix(in srgb, var(--color-success) 16%, var(--color-surface));
+  color: color-mix(in srgb, var(--color-success) 80%, var(--color-text-primary));
+}
+
+.grupo__sub {
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--color-text-secondary);
+}
+
+.grupo__n {
+  flex-shrink: 0;
+  font-size: 1.375rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-primary);
+}
+
+.grupo__info {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  align-self: flex-start;
+  margin: 0 0 0.5rem calc(0.75rem + 20px + 34px + 1.25rem);
+  padding: 0.125rem 0;
+  border: 0;
+  background: none;
+  color: var(--color-primary);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover { text-decoration: underline; }
+  &:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; border-radius: 4px; }
+
+  &[aria-expanded='true'] .grupo__flecha { transform: rotate(180deg); }
+}
+
+.grupo__flecha { transition: transform 0.15s; }
+
+.grupo__mas {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin: 0 0.75rem 0.75rem;
+  padding-top: 0.625rem;
+  border-top: 1px dashed var(--color-border);
+
+  p {
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: var(--color-text-secondary);
+  }
+
+  strong { color: var(--color-text-primary); }
 }
 
 /* ── El resumen: lo que el dueño mira para decidir ── */
