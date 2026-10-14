@@ -19,17 +19,16 @@ import { ModalCabeceraComponent } from '../conversaciones/shared/modal-cabecera'
 const LIMITE_LISTA = 500;
 
 /**
- * Los pasos, en el orden en que se recorren.
+ * Una sola pantalla para armar la promoción, y el historial aparte.
  *
- * `audiencia` → `mensaje` → `enviar`, y `historial` aparte. No es un asistente que encierre: se
- * puede volver atrás, porque lo normal es armar la audiencia, ver el costo, y entonces decidir qué
- * se dice.
+ * Antes eran tres pasos; el dueño solo quiere tres cosas a la vista —qué dice, a cuántos le llega
+ * y cuánto le cobran—, así que eso es la pantalla y todo lo demás (la lista de clientes, la cuenta
+ * del costo, la prueba y el envío) va en ventanas que abre quien lo quiera ver.
  */
-type Paso = 'audiencia' | 'mensaje' | 'enviar' | 'historial';
+type Vista = 'crear' | 'historial';
 
-/** Los tres pasos del envío, en orden. `historial` no es un paso: es otro sitio. */
-type PasoEnvio = Exclude<Paso, 'historial'>;
-const PASOS_ENVIO: PasoEnvio[] = ['audiencia', 'mensaje', 'enviar'];
+/** Las ventanas de la pantalla de crear. El informe del historial tiene la suya aparte. */
+type Ventana = 'lista' | 'costo' | 'enviar';
 
 /** Cada cuánto se le pregunta al servidor si la prueba ya llegó, y cuántas veces (~2 minutos). */
 const PRUEBA_INTERVALO_MS = 4000;
@@ -92,7 +91,7 @@ const ICONO_SEGMENTO: Record<CodigoSegmento, string> = {
   templateUrl: './promociones.html',
   styleUrl: './promociones.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { '(document:keydown.escape)': 'cerrarInforme()' },
+  host: { '(document:keydown.escape)': 'alEscape()' },
 })
 export class PromocionesComponent implements OnInit {
   private readonly promociones = inject(PromocionesService);
@@ -168,6 +167,7 @@ export class PromocionesComponent implements OnInit {
       new Date().toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit', hour12: true }),
     );
     this.cargarAudiencia();
+    this.cargarPlantillas();
   }
 
   /** El negocio activo, igual que en el resto de las vistas. */
@@ -196,8 +196,11 @@ export class PromocionesComponent implements OnInit {
         const recomendados = datos.segmentos
           .filter((s) => s.recomendado && s.contactables > 0)
           .map((s) => s.codigo);
-        if (recomendados.length) {
+        // Al recargar (tras una baja) se respeta lo que el dueño ya había elegido.
+        if (this.seleccionados().size === 0 && recomendados.length) {
           this.seleccionados.set(new Set(recomendados));
+        }
+        if (this.seleccionados().size > 0) {
           this.cargarDestinatarios();
           this.simular();
         }
@@ -382,14 +385,13 @@ export class PromocionesComponent implements OnInit {
 
   // ── F2: el mensaje, el envío y el historial ───────────────────────────────────────────
 
-  readonly paso = signal<Paso>('audiencia');
+  readonly vista = signal<Vista>('crear');
+  readonly modal = signal<Ventana | null>(null);
 
   readonly plantillas = signal<PlantillaPromo[]>([]);
-  readonly plantillaElegida = signal<string | null>(null);
   readonly preparandoPlantillas = signal(false);
 
   readonly oferta = signal('');
-  readonly nombreCampana = signal('');
   readonly imagenUrl = signal<string | null>(null);
   readonly subiendoImagen = signal(false);
   /** Hay un archivo encima de la zona de la imagen: se resalta para que se vea dónde soltarlo. */
@@ -421,27 +423,58 @@ export class PromocionesComponent implements OnInit {
   /** La hora de la burbuja: la de ahora, que es como se vería si llegara en este momento. */
   readonly horaVistaPrevia = signal('');
 
-  /** La plantilla que se va a usar, con su texto y su estado. */
-  readonly plantilla = computed(
-    () => this.plantillas().find((p) => p.nombre === this.plantillaElegida()) ?? null,
+  readonly plantillaTexto = computed(
+    () => this.plantillas().find((p) => !p.necesita_imagen) ?? null,
+  );
+  readonly plantillaImagen = computed(
+    () => this.plantillas().find((p) => p.necesita_imagen) ?? null,
   );
 
   readonly hayPlantillaUsable = computed(() => this.plantillas().some((p) => p.usable));
+  readonly algunaPendiente = computed(() =>
+    this.plantillas().some((p) => p.estado === 'PENDIENTE'),
+  );
+
+  /**
+   * La plantilla con la que sale la promoción. No se elige: la decide la imagen.
+   *
+   * Con imagen y la plantilla de imagen aprobada, esa; si no, la de texto. Preguntarle al dueño
+   * «¿formato texto o imagen?» era hacerle decidir algo que ya dijo al subir (o no) una imagen.
+   */
+  readonly plantillaAUsar = computed<PlantillaPromo | null>(() => {
+    const imagen = this.plantillaImagen();
+    if (this.imagenUrl() && imagen?.usable) return imagen;
+    const texto = this.plantillaTexto();
+    return texto?.usable ? texto : null;
+  });
+
+  /**
+   * La que se pinta en la vista previa: la que se va a usar o, mientras WhatsApp no apruebe
+   * ninguna, la que se usaría. Así el dueño ve su mensaje desde el primer momento.
+   */
+  readonly plantillaVista = computed<PlantillaPromo | null>(() => {
+    const aUsar = this.plantillaAUsar();
+    if (aUsar) return aUsar;
+    if (this.hayPlantillaUsable()) return this.plantillaTexto();
+    return (this.imagenUrl() ? this.plantillaImagen() : this.plantillaTexto()) ?? null;
+  });
 
   /**
    * La vista previa: el cuerpo aprobado con los huecos rellenos.
    *
    * Se compone aquí con el texto que devuelve el servidor —y no con una copia escrita en el
    * frontend— para que lo que el dueño ve sea **exactamente** lo que Meta aprobó. Una vista previa
-   * que se parece pero no es igual es peor que no tener vista previa.
+   * que se parece pero no es igual es peor que no tener vista previa. Por lo mismo, la oferta va
+   * en una sola línea: el servidor junta los saltos porque Meta rechaza una variable con ellos.
    */
   readonly vistaPrevia = computed(() => {
-    const p = this.plantilla();
-    if (!p?.cuerpo) return '';
+    const p = this.plantillaVista();
+    const oferta = this.oferta().replace(/\s+/g, ' ').trim();
+    if (!p?.cuerpo) return oferta || 'Aquí aparece tu promoción.';
     const valores: Record<string, string> = {
       cliente: 'Ana',
       negocio: this.auth.negocio()?.nombre ?? 'tu negocio',
-      oferta: this.oferta() || '(aquí va tu promoción)',
+      oferta: oferta || '(aquí va tu promoción)',
     };
     return p.parametros.reduce(
       (texto, clave, i) => texto.replaceAll(`{{${i + 1}}}`, valores[clave] ?? ''),
@@ -449,49 +482,64 @@ export class PromocionesComponent implements OnInit {
     );
   });
 
-  /** ¿Se puede pasar al paso de enviar? */
+  /** ¿Se puede abrir la ventana de enviar? */
   readonly mensajeListo = computed(
     () =>
-      Boolean(this.plantillaElegida())
+      Boolean(this.plantillaAUsar())
       && this.oferta().trim().length >= 3
-      && (!this.plantilla()?.necesita_imagen || Boolean(this.imagenUrl())),
+      && this.totalSeleccionado() > 0,
   );
 
-  /** El paso del envío en el que se estaba, para volver a él al salir del historial. */
-  private readonly ultimoPasoEnvio = signal<PasoEnvio>('audiencia');
+  /** Lo que falta para poder seguir, dicho en una línea debajo del botón. */
+  readonly queFalta = computed(() => {
+    if (this.totalSeleccionado() === 0) return 'Elige a qué clientes se la mandas.';
+    if (this.oferta().trim().length < 3) return 'Escribe tu promoción.';
+    if (!this.plantillaAUsar()) return 'Falta que WhatsApp apruebe el formato del mensaje.';
+    return '';
+  });
 
-  /** Un paso ya recorrido se marca con un visto: es el que queda antes del actual. */
-  pasoHecho(paso: PasoEnvio): boolean {
-    const actual = this.paso();
-    if (actual === 'historial') return false;
-    return PASOS_ENVIO.indexOf(paso) < PASOS_ENVIO.indexOf(actual);
+  /** Algo del costo que el dueño debería leer: se avisa al lado de la cifra, el detalle en la ventana. */
+  readonly hayAvisosDeCosto = computed(() => {
+    const s = this.simulacion();
+    if (!s) return false;
+    return s.sin_entrega > 0
+      || s.sin_tarifa_confirmada > 0
+      || Boolean(s.asistente.cupo && !s.asistente.cupo.alcanza);
+  });
+
+  /** A cuántos sale: lo que congeló la promoción preparada, o lo elegido si aún no hay. */
+  readonly destinatariosCampana = computed(
+    () => this.campana()?.destinatarios || this.totalSeleccionado(),
+  );
+
+  verHistorial(): void {
+    this.vista.set('historial');
+    this.cargarHistorial();
   }
 
-  irA(paso: Paso): void {
-    this.paso.set(paso);
-    if (paso !== 'historial') this.ultimoPasoEnvio.set(paso);
-    if (paso !== 'enviar') this.dejarDeVigilarPrueba();
-    if (paso === 'mensaje' && this.plantillas().length === 0) this.cargarPlantillas();
-    if (paso === 'enviar') this.cargarGate(true);
-    if (paso === 'historial') this.cargarHistorial();
+  abrirModal(ventana: Ventana): void {
+    this.modal.set(ventana);
   }
 
-  /** Sale del historial al paso en el que se estaba armando la promoción. */
-  volverAlEnvio(): void {
-    this.irA(this.ultimoPasoEnvio());
+  cerrarModal(): void {
+    if (this.modal() === 'enviar') this.dejarDeVigilarPrueba();
+    this.modal.set(null);
+  }
+
+  /** Mientras está abierta la confirmación de enviar, Escape es de ella, no de la ventana. */
+  private confirmando = false;
+
+  alEscape(): void {
+    if (this.confirmando) return;
+    if (this.informe()) this.cerrarInforme();
+    else if (this.modal()) this.cerrarModal();
   }
 
   cargarPlantillas(): void {
     const idNegocio = this.idNegocio;
     if (!idNegocio) return;
     this.promociones.plantillas(idNegocio).subscribe({
-      next: (lista) => {
-        this.plantillas.set(lista);
-        // Se preselecciona la primera usable: lo normal es que haya una sola, y obligar a elegir
-        // entre «texto» e «imagen» antes de saber qué es cada una no ayuda a nadie.
-        const usable = lista.find((p) => p.usable);
-        if (usable && !this.plantillaElegida()) this.plantillaElegida.set(usable.nombre);
-      },
+      next: (lista) => this.plantillas.set(lista),
       error: () => this.ui.error('No se pudieron leer las plantillas.'),
     });
   }
@@ -532,8 +580,9 @@ export class PromocionesComponent implements OnInit {
       next: (lista) => {
         this.plantillas.set(lista);
         this.preparandoPlantillas.set(false);
-        const usable = lista.find((p) => p.usable);
-        if (usable && !this.plantillaElegida()) this.plantillaElegida.set(usable.nombre);
+        if (!lista.some((p) => p.usable)) {
+          this.ui.info('Todavía no lo aprueba. Vuelve a comprobar en unos minutos.', 'WhatsApp');
+        }
       },
       error: () => {
         this.preparandoPlantillas.set(false);
@@ -688,10 +737,39 @@ export class PromocionesComponent implements OnInit {
     this.relojPrueba = null;
   }
 
+  /**
+   * Lo que define una promoción preparada. Si no cambió desde la última vez, se reabre la misma
+   * en vez de crear otra: así no se pierde la prueba ya mandada ni se llena el historial de
+   * borradores cada vez que el dueño abre y cierra la ventana.
+   */
+  private firmaPreparada: string | null = null;
+
+  private firmaActual(): string {
+    return JSON.stringify({
+      plantilla: this.plantillaAUsar()?.nombre ?? null,
+      oferta: this.oferta().trim(),
+      imagen: this.plantillaAUsar()?.necesita_imagen ? this.imagenUrl() : null,
+      segmentos: [...this.seleccionados()].sort(),
+      quitados: [...this.quitados()].sort(),
+    });
+  }
+
+  /** «Revisar y enviar»: prepara la promoción (sin mandar nada) y abre la ventana de envío. */
+  revisarYEnviar(): void {
+    if (!this.mensajeListo()) return;
+    if (this.campana() && this.firmaPreparada === this.firmaActual()) {
+      this.modal.set('enviar');
+      this.cargarGate(true);
+      return;
+    }
+    this.prepararCampana();
+  }
+
   /** Arma la campaña: congela la lista y deja el costo guardado. Todavía no manda nada. */
-  prepararCampana(): void {
+  private prepararCampana(): void {
     const idNegocio = this.idNegocio;
-    if (!idNegocio || !this.mensajeListo()) return;
+    const plantilla = this.plantillaAUsar();
+    if (!idNegocio || !plantilla || !this.mensajeListo()) return;
 
     const quitados = this.quitados();
     const personas = quitados.size
@@ -700,14 +778,19 @@ export class PromocionesComponent implements OnInit {
           .map((d) => d.id_persona_negocio)
       : undefined;
 
+    const firma = this.firmaActual();
+    const oferta = this.oferta().replace(/\s+/g, ' ').trim();
     this.preparando.set(true);
+    this.gate.set(null);
     this.promociones
       .crearCampana({
         idNegocio,
-        nombre: this.nombreCampana().trim() || this.oferta().slice(0, 60),
-        plantilla: this.plantillaElegida()!,
-        oferta: this.oferta().trim(),
-        imagenUrl: this.imagenUrl(),
+        // El nombre para el historial sale del propio texto: pedirlo aparte era un campo más que
+        // nadie llenaba.
+        nombre: oferta.length > 60 ? `${oferta.slice(0, 57)}…` : oferta,
+        plantilla: plantilla.nombre,
+        oferta,
+        imagenUrl: plantilla.necesita_imagen ? this.imagenUrl() : null,
         segmentos: personas ? undefined : ([...this.seleccionados()] as CodigoSegmento[]),
         personas,
         margen: this.margen() / 100,
@@ -715,8 +798,9 @@ export class PromocionesComponent implements OnInit {
       .subscribe({
         next: (c) => {
           this.campana.set(c);
+          this.firmaPreparada = firma;
           this.preparando.set(false);
-          this.paso.set('enviar');
+          this.modal.set('enviar');
           this.cargarGate();
         },
         error: (e) => {
@@ -801,6 +885,7 @@ export class PromocionesComponent implements OnInit {
     const c = this.campana();
     if (!idNegocio || !c) return;
 
+    this.confirmando = true;
     const seguir = await this.ui.confirm({
       title: 'Enviar la promoción',
       message: this.resumenDeEnvio(c),
@@ -808,21 +893,27 @@ export class PromocionesComponent implements OnInit {
       cancelText: 'Todavía no',
       tone: 'warning',
     });
+    this.confirmando = false;
     if (!seguir) return;
 
     this.enviando.set(true);
     this.promociones.enviarCampana(idNegocio, c.id_campana, programada).subscribe({
-      next: (actualizada) => {
-        this.campana.set(actualizada);
+      next: () => {
         this.enviando.set(false);
+        // Enviada, la pantalla queda en blanco para la siguiente: esta ya vive en el historial.
+        this.cerrarModal();
+        this.campana.set(null);
+        this.firmaPreparada = null;
+        this.gate.set(null);
+        this.oferta.set('');
+        this.imagenUrl.set(null);
         this.ui.success(
           programada
             ? 'Queda programada. Se enviará sola a la hora que elegiste.'
             : 'En marcha. Se van mandando poco a poco; puedes seguirlo en el historial.',
           'Promoción enviada',
         );
-        this.paso.set('historial');
-        this.cargarHistorial();
+        this.verHistorial();
       },
       error: (e) => {
         this.enviando.set(false);

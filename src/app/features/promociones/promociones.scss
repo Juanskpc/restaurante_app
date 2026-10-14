@@ -157,162 +157,11 @@
   color: var(--color-text-secondary);
 }
 
-/* ── Segmentos ────────────────────────────────────────────────────────────── */
-
-.segmentos {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
-  gap: 0.75rem;
-}
-
-/* Cada grupo tiene su tono, que solo tiñe el icono: dice «qué clase de cliente es» de un vistazo.
-   Son colores de significado (alerta, neutro, bien), no de marca; la marca del inquilino queda
-   para lo que está elegido. */
-.seg {
-  --seg-tono: var(--color-text-secondary);
-
-  display: flex;
-  flex-direction: column;
-  gap: 0.625rem;
-  padding: 0.875rem 1rem;
-  text-align: left;
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  background: var(--color-surface);
-  color: var(--color-text-primary);
-  font: inherit;
-  cursor: pointer;
-  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
-
-  &:hover:not(:disabled) {
-    border-color: color-mix(in srgb, var(--color-primary) 45%, var(--color-border));
-    box-shadow: 0 2px 8px color-mix(in srgb, var(--color-text-primary) 7%, transparent);
-  }
-  &:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
-}
-
-.seg--en_riesgo { --seg-tono: var(--color-warning); }
-.seg--ocasional,
-.seg--intermedio { --seg-tono: var(--color-primary); }
-.seg--frecuente { --seg-tono: var(--color-success); }
-
-.seg--activo {
-  border-color: var(--color-primary);
-  background: color-mix(in srgb, var(--color-primary) 6%, var(--color-surface));
-  box-shadow: 0 0 0 1px var(--color-primary);
-
-  .seg__check {
-    background: var(--color-primary);
-    border-color: var(--color-primary);
-    color: var(--color-on-primary);
-  }
-}
-
-.seg--vacio {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.seg__cab {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.625rem;
-}
-
-.seg__icono {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  flex-shrink: 0;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--seg-tono) 14%, var(--color-surface));
-  color: var(--seg-tono);
-}
-
-.seg__titulo {
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
-  flex: 1;
-  min-width: 0;
-}
-
-.seg__nombre {
-  font-size: 0.9375rem;
-  font-weight: 650;
-  color: var(--color-text-primary);
-}
-
-.seg__desc {
-  font-size: 0.75rem;
-  line-height: 1.35;
-  color: var(--color-text-secondary);
-}
-
-.seg__check {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  flex-shrink: 0;
-  border: 1.5px solid var(--color-border);
-  border-radius: 6px;
-  background: var(--color-bg);
-}
-
-.seg__cifra {
-  display: flex;
-  align-items: baseline;
-  gap: 0.375rem;
-  flex-wrap: wrap;
-}
-
-.seg__n {
-  font-size: 2rem;
-  font-weight: 700;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-  color: var(--color-text-primary);
-}
-
-.seg__de {
-  font-size: 0.8125rem;
-  color: var(--color-text-secondary);
-}
-
-.seg__tag {
-  margin-left: auto;
-  align-self: center;
-  padding: 0.125rem 0.5rem;
-  border-radius: 999px;
-  font-size: 0.6875rem;
-  font-weight: 650;
-  background: color-mix(in srgb, var(--color-success) 16%, var(--color-surface));
-  color: color-mix(in srgb, var(--color-success) 80%, var(--color-text-primary));
-}
-
-.seg__para {
-  font-size: 0.8125rem;
-  line-height: 1.4;
-  color: var(--color-text-primary);
-}
-
-.seg__ticket {
-  margin-top: auto;
-  padding-top: 0.5rem;
-  border-top: 1px dashed var(--color-border);
-  font-size: 0.75rem;
-  color: var(--color-text-secondary);
-}
-
 /* ── Dos columnas: lista + simulador ──────────────────────────────────────── */
 
 .columnas {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
+  grid-template-columns: minmax(0, 1fr) 360px;
   gap: 1.25rem;
   align-items: start;
 
@@ -321,19 +170,217 @@
   }
 }
 
-.col-lista {
+.col-principal {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 1rem;
   min-width: 0;
 }
 
-.lista__cab {
+/* La columna de la decisión: a cuántos, cuánto, el botón y la vista previa. Se queda a la vista
+   mientras se escribe. */
+.col-lado {
+  position: sticky;
+  top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+
+  @media (max-width: 1100px) { position: static; }
+}
+
+.bloque {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.125rem 1.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: var(--color-surface);
+
+  @media (max-width: 640px) { padding: 1rem; }
+}
+
+.bloque__cab {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 1rem;
+  gap: 0.75rem;
   flex-wrap: wrap;
+}
+
+.bloque__titulo {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 650;
+  color: var(--color-text-primary);
+}
+
+.bloque__ayuda {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--color-text-secondary);
+}
+
+/* Un botón que se lee como enlace: abre una ventana con el detalle. */
+.enlace {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0;
+  border: 0;
+  background: none;
+  color: var(--color-primary);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover:not(:disabled) { text-decoration: underline; }
+  &:disabled { opacity: 0.45; cursor: not-allowed; }
+  &:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; border-radius: 4px; }
+}
+
+.btn--sm {
+  padding: 0.375rem 0.875rem;
+  font-size: 0.875rem;
+}
+
+/* ── Los grupos, como fichas que se marcan ──
+   Cada grupo tiñe solo su icono con un color de significado (alerta, neutro, bien); la marca del
+   inquilino queda para lo que está elegido. */
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.chip {
+  --seg-tono: var(--color-text-secondary);
+
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+
+  &:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--color-primary) 45%, var(--color-border));
+  }
+  &:disabled { opacity: 0.45; cursor: not-allowed; }
+  &:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+}
+
+.seg--en_riesgo { --seg-tono: var(--color-warning); }
+.seg--ocasional,
+.seg--intermedio { --seg-tono: var(--color-primary); }
+.seg--frecuente { --seg-tono: var(--color-success); }
+
+.chip__icono { color: var(--seg-tono); }
+
+.chip__nombre { font-weight: 600; }
+
+.chip__n {
+  min-width: 1.5rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: var(--color-bg-secondary);
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: var(--color-text-secondary);
+}
+
+.chip__rec {
+  font-size: 0.75rem;
+  color: var(--color-warning);
+}
+
+.chip--activo {
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface));
+  box-shadow: 0 0 0 1px var(--color-primary);
+
+  .chip__n {
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+  }
+}
+
+/* ── El resumen: lo que el dueño mira para decidir ── */
+
+.resumen {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.125rem;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 30%, var(--color-border));
+  border-radius: 14px;
+  background: var(--color-surface);
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--color-text-primary) 6%, transparent);
+}
+
+.resumen__cifras {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.625rem;
+}
+
+.resumen__cifra {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  padding: 0.75rem;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-primary) 6%, var(--color-surface));
+  min-width: 0;
+}
+
+.resumen__t {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.resumen__n {
+  font-size: 1.75rem;
+  font-weight: 750;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.resumen__p {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+}
+
+.resumen__detalle { align-self: flex-start; font-size: 0.8125rem; }
+
+.resumen__btn {
+  width: 100%;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+  font-size: 1rem;
+}
+
+.resumen__falta {
+  margin: -0.25rem 0 0;
+  font-size: 0.75rem;
+  text-align: center;
+  color: var(--color-text-secondary);
 }
 
 .lista__acciones {
@@ -575,30 +622,7 @@
   border-color: color-mix(in srgb, var(--color-error) 35%, var(--color-border));
 }
 
-/* ── Simulador ────────────────────────────────────────────────────────────── */
-
-.col-sim { position: sticky; top: 1rem; }
-
-@media (max-width: 1100px) {
-  .col-sim { position: static; }
-}
-
-.sim {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  padding: 1rem;
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  background: var(--color-surface-elevated, var(--color-surface));
-}
-
-.sim__titulo {
-  margin: 0 0 0.25rem;
-  font-size: 1rem;
-  font-weight: 650;
-  color: var(--color-text-primary);
-}
+/* ── La ventana del costo ─────────────────────────────────────────────────── */
 
 /* Las dos cifras que deciden: lo que cuesta y lo que tiene que volver para pagarlo. */
 .sim__cifras {
@@ -661,26 +685,13 @@
   strong { color: var(--color-text-primary); }
 }
 
-/* El detalle de la cuenta: está para quien lo quiera leer, no en medio del camino. */
-.sim__detalle {
-  border-top: 1px solid var(--color-border);
-  padding-top: 0.5rem;
-
-  summary {
-    font-size: 0.8125rem;
-    font-weight: 600;
-    color: var(--color-primary);
-    cursor: pointer;
-
-    &:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
-  }
-}
-
+/* La cuenta, en palabras: debajo de las cifras, para quien la quiera leer. */
 .sim__detalle-cuerpo {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  padding-top: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--color-border);
 
   p {
     margin: 0;
@@ -721,12 +732,6 @@
   background: var(--color-surface);
 }
 
-.esq-tarjetas {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 0.75rem;
-}
-
 .esq {
   display: block;
   border-radius: 8px;
@@ -740,7 +745,7 @@
   animation: esq-brillo 1.4s ease-in-out infinite;
 }
 
-.esq--tarjeta { height: 86px; }
+.esq--bloque { height: 220px; }
 .esq--texto { height: 1rem; width: 60%; }
 
 @keyframes esq-brillo {
@@ -754,128 +759,6 @@
 
 /* ══════════════ F2: pasos, mensaje, envío e historial ══════════════ */
 
-/* Los tres pasos en fila, unidos por una línea que se pinta al completarlos. */
-.pasos {
-  display: flex;
-  align-items: stretch;
-  margin: 0;
-  padding: 0.5rem;
-  list-style: none;
-  border: 1px solid var(--color-border);
-  border-radius: 14px;
-  background: var(--color-surface);
-}
-
-.pasos__item {
-  position: relative;
-  display: flex;
-  flex: 1;
-  min-width: 0;
-
-  /* El conector hacia el paso siguiente. */
-  &:not(:last-child) { padding-right: 1.75rem; }
-
-  &:not(:last-child)::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    right: 0.375rem;
-    width: 1rem;
-    height: 2px;
-    border-radius: 2px;
-    background: var(--color-border);
-    transition: background 0.2s;
-  }
-}
-
-.pasos__item--hecho::after { background: var(--color-primary); }
-
-.pasos__p {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-  width: 100%;
-  min-width: 0;
-  padding: 0.5rem 0.75rem;
-  border: 0;
-  border-radius: 10px;
-  background: transparent;
-  color: var(--color-text-secondary);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition: background 0.15s;
-
-  &:disabled { opacity: 0.45; cursor: not-allowed; }
-  &:hover:not(:disabled):not(.pasos__p--activo) { background: var(--color-surface-hover); }
-  &:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
-}
-
-.pasos__n {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  flex-shrink: 0;
-  border: 1.5px solid var(--color-border);
-  border-radius: 50%;
-  background: var(--color-bg);
-  font-size: 0.8125rem;
-  font-weight: 700;
-  color: var(--color-text-secondary);
-}
-
-.pasos__txt {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.pasos__nombre {
-  font-size: 0.875rem;
-  font-weight: 650;
-  color: var(--color-text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.pasos__dato {
-  font-size: 0.75rem;
-  color: var(--color-text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.pasos__p--activo {
-  background: color-mix(in srgb, var(--color-primary) 9%, var(--color-surface));
-
-  .pasos__n {
-    border-color: var(--color-primary);
-    background: var(--color-primary);
-    color: var(--color-on-primary);
-  }
-  .pasos__nombre { color: var(--color-primary); }
-}
-
-.pasos__p--hecho .pasos__n {
-  border-color: var(--color-primary);
-  background: color-mix(in srgb, var(--color-primary) 12%, var(--color-surface));
-  color: var(--color-primary);
-}
-
-/* En el móvil no caben los tres rótulos: quedan los círculos y el nombre del paso actual. */
-@media (max-width: 640px) {
-  .pasos__item { flex: 0 0 auto; }
-  .pasos__item:has(.pasos__p--activo) { flex: 1; }
-  .pasos__item:not(:last-child) { padding-right: 1.25rem; }
-  .pasos__item:not(:last-child)::after { right: 0.25rem; width: 0.75rem; }
-  .pasos__p { padding: 0.375rem; }
-  .pasos__p:not(.pasos__p--activo) .pasos__txt { display: none; }
-}
-
 .aviso__acciones {
   display: flex;
   gap: 0.5rem;
@@ -888,33 +771,6 @@
   font-size: 0.8125rem;
   color: var(--color-text-secondary);
 }
-
-/* ── Formatos de plantilla ── */
-
-.formatos { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-
-.formato {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-  background: var(--color-surface);
-  color: var(--color-text-primary);
-  font-size: 0.8125rem;
-  cursor: pointer;
-
-  &:disabled { opacity: 0.5; cursor: not-allowed; }
-  &:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
-}
-
-.formato--activo {
-  border-color: var(--color-primary);
-  background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface));
-}
-
-.formato__estado { font-size: 0.6875rem; color: var(--color-text-secondary); }
 
 /* ── Campos ── */
 
@@ -984,10 +840,9 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.375rem;
-  min-height: 150px;
-  padding: 1.25rem;
-  border: 2px dashed var(--color-border);
+  gap: 0.25rem;
+  padding: 0.875rem 1rem;
+  border: 1.5px dashed var(--color-border);
   border-radius: 12px;
   background: var(--color-bg);
   color: var(--color-text-secondary);
@@ -1016,6 +871,8 @@
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--color-text-primary);
+
+  small { font-weight: 400; color: var(--color-text-secondary); }
 }
 
 .zona__p { font-size: 0.75rem; }
@@ -1025,12 +882,6 @@
   justify-content: space-between;
   gap: 0.75rem;
   padding-top: 0.5rem;
-}
-
-.sim__seguir {
-  width: 100%;
-  justify-content: center;
-  margin-top: 0.5rem;
 }
 
 /* ── La vista previa: un chat de WhatsApp ──
@@ -1223,14 +1074,12 @@
 
 .prueba {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
+  flex-direction: column;
+  gap: 0.25rem;
   padding: 1rem;
   border: 1px solid color-mix(in srgb, var(--color-primary) 35%, transparent);
   border-radius: 12px;
   background: color-mix(in srgb, var(--color-primary) 7%, var(--color-surface));
-  flex-wrap: wrap;
 }
 
 .prueba--ok {
@@ -1286,21 +1135,21 @@
   .gira { animation: none; }
 }
 
+.prueba__fila {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+
+  .btn { flex-shrink: 0; }
+}
+
 .prueba__campo {
   display: block;
-  margin: 0.75rem 0 0;
-
-  span {
-    display: block;
-    margin-bottom: 0.25rem;
-    font-size: 0.8125rem;
-    font-weight: 600;
-    color: var(--color-text-primary);
-  }
+  flex: 1 1 12rem;
 
   input {
     width: 100%;
-    max-width: 14rem;
     padding: 0.5rem 0.625rem;
     border: 1px solid var(--color-border);
     border-radius: 8px;
@@ -1354,6 +1203,38 @@
   background: var(--color-surface);
   box-shadow: var(--shadow-lg, 0 20px 50px rgba(0, 0, 0, 0.25));
   overflow: hidden;
+}
+
+.modal__tarjeta--ancha { width: min(56rem, 100%); }
+
+.modal__intro {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+
+  strong { color: var(--color-text-primary); }
+}
+
+.modal__pie {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding-top: 0.25rem;
+}
+
+.detalles {
+  summary {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--color-primary);
+    cursor: pointer;
+
+    &:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+  }
+
+  .chequeo { margin: 0.625rem 0 0.5rem; }
 }
 
 .modal__cuerpo {
