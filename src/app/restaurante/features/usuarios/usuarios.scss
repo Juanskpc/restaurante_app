@@ -1,7 +1,6 @@
+// Sin relleno ni ancho máximo propios: el margen lo pone `.content` del layout. Antes sumaba otros
+// 2 rem encima y se centraba en 1300 px, la única pantalla con el doble de margen.
 .users-page {
-  max-width: 1300px;
-  margin: 0 auto;
-  padding: var(--spacing-xl);
   color: var(--color-text-primary);
 }
 
@@ -581,10 +580,6 @@ th {
 }
 
 @media (max-width: 900px) {
-  .users-page {
-    padding: var(--spacing-md);
-  }
-
   .filters {
     grid-template-columns: 1fr;
   }

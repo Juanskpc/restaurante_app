@@ -8,7 +8,6 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-md);
-  padding: var(--spacing-md);
   background: var(--color-bg);
 }
 
@@ -1519,7 +1518,6 @@
 // Móvil: solo cambia el encabezado y cuántas tarjetas por fila.
 // ═══════════════════════════════════════════════════════════
 @media (max-width: 560px) {
-  .mesas-layout { padding: var(--spacing-sm); }
 
   // El header global de la app ya muestra "Mesas".
   .brand { display: none; }

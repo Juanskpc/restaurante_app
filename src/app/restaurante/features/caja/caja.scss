@@ -2,11 +2,9 @@
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
-  padding: 1.5rem;
-  // Mismo ancho que la caja de Reserva (`.caja { max-width: 1280px }` con `.page` de 1.5 rem): el
-  // contenido queda con los mismos márgenes laterales en escritorio.
-  max-width: 1280px;
-  margin: 0 auto;
+  // Sin relleno ni ancho máximo propios, como el resto de pantallas de esta app: antes se centraba
+  // en 1280 px para parecerse a la caja de Reserva y era la única que saltaba al venir del menú.
+  // El margen lo pone `.content` del layout.
   width: 100%;
   // Cerrojo del scroll horizontal: la tabla del historial (`.tabla`) tiene un `min-width` mayor
   // que la pantalla en el teléfono a propósito, y `.tabla-wrap` es quien debe abrir su PROPIO

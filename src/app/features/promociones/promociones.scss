@@ -19,18 +19,13 @@
   border: 0;
 }
 
+// Sin relleno ni ancho máximo propios: Promociones comparte la barra de pestañas con
+// Conversaciones, y si el marco de una no es el de la otra la barra salta de sitio al cambiar de
+// pestaña. El margen lo pone `.content` del layout, igual para todas las pantallas.
 .promos {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
-  padding: 1.25rem;
-  max-width: 1400px;
-  margin: 0 auto;
-
-  @media (max-width: 640px) {
-    padding: 1rem;
-    gap: 1rem;
-  }
+  gap: 1rem;
 }
 
 .promos__cab {

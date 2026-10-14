@@ -8,7 +8,6 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-md);
-  padding: var(--spacing-md);
   background: var(--color-bg);
 }
 
@@ -1256,7 +1255,6 @@
 // El contenido de la tarjeta lo gobierna la densidad, arriba.
 // ═══════════════════════════════════════════════════════════
 @media (max-width: 560px) {
-  .despacho-layout { padding: var(--spacing-sm); }
 
   // El header global de la app ya muestra "Despacho".
   .brand { display: none; }

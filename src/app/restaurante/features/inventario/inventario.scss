@@ -14,7 +14,8 @@
   height: 100%;
   min-height: 0;
   box-sizing: border-box;
-  padding: var(--spacing-md);
+  // Sin relleno propio: comparte la barra de pestañas con Proveedores y un relleno aquí la hacía
+  // saltar 16 px al cambiar de pestaña. El margen lo pone `.content` del layout.
   background: var(--color-bg);
   min-width: 0;
 }
