@@ -1,4 +1,7 @@
-<section class="conv">
+<section class="conv" [class.conv--con-pestanas]="conPestanas()">
+  <!-- Conversaciones | Promociones: la sección «WhatsApp» del menú. -->
+  <app-seccion-pestanas seccion="whatsapp" />
+
   @if (!habilitado()) {
     <!-- El plan no trae el asistente. No hay pantalla intermedia que enseñar: lo único que se
          puede hacer desde aquí es mejorar el plan, y eso se decide en el panel de pagos. -->

@@ -14,6 +14,7 @@ import {
 } from '../../core/services/promociones.service';
 import { UiFeedbackService } from '../../core/ui-feedback/ui-feedback.service';
 import { ModalCabeceraComponent } from '../conversaciones/shared/modal-cabecera';
+import { SeccionPestanasComponent } from '../../layout/seccion-pestanas/seccion-pestanas';
 
 /** Cuántos clientes se piden de una vez. La clientela de un restaurante son cientos, no miles. */
 const LIMITE_LISTA = 500;
@@ -102,7 +103,7 @@ const TEXTO_GRUPO: Record<CodigoSegmento, { titulo: string; sub: string }> = {
   standalone: true,
   imports: [
     FormsModule, CurrencyPipe, DatePipe, DecimalPipe, NgTemplateOutlet, TitleCasePipe,
-    LucideAngularModule, ModalCabeceraComponent,
+    LucideAngularModule, ModalCabeceraComponent, SeccionPestanasComponent,
   ],
   templateUrl: './promociones.html',
   styleUrl: './promociones.scss',

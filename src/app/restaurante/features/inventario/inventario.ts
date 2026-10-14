@@ -7,6 +7,7 @@ import { AuthService } from '../../../core/services/auth.service';
 import { RealtimeService } from '../../../core/services/realtime.service';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
 import { environment } from '../../../../environments/environment';
+import { SeccionPestanasComponent } from '../../../layout/seccion-pestanas/seccion-pestanas';
 
 interface InventarioKpis {
   total_insumos: number;
@@ -54,7 +55,7 @@ type InventarioStockFilter = 'all' | 'agotado' | 'normal';
 
 @Component({
   selector: 'app-inventario',
-  imports: [LucideAngularModule, FormsModule],
+  imports: [LucideAngularModule, FormsModule, SeccionPestanasComponent],
   templateUrl: './inventario.html',
   styleUrl: './inventario.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

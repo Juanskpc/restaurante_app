@@ -81,51 +81,29 @@
           {{ pausado() ? 'Reanudar asistente' : 'Pausar asistente' }}
         </button>
       }
-      <!-- Los ajustes del asistente viven en su propia ventana (pedido del dueño, 2026-10-02):
-           en la cabecera le quitaban altura a los mensajes. -->
-      @if (config()) {
+      <!-- Ajustes, revisión e informe del asistente, en UNA ventana con pestañas (2026-10-13):
+           eran tres botones en la cabecera y le quitaban sitio a lo que importa, los mensajes.
+           Si al asistente le faltan datos, el botón lo dice con un número. -->
+      @if (config() || preparacion()) {
         <button
           type="button"
           class="bdj__chip"
+          [class.bdj__chip--on]="ventanaAsistente() !== null"
+          [class.bdj__chip--alerta]="(preparacion()?.criticos ?? 0) > 0"
           aria-haspopup="dialog"
-          [attr.aria-expanded]="configAbierta()"
-          (click)="configAbierta.set(true)"
+          [attr.aria-expanded]="ventanaAsistente() !== null"
+          (click)="abrirAsistente()"
         >
-          <lucide-icon name="settings" [size]="14" aria-hidden="true" />
-          Configuración del asistente
-        </button>
-      }
-      <!-- Informe con las conversaciones reales (fase 3): para quien puede actuar sobre él. -->
-      @if (config()?.puede_editar) {
-        <button
-          type="button"
-          class="bdj__chip"
-          [class.bdj__chip--on]="informeAbierto()"
-          [attr.aria-expanded]="informeAbierto()"
-          (click)="alternarInforme()"
-        >
-          <lucide-icon name="chart-column" [size]="14" aria-hidden="true" />
-          Informe
-        </button>
-      }
-      <!-- ¿Qué le falta al asistente para atender bien? Revisión del backend, con dónde se arregla. -->
-      @if (preparacion(); as prep) {
-        <button
-          type="button"
-          class="bdj__chip"
-          [class.bdj__chip--on]="prepAbierta()"
-          [class.bdj__chip--alerta]="prep.criticos > 0"
-          [attr.aria-expanded]="prepAbierta()"
-          (click)="prepAbierta() ? cerrarPreparacion() : prepAbierta.set(true)"
-        >
-          @if (prep.pendientes > 0) {
-            Al asistente le faltan datos
-            <span class="bdj__contador" [class.bdj__contador--alerta]="prep.criticos > 0">{{
-              prep.pendientes
-            }}</span>
-          } @else {
-            <lucide-icon name="check" [size]="14" aria-hidden="true" />
-            Asistente listo
+          <lucide-icon name="sparkles" [size]="14" aria-hidden="true" />
+          Tu asistente
+          @if ((preparacion()?.pendientes ?? 0) > 0) {
+            <span
+              class="bdj__contador"
+              [class.bdj__contador--alerta]="(preparacion()?.criticos ?? 0) > 0"
+              [attr.aria-label]="preparacion()!.pendientes + ' datos por completar'"
+            >{{ preparacion()!.pendientes }}</span>
+          } @else if (preparacion()) {
+            <lucide-icon name="check" [size]="14" aria-label="Listo" />
           }
         </button>
       }
@@ -589,24 +567,72 @@
   </div>
 }
 
-<!-- ── Ventana «Configuración del asistente» ─────────────────────── -->
-@if (configAbierta()) {
-  <div class="bdj-modal" (click)="configAbierta.set(false)" (keydown.escape)="configAbierta.set(false)">
+<!-- ── Ventana «Tu asistente»: revisión, ajustes e informe en pestañas (2026-10-13) ─────────
+     Eran tres ventanas con tres botones. Ahora es una, y cada pestaña conserva lo que tenía. -->
+@if (ventanaAsistente(); as pestana) {
+  <div class="bdj-modal" (click)="cerrarAsistente()" (keydown.escape)="cerrarAsistente()">
     <div
-      class="bdj-modal__card bdj-cfg"
+      class="bdj-modal__card bdj-rev"
       role="dialog"
       aria-modal="true"
-      aria-labelledby="bdj-cfg-title"
+      aria-labelledby="bdj-asis-title"
       (click)="$event.stopPropagation()"
     >
       <app-modal-cabecera
-        icono="settings"
-        titulo="Configuración del asistente"
-        subtitulo="Cada apartado se guarda por separado"
-        tituloId="bdj-cfg-title"
-        (cerrar)="configAbierta.set(false)"
+        icono="bot"
+        titulo="Tu asistente"
+        [subtitulo]="subtituloAsistente()"
+        tituloId="bdj-asis-title"
+        (cerrar)="cerrarAsistente()"
       />
-      <div class="bdj-modal__body">
+      <div class="bdj-tabs" role="tablist" aria-label="Secciones del asistente">
+        @if (preparacion(); as prep) {
+          <button
+            type="button"
+            role="tab"
+            class="bdj-tabs__tab"
+            [class.bdj-tabs__tab--on]="pestana === 'revision'"
+            [attr.aria-selected]="pestana === 'revision'"
+            (click)="irAPestanaAsistente('revision')"
+          >
+            ¿Está listo?
+            @if (prep.pendientes > 0) {
+              <span class="bdj__contador" [class.bdj__contador--alerta]="prep.criticos > 0">{{
+                prep.pendientes
+              }}</span>
+            } @else {
+              <lucide-icon name="check" [size]="14" aria-hidden="true" />
+            }
+          </button>
+        }
+        @if (config()) {
+          <button
+            type="button"
+            role="tab"
+            class="bdj-tabs__tab"
+            [class.bdj-tabs__tab--on]="pestana === 'ajustes'"
+            [attr.aria-selected]="pestana === 'ajustes'"
+            (click)="irAPestanaAsistente('ajustes')"
+          >
+            Ajustes
+          </button>
+        }
+        @if (config()?.puede_editar) {
+          <button
+            type="button"
+            role="tab"
+            class="bdj-tabs__tab"
+            [class.bdj-tabs__tab--on]="pestana === 'informe'"
+            [attr.aria-selected]="pestana === 'informe'"
+            (click)="irAPestanaAsistente('informe')"
+          >
+            Informe
+          </button>
+        }
+      </div>
+
+      @if (pestana === 'ajustes') {
+      <div class="bdj-modal__body bdj-cfg" role="tabpanel">
         @if (config(); as cfg) {
           @if (!cfg.puede_editar) {
             <p class="bdj-cfg__aviso">Solo un administrador de este negocio puede cambiar estos ajustes.</p>
@@ -864,38 +890,13 @@
             </div>
           </div>
         }
-  
       </div>
-    </div>
-  </div>
-}
+      }
 
-<!-- ── Ventana «Revisión del asistente» ──────────────────────────────
-     Antes era un panel dentro de la cabecera de la Bandeja, que tiene alto fijo: con el
-     diagnóstico de la carta y las recomendaciones crecía fuera de la pantalla sin scroll
-     (2026-10-05). Aquí el cuerpo tiene su propio scroll. -->
-@if (prepAbierta()) {
-  @if (preparacion(); as prep) {
-    <div class="bdj-modal" (click)="cerrarPreparacion()" (keydown.escape)="cerrarPreparacion()">
-      <div
-        class="bdj-modal__card bdj-rev"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="bdj-rev-title"
-        (click)="$event.stopPropagation()"
-      >
-        <app-modal-cabecera
-          icono="bot"
-          titulo="Revisión del asistente"
-          [subtitulo]="
-            prep.pendientes > 0
-              ? 'Completa esto para que atienda bien a tus clientes'
-              : 'Tiene todo lo que necesita para atender'
-          "
-          tituloId="bdj-rev-title"
-          (cerrar)="cerrarPreparacion()"
-        />
-        <div class="bdj-modal__body bdj-rev__body">
+      <!-- ── Pestaña «¿Está listo?»: lo que le falta al asistente para atender bien ── -->
+      @if (pestana === 'revision') {
+        @if (preparacion(); as prep) {
+        <div class="bdj-modal__body bdj-rev__body" role="tabpanel">
           <!-- 1. Los datos del negocio (la revisión ligera de siempre). -->
           <section class="bdj-rev__seccion" aria-labelledby="bdj-rev-datos">
             <header class="bdj-rev__cabeza">
@@ -925,7 +926,7 @@
                       }
                       <p class="bdj__prep-donde">Dónde: {{ p.donde }}</p>
                       @if (p.clave === 'info_asistente') {
-                        <button type="button" class="bdj__auto-guardar" (click)="cerrarPreparacion(); configAbierta.set(true)">
+                        <button type="button" class="bdj__auto-guardar" (click)="irAPestanaAsistente('ajustes')">
                           Escribirla ahora
                         </button>
                       }
@@ -1080,29 +1081,12 @@
             }
           }
         </div>
-      </div>
-    </div>
-  }
-}
+        }
+      }
 
-<!-- ── Ventana «Informe»: cómo le fue al asistente con las conversaciones reales ───── -->
-@if (informeAbierto()) {
-  <div class="bdj-modal" (click)="informeAbierto.set(false)" (keydown.escape)="informeAbierto.set(false)">
-    <div
-      class="bdj-modal__card bdj-rev"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="bdj-inf-title"
-      (click)="$event.stopPropagation()"
-    >
-      <app-modal-cabecera
-        icono="calendar-range"
-        titulo="Cómo le fue a tu asistente"
-        [subtitulo]="'Con las conversaciones de los últimos ' + informeDias() + ' días'"
-        tituloId="bdj-inf-title"
-        (cerrar)="informeAbierto.set(false)"
-      />
-      <div class="bdj-modal__body bdj-rev__body bdj__informe">
+      <!-- ── Pestaña «Informe»: cómo le fue al asistente con las conversaciones reales ── -->
+      @if (pestana === 'informe') {
+      <div class="bdj-modal__body bdj-rev__body bdj__informe" role="tabpanel">
         <div class="bdj__informe-periodo" role="group" aria-label="Periodo del informe">
           @for (d of [7, 30]; track d) {
             <button
@@ -1198,6 +1182,7 @@
           }
         }
       </div>
+      }
     </div>
   </div>
 }

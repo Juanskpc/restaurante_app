@@ -15,6 +15,7 @@ import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service
 import { ComparadorComponent } from './comparador/comparador';
 import { ComprasComponent } from './compras/compras';
 import { ProveedorFormComponent } from './proveedor-form/proveedor-form';
+import { SeccionPestanasComponent } from '../../../layout/seccion-pestanas/seccion-pestanas';
 import {
   IngredienteLite, PermisosProveedores, ProveedorDetalleComponent,
 } from './proveedor-detalle/proveedor-detalle';
@@ -64,6 +65,7 @@ const POR_PAGINA = 24;
   imports: [
     FormsModule, LucideAngularModule, CurrencyPipe, DatePipe,
     ProveedorFormComponent, ProveedorDetalleComponent, ComparadorComponent, ComprasComponent,
+    SeccionPestanasComponent,
   ],
   templateUrl: './proveedores.html',
   styleUrl: './proveedores.scss',

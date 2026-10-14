@@ -199,6 +199,9 @@ describe('ConversacionesComponent — sin negocio activo', () => {
       negocio: signal(null),
       tieneFeature: vi.fn(() => false),
       canAccessSubnivel: vi.fn(() => false),
+      // La barra «Conversaciones | Promociones» pregunta por los permisos de cada pestaña.
+      canAccessRoute: vi.fn(() => false),
+      permitePromociones: vi.fn(() => false),
     };
     const fixture = montar(auth as unknown as ReturnType<typeof authFalso>);
 

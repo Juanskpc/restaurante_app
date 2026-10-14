@@ -9,6 +9,12 @@
   padding: var(--spacing-md);
 }
 
+/* Dentro de Configuración: el margen y el título los pone ella. Se queda la explicación, que es
+   lo que dice para qué sirve cada horario. */
+.horarios-page--embebida { padding: 0; }
+
+.horarios-header--embebida h1 { display: none; }
+
 .horarios-header {
   h1 {
     margin: 0;

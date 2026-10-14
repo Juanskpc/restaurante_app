@@ -1,8 +1,11 @@
 import { Component, computed, inject, signal, HostListener } from '@angular/core';
-import { RouterLink, RouterLinkActive, IsActiveMatchOptions } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { NavigationEnd, Router, RouterLink } from '@angular/router';
+import { filter, map } from 'rxjs';
 import { LucideAngularModule } from 'lucide-angular';
 
 import { AuthService } from '../../core/services/auth.service';
+import { SECCIONES, rutaDisponible } from '../secciones';
 import { ConversacionesPendientesService } from '../../core/services/conversaciones-pendientes.service';
 import { SidebarService } from '../../core/services/sidebar.service';
 import { UiFeedbackService } from '../../core/ui-feedback/ui-feedback.service';
@@ -32,11 +35,17 @@ export interface NavItem {
   badgeAlerta?: boolean;
   /** 'main' aparece en el bottom nav móvil; 'secondary' solo en sidebar/menú "Más" */
   section: 'main' | 'secondary';
+  /**
+   * Las pantallas que esta entrada agrupa (`../secciones.ts`). La entrada se ve si la persona
+   * puede abrir CUALQUIERA de ellas, lleva a la primera que pueda abrir, y queda marcada como
+   * activa en todas. Sin esto, solo la propia `route`.
+   */
+  rutas?: string[];
 }
 
 @Component({
   selector: 'app-sidebar',
-  imports: [RouterLink, RouterLinkActive, LucideAngularModule],
+  imports: [RouterLink, LucideAngularModule],
   templateUrl: './sidebar.html',
   styleUrl: './sidebar.scss',
 })
@@ -45,6 +54,7 @@ export class SidebarComponent {
   private readonly pendientes = inject(ConversacionesPendientesService);
   private readonly ui = inject(UiFeedbackService);
   private readonly sidebar = inject(SidebarService);
+  private readonly router = inject(Router);
 
   /**
    * Menú plegado a riel de iconos.
@@ -71,25 +81,19 @@ export class SidebarComponent {
     { icon: 'flame',             label: 'Cocina',          route: '/cocina',          section: 'main' },
     { icon: 'mesa',              label: 'Mesas',           route: '/mesas',           section: 'main' },
     { icon: 'utensils-crossed',  label: 'Menú',            route: '/menu',            section: 'secondary' },
-    { icon: 'message-circle',    label: 'Conversaciones',  route: '/conversaciones',  section: 'main' },
+    // Conversaciones y Promociones, bajo un nombre que el dueño reconoce (2026-10-13).
+    { icon: 'message-circle',    label: 'WhatsApp',        route: '/conversaciones',  section: 'main',
+      rutas: SECCIONES.whatsapp.map((p) => p.route) },
     { icon: 'users',             label: 'Clientes',        route: '/clientes',        section: 'secondary' },
-    { icon: 'megaphone',         label: 'Promociones',     route: '/promociones',     section: 'secondary' },
     { icon: 'wallet',            label: 'Caja',            route: '/caja',            section: 'secondary' },
-    { icon: 'package',           label: 'Inventario',      route: '/inventario',      section: 'secondary' },
-    { icon: 'truck',             label: 'Proveedores',     route: '/proveedores',     section: 'secondary' },
-    { icon: 'clock',             label: 'Horarios',        route: '/horarios',        section: 'secondary' },
+    { icon: 'package',           label: 'Inventario',      route: '/inventario',      section: 'secondary',
+      rutas: SECCIONES.inventario.map((p) => p.route) },
     { icon: 'users',             label: 'Personal',        route: '/usuarios',        section: 'secondary' },
     { icon: 'chart-bar',          label: 'Reportes',        route: '/reportes',        section: 'secondary' },
-    { icon: 'settings',          label: 'Configuración',   route: '/configuracion',   section: 'secondary' },
+    // Horarios es una pestaña de Configuración (2026-10-13).
+    { icon: 'settings',          label: 'Configuración',   route: '/configuracion',   section: 'secondary',
+      rutas: ['/configuracion', '/horarios'] },
   ];
-
-  /**
-   * Subnivel que además del permiso de módulo debe estar activo para mostrar el item.
-   * Un negocio que solo vende para llevar apaga "En mesa" y el salón desaparece del menú.
-   */
-  private readonly subnivelPorRuta: Record<string, string> = {
-    '/mesas': 'pedidos_en_mesa',
-  };
 
   /**
    * Contadores que se pintan como burbuja sobre el icono del menú.
@@ -103,32 +107,50 @@ export class SidebarComponent {
   }));
 
   /**
-   * Rutas que además del permiso necesitan que EscalApp le haya encendido la función al negocio.
+   * Lo que esta persona puede ver del menú.
    *
-   * No es lo mismo que un subnivel: un subnivel lo reparte el dueño entre sus roles, y esto lo
-   * decide EscalApp negocio por negocio. Promociones manda publicidad por el número del negocio y
-   * gasta dinero en Meta, así que mientras no esté en la lista el menú no la nombra.
+   * Quién entra a qué pantalla lo decide `rutaDisponible` (permiso, bandera de EscalApp y
+   * subnivel), la misma función que usan las pestañas de cada sección: así el menú y las pestañas
+   * no pueden contradecirse. Una entrada agrupada lleva a la primera de sus pantallas que se pueda
+   * abrir — a quien solo tiene Proveedores, «Inventario» lo lleva a Proveedores.
    */
-  private readonly banderaPorRuta: Record<string, () => boolean> = {
-    '/promociones': () => this.auth.permitePromociones(),
-  };
-
   readonly navItemsPermitidos = computed(() => {
     const badges = this.badgePorRuta();
-    return this.navItems
-      .filter((item) => {
-        if (!this.auth.canAccessRoute(item.route)) return false;
-        const bandera = this.banderaPorRuta[item.route];
-        if (bandera && !bandera()) return false;
-        const subnivel = this.subnivelPorRuta[item.route];
-        return !subnivel || this.auth.canAccessSubnivel(subnivel);
-      })
-      .map((item) =>
-        badges[item.route] === undefined
-          ? item
-          : { ...item, badge: badges[item.route], badgeAlerta: true },
-      );
+    const visibles: NavItem[] = [];
+    for (const item of this.navItems) {
+      const destino = (item.rutas ?? [item.route]).find((r) => rutaDisponible(this.auth, r));
+      if (!destino) continue;
+      // La burbuja va por la entrada (su `route` original), no por el destino resuelto.
+      const badge = badges[item.route];
+      visibles.push({
+        ...item,
+        route: destino,
+        ...(badge === undefined ? {} : { badge, badgeAlerta: true }),
+      });
+    }
+    return visibles;
   });
+
+  /** La ruta en la que se está, sin parámetros. Con ella se marca la entrada activa. */
+  private readonly urlActual = toSignal(
+    this.router.events.pipe(
+      filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+      map((e) => e.urlAfterRedirects),
+    ),
+    { initialValue: this.router.url },
+  );
+
+  /**
+   * ¿Está activa esta entrada?
+   *
+   * Se calcula aquí y no con `routerLinkActive`, que solo compara con su propio enlace: en
+   * Proveedores, «Inventario» se quedaba apagado aunque fuera su sección.
+   */
+  estaActivo(item: NavItem): boolean {
+    const ruta = (this.urlActual() ?? '').split(/[?#]/)[0];
+    if (item.route === '/dashboard') return ruta === '/dashboard';
+    return (item.rutas ?? [item.route]).some((r) => ruta === r || ruta.startsWith(`${r}/`));
+  }
 
   /** Items principales (bottom nav). */
   readonly mainItems = computed(() => this.navItemsPermitidos().filter(i => i.section === 'main'));
@@ -168,13 +190,6 @@ export class SidebarComponent {
    */
   readonly mostrarLogoutEnBarra = computed(() => this.cabenTodosEnBarra());
 
-  /** Match options: compara solo el path, ignora queryParams y fragment. */
-  readonly exactMatchOptions: IsActiveMatchOptions = {
-    paths: 'exact', queryParams: 'ignored', fragment: 'ignored', matrixParams: 'ignored',
-  };
-  readonly prefixMatchOptions: IsActiveMatchOptions = {
-    paths: 'subset', queryParams: 'ignored', fragment: 'ignored', matrixParams: 'ignored',
-  };
 
   /** Panel "Más" abierto en móvil. */
   readonly moreMenuOpen = signal(false);

@@ -3,6 +3,7 @@ import { Routes } from '@angular/router';
 import { authGuard, permissionGuard, planGuard } from './core/guards/auth.guard';
 import { pendingChangesGuard } from './core/guards/pending-changes.guard';
 import { LayoutComponent } from './layout/layout';
+import { horariosEnConfiguracion } from './core/guards/horarios-en-configuracion.guard';
 
 export const routes: Routes = [
   {
@@ -63,7 +64,8 @@ export const routes: Routes = [
         // El asistente de WhatsApp. Vivía en `admin_app_v21` hasta el 2026-10-08; allá queda
         // la misma vista, pero solo para super admin (seguimiento interno de los inquilinos).
         path: 'conversaciones',
-        title: 'Conversaciones',
+        // Bajo «WhatsApp» en el menú, con Promociones al lado (`layout/secciones.ts`).
+        title: 'WhatsApp',
         canActivate: [planGuard],
         loadComponent: () =>
           import('./features/conversaciones/conversaciones').then(m => m.ConversacionesComponent),
@@ -79,7 +81,7 @@ export const routes: Routes = [
         // Transversal, como `conversaciones`: el backend ya sirve a reserva cambiando el
         // adaptador de hechos, así que la vista no vive dentro de `restaurante/`.
         path: 'promociones',
-        title: 'Promociones',
+        title: 'WhatsApp',
         canActivate: [planGuard],
         loadComponent: () =>
           import('./features/promociones/promociones').then(m => m.PromocionesComponent),
@@ -100,15 +102,19 @@ export const routes: Routes = [
       },
       {
         path: 'proveedores',
-        title: 'Proveedores',
+        // Una pestaña de Inventario (`layout/secciones.ts`).
+        title: 'Inventario',
         canActivate: [planGuard],
         loadComponent: () =>
           import('./restaurante/features/proveedores/proveedores').then(m => m.ProveedoresComponent),
       },
       {
+        // Horarios es una pestaña de Configuración (2026-10-13). La ruta sigue existiendo para
+        // los enlaces guardados y para quien tenga Horarios sin Configuración: a los demás los
+        // lleva a la pestaña.
         path: 'horarios',
-        title: 'Horarios',
-        canActivate: [planGuard],
+        title: 'Configuración',
+        canActivate: [planGuard, horariosEnConfiguracion],
         loadComponent: () =>
           import('./restaurante/features/horarios/horarios').then(m => m.HorariosComponent),
       },
@@ -147,7 +153,7 @@ export const routes: Routes = [
       },
       {
         path: 'configuracion',
-        title: 'Configuracion',
+        title: 'Configuración',
         canActivate: [planGuard],
         loadComponent: () =>
           import('./restaurante/features/configuracion').then(m => m.ConfiguracionComponent),

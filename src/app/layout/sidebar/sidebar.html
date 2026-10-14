@@ -40,9 +40,9 @@
     @for (item of mainItems(); track item.route) {
       <a class="nav-item"
          [routerLink]="item.route"
-         routerLinkActive="active"
-         [title]="item.label"
-         [routerLinkActiveOptions]="item.route === '/dashboard' ? exactMatchOptions : prefixMatchOptions">
+         [class.active]="estaActivo(item)"
+       [attr.aria-current]="estaActivo(item) ? 'page' : null"
+         [title]="item.label">
         <lucide-icon [name]="item.icon" [size]="20" />
         <span class="nav-label">{{ item.label }}</span>
         @if (item.badge) {
@@ -59,9 +59,9 @@
     @for (item of secondaryItems(); track item.route) {
       <a class="nav-item"
          [routerLink]="item.route"
-         routerLinkActive="active"
-         [title]="item.label"
-         [routerLinkActiveOptions]="prefixMatchOptions">
+         [class.active]="estaActivo(item)"
+       [attr.aria-current]="estaActivo(item) ? 'page' : null"
+         [title]="item.label">
         <lucide-icon [name]="item.icon" [size]="20" />
         <span class="nav-label">{{ item.label }}</span>
       </a>
@@ -84,8 +84,8 @@
   @for (item of bottomItems(); track item.route) {
     <a class="bottom-nav-item"
        [routerLink]="item.route"
-       routerLinkActive="active"
-       [routerLinkActiveOptions]="item.route === '/dashboard' ? exactMatchOptions : prefixMatchOptions">
+       [class.active]="estaActivo(item)"
+       [attr.aria-current]="estaActivo(item) ? 'page' : null">
       <lucide-icon [name]="item.icon" [size]="22" />
       <span>{{ item.label }}</span>
       @if (item.badge) {
@@ -130,7 +130,8 @@
     @for (item of secondaryItems(); track item.route) {
       <a class="more-item"
          [routerLink]="item.route"
-         routerLinkActive="active"
+         [class.active]="estaActivo(item)"
+       [attr.aria-current]="estaActivo(item) ? 'page' : null"
          (click)="closeMoreMenu()">
         <lucide-icon [name]="item.icon" [size]="20" />
         <span>{{ item.label }}</span>

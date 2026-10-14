@@ -36,6 +36,11 @@
   }
 }
 
+/* Con la barra de pestañas encima (2,75rem) y el hueco hasta la Bandeja (1rem). */
+.conv--con-pestanas {
+  --bdj-extra: 3.75rem;
+}
+
 .conv__cabecera {
   display: flex;
   align-items: flex-start;

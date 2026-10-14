@@ -1,7 +1,7 @@
 <section class="config-page">
   <header class="config-header">
     <div>
-      <h1>Configuracion del negocio</h1>
+      <h1>Configuración del negocio</h1>
       <p>Administra los datos principales de tu restaurante y su estilo visual.</p>
     </div>
 
@@ -41,6 +41,11 @@
     }
   </nav>
 
+  <!-- Horarios no depende del formulario de configuración: tiene sus propios botones y guarda
+       por su cuenta. Por eso va aparte y no dentro del <form>. -->
+  @if (tab() === 'horarios') {
+    <app-horarios [embebido]="true" />
+  } @else {
   @if (errorMessage(); as error) {
     <div class="state state--error">{{ error }}</div>
   }
@@ -419,5 +424,6 @@
         <app-barrios-panel [canEdit]="canEdit()" />
       }
     }
+  }
   }
 </section>

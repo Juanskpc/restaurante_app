@@ -45,6 +45,9 @@ import {
 /** El ciclo de una petición en pantalla. En el panel vivía en `admin.models.ts`. */
 type LoadingState = 'idle' | 'loading' | 'success' | 'error';
 
+/** Las pestañas de la ventana «Tu asistente». */
+type PestanaAsistente = 'revision' | 'ajustes' | 'informe';
+
 /** Un archivo del cliente, ya traído (o no) para pintarlo en el hilo. */
 type EstadoArchivo =
   | { estado: 'cargando' }
@@ -302,7 +305,53 @@ export class BandejaComponent implements OnInit, OnDestroy {
   // primera vez que el negocio entra con algo pendiente —justo después de conectar el número—, y
   // se puede cerrar: no vuelve a abrirse sola en esa sesión para ese negocio.
   readonly preparacion = signal<PreparacionAsistente | null>(null);
-  readonly prepAbierta = signal(false);
+
+  // ── La ventana «Tu asistente» ──
+  // Revisión, ajustes e informe eran tres ventanas con tres botones en la cabecera, que le
+  // quitaban sitio a los mensajes (pedido del dueño, 2026-10-13). Ahora es una ventana con
+  // pestañas, y `null` es que está cerrada.
+  readonly ventanaAsistente = signal<PestanaAsistente | null>(null);
+
+  readonly subtituloAsistente = computed(() => {
+    switch (this.ventanaAsistente()) {
+      case 'revision':
+        return (this.preparacion()?.pendientes ?? 0) > 0
+          ? 'Completa esto para que atienda bien a tus clientes'
+          : 'Tiene todo lo que necesita para atender';
+      case 'ajustes':
+        return 'Cada apartado se guarda por separado';
+      case 'informe':
+        return `Con las conversaciones de los últimos ${this.informeDias()} días`;
+      default:
+        return '';
+    }
+  });
+
+  /** Abre en «¿Está listo?», que es lo primero que hay que mirar; sin revisión, en Ajustes. */
+  abrirAsistente(): void {
+    this.irAPestanaAsistente(this.preparacion() ? 'revision' : 'ajustes');
+  }
+
+  irAPestanaAsistente(pestana: PestanaAsistente): void {
+    this.ventanaAsistente.set(pestana);
+    // El informe se pide la primera vez que se mira: lee las conversaciones reales y tarda.
+    if (pestana === 'informe' && !this.informe()) this.cargarInforme(this.informeDias());
+  }
+
+  /**
+   * Cierra la ventana. Si se abrió sola por la revisión, no vuelve a abrirse sola en esta sesión
+   * para este negocio (lo que antes hacía `cerrarPreparacion`).
+   */
+  cerrarAsistente(): void {
+    this.ventanaAsistente.set(null);
+    const id = this.negocioConfig();
+    if (id === null || !isPlatformBrowser(this.platformId)) return;
+    try {
+      sessionStorage.setItem(this.claveVistaPrep(id), '1');
+    } catch {
+      /* sin almacenamiento: solo se vuelve a abrir al recargar */
+    }
+  }
   readonly puntosPendientes = computed(
     () => this.preparacion()?.puntos.filter((p) => p.estado !== 'ok') ?? [],
   );
@@ -314,8 +363,6 @@ export class BandejaComponent implements OnInit, OnDestroy {
   // Pagos, Nequi, valor del domicilio…: lo que ninguna tabla dice y el cliente pregunta. El
   // asistente la lee con `consultar_info_negocio`. Vacío = no se le dice nada extra.
   readonly infoAbierta = signal(false);
-  /** La ventana «Configuración del asistente» (vuelve tras, entrega, domicilio, info). */
-  readonly configAbierta = signal(false);
   readonly infoTexto = signal('');
   readonly guardandoInfo = signal(false);
 
@@ -341,16 +388,9 @@ export class BandejaComponent implements OnInit, OnDestroy {
   }
 
   // ── Informe con las conversaciones reales (fase 3 del diagnóstico) ───────────────────────
-  readonly informeAbierto = signal(false);
   readonly informe = signal<InformeAsistente | null>(null);
   readonly cargandoInforme = signal(false);
   readonly informeDias = signal(7);
-
-  /** Abre el panel y, la primera vez, pide el informe. */
-  alternarInforme(): void {
-    this.informeAbierto.update((v) => !v);
-    if (this.informeAbierto() && !this.informe()) this.cargarInforme(this.informeDias());
-  }
 
   cargarInforme(dias: number): void {
     const id = this.negocioConfig();
@@ -629,9 +669,8 @@ export class BandejaComponent implements OnInit, OnDestroy {
       this.diagnostico.set(null);
       this.recomendaciones.set(null);
       this.informe.set(null);
-      this.informeAbierto.set(false);
       this.preparacion.set(null);
-      this.prepAbierta.set(false);
+      this.ventanaAsistente.set(null);
       return;
     }
     this.cargarPreparacion(idNegocio, true);
@@ -676,21 +715,12 @@ export class BandejaComponent implements OnInit, OnDestroy {
             yaVista = false;
           }
         }
-        if (!yaVista) this.prepAbierta.set(true);
+        // Se abre sola en la revisión, salvo que ya haya una pestaña abierta: no se le cambia la
+        // vista a quien está escribiendo en Ajustes.
+        if (!yaVista && this.ventanaAsistente() === null) this.ventanaAsistente.set('revision');
       },
       error: () => this.preparacion.set(null),
     });
-  }
-
-  cerrarPreparacion(): void {
-    this.prepAbierta.set(false);
-    const id = this.negocioConfig();
-    if (id === null || !isPlatformBrowser(this.platformId)) return;
-    try {
-      sessionStorage.setItem(this.claveVistaPrep(id), '1');
-    } catch {
-      /* sin almacenamiento: solo se vuelve a abrir al recargar */
-    }
   }
 
   /** Tras guardar algo aquí mismo, la lista se pone al día. */

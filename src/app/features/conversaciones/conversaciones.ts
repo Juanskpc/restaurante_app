@@ -6,6 +6,8 @@ import { LucideAngularModule } from 'lucide-angular';
 import { AuthService } from '../../core/services/auth.service';
 import { BandejaComponent } from './bandeja/bandeja';
 import { CanalWhatsappComponent } from './numero/numero';
+import { SeccionPestanasComponent } from '../../layout/seccion-pestanas/seccion-pestanas';
+import { pestanasDisponibles } from '../../layout/secciones';
 
 /** La feature del plan que trae el asistente (ADR-021: se pregunta la feature, no el plan). */
 const FEATURE_ASISTENTE = 'asistente_ia';
@@ -47,7 +49,7 @@ type Vista = 'conversaciones' | 'numero';
   selector: 'app-conversaciones',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [LucideAngularModule, BandejaComponent, CanalWhatsappComponent],
+  imports: [LucideAngularModule, BandejaComponent, CanalWhatsappComponent, SeccionPestanasComponent],
   templateUrl: './conversaciones.html',
   styleUrl: './conversaciones.scss',
 })
@@ -56,6 +58,12 @@ export class ConversacionesComponent {
 
   readonly negocio = computed(() => this.auth.negocio());
   readonly idNegocio = computed(() => this.negocio()?.id_negocio ?? null);
+
+  /**
+   * ¿Se pinta la barra «Conversaciones | Promociones»? Solo con las dos pestañas; con esa barra
+   * la Bandeja descuenta su alto (`conv--con-pestanas`) para que los mensajes no se salgan.
+   */
+  readonly conPestanas = computed(() => pestanasDisponibles(this.auth, 'whatsapp').length > 1);
 
   /** ¿El plan incluye el asistente? Sin esto, «no lo tienes» y «no lo has conectado» se ven igual. */
   readonly habilitado = computed(() => this.auth.tieneFeature(FEATURE_ASISTENTE));

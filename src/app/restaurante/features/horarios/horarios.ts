@@ -1,4 +1,6 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy, Component, OnInit, computed, inject, input, signal,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { LucideAngularModule } from 'lucide-angular';
@@ -60,6 +62,12 @@ let contadorUid = 1;
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class HorariosComponent implements OnInit {
+  /**
+   * Dentro de Configuración (pestaña «Horarios», desde 2026-10-13): sin título propio ni margen
+   * de página, que ya los pone Configuración. Suelta, en `/horarios`, se ve como siempre.
+   */
+  readonly embebido = input(false);
+
   private readonly http = inject(HttpClient);
   private readonly auth = inject(AuthService);
   private readonly catalogo = inject(CatalogoCacheService);

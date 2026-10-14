@@ -9,6 +9,7 @@ import {
   Validators,
 } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
+import { ActivatedRoute } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
 
 import { AuthService } from '../../../core/services/auth.service';
@@ -25,6 +26,7 @@ import { CajasPanelComponent } from './cajas-panel/cajas-panel';
 import { RubrosPanelComponent } from './rubros-panel/rubros-panel';
 import { BarriosPanelComponent } from './barrios-panel/barrios-panel';
 import { MiPlanPanelComponent } from './mi-plan/mi-plan-panel';
+import { HorariosComponent } from '../horarios/horarios';
 
 /**
  * Mezcla un hex con blanco. `cantidad` = proporción de blanco (0 = el color tal
@@ -65,14 +67,16 @@ function optionalUrlValidator(control: AbstractControl): ValidationErrors | null
   return { url: true };
 }
 
-type TabConfig = 'general' | 'apariencia' | 'tiquete' | 'cobros' | 'cajas' | 'sectores' | 'operacion';
+type TabConfig =
+  | 'general' | 'apariencia' | 'tiquete' | 'cobros' | 'cajas' | 'sectores' | 'operacion'
+  | 'horarios';
 
 @Component({
   selector: 'app-configuracion',
   imports: [
     ReactiveFormsModule, LucideAngularModule,
     CartaDisenoPanelComponent, TiqueteDisenoPanelComponent, CajasPanelComponent, RubrosPanelComponent,
-    BarriosPanelComponent, MiPlanPanelComponent,
+    BarriosPanelComponent, MiPlanPanelComponent, HorariosComponent,
   ],
   templateUrl: './configuracion.html',
   styleUrl: './configuracion.scss',
@@ -103,6 +107,9 @@ export class ConfiguracionComponent {
     { id: 'cajas'      as const, label: 'Cajas',      icono: 'banknote' },
     { id: 'sectores'   as const, label: 'Sectores',   icono: 'chart-pie' },
     { id: 'operacion'  as const, label: 'Operación',  icono: 'toggle-right' },
+    // Horarios tenía entrada propia en el menú hasta el 2026-10-13. Su permiso sigue siendo
+    // propio (`/horarios`), así que la pestaña solo sale a quien lo tiene.
+    { id: 'horarios'   as const, label: 'Horarios',   icono: 'clock' },
   ];
   /**
    * «Cajas» y «Sectores» solo aparecen para quien tiene `caja_gestionar`: las dos deciden
@@ -111,9 +118,12 @@ export class ConfiguracionComponent {
    */
   readonly tabs = computed(() => {
     const puedeGestionarCajas = this.auth.canAccessSubnivel('caja_gestionar');
-    return this.todasLasTabs.filter(
-      (t) => (t.id !== 'cajas' && t.id !== 'sectores') || puedeGestionarCajas,
-    );
+    const puedeVerHorarios = this.auth.canAccessRoute('/horarios');
+    return this.todasLasTabs.filter((t) => {
+      if (t.id === 'cajas' || t.id === 'sectores') return puedeGestionarCajas;
+      if (t.id === 'horarios') return puedeVerHorarios;
+      return true;
+    });
   });
   readonly tab = signal<TabConfig>('general');
 
@@ -261,6 +271,10 @@ export class ConfiguracionComponent {
   });
 
   constructor() {
+    // `?tab=horarios` abre esa pestaña: es a donde lleva la ruta vieja `/horarios`.
+    const pedida = inject(ActivatedRoute).snapshot.queryParamMap.get('tab');
+    if (pedida && this.tabs().some((t) => t.id === pedida)) this.tab.set(pedida as TabConfig);
+
     effect(() => {
       const idNegocio = this.negocioActivoId();
       if (!idNegocio) {
