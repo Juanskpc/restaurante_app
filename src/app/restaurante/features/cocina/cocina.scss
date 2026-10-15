@@ -394,6 +394,12 @@
   border-left: 3px solid var(--color-error);
 }
 
+// Lo que se le agrega al plato (topping, extra…).
+.mod-add {
+  background: var(--color-success-bg);
+  border-left: 3px solid var(--color-success);
+}
+
 .mod-note {
   background: color-mix(in srgb, var(--color-primary) 10%, transparent);
   border-left: 3px solid var(--color-primary);

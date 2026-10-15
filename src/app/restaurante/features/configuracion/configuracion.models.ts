@@ -37,6 +37,10 @@ export interface ConfiguracionNegocio {
   muestra_iconos_productos: boolean;
   /** ¿El personal del negocio (mesero, cajero, dueño) puede elegirse como domiciliario? */
   permite_domicilio_personal: boolean;
+  /** Opt-in: los productos ofrecen adiciones (toppings, extras…) que se cobran aparte. */
+  permite_adiciones?: boolean;
+  /** Cómo las llama el negocio (`core/utils/terminos-adicion.ts`). */
+  termino_adiciones?: string;
   can_edit: boolean;
 }
 
@@ -59,6 +63,8 @@ export interface ConfiguracionNegocioPayload {
   controla_inventario?: boolean;
   muestra_iconos_productos?: boolean;
   permite_domicilio_personal?: boolean;
+  permite_adiciones?: boolean;
+  termino_adiciones?: string;
   id_paleta?: number | null;
 }
 

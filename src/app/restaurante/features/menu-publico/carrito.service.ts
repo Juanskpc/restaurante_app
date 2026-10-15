@@ -27,15 +27,47 @@ export interface ItemCarrito {
   precio: number;
   cantidad: number;
   exclusiones: IngredienteQuitado[];
+  /** Adiciones (toppings, extras…) de cada unidad. Ausente o vacío = sin adiciones. */
+  adiciones?: AdicionElegida[];
+}
+
+/** Una adición puesta en un plato. `cantidad` es POR UNIDAD del plato; el precio es el de la carta. */
+export interface AdicionElegida {
+  id_producto: number;
+  nombre: string;
+  precio: number;
+  cantidad: number;
+}
+
+/** Tope de una misma adición por plato: el mismo que acepta el servidor. */
+export const MAX_POR_ADICION = 10;
+
+/** Lo que cuesta UNA unidad de la línea con sus adiciones. Aproximado: el servidor relee los precios. */
+export function precioUnidad(item: Pick<ItemCarrito, 'precio' | 'adiciones'>): number {
+  return item.precio + (item.adiciones ?? []).reduce((s, a) => s + a.precio * a.cantidad, 0);
+}
+
+/** «+ Queso, + 2 Tocineta». */
+export function textoAdiciones(adiciones: AdicionElegida[] | undefined): string {
+  return (adiciones ?? [])
+    .map((a) => (a.cantidad > 1 ? `+ ${a.cantidad} ${a.nombre}` : `+ ${a.nombre}`))
+    .join(', ');
 }
 
 /** Tope de ingredientes quitados por línea: el mismo que lee el bot (`MAX_EXCLUSIONES`). */
 export const MAX_EXCLUSIONES = 12;
 
-/** Identidad de una línea: producto + ids quitados, ordenados. `4:12.15`, o `4:` sin exclusiones. */
-export function claveLinea(item: Pick<ItemCarrito, 'id_producto' | 'exclusiones'>): string {
+/**
+ * Identidad de una línea: producto + ids quitados, ordenados (`4:12.15`, o `4:` sin exclusiones) y,
+ * si las lleva, sus adiciones (`4:12:a31x2.40x1`). «Una con queso» y «una con todo» son dos líneas.
+ */
+export function claveLinea(item: Pick<ItemCarrito, 'id_producto' | 'exclusiones' | 'adiciones'>): string {
   const ids = [...new Set(item.exclusiones.map((e) => e.id_ingrediente))].sort((a, b) => a - b);
-  return `${item.id_producto}:${ids.join('.')}`;
+  const adiciones = (item.adiciones ?? [])
+    .map((a) => `${a.id_producto}x${a.cantidad}`)
+    .sort()
+    .join('.');
+  return `${item.id_producto}:${ids.join('.')}${adiciones ? `:a${adiciones}` : ''}`;
 }
 
 /** Cuánto se recuerdan nombre, teléfono y dirección de un cliente que repite: 90 días. */
@@ -155,7 +187,7 @@ export class CarritoService {
   );
 
   readonly total = computed(() =>
-    this._items().reduce((n, i) => n + i.precio * i.cantidad, 0)
+    this._items().reduce((n, i) => n + precioUnidad(i) * i.cantidad, 0)
   );
 
   readonly vacio = computed(() => this._items().length === 0);
@@ -207,11 +239,20 @@ export class CarritoService {
   agregar(
     producto: { id_producto: number; nombre: string; precio: number },
     exclusiones: IngredienteQuitado[] = [],
+    adiciones: AdicionElegida[] = [],
   ): void {
     const limpias = [...new Map(exclusiones.map((e) => [e.id_ingrediente, e])).values()]
       .sort((a, b) => a.id_ingrediente - b.id_ingrediente)
       .slice(0, MAX_EXCLUSIONES);
-    const nueva: ItemCarrito = { ...producto, cantidad: 1, exclusiones: limpias };
+    const agregadas = adiciones
+      .filter((a) => Number.isInteger(a.id_producto) && a.cantidad > 0)
+      .map((a) => ({ ...a, cantidad: Math.min(MAX_POR_ADICION, Math.floor(a.cantidad)) }));
+    const nueva: ItemCarrito = {
+      ...producto,
+      cantidad: 1,
+      exclusiones: limpias,
+      ...(agregadas.length ? { adiciones: agregadas } : {}),
+    };
     const clave = claveLinea(nueva);
     this._items.update((items) =>
       items.some((i) => claveLinea(i) === clave)
@@ -321,12 +362,14 @@ export class CarritoService {
     return ['Hola, quiero pedir:', '', ...visibles, ...cola, codigo].join('\n');
   }
 
-  /** `• 1 × Hamburguesa (sin cebolla, sin tomate)`. */
+  /** `• 1 × Hamburguesa (sin cebolla, + Queso)`. */
   private lineaLegible(i: ItemCarrito): string {
-    const sin = i.exclusiones.length
-      ? ` (${i.exclusiones.map((e) => `sin ${e.nombre}`).join(', ')})`
-      : '';
-    return `• ${i.cantidad} × ${i.nombre}${sin}`;
+    const partes = [
+      ...i.exclusiones.map((e) => `sin ${e.nombre}`),
+      ...(i.adiciones?.length ? [textoAdiciones(i.adiciones)] : []),
+    ];
+    const detalle = partes.length ? ` (${partes.join(', ')})` : '';
+    return `• ${i.cantidad} × ${i.nombre}${detalle}`;
   }
 
   /** La línea legible que dice cómo lo quiere recibir, o `null` si no eligió. */
@@ -357,9 +400,16 @@ export class CarritoService {
   codigoCompacto(): string {
     // `-r12.15`: los ingredientes que se quitan de ESA línea (ids, ordenados). Sin exclusiones la
     // línea es `4x1`, como siempre.
+    // `-a31.31.40`: las adiciones de ESA línea, después del `-r`; un id repetido es una más por
+    // plato. Sin adiciones la línea queda como siempre.
     const partes = this._items().map((i) => {
       const ids = [...new Set(i.exclusiones.map((e) => e.id_ingrediente))].sort((a, b) => a - b);
-      return `${i.id_producto}x${i.cantidad}${ids.length ? `-r${ids.join('.')}` : ''}`;
+      const agregadas = (i.adiciones ?? [])
+        .flatMap((a) => Array.from({ length: a.cantidad }, () => a.id_producto))
+        .sort((a, b) => a - b);
+      return `${i.id_producto}x${i.cantidad}${ids.length ? `-r${ids.join('.')}` : ''}${
+        agregadas.length ? `-a${agregadas.join('.')}` : ''
+      }`;
     });
     return `#P${this._idNegocio() ?? 0}-${partes.join(',')}${this.modificadores()}`;
   }
@@ -581,6 +631,26 @@ export class CarritoService {
                   nombre: e.nombre,
                 }))
             : [],
+          ...(Array.isArray(i.adiciones) && i.adiciones.length
+            ? {
+                adiciones: i.adiciones
+                  .filter(
+                    (a: { id_producto?: unknown; nombre?: unknown; precio?: unknown; cantidad?: unknown }) =>
+                      a &&
+                      Number.isInteger(a.id_producto) &&
+                      typeof a.nombre === 'string' &&
+                      Number.isFinite(a.precio) &&
+                      Number.isInteger(a.cantidad) &&
+                      (a.cantidad as number) > 0,
+                  )
+                  .map((a: AdicionElegida) => ({
+                    id_producto: a.id_producto,
+                    nombre: a.nombre,
+                    precio: a.precio,
+                    cantidad: Math.min(MAX_POR_ADICION, a.cantidad),
+                  })),
+              }
+            : {}),
         }));
     } catch {
       // JSON corrupto: no hay nada que rescatar, y dejarlo repetiría el fallo en cada carga.

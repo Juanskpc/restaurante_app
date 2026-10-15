@@ -152,6 +152,9 @@
                     <span class="badge" [class.badge-available]="prod.disponible" [class.badge-unavailable]="!prod.disponible">
                       {{ prod.disponible ? 'Disponible' : 'Deshabilitado' }}
                     </span>
+                    @if (permiteAdiciones() && prod.es_adicion) {
+                      <span class="badge badge-adicion">{{ termino().singular }}</span>
+                    }
                   </div>
                 </div>
 
@@ -396,7 +399,14 @@
         <div class="form-row form-row-product-meta">
           
           <div class="form-group form-group-category">
-            <label class="form-label">Categoría <span class="required">*</span></label>
+            <label class="form-label">
+              Categoría
+              @if (permiteAdiciones() && prodForm().es_adicion) {
+                <span class="form-label-optional">(opcional)</span>
+              } @else {
+                <span class="required">*</span>
+              }
+            </label>
             <!-- La opción marcada se declara en CADA <option> ([selected]) y no con
                  [value] en el <select>: al abrir el modal en modo edición el <select>
                  recibía su valor ANTES de que el @for creara las opciones, no encontraba
@@ -490,6 +500,88 @@
                   [value]="prodForm().cantidad_empaque"
                   (input)="updateProdField('cantidad_empaque', +$any($event.target).value || 1)"
                 />
+              </div>
+            }
+          </div>
+        }
+
+        <!-- ── Adiciones / toppings / extras ──
+             Solo con la opción encendida en Configuración. Una adición es un producto más (precio,
+             agotado, receta para el inventario), marcada para que no se venda sola. -->
+        @if (permiteAdiciones()) {
+          <div class="adic">
+            <label class="adic__es">
+              <input
+                type="checkbox"
+                [checked]="prodForm().es_adicion"
+                (change)="updateProdField('es_adicion', $any($event.target).checked)"
+              />
+              <span>
+                <strong>Es {{ termino().singular.toLowerCase() }}</strong>
+                <small>No se vende sola: se ofrece dentro de los productos que la tengan marcada.
+                  Ponle receta abajo si quieres que descuente inventario.</small>
+              </span>
+            </label>
+
+            @if (!prodForm().es_adicion) {
+              <div class="section-divider">
+                <div class="section-copy">
+                  <div class="section-title">
+                    <lucide-icon name="plus-circle" [size]="15" />
+                    <span>{{ termino().plural }} que ofrece</span>
+                  </div>
+                  <span class="section-hint">Al pedir este producto se podrán agregar y se cobran aparte</span>
+                </div>
+              </div>
+
+              @if (opcionesAdicion().length > 0) {
+                <div class="adic__lista" role="group" [attr.aria-label]="termino().plural">
+                  @for (a of opcionesAdicion(); track a.id_producto) {
+                    <label class="adic__opcion" [class.adic__opcion--on]="adicionMarcada(a.id_producto)">
+                      <input
+                        type="checkbox"
+                        [checked]="adicionMarcada(a.id_producto)"
+                        (change)="alternarAdicion(a.id_producto)"
+                      />
+                      <span class="adic__nombre">{{ a.nombre }}</span>
+                      <span class="adic__precio">+{{ formatPrice(a.precio) }}</span>
+                      @if (!a.disponible) {
+                        <span class="adic__agotada">Agotada</span>
+                      }
+                    </label>
+                  }
+                </div>
+              } @else {
+                <p class="adic__vacio">Aún no tienes {{ termino().plural.toLowerCase() }}. Crea la primera aquí abajo.</p>
+              }
+
+              <div class="adic__nueva">
+                <input
+                  type="text"
+                  class="form-input"
+                  maxlength="150"
+                  [placeholder]="'Nueva: ' + termino().singular.toLowerCase() + ' (p. ej. Queso extra)'"
+                  [value]="nuevaAdicionNombre()"
+                  (input)="nuevaAdicionNombre.set($any($event.target).value)"
+                />
+                <input
+                  type="number"
+                  class="form-input adic__nueva-precio"
+                  min="1"
+                  step="100"
+                  placeholder="Precio"
+                  [value]="nuevaAdicionPrecio() ?? ''"
+                  (input)="nuevaAdicionPrecio.set(+$any($event.target).value || null)"
+                />
+                <button
+                  type="button"
+                  class="btn btn-secondary btn-sm"
+                  [disabled]="creandoAdicion() || !nuevaAdicionNombre().trim() || !nuevaAdicionPrecio()"
+                  (click)="crearAdicionRapida()"
+                >
+                  <lucide-icon name="plus" [size]="14" />
+                  Crear
+                </button>
               </div>
             }
           </div>
@@ -779,7 +871,7 @@
         <button
           class="btn btn-primary"
           (click)="guardarProducto()"
-          [disabled]="guardando() || !prodForm().nombre.trim() || !prodForm().precio || !prodForm().id_categoria"
+          [disabled]="guardando() || !prodForm().nombre.trim() || !prodForm().precio || !categoriaValida(prodForm())"
         >
           @if (guardando()) { <lucide-icon name="loader" [size]="16" class="spinner" /> }
           {{ editandoProdId() ? 'Guardar Cambios' : 'Crear Producto' }}

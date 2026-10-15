@@ -420,6 +420,8 @@
     }
 
     &__sin { color: var(--color-error); }
+    // Lo que se le agregó al plato (topping, extra…): suma, así que va en el color de la marca.
+    &__adicion { font-size: .74rem; color: var(--color-primary); }
 
     &__monto {
       flex: 0 0 auto;

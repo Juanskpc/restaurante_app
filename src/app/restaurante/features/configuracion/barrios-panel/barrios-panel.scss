@@ -7,6 +7,7 @@
   padding: var(--spacing-md);
   display: grid;
   gap: 12px;
+  min-width: 0;
 
   h2 {
     margin: 0;
@@ -22,60 +23,161 @@
   line-height: 1.5;
 }
 
-.bp__nuevo,
-.bp__editar {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
+.bp__aviso {
+  display: flex;
   gap: 8px;
-
-  @media (min-width: 720px) {
-    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto;
-    align-items: center;
-  }
+  align-items: flex-start;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-md, 8px);
+  background: var(--color-warning-bg, color-mix(in srgb, var(--color-warning, #b45309) 12%, transparent));
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  line-height: 1.45;
 }
 
+.bp__empezar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border: 1px dashed var(--color-primary);
+  border-radius: var(--radius-md, 8px);
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent);
+
+  div { display: grid; gap: 2px; min-width: 0; flex: 1 1 260px; }
+  strong { font-size: var(--font-size-sm); color: var(--color-text-primary); }
+  span { font-size: var(--font-size-xs); color: var(--color-text-secondary); line-height: 1.45; }
+}
+
+.bp__herramientas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.bp__excel,
+.bp__ajuste {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+
+  label.btn { cursor: pointer; }
+  .is-disabled { opacity: 0.6; pointer-events: none; }
+}
+
+.bp__ajuste {
+  label { font-size: var(--font-size-xs); font-weight: 600; color: var(--color-text-secondary); }
+  .input { width: 110px; min-width: 0; }
+}
+
+.bp__buscar { width: 100%; min-width: 0; }
+
+.bp__zonas,
 .bp__lista {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
   gap: 8px;
+  min-width: 0;
+}
+
+.bp__zona {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 8px);
+  background: var(--color-bg);
+  min-width: 0;
+
+  .bp__lista { padding: 0 10px 10px 32px; gap: 6px; }
+}
+
+.bp__zona-fila {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 8px 10px;
+}
+
+.bp__desplegar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+  flex: 1 1 220px;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  text-align: left;
+  cursor: pointer;
+
+  small { color: var(--color-text-secondary); font-size: var(--font-size-xs); }
+}
+
+.bp__chip {
+  padding: 1px 8px;
+  border-radius: var(--radius-full, 999px);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  color: var(--color-primary);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+}
+
+.bp__precio {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  .input { width: 130px; min-width: 0; }
 }
 
 .bp__fila {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding: 10px 12px;
+  gap: 6px 12px;
+  padding: 6px 10px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md, 8px);
-  background: var(--color-bg);
-
-  .bp__editar { flex: 1; }
-}
-
-.bp__info {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
+  background: var(--color-surface);
   min-width: 0;
-  flex-wrap: wrap;
-
-  strong { color: var(--color-text-primary); font-size: var(--font-size-sm); }
 }
 
-.bp__valor {
-  color: var(--color-primary);
+.bp__nombre {
+  min-width: 0;
+  flex: 1 1 160px;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.bp__subtitulo {
+  margin: 8px 0 0;
   font-size: var(--font-size-sm);
   font-weight: 700;
+  color: var(--color-text-primary);
 }
 
-.bp__acciones {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+.bp__nuevo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+
+  @media (min-width: 720px) {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 0.8fr) auto;
+    align-items: center;
+  }
 }
 
 .bp__icono { padding: 6px 8px; }

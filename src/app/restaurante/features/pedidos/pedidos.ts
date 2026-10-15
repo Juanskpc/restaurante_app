@@ -17,6 +17,7 @@ import { aplicarLista } from '../../../core/utils/refresco-vivo';
 import { RealtimeService } from '../../../core/services/realtime.service';
 import { ClientesService, CuentaCliente } from '../../../core/services/clientes.service';
 import { CatalogoCacheService } from '../../../core/services/catalogo-cache.service';
+import { BarrioDomicilio, ConfiguracionService } from '../configuracion/configuracion.service';
 import { SidebarService } from '../../../core/services/sidebar.service';
 import { agruparPorSeccion, GrupoMesas } from '../mesas/mesa-secciones';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
@@ -65,6 +66,22 @@ export interface Categoria {
   total_productos: number;
 }
 
+/** Una adición (topping, extra…) que se puede poner en un producto. */
+export interface OpcionAdicion {
+  id_producto: number;
+  nombre: string;
+  precio: number;
+  disponible: boolean;
+}
+
+/** Una adición puesta en una línea del pedido. `cantidad` es POR UNIDAD del plato. */
+export interface AdicionItem {
+  id_producto: number;
+  nombre: string;
+  precio_unitario: number;
+  cantidad: number;
+}
+
 export interface ItemOrden {
   id_producto: number;
   nombre: string;
@@ -75,6 +92,8 @@ export interface ItemOrden {
   exclusiones: Set<number>;   // id_ingrediente excluidos
   exclusionesNombres?: string[];
   nota: string;
+  /** Adiciones (toppings, extras…) de cada unidad de esta línea. Vacío = sin adiciones. */
+  adiciones?: AdicionItem[];
 }
 
 export interface Mesa {
@@ -101,6 +120,9 @@ interface DetalleExclusionApi {
 }
 
 interface DetallePedidoApi {
+  id_detalle?: number;
+  /** La línea del plato al que va esta adición; null = línea normal. */
+  id_detalle_padre?: number | null;
   id_producto: number;
   cantidad: number;
   precio_unitario: number;
@@ -203,6 +225,7 @@ interface ItemOrdenCache {
   /** Los nombres quitados tal como los guarda Mesas al cobrar (mismo caché, otro nombre de campo). */
   sin?: string[];
   nota?: string;
+  adiciones?: AdicionItem[];
 }
 
 /**
@@ -366,6 +389,19 @@ export class PedidosComponent implements OnInit, OnDestroy {
   readonly itemEditando = signal<ItemOrden | null>(null);
   /** Exclusiones temporales mientras el modal está abierto. */
   readonly exclusionesTemp = signal<Set<number>>(new Set());
+  /** Adiciones temporales mientras el modal está abierto: id → cantidad por unidad. */
+  readonly adicionesTemp = signal<Map<number, number>>(new Map());
+
+  // ── Adiciones / toppings / extras (opt-in del negocio) ──
+  readonly permiteAdiciones = this.auth.permiteAdiciones;
+  readonly terminoAdiciones = this.auth.terminoAdiciones;
+  /** Lo que ofrece cada producto, por id. Sale del catálogo de administración (`/carta/admin/productos`). */
+  readonly adicionesPorProducto = signal<Map<number, OpcionAdicion[]>>(new Map());
+  /** Las adiciones que ofrece el producto de la ventana de personalización. */
+  readonly adicionesEditando = computed(() => {
+    const item = this.itemEditando();
+    return item ? this.adicionesPorProducto().get(item.id_producto) ?? [] : [];
+  });
 
   // Debounce para búsqueda en vivo
   private readonly cobrarAlDespachar = signal(false);
@@ -425,7 +461,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
 
   /** Suma de los productos, sin domicilio. */
   readonly totalProductos = computed(() =>
-    this.items().reduce((sum, i) => sum + i.precio_unitario * i.cantidad, 0)
+    this.items().reduce((sum, i) => sum + this.totalLinea(i), 0)
   );
 
   /**
@@ -444,7 +480,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
   });
 
   readonly totalPagado = computed(() =>
-    this.itemsPagados().reduce((sum, i) => sum + i.precio_unitario * i.cantidad, 0)
+    this.itemsPagados().reduce((sum, i) => sum + this.totalLinea(i), 0)
   );
 
   readonly negocioId = computed(() => this.auth.negocio()?.id_negocio ?? null);
@@ -529,6 +565,8 @@ export class PedidosComponent implements OnInit, OnDestroy {
 
     this.hidratarItemsPagadosMesa();
     this.loadCategorias();
+    this.loadAdiciones();
+    this.loadBarriosDomicilio();
     this.loadMesas();
     this.loadMetodosPago();
     this.loadDomiciliarios();
@@ -882,7 +920,37 @@ export class PedidosComponent implements OnInit, OnDestroy {
 
   toggleCobrarDomicilio(activar: boolean): void {
     this.cobrarDomicilio.set(activar);
-    if (!activar) this.valorDomicilioInput.set('');
+    if (!activar) {
+      this.valorDomicilioInput.set('');
+      this.barrioDomicilioTexto.set('');
+    }
+  }
+
+  // ── Barrio del domicilio: llena el valor solo (Configuración → Cobros → Barrios y veredas) ──
+  private readonly configuracionApi = inject(ConfiguracionService);
+  /** Los barrios con precio (propio o de su zona). Vacío = el valor se escribe a mano, como siempre. */
+  readonly barriosDomicilio = signal<BarrioDomicilio[]>([]);
+  readonly barrioDomicilioTexto = signal('');
+
+  /** Lo que muestra la lista del campo: «Centro · Comuna 1 — $5.000». */
+  etiquetaBarrio(b: BarrioDomicilio): string {
+    return `${b.nombre}${b.zona ? ` · ${b.zona}` : ''} — ${this.formatCurrency(b.valor_efectivo ?? 0)}`;
+  }
+
+  private loadBarriosDomicilio(): void {
+    const id = this.negocioId();
+    if (!id || !this.permitePagoDomicilio()) return;
+    this.configuracionApi.listarBarrios(id).subscribe({
+      next: (lista) => this.barriosDomicilio.set(lista.filter((b) => b.valor_efectivo != null)),
+      error: () => this.barriosDomicilio.set([]),
+    });
+  }
+
+  /** Al elegir un barrio de la lista, su precio pasa al valor del domicilio (se puede corregir a mano). */
+  elegirBarrioDomicilio(texto: string): void {
+    this.barrioDomicilioTexto.set(texto);
+    const barrio = this.barriosDomicilio().find((b) => this.etiquetaBarrio(b) === texto);
+    if (barrio) this.valorDomicilioInput.set(String(barrio.valor_efectivo));
   }
 
   setValorDomicilio(rawValue: string): void {
@@ -1078,13 +1146,15 @@ export class PedidosComponent implements OnInit, OnDestroy {
 
   agregarProducto(producto: Producto): void {
     const current = this.items();
-    const existing = current.find(i => i.id_producto === producto.id_producto && i.exclusiones.size === 0);
+    const existing = current.find(i =>
+      i.id_producto === producto.id_producto && i.exclusiones.size === 0 && !(i.adiciones?.length)
+    );
+    let agregado: ItemOrden;
     if (existing) {
-      this.items.set(current.map(i =>
-        i === existing ? { ...i, cantidad: i.cantidad + 1 } : i
-      ));
+      agregado = { ...existing, cantidad: existing.cantidad + 1 };
+      this.items.set(current.map(i => (i === existing ? agregado : i)));
     } else {
-      this.items.set([...current, {
+      agregado = {
         id_producto: producto.id_producto,
         nombre: producto.nombre,
         icono: producto.icono,
@@ -1093,9 +1163,100 @@ export class PedidosComponent implements OnInit, OnDestroy {
         ingredientes: producto.ingredientes,
         exclusiones: new Set<number>(),
         nota: '',
-      }]);
+        adiciones: [],
+      };
+      this.items.set([...current, agregado]);
     }
+    // Si el producto ofrece adiciones, se pregunta en el acto: es justo cuando el cliente las
+    // pide. «Listo» sin marcar nada lo deja tal cual.
+    if (this.tieneAdiciones(producto.id_producto)) this.abrirPersonalizacion(agregado);
     // En móvil mostrar badge animado
+  }
+
+  // ===================== Adiciones =====================
+
+  /**
+   * Lo que ofrece cada producto, desde el catálogo de administración (misma petición y misma
+   * caché que los ingredientes). Solo con el negocio en adiciones.
+   */
+  private loadAdiciones(): void {
+    const id = this.negocioId();
+    if (!id || !this.permiteAdiciones()) return;
+    this.catalogo.productosConIngredientes(id).subscribe({
+      next: (lista) => {
+        const porId = new Map((lista ?? []).map((p) => [p.id_producto, p]));
+        const mapa = new Map<number, OpcionAdicion[]>();
+        for (const p of lista ?? []) {
+          const opciones = [...(p.adiciones ?? [])]
+            .sort((a, b) => a.orden - b.orden)
+            .map((a) => porId.get(a.id_adicion))
+            .filter((a): a is NonNullable<typeof a> => !!a && a.es_adicion === true)
+            .map((a) => ({
+              id_producto: a.id_producto,
+              nombre: a.nombre ?? `#${a.id_producto}`,
+              precio: Number(a.precio ?? 0),
+              disponible: a.disponible !== false,
+            }));
+          if (opciones.length) mapa.set(p.id_producto, opciones);
+        }
+        this.adicionesPorProducto.set(mapa);
+      },
+      error: () => this.adicionesPorProducto.set(new Map()),
+    });
+  }
+
+  tieneAdiciones(idProducto: number): boolean {
+    return this.permiteAdiciones() && (this.adicionesPorProducto().get(idProducto)?.length ?? 0) > 0;
+  }
+
+  /** Lo que cuesta una unidad con sus adiciones. */
+  precioConAdiciones(item: ItemOrden): number {
+    return item.precio_unitario + (item.adiciones ?? []).reduce((s, a) => s + a.precio_unitario * a.cantidad, 0);
+  }
+
+  /** Total de la línea: (precio + adiciones) × cantidad. */
+  totalLinea(item: ItemOrden): number {
+    return this.precioConAdiciones(item) * item.cantidad;
+  }
+
+  /** «+ Queso, + 2 Tocineta» para pintar debajo del producto. */
+  textoAdiciones(item: ItemOrden): string {
+    return (item.adiciones ?? [])
+      .map((a) => (a.cantidad > 1 ? `+ ${a.cantidad} ${a.nombre}` : `+ ${a.nombre}`))
+      .join(', ');
+  }
+
+  cantidadAdicionTemp(idAdicion: number): number {
+    return this.adicionesTemp().get(idAdicion) ?? 0;
+  }
+
+  /** Suma o resta una unidad de una adición en la ventana (0 = quitada, tope 10). */
+  cambiarAdicionTemp(idAdicion: number, delta: number): void {
+    const mapa = new Map(this.adicionesTemp());
+    const nueva = Math.max(0, Math.min(10, (mapa.get(idAdicion) ?? 0) + delta));
+    if (nueva === 0) mapa.delete(idAdicion);
+    else mapa.set(idAdicion, nueva);
+    this.adicionesTemp.set(mapa);
+  }
+
+  /** Lo marcado en la ventana, como adiciones de la línea, en el orden en que el producto las ofrece. */
+  private adicionesDesdeTemp(idProducto: number): AdicionItem[] {
+    const temp = this.adicionesTemp();
+    return (this.adicionesPorProducto().get(idProducto) ?? [])
+      .filter((o) => temp.has(o.id_producto))
+      .map((o) => ({
+        id_producto: o.id_producto,
+        nombre: o.nombre,
+        precio_unitario: o.precio,
+        cantidad: temp.get(o.id_producto) ?? 1,
+      }));
+  }
+
+  private firmaAdiciones(adiciones: AdicionItem[] | undefined): string {
+    return (adiciones ?? [])
+      .map((a) => `${a.id_producto}x${a.cantidad}`)
+      .sort()
+      .join('.');
   }
 
   incrementar(item: ItemOrden): void {
@@ -1558,8 +1719,26 @@ export class PedidosComponent implements OnInit, OnDestroy {
     if (detalles.some(d => !this.ingredientesPorProducto.has(d.id_producto))) {
       this.completarIngredientes();
     }
-    return detalles.map(det => {
+    // Las líneas que son adiciones de otra se pliegan dentro de su plato (por unidad). Si el
+    // plato no viniera —no debería pasar—, la adición se deja como una línea más para no perderla.
+    const ids = new Set(detalles.map((d) => d.id_detalle).filter((id): id is number => id != null));
+    const hijos = new Map<number, DetallePedidoApi[]>();
+    for (const d of detalles) {
+      if (d.id_detalle_padre != null && ids.has(d.id_detalle_padre)) {
+        hijos.set(d.id_detalle_padre, [...(hijos.get(d.id_detalle_padre) ?? []), d]);
+      }
+    }
+    return detalles
+      .filter((d) => !(d.id_detalle_padre != null && ids.has(d.id_detalle_padre)))
+      .map(det => {
       const exclusiones = det.exclusiones ?? [];
+      const unidades = Math.max(1, Number(det.cantidad ?? 1));
+      const adiciones: AdicionItem[] = (det.id_detalle != null ? hijos.get(det.id_detalle) ?? [] : []).map((h) => ({
+        id_producto: h.id_producto,
+        nombre: h.producto?.nombre ?? `#${h.id_producto}`,
+        precio_unitario: Number(h.precio_unitario ?? h.producto?.precio ?? 0),
+        cantidad: Math.max(1, Math.round(Number(h.cantidad ?? 1) / unidades)),
+      }));
       const exclusionesNombres = exclusiones
         .map(excl => excl.ingrediente?.nombre)
         .filter((nombre): nombre is string => Boolean(nombre));
@@ -1574,6 +1753,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
         exclusiones: new Set<number>(exclusiones.map(excl => excl.id_ingrediente)),
         exclusionesNombres,
         nota: det.nota ?? '',
+        adiciones,
       };
     });
   }
@@ -1584,6 +1764,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
       ingredientes: [...item.ingredientes],
       exclusiones: new Set(item.exclusiones),
       exclusionesNombres: item.exclusionesNombres ? [...item.exclusionesNombres] : undefined,
+      adiciones: (item.adiciones ?? []).map((a) => ({ ...a })),
     }));
   }
 
@@ -1597,12 +1778,14 @@ export class PedidosComponent implements OnInit, OnDestroy {
   abrirPersonalizacion(item: ItemOrden): void {
     this.itemEditando.set(item);
     this.exclusionesTemp.set(new Set(item.exclusiones));
+    this.adicionesTemp.set(new Map((item.adiciones ?? []).map((a) => [a.id_producto, a.cantidad])));
   }
 
   /** Cierra el modal descartando cambios (botón X o clic en overlay). */
   cerrarPersonalizacion(): void {
     this.itemEditando.set(null);
     this.exclusionesTemp.set(new Set());
+    this.adicionesTemp.set(new Map());
   }
 
   /** Alterna un ingrediente en el estado temporal del modal. */
@@ -1628,10 +1811,12 @@ export class PedidosComponent implements OnInit, OnDestroy {
 
     const newExcl = this.exclusionesTemp();
     const oldExcl = item.exclusiones;
+    const nuevasAdiciones = this.adicionesDesdeTemp(item.id_producto);
     const cambio =
       newExcl.size !== oldExcl.size ||
       [...newExcl].some(id => !oldExcl.has(id)) ||
-      [...oldExcl].some(id => !newExcl.has(id));
+      [...oldExcl].some(id => !newExcl.has(id)) ||
+      this.firmaAdiciones(nuevasAdiciones) !== this.firmaAdiciones(item.adiciones);
 
     if (!cambio) {
       this.cerrarPersonalizacion();
@@ -1646,6 +1831,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
         exclusiones: new Set(newExcl),
         exclusionesNombres: undefined,
         nota: '',
+        adiciones: nuevasAdiciones,
       };
       const current = this.items();
       const idx = current.indexOf(item);
@@ -1655,7 +1841,9 @@ export class PedidosComponent implements OnInit, OnDestroy {
       this.items.set(newItems);
     } else {
       this.items.set(this.items().map(i =>
-        i === item ? { ...i, exclusiones: new Set(newExcl), exclusionesNombres: undefined } : i
+        i === item
+          ? { ...i, exclusiones: new Set(newExcl), exclusionesNombres: undefined, adiciones: nuevasAdiciones }
+          : i
       ));
     }
 
@@ -2212,6 +2400,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
     precio_unitario: number;
     nota: string | null;
     exclusiones: number[];
+    adiciones?: Array<{ id_producto: number; cantidad: number }>;
   }> {
     return items.map(i => ({
       id_producto: i.id_producto,
@@ -2219,12 +2408,18 @@ export class PedidosComponent implements OnInit, OnDestroy {
       precio_unitario: i.precio_unitario,
       nota: i.nota || null,
       exclusiones: Array.from(i.exclusiones),
+      // Por unidad; el precio lo pone el servidor. Solo si hay: un pedido sin adiciones viaja
+      // exactamente igual que antes.
+      ...(i.adiciones?.length
+        ? { adiciones: i.adiciones.map((a) => ({ id_producto: a.id_producto, cantidad: a.cantidad })) }
+        : {}),
     }));
   }
 
   private getItemKey(item: ItemOrden): string {
     const excl = Array.from(item.exclusiones).sort((a, b) => a - b).join(',');
-    return `${item.id_producto}|${excl}|${item.nota.trim()}`;
+    // Misma clave que `quitarItemsOrden` en el backend: producto + exclusiones + nota + adiciones.
+    return `${item.id_producto}|${excl}|${item.nota.trim()}|${this.firmaAdiciones(item.adiciones)}`;
   }
 
   private agruparItems(items: ItemOrden[]): Map<string, ItemOrden> {
@@ -2244,6 +2439,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
         ingredientes: [...item.ingredientes],
         exclusiones: new Set(item.exclusiones),
         exclusionesNombres: item.exclusionesNombres ? [...item.exclusionesNombres] : undefined,
+        adiciones: (item.adiciones ?? []).map((a) => ({ ...a })),
       });
     }
 
@@ -2516,6 +2712,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
           // mesa se veía como un pedido normal en esta pantalla.
           exclusionesNombres: this.nombresQuitadosDelCache(item),
           nota: item.nota ?? '',
+          adiciones: Array.isArray(item.adiciones) ? item.adiciones : [],
         }));
       }
 
@@ -2553,6 +2750,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
           exclusiones: Array.from(item.exclusiones),
           exclusionesNombres: this.nombresQuitados(item),
           nota: item.nota,
+          adiciones: item.adiciones ?? [],
         }));
       }
 
@@ -2703,7 +2901,11 @@ export class PedidosComponent implements OnInit, OnDestroy {
       : '';
 
     const filasItems = this.items().map(item => {
-      const totalLinea = item.cantidad * item.precio_unitario;
+      const totalLinea = this.totalLinea(item);
+      const adicionesTexto = this.textoAdiciones(item);
+      const adicionesHtml = adicionesTexto
+        ? `<tr><td></td><td colspan="3" class="item-meta">${this.escapeHtml(adicionesTexto)}</td></tr>`
+        : '';
       const exclusiones = this.getExclusionNames(item);
       const exclusionesHtml = exclusiones
         ? `<tr><td></td><td colspan="3" class="item-meta">Sin: ${this.escapeHtml(exclusiones)}</td></tr>`
@@ -2717,9 +2919,10 @@ export class PedidosComponent implements OnInit, OnDestroy {
         <tr>
           <td>${item.cantidad}</td>
           <td>${this.escapeHtml(item.nombre)}</td>
-          <td>${this.formatCurrency(item.precio_unitario)}</td>
+          <td>${this.formatCurrency(this.precioConAdiciones(item))}</td>
           <td class="text-right">${this.formatCurrency(totalLinea)}</td>
         </tr>
+        ${adicionesHtml}
         ${exclusionesHtml}
         ${notaItemHtml}
       `;

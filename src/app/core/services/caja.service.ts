@@ -135,6 +135,8 @@ export interface ItemOrden {
   nota: string | null;
   /** Ingredientes que el cliente pidió quitar. */
   sin: string[];
+  /** Es una adición (topping, extra…) del plato de la línea anterior. */
+  es_adicion?: boolean;
 }
 
 export interface OrdenItems {

@@ -19,7 +19,10 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
 import { catchError, forkJoin, of } from 'rxjs';
 
-import { CarritoService, MesaElegida, Modalidad, claveLinea } from './carrito.service';
+import {
+  CarritoService, MAX_POR_ADICION, MesaElegida, Modalidad, claveLinea, precioUnidad, textoAdiciones,
+} from './carrito.service';
+import { terminoAdicion } from '../../../core/utils/terminos-adicion';
 import {
   CampoCliente,
   ETIQUETAS,
@@ -61,6 +64,16 @@ interface ProductoPublico {
   disponible?: boolean;
   /** Solo lo que se puede quitar (id y nombre): sin cantidades, stock ni costos. Puede faltar con un backend anterior. */
   ingredientes_removibles?: { id_ingrediente: number; nombre: string }[];
+  /** Lo que se le puede agregar (toppings, extras…), con su precio. Vacío si el negocio no las usa. */
+  adiciones?: AdicionPublica[];
+}
+
+interface AdicionPublica {
+  id_producto: number;
+  nombre: string;
+  descripcion: string | null;
+  precio: number;
+  disponible: boolean;
 }
 
 /** Barrio con su precio de domicilio, tal como lo devuelve `/public/negocios/:id/barrios`. */
@@ -68,6 +81,8 @@ interface BarrioPublico {
   id_barrio: number;
   nombre: string;
   valor: number;
+  /** Su comuna o corregimiento; `null` en un barrio suelto. Puede faltar con un backend anterior. */
+  zona?: string | null;
 }
 
 /**
@@ -150,6 +165,8 @@ export function mensajeFueraDeHorario(estado: EstadoAtencion, abre?: ProximaAper
 interface NegocioPublico {
   id_negocio: number;
   nombre: string;
+  /** Cómo llama el negocio a las adiciones (código de `core/utils/terminos-adicion.ts`). */
+  termino_adiciones?: string;
   direccion: string | null;
   telefono: string | null;
   url_whatsapp: string | null;
@@ -283,6 +300,39 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
     () => this.barriosInfo().habilitado && this.barriosInfo().barrios.length > 0,
   );
   readonly hayMesas = computed(() => this.mesas().length > 0);
+
+  /** Lo que el cliente escribe para encontrar su barrio (con la ciudad entera cargada son cientos). */
+  readonly buscarBarrio = signal('');
+  /** Con pocos barrios se listan todos; con más, hay buscador. */
+  readonly barriosConBuscador = computed(() => this.barriosInfo().barrios.length > 12);
+
+  /**
+   * Los barrios que se muestran, agrupados por zona en el orden en que llegan. Con buscador y sin
+   * nada escrito no se muestra ninguno: 500 botones no ayudan a nadie a encontrar el suyo.
+   */
+  readonly barriosVisibles = computed(() => {
+    const todos = this.barriosInfo().barrios;
+    const q = this.normalizarBusqueda(this.buscarBarrio());
+    const lista = !this.barriosConBuscador()
+      ? todos
+      : q.length < 2
+        ? []
+        : todos
+            .filter((b) => this.normalizarBusqueda(`${b.nombre} ${b.zona ?? ''}`).includes(q))
+            .slice(0, 40);
+    const grupos: { zona: string | null; barrios: BarrioPublico[] }[] = [];
+    for (const b of lista) {
+      const zona = b.zona ?? null;
+      const ultimo = grupos[grupos.length - 1];
+      if (ultimo && ultimo.zona === zona) ultimo.barrios.push(b);
+      else grupos.push({ zona, barrios: [b] });
+    }
+    return grupos;
+  });
+
+  private normalizarBusqueda(texto: string): string {
+    return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  }
 
   // ── ¿Dónde quieres pedir? ─────────────────────────────────────────────────────────────
   //
@@ -433,7 +483,12 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
   elegirBarrio(barrio: BarrioPublico | null): void {
     this.carrito.elegirBarrio(
       barrio
-        ? { id_barrio: barrio.id_barrio, nombre: barrio.nombre, valor: barrio.valor }
+        ? {
+            id_barrio: barrio.id_barrio,
+            // Con su zona: «San José» existe en varias.
+            nombre: barrio.zona ? `${barrio.nombre} (${barrio.zona})` : barrio.nombre,
+            valor: barrio.valor,
+          }
         : { id_barrio: 0, nombre: 'Otro barrio', valor: null },
     );
   }
@@ -903,10 +958,10 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
       this.avisarCerrado();
       return;
     }
-    // Con ingredientes que se pueden quitar, el «+» abre SIEMPRE el modal (aunque ya haya líneas
-    // de ese producto): quien pide una segunda hamburguesa puede querer otra distinta. Sin
-    // removibles se agrega directo, como siempre.
-    if (this.removiblesDe(prod).length > 0) {
+    // Con ingredientes que se pueden quitar o adiciones (toppings, extras…), el «+» abre SIEMPRE
+    // el modal (aunque ya haya líneas de ese producto): quien pide una segunda hamburguesa puede
+    // querer otra distinta. Sin nada que elegir se agrega directo, como siempre.
+    if (this.removiblesDe(prod).length > 0 || this.adicionesDe(prod).length > 0) {
       this.abrirModalIngredientes(prod);
       return;
     }
@@ -933,6 +988,39 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
     return exclusiones.map((e) => `sin ${e.nombre}`).join(', ');
   }
 
+  protected textoAdiciones = textoAdiciones;
+  protected precioUnidad = precioUnidad;
+
+  /** Cómo llama el negocio a las adiciones («Toppings», «Extras»…). */
+  readonly terminoAdiciones = computed(() => terminoAdicion(this.negocio()?.termino_adiciones));
+
+  /** Adiciones elegidas en el modal: id → cantidad por unidad. */
+  readonly adicionSel = signal<ReadonlyMap<number, number>>(new Map());
+
+  protected adicionesDe(prod: ProductoPublico): AdicionPublica[] {
+    return prod.adiciones ?? [];
+  }
+
+  cantidadAdicion(idAdicion: number): number {
+    return this.adicionSel().get(idAdicion) ?? 0;
+  }
+
+  cambiarAdicion(idAdicion: number, delta: number): void {
+    const nuevo = new Map(this.adicionSel());
+    const n = Math.max(0, Math.min(MAX_POR_ADICION, (nuevo.get(idAdicion) ?? 0) + delta));
+    if (n === 0) nuevo.delete(idAdicion);
+    else nuevo.set(idAdicion, n);
+    this.adicionSel.set(nuevo);
+  }
+
+  /** Lo que cuesta el plato con lo elegido en el modal, para el botón «Agregar · $…». */
+  readonly precioModal = computed(() => {
+    const prod = this.modalProducto();
+    if (!prod) return 0;
+    const sel = this.adicionSel();
+    return prod.precio + this.adicionesDe(prod).reduce((s, a) => s + a.precio * (sel.get(a.id_producto) ?? 0), 0);
+  });
+
   // ── Modal «¿quitar algún ingrediente?» ────────────────────────────────────────────────
   //
   // Se abre desde el «+» de un producto con ingredientes removibles. Todos vienen incluidos;
@@ -953,6 +1041,7 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
       this.focoPrevio = this.document.activeElement as HTMLElement | null;
     }
     this.quitarSel.set(new Set());
+    this.adicionSel.set(new Map());
     this.modalProducto.set(prod);
     if (isPlatformBrowser(this.platformId)) {
       // El foco entra al diálogo en cuanto se pinta.
@@ -979,9 +1068,14 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
     const prod = this.modalProducto();
     if (!prod) return;
     const quitados = this.removiblesDe(prod).filter((r) => this.quitarSel().has(r.id_ingrediente));
+    const sel = this.adicionSel();
+    const adiciones = this.adicionesDe(prod)
+      .filter((a) => a.disponible && (sel.get(a.id_producto) ?? 0) > 0)
+      .map((a) => ({ id_producto: a.id_producto, nombre: a.nombre, precio: a.precio, cantidad: sel.get(a.id_producto)! }));
     this.carrito.agregar(
       { id_producto: prod.id_producto, nombre: prod.nombre, precio: prod.precio },
       quitados,
+      adiciones,
     );
     this.cerrarModalIngredientes();
   }
@@ -1122,7 +1216,7 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
   /** ¿Este producto tiene ingredientes que se puedan quitar? (para «+ Otra con cambios»). */
   protected tieneRemovibles(idProducto: number): boolean {
     const prod = this.productoPorId().get(idProducto);
-    return !!prod && this.removiblesDe(prod).length > 0;
+    return !!prod && (this.removiblesDe(prod).length > 0 || this.adicionesDe(prod).length > 0);
   }
 
   /** Otra unidad DISTINTA de un producto que ya está en el pedido: abre el modal de ingredientes. */

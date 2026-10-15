@@ -4,6 +4,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
+import { terminoAdicion } from '../utils/terminos-adicion';
 
 // ============================================================
 // Interfaces de sesión
@@ -77,6 +78,10 @@ export interface NegocioRestaurante {
   permite_cuentas_cliente?: boolean;
   controla_inventario?: boolean;
   muestra_iconos_productos?: boolean;
+  /** Opt-in: los productos ofrecen adiciones (toppings, extras…) que se cobran aparte. */
+  permite_adiciones?: boolean;
+  /** Cómo las llama el negocio: código de `core/utils/terminos-adicion.ts`. */
+  termino_adiciones?: string;
   /**
    * ¿Este negocio tiene las promociones masivas encendidas?
    *
@@ -367,6 +372,13 @@ export class AuthService {
    * cargada y al que el aviso de stock solo le estorbaba.
    */
   readonly controlaInventario = computed(() => this.negocio()?.controla_inventario !== false);
+
+  /**
+   * ¿Los productos ofrecen adiciones (toppings, extras…)? Opt-in: ausente se lee como apagado.
+   * `terminoAdiciones` es la palabra con la que el negocio las nombra en todas las pantallas.
+   */
+  readonly permiteAdiciones = computed(() => this.negocio()?.permite_adiciones === true);
+  readonly terminoAdiciones = computed(() => terminoAdicion(this.negocio()?.termino_adiciones));
 
   /**
    * ¿Pedidos lista los productos con su icono?

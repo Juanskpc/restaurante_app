@@ -444,6 +444,52 @@ describe('CarritoService', () => {
     });
   });
 
+  describe('adiciones (toppings, extras…) — líneas distintas y el código «-a»', () => {
+    const queso = { id_producto: 31, nombre: 'Queso', precio: 3000, cantidad: 1 };
+    const tocineta = { id_producto: 40, nombre: 'Tocineta', precio: 4000, cantidad: 2 };
+
+    it('«una con queso» y «una con todo» son dos líneas; dos iguales se suman', () => {
+      carrito.agregar(hamburguesa, [], [queso]);
+      carrito.agregar(hamburguesa);
+      carrito.agregar(hamburguesa, [], [queso]);
+
+      expect(carrito.items().length).toBe(2);
+      expect(carrito.items()[0].cantidad).toBe(2);
+      expect(carrito.cantidadDe(hamburguesa.id_producto)).toBe(3);
+    });
+
+    it('el total suma las adiciones por cada unidad', () => {
+      carrito.agregar(hamburguesa, [], [queso, tocineta]);
+      carrito.agregar(hamburguesa, [], [queso, tocineta]);
+
+      expect(carrito.total()).toBe((32000 + 3000 + 4000 * 2) * 2);
+    });
+
+    it('el código lleva -a después de -r, con el id repetido por cada unidad de la adición', () => {
+      carrito.agregar(hamburguesa, [{ id_ingrediente: 12, nombre: 'cebolla' }], [tocineta, queso]);
+      carrito.agregar(limonada);
+
+      expect(carrito.codigoCompacto()).toBe('#P12-39x1-r12-a31.40.40,41x1');
+    });
+
+    it('sin adiciones el código es el de siempre', () => {
+      carrito.agregar(hamburguesa);
+      expect(carrito.codigoCompacto()).toBe('#P12-39x1');
+    });
+
+    it('el mensaje legible las nombra', () => {
+      carrito.agregar(hamburguesa, [], [tocineta]);
+      expect(carrito.mensajeParaWhatsApp()).toContain('• 1 × Hamburguesa doble (+ 2 Tocineta)');
+    });
+
+    it('sobreviven a recargar la página', () => {
+      carrito.agregar(hamburguesa, [], [queso]);
+      const otro = TestBed.inject(CarritoService);
+      otro.iniciar(12);
+      expect(otro.items()[0].adiciones).toEqual([queso]);
+    });
+  });
+
   describe('datos del cliente en el mensaje', () => {
     const datos = {
       nombre: 'Ana Pérez',

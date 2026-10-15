@@ -398,6 +398,8 @@
 .badge-popular    { background: rgba(21,101,192,0.15); color: var(--color-primary); }
 .badge-available  { background: var(--color-success-bg); color: var(--color-success); }
 .badge-unavailable{ background: var(--color-error-bg);   color: var(--color-error); }
+// Una adición (topping, extra…): tono de la marca, para distinguirla sin alarmar.
+.badge-adicion    { background: color-mix(in srgb, var(--color-primary) 12%, transparent); color: var(--color-primary); }
 
 .product-info {
   padding: var(--spacing-md);
@@ -854,6 +856,71 @@
 }
 
 .toggle-sm { width: 24px; height: 24px; }
+
+// ─── Adiciones / toppings / extras ────────────────────────────
+.adic {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.adic__es {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  cursor: pointer;
+
+  input { margin-top: 3px; }
+  span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  strong { font-size: var(--font-size-sm); font-weight: 600; }
+  small { font-size: var(--font-size-xs); color: var(--color-text-secondary); }
+}
+
+.adic__lista {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
+  gap: var(--spacing-xs);
+}
+
+.adic__opcion {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+
+  &--on {
+    border-color: var(--color-primary);
+    background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+  }
+}
+
+.adic__nombre { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adic__precio { color: var(--color-text-secondary); font-size: var(--font-size-xs); white-space: nowrap; }
+.adic__agotada { color: var(--color-error); font-size: var(--font-size-xs); font-weight: 600; }
+
+.adic__vacio {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.adic__nueva {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+  align-items: center;
+
+  .form-input { flex: 1 1 180px; min-width: 0; }
+  .adic__nueva-precio { flex: 0 1 120px; }
+}
 
 // ─── Sección ingredientes en el form ─────────────────────────
 .section-divider {

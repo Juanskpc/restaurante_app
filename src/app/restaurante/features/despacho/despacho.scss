@@ -1069,6 +1069,13 @@
 }
 
 // Productos listados dentro de la tarjeta, sin abrir el detalle.
+// Adición (topping, extra…): sangrada bajo su plato y en el color de la marca.
+.card-productos li.adicion,
+.items-list li.adicion {
+  padding-left: 18px;
+  color: var(--color-primary);
+}
+
 .card-productos .sin {
   font-style: normal;
   font-weight: 600;

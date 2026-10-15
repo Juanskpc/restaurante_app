@@ -230,9 +230,9 @@
             @if (verProductos() && (p.detalles ?? []).length > 0) {
               <ul class="card-productos">
                 @for (d of p.detalles ?? []; track $index) {
-                  <li>
+                  <li [class.adicion]="d.id_detalle_padre != null">
                     <span class="qty">{{ d.cantidad }}×</span>
-                    <span class="ellipsis">{{ d.producto?.nombre || '(Producto)' }}@if (textoSin(d); as sin) { <em class="sin">· sin {{ sin }}</em> }</span>
+                    <span class="ellipsis">@if (d.id_detalle_padre != null) {+ }{{ d.producto?.nombre || '(Producto)' }}@if (textoSin(d); as sin) { <em class="sin">· sin {{ sin }}</em> }</span>
                   </li>
                 }
               </ul>
@@ -628,10 +628,10 @@
             <h4>Productos</h4>
             <ul class="items-list">
               @for (d of p.detalles ?? []; track $index) {
-                <li>
+                <li [class.adicion]="d.id_detalle_padre != null">
                   <span class="qty">{{ d.cantidad }}×</span>
                   <span class="nombre">
-                    {{ d.producto?.nombre || '(Producto)' }}
+                    @if (d.id_detalle_padre != null) {+ }{{ d.producto?.nombre || '(Producto)' }}
                     @if (textoSin(d); as sin) {
                       <small class="sin">Sin {{ sin }}</small>
                     }

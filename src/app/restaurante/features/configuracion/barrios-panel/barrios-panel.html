@@ -1,105 +1,240 @@
 <article class="panel panel--wide bp" id="barrios">
   <header>
-    <h2>Barrios y valor del domicilio</h2>
+    <h2>Barrios y veredas</h2>
     <p class="hint">
-      La carta virtual le pide el barrio a quien pide a domicilio y le muestra lo que cuesta llevarle
-      el pedido. Si no aparece en tu lista, puede elegir «Otro barrio»: el pedido entra sin valor de
-      domicilio y tú se lo confirmas.
+      El precio del domicilio a cada zona de la ciudad. Ponle precio a la <strong>comuna o
+      corregimiento</strong> y todos sus barrios y veredas lo toman; si uno cuesta distinto, escríbele
+      su propio precio. Una zona sin precio no se le ofrece al cliente: déjala vacía si no llevas allá.
+      La carta virtual y el asistente de WhatsApp usan esta lista para sumar el domicilio al pedido.
     </p>
   </header>
 
-  @if (canEdit()) {
-    <div class="bp__nuevo">
-      <input
-        class="input"
-        type="text"
-        maxlength="100"
-        placeholder="Barrio (ej: Centro)"
-        [value]="nuevoNombre()"
-        (input)="nuevoNombre.set($any($event.target).value)"
-        (keydown.enter)="crear()"
-      />
-      <input
-        class="input"
-        type="text"
-        inputmode="numeric"
-        maxlength="9"
-        placeholder="Valor (ej: 4000)"
-        [value]="nuevoValor()"
-        (input)="nuevoValor.set($any($event.target).value)"
-        (keydown.enter)="crear()"
-      />
-      <button
-        type="button"
-        class="btn btn--primary"
-        [disabled]="guardando() || !puedeCrear()"
-        (click)="crear()"
-      >
-        <lucide-icon name="circle-plus" [size]="16" /> Agregar
-      </button>
-    </div>
+  @if (!pagoDomicilioActivo()) {
+    <p class="bp__aviso">
+      <lucide-icon name="info" [size]="15" aria-hidden="true" />
+      El cobro de domicilio está apagado (Operación → «Cobrar valor del domicilio»). Puedes dejar los
+      precios listos; la carta y el asistente los usan cuando lo enciendas.
+    </p>
   }
 
   @if (cargando()) {
     <p class="bp__muted">Cargando…</p>
   } @else if (error()) {
     <p class="bp__error">{{ error() }}</p>
-  } @else if (barrios().length === 0) {
-    <p class="bp__muted">Aún no tienes barrios. Sin ellos, el domicilio se cobra como hasta ahora.</p>
   } @else {
-    <ul class="bp__lista">
-      @for (b of barrios(); track b.id_barrio) {
-        <li class="bp__fila">
-          @if (editandoId() === b.id_barrio) {
-            <div class="bp__editar">
-              <input
-                class="input"
-                type="text"
-                maxlength="100"
-                [value]="editandoNombre()"
-                (input)="editandoNombre.set($any($event.target).value)"
-                (keydown.enter)="guardarEdicion()"
-              />
+    @if (canEdit()) {
+      <!-- Empezar: el listado de la ciudad, sin precios. -->
+      @if (ciudad() && zonas().length === 0) {
+        <div class="bp__empezar">
+          <div>
+            <strong>Empieza con el listado de {{ ciudad() }}</strong>
+            <span>{{ catalogos()[0].zonas }} comunas y corregimientos con sus {{ catalogos()[0].lugares }}
+              barrios y veredas, sin precio. Luego le pones precio a cada zona aquí o en Excel.</span>
+          </div>
+          <button type="button" class="btn btn--primary" [disabled]="guardando()" (click)="cargarCatalogo()">
+            <lucide-icon name="download" [size]="16" aria-hidden="true" /> Cargar listado de {{ ciudad() }}
+          </button>
+        </div>
+      }
+
+      <div class="bp__herramientas">
+        <div class="bp__excel">
+          <button type="button" class="btn btn--outline" (click)="descargarPlantilla()">
+            <lucide-icon name="file-down" [size]="16" aria-hidden="true" /> Descargar Excel
+          </button>
+          <label class="btn btn--outline" [class.is-disabled]="guardando()">
+            <lucide-icon name="file-up" [size]="16" aria-hidden="true" /> Subir Excel
+            <input type="file" accept=".xlsx" hidden [disabled]="guardando()" (change)="subirPlantilla($event)" />
+          </label>
+          @if (ciudad() && zonas().length > 0) {
+            <button type="button" class="btn btn--outline" [disabled]="guardando()" (click)="cargarCatalogo()">
+              Completar con el listado de {{ ciudad() }}
+            </button>
+          }
+        </div>
+
+        @if (conPrecio() > 0) {
+          <div class="bp__ajuste">
+            <label for="bp-ajuste">Cambiar todos los domicilios en</label>
+            <input
+              id="bp-ajuste"
+              class="input"
+              type="text"
+              inputmode="numeric"
+              maxlength="9"
+              placeholder="1000"
+              [value]="ajusteMonto()"
+              (input)="ajusteMonto.set($any($event.target).value)"
+            />
+            <button type="button" class="btn btn--outline" [disabled]="guardando() || !aNumero(ajusteMonto())"
+                    (click)="ajustarTodos(1)">
+              <lucide-icon name="plus" [size]="14" aria-hidden="true" /> Subir
+            </button>
+            <button type="button" class="btn btn--outline" [disabled]="guardando() || !aNumero(ajusteMonto())"
+                    (click)="ajustarTodos(-1)">
+              <lucide-icon name="minus" [size]="14" aria-hidden="true" /> Bajar
+            </button>
+          </div>
+        }
+      </div>
+    }
+
+    @if (barrios().length > 0) {
+      <input
+        class="input bp__buscar"
+        type="search"
+        placeholder="Buscar barrio, vereda, comuna o corregimiento…"
+        [value]="busqueda()"
+        (input)="busqueda.set($any($event.target).value)"
+      />
+      <p class="bp__muted">{{ conPrecio() }} de {{ barrios().length }} barrios y veredas con precio.</p>
+    }
+
+    <!-- Zonas: una fila por comuna/corregimiento, con su precio y sus barrios desplegables. -->
+    @if (grupos().length > 0) {
+      <ul class="bp__zonas">
+        @for (g of grupos(); track g.zona.id_zona_domicilio) {
+          <li class="bp__zona">
+            <div class="bp__zona-fila">
+              <button type="button" class="bp__desplegar" [attr.aria-expanded]="g.abierta"
+                      (click)="alternarZona(g.zona.id_zona_domicilio)">
+                <lucide-icon [name]="g.abierta ? 'chevron-down' : 'chevron-right'" [size]="16" aria-hidden="true" />
+                <strong>{{ g.zona.nombre }}</strong>
+                <span class="bp__chip">{{ g.zona.tipo === 'CORREGIMIENTO' ? 'Corregimiento' : 'Comuna' }}</span>
+                <small>{{ g.zona.barrios }} {{ g.zona.tipo === 'CORREGIMIENTO' ? 'veredas' : 'barrios' }}@if (g.zona.con_precio_propio > 0) { · {{ g.zona.con_precio_propio }} con precio propio}</small>
+              </button>
+              <div class="bp__precio">
+                <input
+                  class="input"
+                  type="text"
+                  inputmode="numeric"
+                  maxlength="9"
+                  placeholder="Sin precio"
+                  [attr.aria-label]="'Precio del domicilio a ' + g.zona.nombre"
+                  [value]="g.zona.valor ?? ''"
+                  [disabled]="!canEdit()"
+                  (change)="guardarPrecioZona(g.zona, $any($event.target).value)"
+                  (keydown.enter)="$any($event.target).blur()"
+                />
+                @if (canEdit()) {
+                  @if (g.zona.con_precio_propio > 0 && g.zona.valor !== null) {
+                    <button type="button" class="btn btn--outline bp__icono" title="Todos sus barrios a este precio"
+                            [disabled]="guardando()" (click)="igualarZona(g.zona)">
+                      <lucide-icon name="equal" [size]="14" aria-hidden="true" />
+                    </button>
+                  }
+                  <button type="button" class="btn btn--outline bp__icono" title="Quitar zona"
+                          [disabled]="guardando()" (click)="quitarZona(g.zona)">
+                    <lucide-icon name="trash-2" [size]="14" aria-hidden="true" />
+                  </button>
+                }
+              </div>
+            </div>
+
+            @if (g.abierta) {
+              <ul class="bp__lista">
+                @for (b of g.barrios; track b.id_barrio) {
+                  <li class="bp__fila">
+                    <span class="bp__nombre">{{ b.nombre }}</span>
+                    <div class="bp__precio">
+                      <input
+                        class="input"
+                        type="text"
+                        inputmode="numeric"
+                        maxlength="9"
+                        [placeholder]="g.zona.valor !== null ? 'Usa ' + dinero(g.zona.valor) : 'Sin precio'"
+                        [attr.aria-label]="'Precio propio de ' + b.nombre"
+                        [value]="b.valor ?? ''"
+                        [disabled]="!canEdit()"
+                        (change)="guardarPrecioBarrio(b, $any($event.target).value)"
+                        (keydown.enter)="$any($event.target).blur()"
+                      />
+                      @if (canEdit()) {
+                        <button type="button" class="btn btn--outline bp__icono" title="Quitar"
+                                [disabled]="guardando()" (click)="eliminar(b)">
+                          <lucide-icon name="trash-2" [size]="14" aria-hidden="true" />
+                        </button>
+                      }
+                    </div>
+                  </li>
+                } @empty {
+                  <li class="bp__muted">Sin barrios.</li>
+                }
+              </ul>
+            }
+          </li>
+        }
+      </ul>
+    }
+
+    <!-- Barrios sueltos: los que no cuelgan de una zona (los de antes, o escritos a mano). -->
+    @if (sueltos().length > 0) {
+      <h3 class="bp__subtitulo">Sin comuna ni corregimiento</h3>
+      <ul class="bp__lista">
+        @for (b of sueltos(); track b.id_barrio) {
+          <li class="bp__fila">
+            <span class="bp__nombre">{{ b.nombre }}</span>
+            <div class="bp__precio">
               <input
                 class="input"
                 type="text"
                 inputmode="numeric"
                 maxlength="9"
-                [value]="editandoValor()"
-                (input)="editandoValor.set($any($event.target).value)"
-                (keydown.enter)="guardarEdicion()"
+                [attr.aria-label]="'Precio de ' + b.nombre"
+                [value]="b.valor ?? ''"
+                [disabled]="!canEdit()"
+                (change)="guardarPrecioBarrio(b, $any($event.target).value)"
+                (keydown.enter)="$any($event.target).blur()"
               />
-              <div class="bp__acciones">
-                <button type="button" class="btn btn--primary" [disabled]="guardando()" (click)="guardarEdicion()">
-                  Guardar
+              @if (canEdit()) {
+                <button type="button" class="btn btn--outline bp__icono" title="Quitar"
+                        [disabled]="guardando()" (click)="eliminar(b)">
+                  <lucide-icon name="trash-2" [size]="14" aria-hidden="true" />
                 </button>
-                <button type="button" class="btn btn--outline" (click)="cancelarEdicion()">Cancelar</button>
-              </div>
+              }
             </div>
-          } @else {
-            <div class="bp__info">
-              <strong>{{ b.nombre }}</strong>
-              <span class="bp__valor">{{ dinero(b.valor) }}</span>
-            </div>
-            @if (canEdit()) {
-              <div class="bp__acciones">
-                <button type="button" class="btn btn--outline bp__icono" title="Editar" (click)="iniciarEdicion(b)">
-                  <lucide-icon name="pencil" [size]="14" />
-                </button>
-                <button
-                  type="button"
-                  class="btn btn--outline bp__icono"
-                  title="Quitar"
-                  [disabled]="guardando()"
-                  (click)="eliminar(b)"
-                >
-                  <lucide-icon name="trash-2" [size]="14" />
-                </button>
-              </div>
-            }
+          </li>
+        }
+      </ul>
+    }
+
+    @if (barrios().length === 0 && zonas().length === 0) {
+      <p class="bp__muted">Aún no tienes barrios. Sin ellos, el domicilio se cobra como hasta ahora.</p>
+    }
+
+    <!-- Uno que no esté en el listado. -->
+    @if (canEdit()) {
+      <h3 class="bp__subtitulo">Agregar un barrio o vereda</h3>
+      <div class="bp__nuevo">
+        <input
+          class="input"
+          type="text"
+          maxlength="100"
+          placeholder="Nombre (ej: Conjunto Los Pinos)"
+          [value]="nuevoNombre()"
+          (input)="nuevoNombre.set($any($event.target).value)"
+          (keydown.enter)="crear()"
+        />
+        <select class="input" aria-label="Comuna o corregimiento" (change)="nuevaZona.set(+$any($event.target).value || null)">
+          <option value="" [selected]="nuevaZona() === null">Sin comuna</option>
+          @for (z of zonas(); track z.id_zona_domicilio) {
+            <option [value]="z.id_zona_domicilio" [selected]="nuevaZona() === z.id_zona_domicilio">{{ z.nombre }}</option>
           }
-        </li>
-      }
-    </ul>
+        </select>
+        <input
+          class="input"
+          type="text"
+          inputmode="numeric"
+          maxlength="9"
+          [placeholder]="nuevaZona() !== null ? 'Precio (opcional)' : 'Precio (ej: 4000)'"
+          [value]="nuevoValor()"
+          (input)="nuevoValor.set($any($event.target).value)"
+          (keydown.enter)="crear()"
+        />
+        <button type="button" class="btn btn--primary" [disabled]="guardando() || !puedeCrear()" (click)="crear()">
+          <lucide-icon name="circle-plus" [size]="16" aria-hidden="true" /> Agregar
+        </button>
+      </div>
+    }
   }
 </article>

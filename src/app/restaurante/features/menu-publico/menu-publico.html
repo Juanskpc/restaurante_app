@@ -450,7 +450,9 @@
       (keydown)="onTeclaModal($event)"
     >
       <h2 id="ingredientes-titulo" class="ingredientes__titulo">{{ p.nombre }}</h2>
+      @if (removiblesDe(p).length > 0) {
       <p class="ingredientes__sub">Todo viene incluido. Desmarca lo que no quieras.</p>
+      }
 
       <ul class="ingredientes__lista">
         @for (r of removiblesDe(p); track r.id_ingrediente) {
@@ -472,12 +474,41 @@
         }
       </ul>
 
+      <!-- Adiciones (toppings, extras…): opcionales, se cobran aparte, por unidad. -->
+      @if (adicionesDe(p).length > 0) {
+        <p class="ingredientes__sub"><strong>{{ terminoAdiciones().plural }}</strong> (opcional)</p>
+        <ul class="ingredientes__lista">
+          @for (a of adicionesDe(p); track a.id_producto) {
+            <li>
+              <div class="ingrediente" [class.adicion--on]="cantidadAdicion(a.id_producto) > 0"
+                   [style.opacity]="a.disponible ? null : 0.6">
+                <span class="ingrediente__nombre">{{ a.nombre }}</span>
+                <span class="ingrediente__estado">
+                  {{ a.disponible ? '+' + formatPrice(a.precio) : 'Agotado' }}
+                </span>
+                <span class="pp-qty">
+                  <button type="button" class="qty-btn" [disabled]="cantidadAdicion(a.id_producto) === 0"
+                          [attr.aria-label]="'Quitar ' + a.nombre" (click)="cambiarAdicion(a.id_producto, -1)">
+                    <lucide-icon name="minus" [size]="14" />
+                  </button>
+                  <span class="qty-value" aria-live="polite">{{ cantidadAdicion(a.id_producto) }}</span>
+                  <button type="button" class="qty-btn" [disabled]="!a.disponible"
+                          [attr.aria-label]="'Agregar ' + a.nombre" (click)="cambiarAdicion(a.id_producto, 1)">
+                    <lucide-icon name="plus" [size]="14" />
+                  </button>
+                </span>
+              </div>
+            </li>
+          }
+        </ul>
+      }
+
       <div class="ingredientes__acciones">
         <button type="button" class="ingredientes__cancelar" (click)="cerrarModalIngredientes()">
           Cancelar
         </button>
         <button type="button" class="ingredientes__agregar" (click)="confirmarModalIngredientes()">
-          Agregar · {{ formatPrice(p.precio) }}
+          Agregar · {{ formatPrice(precioModal()) }}
         </button>
       </div>
     </div>
@@ -542,12 +573,30 @@
         @case ('barrio') {
           <h2 id="eleccion-titulo" class="eleccion__titulo">¿En qué barrio estás?</h2>
           <p class="eleccion__sub">Así te decimos cuánto cuesta el domicilio.</p>
+          @if (barriosConBuscador()) {
+            <input
+              class="campo__entrada"
+              type="search"
+              placeholder="Escribe tu barrio o vereda"
+              aria-label="Buscar barrio o vereda"
+              [value]="buscarBarrio()"
+              (input)="buscarBarrio.set($any($event.target).value)"
+            />
+          }
           <div class="eleccion__lista">
-            @for (b of barriosInfo().barrios; track b.id_barrio) {
-              <button type="button" class="eleccion-opcion" (click)="elegirBarrio(b)">
-                <span>{{ b.nombre }}</span>
-                <strong>{{ formatPrice(b.valor) }}</strong>
-              </button>
+            @for (g of barriosVisibles(); track $index) {
+              @if (g.zona && barriosConBuscador()) {
+                <p class="eleccion__sub">{{ g.zona }}</p>
+              }
+              @for (b of g.barrios; track b.id_barrio) {
+                <button type="button" class="eleccion-opcion" (click)="elegirBarrio(b)">
+                  <span>{{ b.nombre }}@if (b.zona && !barriosConBuscador()) { · {{ b.zona }}}</span>
+                  <strong>{{ formatPrice(b.valor) }}</strong>
+                </button>
+              }
+            }
+            @if (barriosConBuscador() && buscarBarrio().trim().length >= 2 && barriosVisibles().length === 0) {
+              <p class="eleccion__sub">No lo encontramos. Elige «Otro barrio» y el restaurante te confirma el valor.</p>
             }
             <button type="button" class="eleccion-opcion eleccion-opcion--otro" (click)="elegirBarrio(null)">
               <span>Otro barrio</span>
@@ -635,7 +684,10 @@
                 @if (item.exclusiones.length) {
                   <span class="pp-sin">{{ textoSin(item.exclusiones) }}</span>
                 }
-                <span class="pp-precio">{{ formatPrice(item.precio * item.cantidad) }}</span>
+                @if (item.adiciones?.length) {
+                  <span class="pp-sin">{{ textoAdiciones(item.adiciones) }}</span>
+                }
+                <span class="pp-precio">{{ formatPrice(precioUnidad(item) * item.cantidad) }}</span>
                 <!-- Producto con ingredientes removibles: otra unidad DISTINTA abre el modal de ingredientes. -->
                 @if (tieneRemovibles(item.id_producto)) {
                   <button type="button" class="pp-otra" (click)="agregarOtraDistinta(item.id_producto)">

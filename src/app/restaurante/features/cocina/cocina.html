@@ -142,7 +142,8 @@
 
     <!-- ── Productos ── -->
     <div class="card-body">
-      @for (detalle of orden.detalles; track detalle.id_detalle) {
+      @for (plato of platosDe(orden); track plato.detalle.id_detalle) {
+        @let detalle = plato.detalle;
         <div class="product-item">
           <div class="product-header">
             <div class="product-left">
@@ -151,6 +152,15 @@
             </div>
             <span class="product-qty">×{{ detalle.cantidad }}</span>
           </div>
+          @if (plato.adiciones.length > 0) {
+            <div class="mods">
+              @for (a of plato.adiciones; track a.id_detalle) {
+                <div class="mod mod-add">
+                  <span>➕</span><span>{{ a.producto.nombre }}@if (a.cantidad > 1) { ×{{ a.cantidad }}}</span>
+                </div>
+              }
+            </div>
+          }
           @if (getExclusiones(detalle).length > 0) {
             <div class="mods">
               @for (excl of getExclusiones(detalle); track excl) {

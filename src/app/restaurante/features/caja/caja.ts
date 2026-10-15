@@ -13,7 +13,7 @@ import { Observable } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
 import {
   ApiResponse, Caja, CajaHistorial, CajaService, DomiciliarioResumen, DomiciliariosResumen,
-  MovimientoCaja, OrdenItems,
+  ItemOrden, MovimientoCaja, OrdenItems,
 } from '../../../core/services/caja.service';
 import { CatalogoCacheService } from '../../../core/services/catalogo-cache.service';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
@@ -491,6 +491,26 @@ export class CajaComponent implements OnInit, OnDestroy {
 
   estaAbierta(m: MovimientoCaja): boolean {
     return this.filasAbiertas().has(m.id_movimiento);
+  }
+
+  /**
+   * Las líneas del pedido con sus adiciones (toppings, extras…) dentro: cada adición viene justo
+   * después de su plato. El monto de la línea es el del plato más el de sus adiciones; `null` si
+   * el rol no puede ver importes.
+   */
+  lineasDe(orden: OrdenItems): Array<{ item: ItemOrden; adiciones: ItemOrden[]; subtotal: number | null }> {
+    const lineas: Array<{ item: ItemOrden; adiciones: ItemOrden[]; subtotal: number | null }> = [];
+    for (const it of orden.items) {
+      const anterior = lineas[lineas.length - 1];
+      if (it.es_adicion && anterior) {
+        anterior.adiciones.push(it);
+        anterior.subtotal =
+          anterior.subtotal === null || it.subtotal === null ? null : anterior.subtotal + it.subtotal;
+      } else {
+        lineas.push({ item: it, adiciones: [], subtotal: it.subtotal });
+      }
+    }
+    return lineas;
   }
 
   itemsDe(m: MovimientoCaja): OrdenItems | null {

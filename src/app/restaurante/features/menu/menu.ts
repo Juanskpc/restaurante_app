@@ -11,6 +11,7 @@ import { firstValueFrom } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
 import { FacturacionService, claveImpuesto } from '../../../core/services/facturacion.service';
 import { UiFeedbackService } from '../../../core/ui-feedback/ui-feedback.service';
+import { CatalogoCacheService } from '../../../core/services/catalogo-cache.service';
 import { environment } from '../../../../environments/environment';
 import { ImageCropperComponent } from './image-cropper/image-cropper';
 import { IconoSelectorComponent } from '../../shared/icono-selector/icono-selector';
@@ -64,6 +65,18 @@ export interface ProductoAdmin {
   tarifa_impuesto?: string | number | null;
   codigo_producto?: string | null;
   ingredientes: ProductoIngrediente[];
+  /** Es una adición (topping, extra…): no se vende sola, se ofrece dentro de otros productos. */
+  es_adicion?: boolean;
+  /** Las adiciones que ofrece este producto (ids de otros productos con `es_adicion`), en orden. */
+  adiciones?: { id_adicion: number; orden: number }[];
+}
+
+/** Una adición que se puede ofrecer en un producto. */
+export interface OpcionAdicion {
+  id_producto: number;
+  nombre: string;
+  precio: number;
+  disponible: boolean;
 }
 
 type FiltroDisponibilidad = 'todos' | 'disponibles' | 'no_disponibles';
@@ -101,6 +114,9 @@ interface ProdFormData {
   impuesto: string;
   codigo_producto: string;
   ingredientes: IngredienteForm[];
+  es_adicion: boolean;
+  /** Ids de las adiciones que ofrece, en el orden en que se marcaron. */
+  adiciones: number[];
 }
 
 function normalizeSearchValue(value: string): string {
@@ -126,6 +142,8 @@ export class MenuComponent implements OnInit, OnDestroy {
   private readonly http = inject(HttpClient);
   private readonly auth = inject(AuthService);
   private readonly uiFeedback = inject(UiFeedbackService);
+  /** Pedidos lee los productos (y sus adiciones) de esta caché: se invalida al guardar aquí. */
+  private readonly catalogo = inject(CatalogoCacheService);
   /** Los datos fiscales del producto solo existen para un negocio con facturación electrónica. */
   protected readonly facturacion = inject(FacturacionService);
   protected readonly claveImpuesto = claveImpuesto;
@@ -157,8 +175,17 @@ export class MenuComponent implements OnInit, OnDestroy {
     nombre: '', descripcion: '', precio: null, icono: '🍔',
     imagen_url: '', es_popular: false, disponible: true,
     visible: true, id_categoria: null, id_producto_empaque: null, cantidad_empaque: 1,
-    impuesto: '', codigo_producto: '', ingredientes: [],
+    impuesto: '', codigo_producto: '', ingredientes: [], es_adicion: false, adiciones: [],
   });
+
+  // ── Adiciones / toppings / extras (opt-in del negocio) ────
+  readonly permiteAdiciones = this.auth.permiteAdiciones;
+  readonly termino = this.auth.terminoAdiciones;
+  /** Las adiciones del negocio, para marcarlas en el producto que se edita. */
+  readonly opcionesAdicion = signal<OpcionAdicion[]>([]);
+  readonly nuevaAdicionNombre = signal('');
+  readonly nuevaAdicionPrecio = signal<number | null>(null);
+  readonly creandoAdicion = signal(false);
 
   /** Productos que se pueden elegir como empaque (los de una categoría «Empaques», o todos si no hay). */
   readonly opcionesEmpaque = signal<{ id_producto: number; nombre: string; precio: number }[]>([]);
@@ -507,8 +534,22 @@ export class MenuComponent implements OnInit, OnDestroy {
             .map(p => ({ id_producto: p.id_producto, nombre: p.nombre, precio: p.precio }))
             .sort((a, b) => a.precio - b.precio),
         );
+        this.opcionesAdicion.set(
+          todos
+            .filter(p => p.es_adicion && p.id_producto !== this.editandoProdId())
+            .map(p => ({
+              id_producto: p.id_producto,
+              nombre: p.nombre,
+              precio: Number(p.precio),
+              disponible: p.disponible !== false,
+            }))
+            .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')),
+        );
       },
-      error: () => this.opcionesEmpaque.set([]),
+      error: () => {
+        this.opcionesEmpaque.set([]);
+        this.opcionesAdicion.set([]);
+      },
     });
   }
 
@@ -527,6 +568,70 @@ export class MenuComponent implements OnInit, OnDestroy {
       },
       error: () => this.cargandoParaCopiar.set(false),
     });
+  }
+
+  // ── Adiciones del producto ────────────────────────────────
+
+  /** La categoría solo es obligatoria para un producto normal. */
+  categoriaValida(form: ProdFormData): boolean {
+    return !!form.id_categoria || (this.permiteAdiciones() && form.es_adicion);
+  }
+
+  adicionMarcada(idAdicion: number): boolean {
+    return this.prodForm().adiciones.includes(idAdicion);
+  }
+
+  alternarAdicion(idAdicion: number): void {
+    const actuales = this.prodForm().adiciones;
+    this.updateProdField(
+      'adiciones',
+      actuales.includes(idAdicion) ? actuales.filter(id => id !== idAdicion) : [...actuales, idAdicion],
+    );
+  }
+
+  /**
+   * Crea una adición desde el producto que la va a ofrecer, sin salir del modal, y la deja
+   * marcada. Nace sin categoría (el backend la guarda en la del término, oculta de la carta) y
+   * sin receta: para que descuente inventario se le pone receta como a cualquier producto.
+   */
+  async crearAdicionRapida(): Promise<void> {
+    const id = this.negocioId();
+    const nombre = this.nuevaAdicionNombre().trim();
+    const precio = Number(this.nuevaAdicionPrecio());
+    if (!id || !nombre || !(precio > 0)) return;
+
+    this.creandoAdicion.set(true);
+    try {
+      const res = await firstValueFrom(
+        this.http.post<{ data: { id_producto: number } }>(`${environment.apiUrl}/carta/admin/productos`, {
+          id_negocio: id,
+          nombre,
+          precio,
+          icono: '➕',
+          es_adicion: true,
+          disponible: true,
+          visible: true,
+        }),
+      );
+      const nueva = res?.data?.id_producto;
+      if (nueva) {
+        this.opcionesAdicion.update(lista =>
+          [...lista, { id_producto: nueva, nombre, precio, disponible: true }]
+            .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')),
+        );
+        this.updateProdField('adiciones', [...this.prodForm().adiciones, nueva]);
+      }
+      this.catalogo.invalidate('productos');
+      this.nuevaAdicionNombre.set('');
+      this.nuevaAdicionPrecio.set(null);
+      this.uiFeedback.created(`«${nombre}» se creó y quedó marcada en este producto.`);
+    } catch (err) {
+      this.uiFeedback.error(
+        this.getHttpErrorMessage(err as HttpErrorResponse) || `No se pudo crear ${this.termino().singular.toLowerCase()}.`,
+      );
+    } finally {
+      this.creandoAdicion.set(false);
+    }
   }
 
   // ── Crear ingrediente base nuevo desde el modal ───────────
@@ -684,6 +789,10 @@ export class MenuComponent implements OnInit, OnDestroy {
           porcion:            pi.porcion,
           es_removible:       pi.es_removible,
         })),
+        es_adicion: prod.es_adicion === true,
+        adiciones: [...(prod.adiciones ?? [])]
+          .sort((a, b) => a.orden - b.orden)
+          .map(a => a.id_adicion),
       });
       this.ingredientesModificados.set(false);
     } else {
@@ -692,8 +801,10 @@ export class MenuComponent implements OnInit, OnDestroy {
         nombre: '', descripcion: '', precio: null, icono: '🍔',
         imagen_url: '', es_popular: false, disponible: true,
         visible: true, id_categoria: this.categoriaActiva(), id_producto_empaque: null, cantidad_empaque: 1,
-        impuesto: '', codigo_producto: '', ingredientes: [],
+        impuesto: '', codigo_producto: '', ingredientes: [], es_adicion: false, adiciones: [],
       });
+      this.nuevaAdicionNombre.set('');
+      this.nuevaAdicionPrecio.set(null);
       this.ingredientesModificados.set(false);
     }
     this.cargarOpcionesEmpaque();
@@ -709,7 +820,8 @@ export class MenuComponent implements OnInit, OnDestroy {
   async guardarProducto(): Promise<void> {
     const id   = this.negocioId();
     const form = this.prodForm();
-    if (!id || !form.nombre.trim() || !form.precio || !form.id_categoria) return;
+    // Una adición puede ir sin categoría: el backend la pone en la del término del negocio.
+    if (!id || !form.nombre.trim() || !form.precio || !this.categoriaValida(form)) return;
 
     const ingredientesInvalidos = form.ingredientes.filter(i => i.nombre.trim() && i.id_ingrediente == null);
     if (ingredientesInvalidos.length > 0) {
@@ -747,6 +859,10 @@ export class MenuComponent implements OnInit, OnDestroy {
       id_producto_empaque: form.id_producto_empaque,
       cantidad_empaque:    form.id_producto_empaque ? Math.max(1, Math.floor(form.cantidad_empaque || 1)) : 1,
       ...this.datosFiscalesDelProducto(form),
+      // Solo con el negocio en adiciones: apagado, la edición no las toca.
+      ...(this.permiteAdiciones()
+        ? { es_adicion: form.es_adicion, adiciones: form.es_adicion ? [] : form.adiciones }
+        : {}),
     };
 
     try {
@@ -777,6 +893,7 @@ export class MenuComponent implements OnInit, OnDestroy {
 
       this.guardando.set(false);
       this.ingredientesModificados.set(false);
+      this.catalogo.invalidate('productos');
       this.cerrarModalProd();
       if (editId) {
         this.uiFeedback.updated('Los datos del producto fueron actualizados.');

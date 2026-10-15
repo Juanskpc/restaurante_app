@@ -78,12 +78,19 @@ export class CatalogoCacheService {
   productosConIngredientes(idNegocio: number): Observable<
     Array<{
       id_producto: number;
+      nombre?: string;
+      precio?: number | string;
+      disponible?: boolean;
       ingredientes?: Array<{
         id_producto_ingred: number;
         id_ingrediente: number;
         nombre: string;
         es_removible: boolean;
       }>;
+      /** Es una adición (topping, extra…). Ver `core/utils/terminos-adicion.ts`. */
+      es_adicion?: boolean;
+      /** Las adiciones que ofrece este producto, en orden. */
+      adiciones?: Array<{ id_adicion: number; orden: number }>;
     }>
   > {
     return this.get(`productos:${idNegocio}`, `${environment.apiUrl}/carta/admin/productos?id_negocio=${idNegocio}`, idNegocio);

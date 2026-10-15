@@ -27,6 +27,7 @@ import { RubrosPanelComponent } from './rubros-panel/rubros-panel';
 import { BarriosPanelComponent } from './barrios-panel/barrios-panel';
 import { MiPlanPanelComponent } from './mi-plan/mi-plan-panel';
 import { HorariosComponent } from '../horarios/horarios';
+import { TERMINOS_ADICION, terminoAdicion } from '../../../core/utils/terminos-adicion';
 
 /**
  * Mezcla un hex con blanco. `cantidad` = proporción de blanco (0 = el color tal
@@ -210,6 +211,13 @@ export class ConfiguracionComponent {
   readonly permiteDomicilioPersonal = computed(() => this.configuracion()?.permite_domicilio_personal === true);
   readonly guardandoDomicilioPersonal = signal(false);
 
+  // Adiciones / toppings / extras: opt-in, con la palabra que usa el negocio.
+  readonly terminosAdicion = TERMINOS_ADICION;
+  readonly permiteAdiciones = computed(() => this.configuracion()?.permite_adiciones === true);
+  readonly terminoAdiciones = computed(() => terminoAdicion(this.configuracion()?.termino_adiciones));
+  readonly guardandoAdiciones = signal(false);
+  readonly guardandoTerminoAdiciones = signal(false);
+
   // ── Métodos de pago ──
   readonly metodosPago = signal<MetodoPago[]>([]);
   readonly cargandoMetodos = signal(false);
@@ -267,6 +275,7 @@ export class ConfiguracionComponent {
     controla_inventario: this.fb.control(true, { nonNullable: true }),
     muestra_iconos_productos: this.fb.control(true, { nonNullable: true }),
     permite_domicilio_personal: this.fb.control(false, { nonNullable: true }),
+    permite_adiciones: this.fb.control(false, { nonNullable: true }),
     id_paleta: this.fb.control<number | null>(null),
   });
 
@@ -428,7 +437,7 @@ export class ConfiguracionComponent {
   private actualizarFlag(
     campo: 'permite_multipago' | 'permite_pago_domicilio' | 'permite_descuento' | 'pregunta_cobro_envio'
       | 'permite_cuentas_cliente' | 'controla_inventario' | 'permite_domicilio_personal'
-      | 'muestra_iconos_productos',
+      | 'muestra_iconos_productos' | 'permite_adiciones',
     activar: boolean,
     textos: {
       guardando: WritableSignal<boolean>; titulo: string; on: string; off: string; error: string;
@@ -457,6 +466,51 @@ export class ConfiguracionComponent {
         },
         error: (e) => {
           this.uiFeedback.error(e?.error?.message || textos.error);
+        },
+      });
+  }
+
+  /**
+   * Adiciones (toppings, extras…). Encendido, en Menú cada producto puede ofrecer las suyas y el
+   * POS y la carta digital las piden al elegirlo. Apagado no se borra nada: lo marcado como
+   * adición vuelve a venderse como un producto más.
+   */
+  toggleAdiciones(activar: boolean): void {
+    const t = this.terminoAdiciones().plural;
+    this.actualizarFlag('permite_adiciones', activar, {
+      guardando: this.guardandoAdiciones,
+      titulo: t,
+      on: `${t} activadas. Créalas y asígnalas a tus productos desde Menú.`,
+      off: `${t} desactivadas.`,
+      error: `No se pudo actualizar ${t.toLowerCase()}.`,
+    });
+  }
+
+  /** La palabra con la que el negocio nombra las adiciones en todas las pantallas. */
+  setTerminoAdiciones(codigo: string): void {
+    const idNegocio = this.negocioActivoId();
+    if (!idNegocio || !this.canEdit() || codigo === this.terminoAdiciones().codigo) return;
+
+    this.guardandoTerminoAdiciones.set(true);
+    this.configuracionService
+      .updateConfiguracion({ id_negocio: idNegocio, termino_adiciones: codigo })
+      .pipe(finalize(() => this.guardandoTerminoAdiciones.set(false)))
+      .subscribe({
+        next: async (config) => {
+          this.configuracion.set(config);
+          this.uiFeedback.success(
+            `Ahora se llaman «${terminoAdicion(codigo).plural}».`,
+            terminoAdicion(codigo).plural,
+          );
+          // La sesión lleva la palabra: Pedidos y la cocina la leen de ahí.
+          const token = this.auth.getAccessToken();
+          if (token) {
+            const ok = await this.auth.validateAndSetToken(token);
+            if (ok) this.auth.setNegocioActivo(idNegocio);
+          }
+        },
+        error: (e) => {
+          this.uiFeedback.error(e?.error?.message || 'No se pudo cambiar el nombre.');
         },
       });
   }
@@ -641,6 +695,7 @@ export class ConfiguracionComponent {
             controla_inventario: config.controla_inventario !== false,
             muestra_iconos_productos: config.muestra_iconos_productos !== false,
             permite_domicilio_personal: config.permite_domicilio_personal === true,
+            permite_adiciones: config.permite_adiciones === true,
             id_paleta: config.id_paleta ?? null,
           });
 

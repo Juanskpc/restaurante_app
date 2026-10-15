@@ -2337,6 +2337,9 @@
   white-space: nowrap;
 }
 
+/* Adición elegida en el modal (misma fila que un ingrediente). */
+.adicion--on { border-color: var(--color-primary); }
+
 .ingredientes__acciones {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);

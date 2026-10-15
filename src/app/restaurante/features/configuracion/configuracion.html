@@ -269,6 +269,10 @@
           </ul>
         }
       </article>
+
+      <!-- El precio del domicilio por comuna/corregimiento y por barrio/vereda. Se puede dejar listo
+           con el cobro de domicilio apagado: la carta y el asistente lo usan cuando se encienda. -->
+      <app-barrios-panel [canEdit]="canEdit()" [pagoDomicilioActivo]="permitePagoDomicilio()" />
     }
 
     <!-- ───────── Cajas ─────────
@@ -350,6 +354,40 @@
             </span>
           </label>
 
+          <label class="switch-row" [class.is-disabled]="!canEdit() || guardandoAdiciones()">
+            <input type="checkbox"
+                   [checked]="permiteAdiciones()"
+                   [disabled]="!canEdit() || guardandoAdiciones()"
+                   (change)="toggleAdiciones($any($event.target).checked)" />
+            <span class="switch-row__text">
+              <strong>Adiciones, toppings o extras en los productos</strong>
+              <small>Encendido, cada producto puede ofrecer cosas que se le agregan y se cobran
+                aparte (queso, costilla, toppings de helado…). Se crean y se asignan desde
+                <em>Menú</em>, pueden llevar receta para descontar inventario, y al pedir quedan
+                pegadas al producto en Pedidos, Caja, Cocina y la carta digital.</small>
+            </span>
+          </label>
+
+          @if (permiteAdiciones()) {
+            <div class="switch-sub" [class.is-disabled]="!canEdit() || guardandoTerminoAdiciones()">
+              <label class="switch-sub__label" for="termino-adiciones">
+                <strong>¿Cómo las llamas?</strong>
+                <small>Es la palabra que verán tu equipo y tus clientes: «Adiciones» en un
+                  restaurante, «Toppings» en una heladería, «Extras»…</small>
+              </label>
+              <select id="termino-adiciones"
+                      class="switch-sub__select"
+                      [disabled]="!canEdit() || guardandoTerminoAdiciones()"
+                      (change)="setTerminoAdiciones($any($event.target).value)">
+                @for (t of terminosAdicion; track t.codigo) {
+                  <option [value]="t.codigo" [selected]="terminoAdiciones().codigo === t.codigo">
+                    {{ t.plural }}
+                  </option>
+                }
+              </select>
+            </div>
+          }
+
           <label class="switch-row" [class.is-disabled]="!canEdit() || guardandoIconosProductos()">
             <input type="checkbox"
                    [checked]="muestraIconosProductos()"
@@ -419,10 +457,6 @@
         </div>
       </article>
 
-      <!-- Solo con el cobro de domicilio encendido: sin él no se pregunta el barrio ni se cobra. -->
-      @if (permitePagoDomicilio()) {
-        <app-barrios-panel [canEdit]="canEdit()" />
-      }
     }
   }
   }

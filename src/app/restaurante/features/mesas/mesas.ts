@@ -45,6 +45,7 @@ interface ItemPagadoMesa {
   cantidad: number;
   nota?: string | null;
   sin?: string[];
+  es_adicion?: boolean;
 }
 
 @Component({
@@ -1340,7 +1341,7 @@ export class MesasComponent {
         return `
           <tr>
             <td>${item.cantidad}</td>
-            <td>${this.escapeHtml(item.name)}</td>
+            <td>${item.es_adicion ? '+ ' : ''}${this.escapeHtml(item.name)}</td>
             <td>${this.formatCurrency(item.price)}</td>
             <td class="text-right">${this.formatCurrency(totalLinea)}</td>
           </tr>
@@ -1595,7 +1596,7 @@ export class MesasComponent {
     return Number(digits);
   }
 
-  private persistirItemsPagadosMesaCache(idMesa: number, items: Array<{ name: string; price: number; cantidad: number; nota?: string | null; sin?: string[] }>): void {
+  private persistirItemsPagadosMesaCache(idMesa: number, items: Array<{ name: string; price: number; cantidad: number; nota?: string | null; sin?: string[]; es_adicion?: boolean }>): void {
     if (typeof window === 'undefined') return;
 
     try {
@@ -1604,7 +1605,8 @@ export class MesasComponent {
 
       cache[String(idMesa)] = items.map((item, idx) => ({
         id_producto: -(idx + 1),
-        nombre: item.name,
+        // Una adición queda como línea propia («+ Queso») debajo de su plato.
+        nombre: item.es_adicion ? `+ ${item.name}` : item.name,
         icono: '✅',
         precio_unitario: Number(item.price ?? 0),
         cantidad: Math.max(1, Number(item.cantidad ?? 1)),

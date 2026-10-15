@@ -14,6 +14,8 @@ export interface MesaOrderItem {
   nota?: string | null;
   /** Los ingredientes que el cliente pidió quitar («cebolla»): «sin cebolla». */
   sin?: string[];
+  /** Es una adición (topping, extra…) del plato de la línea anterior: se pinta «+ Queso». */
+  es_adicion?: boolean;
 }
 
 export interface MesaOrder {

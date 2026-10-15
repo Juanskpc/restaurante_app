@@ -52,6 +52,8 @@ const CANCELADOS_FINALIZADOS_KEY = 'despacho_cancelados_finalizados_v1';
 
 interface DetalleDespacho {
   id_producto: number;
+  /** Es una adición (topping, extra…) del plato de la línea anterior; null = línea normal. */
+  id_detalle_padre?: number | null;
   cantidad: number;
   precio_unitario: number;
   nota?: string | null;
@@ -1019,7 +1021,10 @@ export class DespachoComponent implements OnInit {
 
   /** Solo el número. En tarjetas angostas "2 productos" no cabe; "2" con ícono sí. */
   unidadesItems(p: PedidoDespacho): number {
-    return (p.detalles ?? []).reduce((s, d) => s + Number(d.cantidad ?? 0), 0);
+    // Las adiciones no son productos aparte: «2× hamburguesa + queso» son 2 unidades, no 4.
+    return (p.detalles ?? [])
+      .filter((d) => d.id_detalle_padre == null)
+      .reduce((s, d) => s + Number(d.cantidad ?? 0), 0);
   }
 
   esPendientePago(p: PedidoDespacho): boolean {
@@ -1504,7 +1509,8 @@ export class DespachoComponent implements OnInit {
       : '';
 
     const filasItems = (p.detalles ?? []).map(d => {
-      const nombre = this.escapeHtml(d.producto?.nombre ?? '(Producto)');
+      // Una adición sale debajo de su plato como «+ Queso».
+      const nombre = (d.id_detalle_padre != null ? '+ ' : '') + this.escapeHtml(d.producto?.nombre ?? '(Producto)');
       const sin = this.escapeHtml(this.textoSin(d));
       const sinHtml = sin
         ? `<tr><td></td><td colspan="3" class="item-meta">Sin: ${sin}</td></tr>`

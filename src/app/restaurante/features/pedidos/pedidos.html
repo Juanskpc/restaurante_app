@@ -358,6 +358,21 @@
           </label>
 
           @if (cobrarDomicilio()) {
+            <!-- El barrio llena el valor con el precio de Configuración; se puede corregir a mano. -->
+            @if (barriosDomicilio().length > 0) {
+              <input class="domicilio-cobro__input"
+                     type="text"
+                     list="pos-barrios-domicilio"
+                     aria-label="Barrio o vereda del domicilio"
+                     placeholder="Barrio o vereda"
+                     [value]="barrioDomicilioTexto()"
+                     (input)="elegirBarrioDomicilio($any($event.target).value)" />
+              <datalist id="pos-barrios-domicilio">
+                @for (b of barriosDomicilio(); track b.id_barrio) {
+                  <option [value]="etiquetaBarrio(b)"></option>
+                }
+              </datalist>
+            }
             <input class="domicilio-cobro__input"
                    type="text"
                    inputmode="numeric"
@@ -415,8 +430,11 @@
             <div class="item-info">
               <div class="item-name">{{ item.nombre }}</div>
               <div class="item-line-total paid-price">
-                x{{ item.cantidad }} = {{ item.precio_unitario * item.cantidad | currency:'COP':'symbol-narrow':'1.0-0' }}
+                x{{ item.cantidad }} = {{ totalLinea(item) | currency:'COP':'symbol-narrow':'1.0-0' }}
               </div>
+              @if (textoAdiciones(item)) {
+                <div class="item-adiciones">{{ textoAdiciones(item) }}</div>
+              }
               @if (getExclusionNames(item)) {
                 <div class="item-exclusions">
                   ❌ Sin: {{ getExclusionNames(item) }}
@@ -448,8 +466,11 @@
             <div class="item-info">
               <div class="item-name">{{ item.nombre }}</div>
               <div class="item-line-total">
-                x{{ item.cantidad }} = {{ item.precio_unitario * item.cantidad | currency:'COP':'symbol-narrow':'1.0-0' }}
+                x{{ item.cantidad }} = {{ totalLinea(item) | currency:'COP':'symbol-narrow':'1.0-0' }}
               </div>
+              @if (textoAdiciones(item)) {
+                <div class="item-adiciones">{{ textoAdiciones(item) }}</div>
+              }
               @if (getExclusionNames(item)) {
                 <div class="item-exclusions">
                   ❌ Sin: {{ getExclusionNames(item) }}
@@ -463,6 +484,12 @@
                         title="Personalizar ingredientes"
                         (click)="abrirPersonalizacion(item)">
                   <lucide-icon name="salad" [size]="14" />
+                </button>
+              } @else if (tieneAdiciones(item.id_producto)) {
+                <button class="action-btn customize-btn"
+                        [title]="terminoAdiciones().plural"
+                        (click)="abrirPersonalizacion(item)">
+                  <lucide-icon name="plus-circle" [size]="14" />
                 </button>
               }
               <div class="item-qty">
@@ -641,7 +668,9 @@
           <lucide-icon name="x" [size]="20" />
         </button>
       </div>
+      @if (editing.ingredientes.some(ing => ing.es_removible)) {
       <p class="modal-subtitle">Desmarca los ingredientes que no quieras:</p>
+      }
       <div class="ingredients-list">
         @for (ing of editing.ingredientes; track ing.id_ingrediente) {
           @if (ing.es_removible) {
@@ -664,6 +693,37 @@
           }
         }
       </div>
+      @if (permiteAdiciones() && adicionesEditando().length > 0) {
+        <p class="modal-subtitle">{{ terminoAdiciones().plural }} <span class="modal-subtitle-hint">(se cobran aparte, por unidad)</span></p>
+        <div class="adiciones-list">
+          @for (a of adicionesEditando(); track a.id_producto) {
+            <div class="adicion-row" [class.adicion-row--on]="cantidadAdicionTemp(a.id_producto) > 0"
+                 [class.adicion-row--agotada]="!a.disponible">
+              <span class="adicion-nombre">{{ a.nombre }}</span>
+              <span class="adicion-precio">
+                @if (a.disponible) {
+                  +{{ a.precio | currency:'COP':'symbol-narrow':'1.0-0' }}
+                } @else {
+                  Agotada
+                }
+              </span>
+              <div class="item-qty">
+                <button class="qty-btn" type="button" [attr.aria-label]="'Quitar ' + a.nombre"
+                        [disabled]="cantidadAdicionTemp(a.id_producto) === 0"
+                        (click)="cambiarAdicionTemp(a.id_producto, -1)">
+                  <lucide-icon name="minus" [size]="14" />
+                </button>
+                <span class="qty-num">{{ cantidadAdicionTemp(a.id_producto) }}</span>
+                <button class="qty-btn" type="button" [attr.aria-label]="'Agregar ' + a.nombre"
+                        [disabled]="!a.disponible"
+                        (click)="cambiarAdicionTemp(a.id_producto, 1)">
+                  <lucide-icon name="plus" [size]="14" />
+                </button>
+              </div>
+            </div>
+          }
+        </div>
+      }
       <button class="modal-done" (click)="confirmarPersonalizacion()">
         Listo
       </button>

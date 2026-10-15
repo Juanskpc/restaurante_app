@@ -37,7 +37,9 @@ import {
   PackageCheck, CircleSlash, Link, MessageSquare, FileText, Paperclip, TriangleAlert,
   LoaderCircle, ListChecks, Megaphone,
   // Promociones
-  History, CircleCheck, CircleX, ImageIcon, TypeIcon
+  History, CircleCheck, CircleX, ImageIcon, TypeIcon,
+  // Configuración → Cobros → Barrios y veredas
+  FileDown, FileUp, Equal
 } from 'lucide-angular';
 
 export const icons = {
@@ -62,7 +64,8 @@ export const icons = {
   Scale, Bookmark, BookmarkPlus, Archive, ArchiveRestore, Flag, Award, Handshake,
   PackageCheck, CircleSlash, Link, MessageSquare, FileText, Paperclip, TriangleAlert,
   LoaderCircle, ListChecks, Megaphone,
-  History, CircleCheck, CircleX, Image: ImageIcon, Type: TypeIcon
+  History, CircleCheck, CircleX, Image: ImageIcon, Type: TypeIcon,
+  FileDown, FileUp, Equal
 };
 
 export const appConfig: ApplicationConfig = {

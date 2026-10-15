@@ -23,6 +23,8 @@ interface Exclusion {
 
 interface DetalleItem {
   id_detalle: number;
+  /** Es una adición (topping, extra…) de otra línea: la cocina la ve dentro de su plato. */
+  id_detalle_padre?: number | null;
   cantidad: number;
   nota: string | null;
   estado: string;
@@ -203,6 +205,24 @@ export class CocinaComponent implements OnInit, OnDestroy {
   getNombreMesero(orden: OrdenCocina): string {
     if (!orden.usuario) return '—';
     return `${orden.usuario.primer_nombre} ${orden.usuario.primer_apellido}`;
+  }
+
+  /**
+   * Los platos de la orden con sus adiciones dentro: una adición no es un plato aparte que la
+   * cocina prepare y marque, es algo que lleva el plato. Si su plato no viniera (no debería),
+   * se muestra como una línea más para no perderla.
+   */
+  platosDe(orden: OrdenCocina): Array<{ detalle: DetalleItem; adiciones: DetalleItem[] }> {
+    const ids = new Set(orden.detalles.map((d) => d.id_detalle));
+    const hijos = new Map<number, DetalleItem[]>();
+    for (const d of orden.detalles) {
+      if (d.id_detalle_padre != null && ids.has(d.id_detalle_padre)) {
+        hijos.set(d.id_detalle_padre, [...(hijos.get(d.id_detalle_padre) ?? []), d]);
+      }
+    }
+    return orden.detalles
+      .filter((d) => !(d.id_detalle_padre != null && ids.has(d.id_detalle_padre)))
+      .map((d) => ({ detalle: d, adiciones: hijos.get(d.id_detalle) ?? [] }));
   }
 
   getExclusiones(detalle: DetalleItem): string[] {
