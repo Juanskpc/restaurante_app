@@ -1,219 +1,194 @@
 <!-- ================================================================
      KDS — Kitchen Display System
+     Tablero neutro: el color solo aparece donde la cocina tiene que actuar
+     (comanda atrasada, alergia). La jerarquía la da la letra, no los fondos.
      ================================================================ -->
-<div class="kds-layout">
+<section class="kds-layout">
 
-  <!-- ═══════════════════ HEADER ═══════════════════ -->
+  <!-- ═══════════════════ ENCABEZADO ═══════════════════ -->
   <header class="kds-header">
-
-    <div class="kds-brand">
-      <span class="brand-icon">🍳</span>
-      <span class="brand-name">Zona de pedidos</span>
-    </div>
-
-    <div class="header-stats">
-      <div class="stat-item">
-        <span class="stat-num pending-color">{{ ordenesPendientes().length }}</span>
-        <span class="stat-lbl">Pendientes</span>
-      </div>
-      <div class="stat-item">
-        <span class="stat-num preparing-color">{{ ordenesPreparando().length }}</span>
-        <span class="stat-lbl">Preparando</span>
-      </div>
-      <div class="stat-item">
-        <span class="stat-num ready-color">{{ ordenesListas().length }}</span>
-        <span class="stat-lbl">Listos</span>
+    <div class="brand">
+      <lucide-icon name="chef-hat" [size]="20" />
+      <div>
+        <h1>Cocina</h1>
+        <p>Toca el botón de cada comanda para pasarla a la siguiente etapa</p>
       </div>
     </div>
 
     <div class="header-actions">
-      <button class="btn-hdr" (click)="loadOrdenes()" [class.spinning]="refrescando()">
-        <lucide-icon name="rotate-cw" [size]="15" />
-        Actualizar
+      <button type="button" class="btn-hdr btn-densidad" (click)="rotarDensidad()"
+              [title]="densidadTitulo()" aria-label="Cambiar el tamaño de las tarjetas">
+        <lucide-icon [name]="densidadIcono()" [size]="16" />
       </button>
-      <button class="btn-hdr btn-audio" (click)="toggleAudio()">
-        {{ audioActivo() ? '🔔' : '🔕' }} {{ audioActivo() ? 'ON' : 'OFF' }}
+      <button type="button" class="btn-hdr" [class.btn-hdr--off]="!audioActivo()"
+              [attr.aria-pressed]="audioActivo()" (click)="toggleAudio()"
+              [title]="audioActivo() ? 'Silenciar los avisos de cocina' : 'Activar los avisos de cocina'">
+        <lucide-icon [name]="audioActivo() ? 'bell-ring' : 'bell-off'" [size]="16" />
+        <span class="btn-label">{{ audioActivo() ? 'Sonido activo' : 'Sin sonido' }}</span>
       </button>
     </div>
-
   </header>
 
-  <!-- ═══════════════════ KANBAN BOARD ═══════════════════ -->
-  <div class="kanban-board">
-
-    <!-- ──── PENDIENTE ──── -->
-    <div class="kanban-col col-pending">
-      <div class="col-header">
-        <span>🔴 Pendiente</span>
-        <span class="col-count">{{ ordenesPendientes().length }}</span>
-      </div>
-      <div class="cards-container">
-        @if (ordenesPendientes().length === 0) {
-          <div class="empty-state">
-            <span>✅</span>
-            <p>Sin pedidos pendientes</p>
-          </div>
-        }
-        @for (orden of ordenesPendientes(); track trackOrden($index, orden)) {
-          <ng-container [ngTemplateOutlet]="cardTpl"
-                        [ngTemplateOutletContext]="{orden}">
-          </ng-container>
-        }
-      </div>
+  @if (sinConexion()) {
+    <div class="sin-conexion" role="status">
+      <lucide-icon name="triangle-alert" [size]="16" />
+      <span>Sin conexión con el servidor: lo que ves puede estar desactualizado.</span>
+      <button type="button" (click)="loadOrdenes()">Reintentar</button>
     </div>
+  }
 
-    <!-- ──── EN PREPARACIÓN ──── -->
-    <div class="kanban-col col-preparing">
-      <div class="col-header">
-        <span>🟠 En Preparación</span>
-        <span class="col-count">{{ ordenesPreparando().length }}</span>
-      </div>
-      <div class="cards-container">
-        @if (ordenesPreparando().length === 0) {
-          <div class="empty-state">
-            <span>👨‍🍳</span>
-            <p>Ninguno en preparación</p>
-          </div>
-        }
-        @for (orden of ordenesPreparando(); track trackOrden($index, orden)) {
-          <ng-container [ngTemplateOutlet]="cardTpl"
-                        [ngTemplateOutletContext]="{orden}">
-          </ng-container>
-        }
-      </div>
-    </div>
+  <!-- En el celular solo cabe una columna: estas pestañas dicen en cuál estás y llevan a las otras -->
+  <nav class="kds-pestanas ui-pestanas" aria-label="Columnas de cocina">
+    @for (col of columnas; track col.estado; let i = $index) {
+      <button type="button" class="ui-pestana" [class.ui-pestana--on]="columnaVisible() === i"
+              [attr.aria-current]="columnaVisible() === i" (click)="irAColumna(i)">
+        {{ col.titulo }}
+        <span class="ui-pestana__n">{{ cargando() ? '–' : ordenesDe(col.estado).length }}</span>
+      </button>
+    }
+  </nav>
 
-    <!-- ──── LISTO ──── -->
-    <div class="kanban-col col-ready">
-      <div class="col-header">
-        <span>🟢 Listo</span>
-        <span class="col-count">{{ ordenesListas().length }}</span>
-      </div>
-      <div class="cards-container">
-        @if (ordenesListas().length === 0) {
-          <div class="empty-state">
-            <span>⏳</span>
-            <p>Ninguno listo aún</p>
-          </div>
-        }
-        @for (orden of ordenesListas(); track trackOrden($index, orden)) {
-          <ng-container [ngTemplateOutlet]="cardTpl"
-                        [ngTemplateOutletContext]="{orden}">
-          </ng-container>
-        }
-      </div>
-    </div>
+  <!-- ═══════════════════ TABLERO ═══════════════════ -->
+  <div class="tablero" #tablero [class]="'densidad-' + densidad()" (scroll)="alDesplazarTablero()">
+    @for (col of columnas; track col.estado) {
+      @let lista = ordenesDe(col.estado);
+      <section class="col" [class]="'col--' + col.clase" [attr.aria-label]="col.titulo">
+        <header class="col-cab">
+          <span class="col-punto" aria-hidden="true"></span>
+          <h2>{{ col.titulo }}</h2>
+          <span class="col-n" [attr.aria-label]="lista.length + ' comandas'">
+            {{ cargando() ? '–' : lista.length }}
+          </span>
+          @if (!cargando() && lista.length > 0) {
+            <span class="col-dato">
+              @if (col.clase !== 'listo') {<b>{{ tiempoLabel(lista[0].fecha_creacion) }}</b>&nbsp;}{{ col.detalle }}
+            </span>
+          }
+        </header>
 
+        <div class="col-lista">
+          @if (cargando()) {
+            <p class="col-aviso">Cargando comandas…</p>
+          } @else if (lista.length === 0 && sinConexion()) {
+            <p class="col-aviso">No se pudieron traer las comandas.</p>
+          } @else if (lista.length === 0) {
+            <div class="vacio">
+              <b>{{ col.vacioTitulo }}</b>
+              {{ col.vacioTexto }}
+            </div>
+          }
+          @for (orden of lista; track orden.id_orden) {
+            <ng-container [ngTemplateOutlet]="comandaTpl"
+                          [ngTemplateOutletContext]="{ orden, col }" />
+          }
+        </div>
+      </section>
+    }
   </div>
-</div>
+
+</section>
 
 <!-- ================================================================
-     TEMPLATE REUTILIZABLE — Tarjeta de orden (sirve a las 3 columnas)
+     COMANDA (sirve a las 3 columnas)
      ================================================================ -->
-<ng-template #cardTpl let-orden="orden">
-  <div class="order-card"
-       [class.priority-medium]="getMinutos(orden.fecha_creacion) >= 10 && getMinutos(orden.fecha_creacion) < 15"
-       [class.priority-high]="getMinutos(orden.fecha_creacion) >= 15">
+<ng-template #comandaTpl let-orden="orden" let-col="col">
+  @let urgencia = col.clase === 'listo' ? 'normal' : timerClass(orden.fecha_creacion);
+  @let origen = origenDe(orden);
+  @let moviendo = enCurso().has(orden.id_orden);
+  <article class="comanda" [attr.aria-label]="'Comanda ' + numeroCorto(orden) + ', ' + origen.texto"
+           [class.comanda--atrasada]="urgencia === 'critical'"
+           [class.comanda--moviendo]="moviendo"
+           [class.comanda--recien]="recien().has(orden.id_orden)"
+           [attr.aria-busy]="moviendo">
 
-    <!-- ── Cabecera de la tarjeta ── -->
-    <div class="card-header">
-      <div class="card-left">
-        <div class="table-num">{{ getNumeroMesa(orden) }}</div>
-        <div class="card-meta">
-          <div class="order-num">{{ orden.numero_orden }}</div>
-          <div class="order-mesa">{{ getNombreMesa(orden) }}</div>
+    <!-- ── Cabecera: número, de dónde viene y cuánto lleva ── -->
+    <div class="c-cab">
+      <div class="c-id">
+        <span class="c-num">{{ numeroCorto(orden) }}</span>
+        <span class="c-origen">
+          <strong>{{ origen.texto }}</strong>
           @if (orden.para_servir) {
-            <div class="order-servir">🍽️ Para servir · {{ orden.contacto_nombre || 'cliente de WhatsApp' }}</div>
+            <span>· para servir a {{ orden.contacto_nombre || 'cliente de WhatsApp' }}</span>
+          } @else if (orden.usuario) {
+            <span title="Quién tomó el pedido">· {{ meseroCorto(orden) }}</span>
           }
-          <div class="order-server">👤 {{ getNombreMesero(orden) }}</div>
-        </div>
+        </span>
       </div>
-      <div class="card-timer">
-        <div class="timer-val"
-             [class.t-normal]="timerClass(orden.fecha_creacion) === 'normal'"
-             [class.t-warning]="timerClass(orden.fecha_creacion) === 'warning'"
-             [class.t-urgent]="timerClass(orden.fecha_creacion) === 'urgent'"
-             [class.t-critical]="timerClass(orden.fecha_creacion) === 'critical'">
-          {{ tiempoLabel(orden.fecha_creacion) }}
-        </div>
-        <div class="timer-lbl">Esperando</div>
-      </div>
+      <span class="c-tiempo" [class]="'c-tiempo--' + urgencia" title="Tiempo desde que entró la comanda">
+        <lucide-icon name="timer" [size]="15" />
+        {{ tiempoLabel(orden.fecha_creacion) }}
+      </span>
     </div>
 
-    <!-- ── Productos ── -->
-    <div class="card-body">
-      @for (plato of platosDe(orden); track plato.detalle.id_detalle) {
-        @let detalle = plato.detalle;
-        <div class="product-item">
-          <div class="product-header">
-            <div class="product-left">
-              <span class="product-emoji">{{ detalle.producto.icono }}</span>
-              <span class="product-name">{{ detalle.producto.nombre }}</span>
-            </div>
-            <span class="product-qty">×{{ detalle.cantidad }}</span>
-          </div>
-          @if (plato.adiciones.length > 0) {
-            <div class="mods">
-              @for (a of plato.adiciones; track a.id_detalle) {
-                <div class="mod mod-add">
-                  <span>➕</span><span>{{ a.producto.nombre }}@if (a.cantidad > 1) { ×{{ a.cantidad }}}</span>
-                </div>
-              }
-            </div>
-          }
-          @if (getExclusiones(detalle).length > 0) {
-            <div class="mods">
-              @for (excl of getExclusiones(detalle); track excl) {
-                <div class="mod mod-remove">
-                  <span>❌</span><span>Sin {{ excl }}</span>
-                </div>
-              }
-            </div>
-          }
-          @if (detalle.nota) {
-            <div class="mods">
-              <div class="mod mod-note">
-                <span>📝</span><span>{{ detalle.nota }}</span>
-              </div>
-            </div>
-          }
-        </div>
-      }
-    </div>
-
-    <!-- ── Nota de la orden ── -->
+    <!-- ── Nota de toda la comanda: arriba, se lee antes de empezar ── -->
     @if (orden.nota) {
-      <div class="card-nota">📋 {{ orden.nota }}</div>
+      @if (esAlerta(orden.nota)) {
+        <div class="alergia" role="note">
+          <lucide-icon name="triangle-alert" [size]="16" />
+          <span>{{ orden.nota }}</span>
+        </div>
+      } @else {
+        <p class="nota-pedido"><b>Nota del pedido:</b> {{ orden.nota }}</p>
+      }
     }
 
-    <!-- ── Botones de acción (según estado) ── -->
-    <div class="card-footer">
-      @if (orden.estado_cocina === 'PENDIENTE') {
-        <button class="btn btn-start"
-                (click)="cambiarEstado(orden, 'EN_PREPARACION')">
-          Iniciar Preparación
+    <!-- ── Platos ── -->
+    <ul class="platos">
+      @for (plato of platosDe(orden); track plato.detalle.id_detalle) {
+        @let detalle = plato.detalle;
+        <li class="plato">
+          <span class="cant" [class.cant--varios]="detalle.cantidad > 1">{{ detalle.cantidad }}</span>
+          <span class="nombre">
+            {{ detalle.producto.nombre }}
+            @if (esAgregadoDespues(detalle, orden)) {
+              <span class="nuevo" title="Se añadió después de que entró la comanda">NUEVO</span>
+            }
+          </span>
+          @for (a of plato.adiciones; track a.id_detalle) {
+            <span class="det det--extra"><b>+ EXTRA</b> {{ a.producto.nombre }}@if (a.cantidad > 1) { ×{{ a.cantidad }}}</span>
+          }
+          @for (excl of getExclusiones(detalle); track excl) {
+            <span class="det det--sin"><b>SIN</b> {{ excl }}</span>
+          }
+          @if (detalle.nota) {
+            @if (esAlerta(detalle.nota)) {
+              <span class="det alergia" role="note">
+                <lucide-icon name="triangle-alert" [size]="15" />
+                <span>{{ detalle.nota }}</span>
+              </span>
+            } @else {
+              <span class="det det--nota">{{ detalle.nota }}</span>
+            }
+          }
+        </li>
+      }
+    </ul>
+
+    <!-- ── Acción ── -->
+    @if (fallo().get(orden.id_orden); as mensaje) {
+      <p class="c-fallo" role="alert">
+        <lucide-icon name="circle-alert" [size]="15" />
+        {{ mensaje }}
+      </p>
+    }
+    <div class="c-pie">
+      @if (col.atras) {
+        <button type="button" class="volver" [title]="col.atrasTexto"
+                [attr.aria-label]="col.atrasTexto + ' ' + numeroCorto(orden)" [disabled]="moviendo"
+                (click)="cambiarEstado(orden, col.atras)">
+          <lucide-icon name="undo-2" [size]="16" />
         </button>
       }
-      @if (orden.estado_cocina === 'EN_PREPARACION') {
-        <button class="btn btn-undo"
-                title="Volver a Pendiente"
-                (click)="cambiarEstado(orden, 'PENDIENTE')">↩️</button>
-        <button class="btn btn-complete"
-                (click)="cambiarEstado(orden, 'LISTO')">
-          Marcar Listo ✓
-        </button>
-      }
-      @if (orden.estado_cocina === 'LISTO') {
-        <button class="btn btn-undo"
-                title="Volver a Preparación"
-                (click)="cambiarEstado(orden, 'EN_PREPARACION')">↩️</button>
-        <button class="btn btn-delivered"
-                (click)="cambiarEstado(orden, 'ENTREGADO')">
-          Entregado 🛎️
-        </button>
-      }
+      <button type="button" class="accion" [disabled]="moviendo"
+              [attr.aria-label]="col.accionTexto + ' ' + numeroCorto(orden)"
+              (click)="cambiarEstado(orden, col.siguiente)">
+        @if (moviendo) {
+          <span class="giro" aria-hidden="true"></span>
+          Guardando…
+        } @else {
+          {{ col.accionTexto }}
+        }
+      </button>
     </div>
-
-  </div>
+  </article>
 </ng-template>
-

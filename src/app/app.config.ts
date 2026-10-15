@@ -39,7 +39,9 @@ import {
   // Promociones
   History, CircleCheck, CircleX, ImageIcon, TypeIcon,
   // Configuración → Cobros → Barrios y veredas
-  FileDown, FileUp, Equal
+  FileDown, FileUp, Equal,
+  // Cocina (KDS)
+  BellRing, BellOff, Timer, Undo2, Inbox
 } from 'lucide-angular';
 
 export const icons = {
@@ -65,7 +67,8 @@ export const icons = {
   PackageCheck, CircleSlash, Link, MessageSquare, FileText, Paperclip, TriangleAlert,
   LoaderCircle, ListChecks, Megaphone,
   History, CircleCheck, CircleX, Image: ImageIcon, Type: TypeIcon,
-  FileDown, FileUp, Equal
+  FileDown, FileUp, Equal,
+  BellRing, BellOff, Timer, Undo2, Inbox
 };
 
 export const appConfig: ApplicationConfig = {

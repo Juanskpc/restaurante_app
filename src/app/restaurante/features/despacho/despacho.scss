@@ -24,6 +24,19 @@
   align-items: center;
   gap: var(--spacing-sm);
 
+  // Igual que Mesas y Cocina: el ícono va en un cuadrito pastel de la marca.
+  > lucide-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--color-primary) 12%, var(--color-surface));
+    color: var(--color-primary);
+  }
+
   h1 {
     font-size: var(--font-size-xl);
     color: var(--color-text-primary);

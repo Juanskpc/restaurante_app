@@ -7,9 +7,10 @@ const GESTOS_DE_DESBLOQUEO = ['pointerdown', 'keydown', 'touchstart'] as const;
 /**
  * SonidoAlertaService — los avisos sonoros del negocio.
  *
- * Son dos, y suenan distinto a propósito: `sonarNuevoPedido` (un pedido entró por el asistente) y
- * `sonarConversacionEscalada` (el asistente no supo responder y hay alguien esperando). Quien
- * añada un tercero tiene el mismo deber: que se distinga sin mirar la pantalla.
+ * Son tres, y suenan distinto a propósito: `sonarNuevoPedido` (un pedido entró por el asistente),
+ * `sonarConversacionEscalada` (el asistente no supo responder y hay alguien esperando) y
+ * `sonarPedidoListo` (Cocina marcó un plato como listo). Quien añada otro tiene el mismo deber:
+ * que se distinga sin mirar la pantalla.
  *
  * ## Por qué se sintetiza y no se carga un `.mp3`
  *
@@ -79,6 +80,40 @@ export class SonidoAlertaService {
       this.nota(contexto, 392, inicio, 0.14, 'triangle');
       this.nota(contexto, 293.66, inicio + 0.16, 0.14, 'triangle');
       this.nota(contexto, 196, inicio + 0.32, 0.34, 'triangle');
+    } catch {
+      // Sin audio disponible: se pierde el sonido, no la pantalla.
+    }
+  }
+
+  /**
+   * Un solo golpe de timbre de mostrador: el aviso de que un plato quedó listo.
+   *
+   * Se distingue de los otros dos por la cuenta (UN golpe, no dos ni tres) y por el timbre: a la
+   * nota se le suman los parciales inarmónicos de una campana (×2,76 y ×5,40), que es lo que la
+   * vuelve metálica, y la cola dura más de un segundo —el «diiing» que queda sonando—. Ataque de
+   * 5 ms para que suene a golpe y no a pitido que entra despacio.
+   */
+  sonarPedidoListo(): void {
+    if (!this.esNavegador) return;
+    try {
+      const contexto = this.obtenerContexto();
+      if (!contexto) return;
+      if (contexto.state === 'suspended') void contexto.resume();
+
+      const inicio = contexto.currentTime + 0.02;
+      // Sol6 con sus parciales de campana; cada uno más débil y más corto que el anterior.
+      for (const [multiplo, pico, duracion] of [[1, 0.24, 1.4], [2.76, 0.07, 0.6], [5.4, 0.03, 0.25]]) {
+        const oscilador = contexto.createOscillator();
+        const volumen = contexto.createGain();
+        oscilador.type = 'sine';
+        oscilador.frequency.value = 1567.98 * multiplo;
+        volumen.gain.setValueAtTime(0.0001, inicio);
+        volumen.gain.exponentialRampToValueAtTime(pico, inicio + 0.005);
+        volumen.gain.exponentialRampToValueAtTime(0.0001, inicio + duracion);
+        oscilador.connect(volumen).connect(contexto.destination);
+        oscilador.start(inicio);
+        oscilador.stop(inicio + duracion + 0.02);
+      }
     } catch {
       // Sin audio disponible: se pierde el sonido, no la pantalla.
     }
