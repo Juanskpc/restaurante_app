@@ -272,6 +272,34 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
     this.temporizadorAviso = setTimeout(() => this.cerrarAvisoCerrado(), 8000);
   }
 
+  /**
+   * «Presiona el + para agregar un producto»: la primera vez que la carta queda lista para pedir
+   * (ya eligió cómo pedir, se atiende ahora y el carrito está vacío). Se va sola a los 8 segundos,
+   * al cerrarla o al agregar algo, y no vuelve en esta visita. Usa el mismo aviso flotante que el
+   * de «cerrado»: los dos nunca coinciden, porque este solo sale con el negocio atendiendo.
+   */
+  readonly ayudaMasDescartada = signal(false);
+  readonly mostrarAyudaMas = computed(
+    () =>
+      !this.ayudaMasDescartada() &&
+      !this.esVistaPrevia() &&
+      this.eleccionCargada() &&
+      this.puedeArmarPedido() &&
+      this.atendiendoAhora() &&
+      !this.mostrarSelector() &&
+      this.carrito.vacio() &&
+      !this.modalProducto(),
+  );
+  private readonly temporizarAyudaMas = effect((onCleanup) => {
+    if (!this.mostrarAyudaMas() || !isPlatformBrowser(this.platformId)) return;
+    const t = setTimeout(() => this.ayudaMasDescartada.set(true), 8000);
+    onCleanup(() => clearTimeout(t));
+  });
+
+  cerrarAyudaMas(): void {
+    this.ayudaMasDescartada.set(true);
+  }
+
   cerrarAvisoCerrado(): void {
     if (this.temporizadorAviso) clearTimeout(this.temporizadorAviso);
     this.temporizadorAviso = null;
@@ -1029,6 +1057,15 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
 
   readonly modalProducto = signal<ProductoPublico | null>(null);
   readonly quitarSel = signal<ReadonlySet<number>>(new Set());
+  /** ¿El cliente pidió ver la lista de ingredientes para quitar alguno? */
+  readonly quitarAbierto = signal(false);
+
+  abrirQuitar(): void {
+    this.quitarAbierto.set(true);
+    if (isPlatformBrowser(this.platformId)) {
+      setTimeout(() => this.modalRef()?.nativeElement.querySelector<HTMLElement>('input')?.focus());
+    }
+  }
   private readonly modalRef = viewChild<ElementRef<HTMLElement>>('modalIngredientes');
   private focoPrevio: HTMLElement | null = null;
 
@@ -1042,6 +1079,9 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
     }
     this.quitarSel.set(new Set());
     this.adicionSel.set(new Map());
+    // Los ingredientes empiezan plegados: «¿Deseas quitar alguno?». Una hamburguesa con diez
+    // ingredientes llenaba la pantalla de casillas que casi nadie toca.
+    this.quitarAbierto.set(false);
     this.modalProducto.set(prod);
     if (isPlatformBrowser(this.platformId)) {
       // El foco entra al diálogo en cuanto se pinta.

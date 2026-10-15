@@ -403,6 +403,21 @@ describe('MenuPublicoComponent — quitar ingredientes al agregar', () => {
   });
   afterEach(() => http?.verify());
 
+  it('al poder pedir avisa «presiona el +», y el aviso se va al agregar o al cerrarlo', () => {
+    const fixture = montar();
+    const comp = fixture.componentInstance;
+    fixture.detectChanges();
+    expect(comp.mostrarAyudaMas()).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain('Presiona el');
+
+    comp.agregarAlCarrito(producto(9) as never);
+    expect(comp.mostrarAyudaMas()).toBe(false);
+
+    comp.cerrarAyudaMas();
+    TestBed.inject(CarritoService).vaciar();
+    expect(comp.mostrarAyudaMas()).toBe(false); // cerrado: no vuelve en esta visita
+  });
+
   it('sin ingredientes removibles el «+» agrega DIRECTO, sin modal', () => {
     const fixture = montar();
     const comp = fixture.componentInstance;
@@ -427,7 +442,23 @@ describe('MenuPublicoComponent — quitar ingredientes al agregar', () => {
     const dialogo = fixture.nativeElement.querySelector('.ingredientes');
     expect(dialogo.getAttribute('role')).toBe('dialog');
     expect(dialogo.getAttribute('aria-modal')).toBe('true');
+    // Plegado (2026-10-15): la pregunta, no diez casillas.
+    expect(dialogo.textContent).toContain('¿Deseas quitar algún ingrediente?');
+    expect(fixture.nativeElement.querySelectorAll('.ingrediente input[type=checkbox]')).toHaveLength(0);
+
+    (dialogo.querySelector('.pp-otra') as HTMLButtonElement).click();
+    fixture.detectChanges();
     expect(fixture.nativeElement.querySelectorAll('.ingrediente input[type=checkbox]')).toHaveLength(2);
+  });
+
+  it('cada vez que se abre, la lista de ingredientes vuelve a empezar plegada', () => {
+    const fixture = montar();
+    const comp = fixture.componentInstance;
+    comp.agregarAlCarrito(producto(4) as never);
+    comp.abrirQuitar();
+    comp.cerrarModalIngredientes();
+    comp.agregarAlCarrito(producto(4) as never);
+    expect(comp.quitarAbierto()).toBe(false);
   });
 
   it('todos vienen incluidos: «Agregar» a un toque crea la línea «con todo»', () => {
@@ -524,6 +555,7 @@ describe('MenuPublicoComponent — quitar ingredientes al agregar', () => {
     it('todos los checkboxes vienen MARCADOS y dicen «Incluido»', () => {
       const fixture = montar();
       fixture.componentInstance.agregarAlCarrito(producto(4) as never);
+      fixture.componentInstance.abrirQuitar();
       fixture.detectChanges();
 
       const cajas = fixture.nativeElement.querySelectorAll('.ingrediente input[type=checkbox]');
@@ -536,6 +568,7 @@ describe('MenuPublicoComponent — quitar ingredientes al agregar', () => {
       const fixture = montar();
       const comp = fixture.componentInstance;
       comp.agregarAlCarrito(producto(4) as never);
+      comp.abrirQuitar();
       fixture.detectChanges();
 
       const caja = fixture.nativeElement.querySelector('.ingrediente input') as HTMLInputElement;
@@ -551,6 +584,7 @@ describe('MenuPublicoComponent — quitar ingredientes al agregar', () => {
       const fixture = montar();
       const comp = fixture.componentInstance;
       comp.agregarAlCarrito(producto(4) as never);
+      comp.abrirQuitar();
       fixture.detectChanges();
       const caja = fixture.nativeElement.querySelector('.ingrediente input') as HTMLInputElement;
       caja.click();

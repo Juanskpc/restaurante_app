@@ -450,12 +450,18 @@
       (keydown)="onTeclaModal($event)"
     >
       <h2 id="ingredientes-titulo" class="ingredientes__titulo">{{ p.nombre }}</h2>
-      @if (removiblesDe(p).length > 0) {
+      @if (removiblesDe(p).length > 0 && !quitarAbierto()) {
+        <p class="ingredientes__sub">
+          ¿Deseas quitar algún ingrediente?
+          <button type="button" class="pp-otra" (click)="abrirQuitar()">Sí, elegir</button>
+        </p>
+      }
+      @if (removiblesDe(p).length > 0 && quitarAbierto()) {
       <p class="ingredientes__sub">Todo viene incluido. Desmarca lo que no quieras.</p>
       }
 
       <ul class="ingredientes__lista">
-        @for (r of removiblesDe(p); track r.id_ingrediente) {
+        @for (r of quitarAbierto() ? removiblesDe(p) : []; track r.id_ingrediente) {
           <li>
             <!-- Marcado = incluido; desmarcado = «Sin X». El estado va DENTRO de la etiqueta, así el
                  nombre accesible del checkbox dice «Cebolla, incluido» o «Cebolla, sin cebolla». -->
@@ -642,6 +648,18 @@
      nada: un `disabled` no lo recibe y en el móvil no hay `title` que leer. Es `role="status"`
      (educado, no interrumpe) porque no es un error del cliente.
 -->
+<!-- La primera vez que se puede pedir: cómo se agrega un producto. Mismo aviso flotante que el de
+     «cerrado» (nunca coinciden: este solo sale con el negocio atendiendo). -->
+@if (mostrarAyudaMas()) {
+  <div class="aviso-cerrado" role="status" aria-live="polite">
+    <lucide-icon name="circle-plus" [size]="20" aria-hidden="true" />
+    <p class="aviso-cerrado__texto">Presiona el <strong>+</strong> de un producto para agregarlo a tu pedido.</p>
+    <button type="button" class="aviso-cerrado__cerrar" (click)="cerrarAyudaMas()" aria-label="Cerrar aviso">
+      <lucide-icon name="x" [size]="16" />
+    </button>
+  </div>
+}
+
 @if (avisoCerradoVisible()) {
   <div class="aviso-cerrado" role="status" aria-live="polite">
     <lucide-icon name="clock" [size]="20" aria-hidden="true" />
