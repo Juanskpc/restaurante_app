@@ -15,7 +15,7 @@ import {
 } from '@angular/core';
 import { DOCUMENT, NgTemplateOutlet, isPlatformBrowser } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
 import { catchError, forkJoin, of } from 'rxjs';
 
@@ -70,8 +70,21 @@ interface BarrioPublico {
   valor: number;
 }
 
+/**
+ * Una sede del mismo grupo —la matriz cuenta como una— tal como la devuelve
+ * `/public/negocios/:id` en `sedes`. Llega vacío si el negocio va solo.
+ *
+ * Se dice «sede» y no «local» porque en esta carta «el local» ya es otra cosa: comer ahí sentado,
+ * la modalidad `L` (ver `menu-publico-local.spec.ts`).
+ */
+interface SedePublica {
+  id_negocio: number;
+  nombre: string;
+  direccion: string | null;
+}
+
 /** Cuál de los pasos de «¿cómo quieres pedir?» toca ahora. */
-type PasoEleccion = 'modalidad' | 'barrio';
+type PasoEleccion = 'sede' | 'modalidad' | 'barrio';
 
 /** Una categoría con sus productos, tal como la devuelve `/public/carta/completa`. */
 interface SeccionPublica extends CategoriaPublica {
@@ -148,6 +161,11 @@ interface NegocioPublico {
   carta?: CartaPublicaConfig | null;
   /** Puede faltar con un backend anterior; en ese caso se trata como "abierto" (ver `atendiendoAhora`). */
   atencion?: { estado: EstadoAtencion; abre?: ProximaApertura | null } | null;
+  /**
+   * Las sedes del grupo entre las que se puede elegir, esta incluida. Vacío (o ausente, con un
+   * backend anterior) = no hay nada que elegir y la carta se comporta como siempre.
+   */
+  sedes?: SedePublica[] | null;
 }
 
 /** Lo que manda Configuración → Apariencia cuando esta carta se muestra como vista previa. */
@@ -266,6 +284,25 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
   );
   readonly hayMesas = computed(() => this.mesas().length > 0);
 
+  // ── ¿Dónde quieres pedir? ─────────────────────────────────────────────────────────────
+  //
+  // Un negocio con sedes sirve varias cartas, una por sede, cada una con sus precios y su
+  // WhatsApp. El cliente abre la de cualquiera —el QR de la puerta, el enlace de la bio— y lo
+  // primero que se le pregunta es en cuál pide; al elegir otra se navega a SU carta. El backend
+  // manda la lista vacía si no hay entre qué elegir, así que un negocio solo no ve nada de esto.
+
+  readonly sedes = computed<SedePublica[]>(() => this.negocio()?.sedes ?? []);
+  readonly hayVariasSedes = computed(() => this.sedes().length > 1);
+
+  /**
+   * ¿Ya dijo en qué sede pide? Se pregunta una vez por carga de la página, igual que la modalidad
+   * (2026-10-12): no sobrevive a un recargo. Cambiar de sede navega a otra carta y eso reinicia
+   * el componente, así que `seleccionDeSedeHecha` es lo que evita que la carta de destino vuelva
+   * a preguntar lo que se acaba de responder.
+   */
+  readonly sedeElegida = signal(false);
+  private seleccionDeSedeHecha = false;
+
   /**
    * El paso que toca, o `null` si la elección está completa.
    *
@@ -274,6 +311,10 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
    * `aplicarMesaDeLaUrl`) y solo se usa para decir en qué mesa está.
    */
   readonly pasoEleccion = computed<PasoEleccion | null>(() => {
+    // La sede va delante de todo: elegir cómo pedir en la carta equivocada no sirve de nada.
+    // «Cambiar» (`forzarInicio`) vuelve a la modalidad y no aquí — la sede tiene su propio botón,
+    // y quien solo quiere pasar de domicilio a recoger no debería reelegirla.
+    if (!this.forzarInicio() && this.hayVariasSedes() && !this.sedeElegida()) return 'sede';
     const modalidad = this.carrito.modalidad();
     if (this.forzarInicio() || modalidad === null) return 'modalidad';
     if (modalidad === 'D' && this.hayBarrios() && this.carrito.barrio() === null) return 'barrio';
@@ -295,13 +336,23 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly soloMirar = computed(() => this.pedidosHabilitados() && this.carrito.modalidad() === 'L');
 
   /** El selector se ve solo cuando se puede pedir, se atiende ahora y falta elegir algo. */
-  readonly mostrarSelector = computed(
-    () =>
-      this.pedidosHabilitados() &&
-      this.atendiendoAhora() &&
-      !this.esVistaPrevia() &&
-      this.eleccionCargada() &&
-      this.pasoEleccion() !== null,
+  readonly mostrarSelector = computed(() => {
+    if (this.esVistaPrevia() || !this.eleccionCargada()) return false;
+    const paso = this.pasoEleccion();
+    if (paso === null) return false;
+    // Elegir sede NO exige que ESTA sede pueda pedir ni que esté abierta: es justamente lo que
+    // hace falta para irse a la otra cuando esta está cerrada o no publicó WhatsApp.
+    if (paso === 'sede') return true;
+    return this.pedidosHabilitados() && this.atendiendoAhora();
+  });
+
+  /**
+   * La barra que dice en qué sede se está y deja cambiarla. Independiente del chip de la
+   * modalidad: ese solo sale con el negocio atendiendo, y cambiar de sede tiene que seguir siendo
+   * posible con esta cerrada.
+   */
+  readonly mostrarBarraSede = computed(
+    () => this.hayVariasSedes() && !this.esVistaPrevia() && this.pasoEleccion() !== 'sede',
   );
 
   /** ¿Se ofrece cambiar lo elegido? Solo con elección completa y pedido posible. */
@@ -351,6 +402,28 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
         return `${base}: puede subir por el empaque o el domicilio.`;
     }
   });
+
+  /**
+   * La sede donde se va a pedir.
+   *
+   * Si es otra, se navega a SU carta: cada sede sirve la suya. El carrito no viaja —su clave de
+   * guardado lleva el id del negocio— y eso es lo correcto, porque desde que se copió la
+   * configuración los precios de cada sede son independientes. Un `?mesa=` tampoco viaja: es el
+   * QR de una mesa de la sede que se deja atrás.
+   */
+  elegirSede(sede: SedePublica): void {
+    if (sede.id_negocio === this.negocioId()) {
+      this.sedeElegida.set(true);
+      return;
+    }
+    this.seleccionDeSedeHecha = true;
+    this.router.navigate(['/carta', sede.id_negocio]);
+  }
+
+  cambiarSede(): void {
+    this.forzarInicio.set(false);
+    this.sedeElegida.set(false);
+  }
 
   elegirModalidad(modalidad: Modalidad): void {
     this.forzarInicio.set(false);
@@ -415,6 +488,7 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly prePedidoAbierto = signal(false);
   private readonly http = inject(HttpClient);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly platformId = inject(PLATFORM_ID);
   private readonly document = inject(DOCUMENT);
 
@@ -646,6 +720,9 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
       this.negocio.set(null);
       this.eleccionCargada.set(false);
       this.forzarInicio.set(false);
+      // Venir del selector cuenta como haber elegido: la carta de destino no vuelve a preguntar.
+      this.sedeElegida.set(this.seleccionDeSedeHecha);
+      this.seleccionDeSedeHecha = false;
       this.secciones.set([]);
       this.categoriaActiva.set(null);
       this.negocioId.set(id);

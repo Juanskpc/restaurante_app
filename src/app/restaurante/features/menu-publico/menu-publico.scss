@@ -2185,6 +2185,13 @@
   &--otro { border-style: dashed; }
 }
 
+// Con sedes la barra lleva dos chips (dónde y cómo). Se separan aquí y no con un `gap` en
+// `.eleccion-bar` porque ese contenedor también lleva la nota de «en el local», que es un bloque
+// y pasaría a sentarse al lado de los chips.
+.eleccion-chip--sede {
+  margin-right: 8px;
+}
+
 .eleccion-bar {
   margin: 0 auto;
   max-width: 960px;

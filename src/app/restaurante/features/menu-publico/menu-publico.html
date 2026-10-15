@@ -153,23 +153,33 @@
     </main>
   }
 
-  <!-- ═══════════ CÓMO PIDE (chip para cambiarlo) ═══════════
-       Solo con la elección hecha y el negocio atendiendo. Cerrado no hay nada que elegir. -->
-  @if (!negocioInvalido() && !planInactivo() && negocio() && mostrarChip()) {
+  <!-- ═══════════ DÓNDE Y CÓMO PIDE (chips para cambiarlo) ═══════════
+       El de la modalidad solo con la elección hecha y el negocio atendiendo: cerrado no hay nada
+       que elegir. El de la sede sí sale con el local cerrado — es la forma de irse al que atienda. -->
+  @if (!negocioInvalido() && !planInactivo() && negocio() && (mostrarBarraSede() || mostrarChip())) {
     <div class="eleccion-bar">
-      <button type="button" class="eleccion-chip" (click)="cambiarEleccion()">
-        <lucide-icon
-          [name]="carrito.modalidad() === 'D' ? 'bike' : carrito.modalidad() === 'L' ? 'armchair' : 'shopping-bag'"
-          [size]="16"
-        />
-        <span class="eleccion-chip__texto">{{ resumenEleccion() }}</span>
-        <span class="eleccion-chip__cambiar">Cambiar</span>
-      </button>
-      <!-- En el local no se arma pedido: el aviso dice por qué no hay botones y cómo pedir igual. -->
-      @if (soloMirar()) {
-        <p class="eleccion-nota">
-          Un mesero tomará tu pedido. Si prefieres pedir por WhatsApp, cambia a domicilio o para recoger.
-        </p>
+      @if (mostrarBarraSede()) {
+        <button type="button" class="eleccion-chip eleccion-chip--sede" (click)="cambiarSede()">
+          <lucide-icon name="map-pin" [size]="16" />
+          <span class="eleccion-chip__texto">{{ negocio()?.nombre }}</span>
+          <span class="eleccion-chip__cambiar">Cambiar</span>
+        </button>
+      }
+      @if (mostrarChip()) {
+        <button type="button" class="eleccion-chip" (click)="cambiarEleccion()">
+          <lucide-icon
+            [name]="carrito.modalidad() === 'D' ? 'bike' : carrito.modalidad() === 'L' ? 'armchair' : 'shopping-bag'"
+            [size]="16"
+          />
+          <span class="eleccion-chip__texto">{{ resumenEleccion() }}</span>
+          <span class="eleccion-chip__cambiar">Cambiar</span>
+        </button>
+        <!-- En el local no se arma pedido: el aviso dice por qué no hay botones y cómo pedir igual. -->
+        @if (soloMirar()) {
+          <p class="eleccion-nota">
+            Un mesero tomará tu pedido. Si prefieres pedir por WhatsApp, cambia a domicilio o para recoger.
+          </p>
+        }
       }
     </div>
   }
@@ -493,6 +503,20 @@
       </div>
 
       @switch (pasoEleccion()) {
+        @case ('sede') {
+          <h2 id="eleccion-titulo" class="eleccion__titulo">¿Dónde deseas pedir?</h2>
+          <p class="eleccion__sub">Cada sede tiene su propia carta y su propio horario.</p>
+          <div class="eleccion__lista">
+            @for (s of sedes(); track s.id_negocio) {
+              <button type="button" class="eleccion-opcion" (click)="elegirSede(s)">
+                <span>{{ s.nombre }}</span>
+                @if (s.direccion) {
+                  <small>{{ s.direccion }}</small>
+                }
+              </button>
+            }
+          </div>
+        }
         @case ('modalidad') {
           <h2 id="eleccion-titulo" class="eleccion__titulo">¿Cómo quieres pedir?</h2>
           <div class="eleccion__tarjetas">
