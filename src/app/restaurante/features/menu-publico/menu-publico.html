@@ -419,16 +419,23 @@
       </button>
     </div>
   } @else {
+    <!-- El del primer producto lleva «Toca para agregar»: al abrir la carta se ensancha y lo
+         muestra unos segundos (como el botón de ayuda de WhatsApp), y luego vuelve a ser un «+». -->
     <button
       type="button"
       [attr.aria-disabled]="atendiendoAhora() ? null : true"
       [attr.title]="atendiendoAhora() ? null : textoFueraDeHorario"
       class="add-btn"
+      [class.add-btn--ayuda]="prod.id_producto === idAyudaMas()"
+      [class.add-btn--abierto]="prod.id_producto === idAyudaMas() && mostrarAyudaMas()"
       [class.pedir-cerrado]="!atendiendoAhora()"
       (click)="agregarAlCarrito(prod)"
       [attr.aria-label]="'Agregar ' + prod.nombre + ' al pedido'"
     >
       <lucide-icon name="plus" [size]="16" />
+      @if (prod.id_producto === idAyudaMas()) {
+        <span class="add-btn__texto" aria-hidden="true">Toca para agregar</span>
+      }
     </button>
   }
 </ng-template>
@@ -648,18 +655,6 @@
      nada: un `disabled` no lo recibe y en el móvil no hay `title` que leer. Es `role="status"`
      (educado, no interrumpe) porque no es un error del cliente.
 -->
-<!-- La primera vez que se puede pedir: cómo se agrega un producto. Mismo aviso flotante que el de
-     «cerrado» (nunca coinciden: este solo sale con el negocio atendiendo). -->
-@if (mostrarAyudaMas()) {
-  <div class="aviso-cerrado" role="status" aria-live="polite">
-    <lucide-icon name="circle-plus" [size]="20" aria-hidden="true" />
-    <p class="aviso-cerrado__texto">Presiona el <strong>+</strong> de un producto para agregarlo a tu pedido.</p>
-    <button type="button" class="aviso-cerrado__cerrar" (click)="cerrarAyudaMas()" aria-label="Cerrar aviso">
-      <lucide-icon name="x" [size]="16" />
-    </button>
-  </div>
-}
-
 @if (avisoCerradoVisible()) {
   <div class="aviso-cerrado" role="status" aria-live="polite">
     <lucide-icon name="clock" [size]="20" aria-hidden="true" />

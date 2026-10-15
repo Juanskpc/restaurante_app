@@ -273,10 +273,10 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   /**
-   * «Presiona el + para agregar un producto»: la primera vez que la carta queda lista para pedir
-   * (ya eligió cómo pedir, se atiende ahora y el carrito está vacío). Se va sola a los 8 segundos,
-   * al cerrarla o al agregar algo, y no vuelve en esta visita. Usa el mismo aviso flotante que el
-   * de «cerrado»: los dos nunca coinciden, porque este solo sale con el negocio atendiendo.
+   * «Toca para agregar»: el «+» del PRIMER producto se ensancha y lo dice, la primera vez que la
+   * carta queda lista para pedir (ya eligió cómo pedir, se atiende ahora y el carrito está vacío).
+   * Vuelve a su tamaño a los pocos segundos o al agregar algo, y no se repite en esta visita. Es
+   * solo informativo: quien no sabe cómo pedir ve dónde se toca.
    */
   readonly ayudaMasDescartada = signal(false);
   readonly mostrarAyudaMas = computed(
@@ -292,13 +292,22 @@ export class MenuPublicoComponent implements OnInit, AfterViewInit, OnDestroy {
   );
   private readonly temporizarAyudaMas = effect((onCleanup) => {
     if (!this.mostrarAyudaMas() || !isPlatformBrowser(this.platformId)) return;
-    const t = setTimeout(() => this.ayudaMasDescartada.set(true), 8000);
+    const t = setTimeout(() => this.ayudaMasDescartada.set(true), 4000);
     onCleanup(() => clearTimeout(t));
   });
 
   cerrarAyudaMas(): void {
     this.ayudaMasDescartada.set(true);
   }
+
+  /** El producto cuyo «+» enseña la ayuda: el primero que se puede pedir, en el orden de la carta. */
+  readonly idAyudaMas = computed(() => {
+    for (const s of this.seccionesVisibles()) {
+      const p = s.productos.find((x) => x.disponible !== false);
+      if (p) return p.id_producto;
+    }
+    return null;
+  });
 
   cerrarAvisoCerrado(): void {
     if (this.temporizadorAviso) clearTimeout(this.temporizadorAviso);

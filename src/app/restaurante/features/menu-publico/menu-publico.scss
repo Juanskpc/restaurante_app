@@ -933,6 +933,33 @@
   }
 }
 
+/* El «+» del primer producto: se ensancha y dice «Toca para agregar» al abrir la carta. */
+.add-btn--ayuda {
+  display: inline-flex;
+  justify-content: flex-start;
+  gap: 6px;
+  width: auto;
+  max-width: 32px;
+  padding: 0 7px;
+  overflow: hidden;
+  transition: max-width .35s ease, background .35s ease, color .35s ease;
+}
+.add-btn--abierto {
+  max-width: 220px;
+  padding-right: 12px;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+.add-btn__texto {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity .35s ease;
+  .add-btn--abierto & { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) { .add-btn--ayuda, .add-btn__texto { transition: none; } }
+
 .product-qty {
   display: flex;
   align-items: center;

@@ -403,12 +403,15 @@ describe('MenuPublicoComponent — quitar ingredientes al agregar', () => {
   });
   afterEach(() => http?.verify());
 
-  it('al poder pedir avisa «presiona el +», y el aviso se va al agregar o al cerrarlo', () => {
+  it('al poder pedir, el «+» del PRIMER producto se ensancha con «Toca para agregar»', () => {
     const fixture = montar();
     const comp = fixture.componentInstance;
     fixture.detectChanges();
     expect(comp.mostrarAyudaMas()).toBe(true);
-    expect(fixture.nativeElement.textContent).toContain('Presiona el');
+    const abiertos = fixture.nativeElement.querySelectorAll('.add-btn--abierto');
+    expect(abiertos).toHaveLength(1);
+    expect(abiertos[0].textContent).toContain('Toca para agregar');
+    expect(fixture.nativeElement.querySelector('.aviso-cerrado')).toBeNull();
 
     comp.agregarAlCarrito(producto(9) as never);
     expect(comp.mostrarAyudaMas()).toBe(false);
