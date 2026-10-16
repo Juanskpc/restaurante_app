@@ -55,6 +55,26 @@ export interface Producto {
   icono: string;
   es_popular: boolean;
   ingredientes: Ingrediente[];
+  /** Solo viene en el catálogo completo (el que se busca en el propio equipo). */
+  id_categoria?: number;
+}
+
+/**
+ * Texto comparable: sin tildes, en minúsculas y con espacios de verdad.
+ *
+ * Buscar «cafe» tiene que encontrar «Café», y al revés. Y los teclados del móvil no
+ * escriben solo letras: la predicción y el autocorrector meten espacios duros (U+00A0),
+ * separadores finos y marcas de ancho cero —invisibles en pantalla, otro carácter al
+ * comparar—. Eso es lo que hacía que lo mismo encontrara en el PC y no en la tablet.
+ */
+export function textoBuscable(value: string | null | undefined): string {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\u200b-\u200d\ufeff\u00ad]/g, '')
+    .replace(/\s+/g, ' ')
+    .toLowerCase()
+    .trim();
 }
 
 export interface Categoria {
@@ -266,6 +286,13 @@ export class PedidosComponent implements OnInit, OnDestroy {
   // --- Estado ---
   readonly categorias = signal<Categoria[]>([]);
   readonly productos = signal<Producto[]>([]);
+  /**
+   * Todo el catálogo vendible del negocio, traído UNA vez al entrar. El buscador trabaja
+   * sobre esto, en el propio equipo: la tablet ya no depende de que una petición por tecla
+   * llegue y llegue en orden, y lo que se encuentra escribiendo es exactamente lo mismo que
+   * se ve navegando por categorías (misma consulta, mismos filtros).
+   */
+  private readonly catalogoCompleto = signal<Producto[]>([]);
   readonly categoriaActiva = signal<number | null>(null);
   readonly items = signal<ItemOrden[]>([]);
   readonly searchTerm = signal('');
@@ -357,6 +384,8 @@ export class PedidosComponent implements OnInit, OnDestroy {
   readonly destinoEnvio = signal<DestinoEnvio | null>(null);
   readonly efectivoRecibidoInput = signal('');
   readonly cargandoProductos = signal(false);
+  /** Hay algo escrito en el buscador: el vacío de la rejilla se explica distinto. */
+  readonly buscando = computed(() => textoBuscable(this.searchTerm()).length > 0);
   readonly ordenPanelOpen = signal(false);
   readonly isMobileViewport = signal(this.isBrowser ? window.innerWidth < this.mobileBreakpoint : false);
 
@@ -403,9 +432,9 @@ export class PedidosComponent implements OnInit, OnDestroy {
     return item ? this.adicionesPorProducto().get(item.id_producto) ?? [] : [];
   });
 
-  // Debounce para búsqueda en vivo
   private readonly cobrarAlDespachar = signal(false);
-  private searchTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Si la rejilla viene de una búsqueda: al vaciar el buscador hay que devolver la categoría. */
+  private habiaBusqueda = false;
 
   // ── Valor del domicilio (opt-in por negocio, ver Configuración → Domicilios) ──
   readonly permitePagoDomicilio = computed(() => this.auth.permitePagoDomicilio());
@@ -525,12 +554,15 @@ export class PedidosComponent implements OnInit, OnDestroy {
 
   // ===================== Lifecycle =====================
 
-  /** Efecto que reacciona al searchTerm con debounce de 300 ms */
+  /**
+   * El buscador filtra el catálogo que ya está en memoria, sin debounce y sin red.
+   *
+   * Antes cada tecla disparaba `GET /carta/buscar` con 300 ms de espera: en una tablet con
+   * mala señal las respuestas llegaban tarde y desordenadas, y la última en llegar —la de
+   * un término a medio escribir— dejaba la rejilla vacía. Ahora la respuesta es inmediata.
+   */
   private readonly searchEffect = effect(() => {
-    const term = this.searchTerm();
-    // Limpiar timer previo
-    if (this.searchTimer) clearTimeout(this.searchTimer);
-    this.searchTimer = setTimeout(() => this.ejecutarBusqueda(term.trim()), 300);
+    this.aplicarBusqueda(this.searchTerm(), this.catalogoCompleto());
   });
 
   /**
@@ -565,6 +597,7 @@ export class PedidosComponent implements OnInit, OnDestroy {
 
     this.hidratarItemsPagadosMesa();
     this.loadCategorias();
+    this.loadCatalogoCompleto();
     this.loadAdiciones();
     this.loadBarriosDomicilio();
     this.loadMesas();
@@ -1039,7 +1072,6 @@ export class PedidosComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    if (this.searchTimer) clearTimeout(this.searchTimer);
     if (this.avisoFabTimer) clearTimeout(this.avisoFabTimer);
     if (this.anchoPedido) this.sidebar.soltar();
     if (this.isBrowser) {
@@ -1079,6 +1111,9 @@ export class PedidosComponent implements OnInit, OnDestroy {
   selectCategoria(id: number): void {
     this.categoriaActiva.set(id);
     this.searchTerm.set('');
+    // Con el buscador ya vacío la señal no notifica y el efecto no corre: la categoría se
+    // carga aquí en todo caso.
+    this.habiaBusqueda = false;
     this.loadProductos(id);
   }
 
@@ -1119,26 +1154,56 @@ export class PedidosComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Ejecuta la búsqueda (llamado por el efecto con debounce).
-   * Si el término está vacío, recarga los productos de la categoría activa.
+   * Deja en la rejilla lo que coincide con lo escrito. Sin término, vuelve la categoría.
+   *
+   * Cada palabra del término tiene que aparecer en el nombre, la descripción o la categoría
+   * del producto, en cualquier orden: «asada papa» encuentra «Papa asada». Y se compara con
+   * `textoBuscable`, así que las tildes y los caracteres invisibles del teclado del móvil no
+   * cuentan.
    */
-  private ejecutarBusqueda(term: string): void {
-    if (!term) {
-      const cat = this.categoriaActiva();
-      if (cat) this.loadProductos(cat);
+  private aplicarBusqueda(termino: string, catalogo: Producto[]): void {
+    const buscado = textoBuscable(termino);
+    if (!buscado) {
+      // Solo al SALIR de una búsqueda se repinta la categoría. Al abrir Pedidos el término
+      // ya está vacío y la categoría la carga `selectCategoria`: pedirla otra vez aquí sería
+      // la misma petición dos veces.
+      if (this.habiaBusqueda) {
+        this.habiaBusqueda = false;
+        const cat = this.categoriaActiva();
+        if (cat) this.loadProductos(cat);
+      }
       return;
     }
+
+    this.habiaBusqueda = true;
+    // Si el catálogo todavía no llegó (entrar y escribir de inmediato) se pide; el efecto
+    // también depende de esa señal, así que al llenarse la búsqueda se resuelve sola.
+    if (catalogo.length === 0) {
+      this.loadCatalogoCompleto();
+      return;
+    }
+
+    const palabras = buscado.split(' ').filter(Boolean);
+    const nombreCategoria = new Map(this.categorias().map(c => [c.id_categoria, c.nombre]));
+    this.productos.set(
+      catalogo.filter(p => {
+        const heno = textoBuscable(
+          `${p.nombre} ${p.descripcion ?? ''} ${nombreCategoria.get(p.id_categoria ?? -1) ?? ''}`,
+        );
+        return palabras.every(palabra => heno.includes(palabra));
+      }),
+    );
+    this.cargandoProductos.set(false);
+  }
+
+  /** Trae el catálogo entero del negocio (sin `id_categoria`), que es lo que busca el POS. */
+  private loadCatalogoCompleto(): void {
     const id = this.negocioId();
     if (!id) return;
-    this.cargandoProductos.set(true);
     this.http.get<{ success: boolean; data: Producto[] }>(
-      `${environment.apiUrl}/carta/buscar?id_negocio=${id}&q=${encodeURIComponent(term)}`
+      `${environment.apiUrl}/carta/productos?id_negocio=${id}`
     ).subscribe({
-      next: res => {
-        this.productos.set(res?.data ?? []);
-        this.cargandoProductos.set(false);
-      },
-      error: () => this.cargandoProductos.set(false),
+      next: res => this.catalogoCompleto.set(res?.data ?? []),
     });
   }
 

@@ -44,11 +44,26 @@
     <div class="products-search">
       <div class="search-wrapper">
         <lucide-icon name="search" [size]="16" class="search-icon" />
+        <!-- `autocorrect`/`autocapitalize` apagados a propósito: en tablet y en varios
+             teclados de Android la predicción cambiaba la palabra o colaba un espacio duro,
+             y la búsqueda se quedaba sin resultados sin que se notara en pantalla. -->
         <input class="search-input"
-               type="text"
+               type="search"
+               inputmode="search"
+               enterkeyhint="search"
+               autocomplete="off"
+               autocorrect="off"
+               autocapitalize="off"
+               spellcheck="false"
                placeholder="Buscar producto..."
                [value]="searchTerm()"
                (input)="searchTerm.set($any($event.target).value)" />
+        @if (searchTerm()) {
+          <button type="button" class="search-clear" aria-label="Limpiar la búsqueda"
+                  (click)="searchTerm.set('')">
+            <lucide-icon name="x" [size]="15" />
+          </button>
+        }
       </div>
 
       <!-- Solo en móvil: mueve las categorías de la tira de arriba a una columna
@@ -127,8 +142,16 @@
         }
         @if (productos().length === 0) {
           <div class="empty-products">
-            <span>🍽️</span>
-            <p>No hay productos en esta categoría</p>
+            @if (buscando()) {
+              <span>🔎</span>
+              <p>Ningún producto coincide con «{{ searchTerm() }}»</p>
+              <button type="button" class="btn-limpiar-busqueda" (click)="searchTerm.set('')">
+                Limpiar la búsqueda
+              </button>
+            } @else {
+              <span>🍽️</span>
+              <p>No hay productos en esta categoría</p>
+            }
           </div>
         }
       }
