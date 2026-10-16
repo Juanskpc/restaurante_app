@@ -540,6 +540,17 @@
     &--texto { font-size: 1.05rem; letter-spacing: 0; }
   }
   &__pie { font-size: .73rem; color: var(--color-text-muted); }
+  // El día del turno no es contexto: con la caja colgada de anoche es LO que hay que ver. Va en
+  // su propia línea, con color de texto y fondo, para que no se pierda entre los pies grises.
+  &__fecha {
+    display: inline-flex; align-items: center; gap: .3rem; align-self: flex-start;
+    margin-top: .35rem; padding: .17rem .45rem;
+    font-size: .78rem; font-weight: 700; letter-spacing: -.01em;
+    color: var(--color-text-primary);
+    background: color-mix(in srgb, var(--rk-tono, var(--color-border)) 12%, transparent);
+    border-radius: var(--radius-sm);
+    lucide-icon { color: var(--rk-tono, var(--color-text-muted)); flex-shrink: 0; }
+  }
 
   &--neutro   { --rk-tono: var(--color-accent-blue); }
   &--exito    { --rk-tono: var(--color-success); }
@@ -1110,6 +1121,8 @@ $alto-chip: 1.75rem;
     padding: .75rem .8rem;
     &__lab { font-size: .72rem; }
     &__val { font-size: 1.1rem; &--texto { font-size: .9rem; } }
+    // La fecha aguanta el encogido: es el dato que se vino a mirar.
+    &__fecha { font-size: .72rem; margin-top: .3rem; padding: .15rem .35rem; }
     // El pie es contexto, no dato: en media tarjeta cabe en dos líneas y ahí se corta.
     &__pie {
       font-size: .68rem; line-height: 1.3;

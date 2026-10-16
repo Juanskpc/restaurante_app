@@ -977,29 +977,6 @@ export class CajaComponent implements OnInit, OnDestroy {
     return nombre || '—';
   }
 
-  /**
-   * El día de una fecha en palabras cuando las tiene: «Hoy», «Ayer» o la fecha corta.
-   *
-   * Es para la apertura del turno: lo que el cajero necesita saber de un vistazo no es el
-   * dato completo sino si la caja se abrió hoy o viene colgada de anoche, que es el caso en
-   * el que el arqueo no cuadra con lo que se espera del día.
-   *
-   * Compara día de pared contra día de pared: las fechas del backend son hora de Bogotá sin
-   * zona, así que se comparan como las pinta `DatePipe`, no en UTC.
-   */
-  diaApertura(fecha: string | null | undefined): string {
-    if (!fecha) return '';
-    const d = new Date(fecha);
-    if (Number.isNaN(d.getTime())) return '';
-
-    const soloDia = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-    const hoy = new Date();
-    const dias = Math.round((soloDia(hoy) - soloDia(d)) / 86400000);
-    if (dias === 0) return 'Hoy';
-    if (dias === 1) return 'Ayer';
-    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
-  }
-
   /** Etiqueta de la columna Tipo, que además distingue las anulaciones. */
   etiquetaTipo(m: MovimientoCaja): string {
     if (m.es_anulacion) return 'Eliminado';

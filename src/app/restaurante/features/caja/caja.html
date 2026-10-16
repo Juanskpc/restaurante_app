@@ -573,9 +573,15 @@
         <article class="rk rk--neutro">
           <span class="rk__lab">Base de apertura</span>
           <strong class="rk__val">{{ c.monto_apertura | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+          <!-- La fecha explícita, no «Hoy»: un turno colgado de anoche se reconoce por el día,
+               y en un arqueo el día es dato, no contexto — por eso va en su propia línea marcada. -->
+          <span class="rk__fecha">
+            <lucide-icon name="calendar" [size]="13" aria-hidden="true" />
+            {{ c.fecha_apertura | date:'d MMM yyyy':undefined:'es-CO' }}
+            · {{ c.fecha_apertura | date:'hh:mm a':undefined:'en-US' }}
+          </span>
           <span class="rk__pie">
-            Abrió {{ c.usuario?.primer_nombre }} {{ c.usuario?.primer_apellido }} ·
-            {{ diaApertura(c.fecha_apertura) }} {{ c.fecha_apertura | date:'hh:mm a':undefined:'en-US' }}
+            Abrió {{ c.usuario?.primer_nombre }} {{ c.usuario?.primer_apellido }}
           </span>
         </article>
         <article class="rk rk--exito">
@@ -693,8 +699,12 @@
         <article class="rk rk--primario">
           <span class="rk__lab">Apertura</span>
           <strong class="rk__val rk__val--texto">
-            {{ diaApertura(c.fecha_apertura) }} {{ c.fecha_apertura | date:'hh:mm a':undefined:'en-US' }}
+            {{ c.fecha_apertura | date:'d MMM yyyy':undefined:'es-CO' }}
           </strong>
+          <span class="rk__fecha">
+            <lucide-icon name="clock" [size]="13" aria-hidden="true" />
+            {{ c.fecha_apertura | date:'hh:mm a':undefined:'en-US' }}
+          </span>
           <span class="rk__pie">Inicio del turno</span>
         </article>
       </div>
