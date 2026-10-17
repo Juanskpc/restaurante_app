@@ -21,7 +21,7 @@ import {
   MessageSquare, Send, Loader2, AlertCircle, Bot, Clock, TriangleAlert, RefreshCw, Inbox,
   Search, X, Check, Building2, CheckCheck, BotMessageSquare, Ban, BellOff,
   Flag, ShieldAlert, MessageCircle, User, FileText, Settings, Smartphone, Pause, Play, ChartColumn,
-  ClipboardList, MousePointerClick, Reply,
+  ClipboardList, MousePointerClick, Reply, Sparkles,
 } from 'lucide-angular';
 
 import { BandejaService } from '../../../core/services/bandeja.service';
@@ -163,7 +163,7 @@ const REFRESCO_MS = 5000;
         MessageSquare, Send, Loader2, AlertCircle, Bot, Clock, TriangleAlert,
         RefreshCw, Inbox, Search, X, Check, Building2, CheckCheck, BotMessageSquare, Ban, BellOff,
         Flag, ShieldAlert, MessageCircle, User, FileText, Settings, Smartphone, Pause, Play, ChartColumn,
-        ClipboardList, MousePointerClick, Reply,
+        ClipboardList, MousePointerClick, Reply, Sparkles,
       }),
     },
   ],
@@ -1318,9 +1318,11 @@ export class BandejaComponent implements OnInit, OnDestroy {
    * teléfono, y mostrarlos como «+1084…» invita a llamar a un número que no existe.
    */
   contacto(c: ConversacionBandeja): string {
-    if (c.telefono_e164) return c.telefono_e164;
-    if (this.esIdSinNumero(c.id_externo)) return 'WhatsApp no comparte su número';
-    return c.id_externo ?? '';
+    if (this.esIdSinNumero(c.id_externo) && !c.telefono_e164) return 'WhatsApp no comparte su número';
+    // Sin nombre, el título ya ES el número: repetirlo debajo («+57 315… / 573156…») solo
+    // ocupa el renglón que en el teléfono no sobra (auditoría móvil, 2026-10-16).
+    if (!this.tieneNombre(c)) return 'Sin nombre en WhatsApp';
+    return this.formatearTelefono(c.telefono_e164 || c.id_externo);
   }
 
   /** ¿Es un identificador de WhatsApp sin número (`CO.123…`) y no un teléfono? */
