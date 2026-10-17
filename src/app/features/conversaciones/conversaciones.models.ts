@@ -75,6 +75,15 @@ export interface MensajeBandeja {
   editado?: boolean;
   /** Quien lo escribió lo borró: el contenido ya no se guarda y se muestra «Mensaje eliminado». */
   eliminado?: boolean;
+  /**
+   * Los botones que salieron con un mensaje del asistente («Completar datos», «Sí, confirmo»).
+   * `formulario` dice si ese botón abre el formulario de entrega. Solo los salientes.
+   */
+  botones?: { etiqueta: string; formulario: boolean }[] | null;
+  /** El formulario de entrega que llenó el cliente, campo a campo («entrega», «barrio»…). */
+  formulario?: Record<string, string> | null;
+  /** El cliente contestó tocando un botón, no escribiendo. */
+  de_boton?: boolean;
 }
 
 export interface ArchivoMensaje {

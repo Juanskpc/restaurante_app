@@ -62,7 +62,10 @@
       100dvh - var(--bdj-cromo-movil, calc(8rem + 62px + env(safe-area-inset-bottom, 0px)))
       - var(--bdj-extra, 0rem)
     );
-    grid-template-columns: 1fr;
+    /* `minmax(0, 1fr)` y no `1fr`: `1fr` no baja del ancho mínimo de su contenido, y la fila de
+       botones de arriba lo dejaba en ~512px en un teléfono de 390 — la lista se salía y se
+       cortaban la fecha de cada chat y el filtro (auditoría en el navegador, 2026-10-16). */
+    grid-template-columns: minmax(0, 1fr);
   }
 
   /* ── Barra superior ─────────────────────────────────────────── */
@@ -154,7 +157,25 @@
      Envolverlas se probó y queda peor: con cuatro botones de ancho distinto la cabecera crecía
      a tres renglones y se comía la lista. Lo que faltaba era poder llegar a los que no caben —
      antes se salían de la pantalla sin forma de alcanzarlos. */
+  /* En el teléfono, «Gestionar número» y «Tu asistente» se quedan con su icono para que quepan
+     las cuatro acciones sin arrastrar (antes «Tu asistente» y «Actualizar» quedaban fuera de la
+     pantalla). El rótulo sigue ahí para el lector de pantalla. «Pausar asistente» conserva su
+     texto: es el botón de emergencia y tiene que leerse de un vistazo. */
+  &__accion-rotulo {
+    @media (max-width: 30rem) {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+    }
+  }
+
   &__top-acciones {
+    /* El rótulo escondido es `position: absolute`: sin esto se escapa del contenedor que
+       desplaza y ensancha la página (ver CLAUDE.md, la regla de los `.sr-only`). */
+    position: relative;
     display: flex;
     align-items: center;
     gap: 0.375rem;
@@ -1299,6 +1320,83 @@
     color: inherit;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
+  }
+
+  /* Los botones que vio el cliente con el mensaje (2026-10-16). Pintados como en WhatsApp —una
+     fila bajo la burbuja, separada por una raya— pero sin aspecto de botón que se pueda tocar:
+     son del cliente, no del negocio. */
+  &__msg-botones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin: 0.375rem -0.25rem 0.125rem;
+    padding-top: 0.375rem;
+    border-top: 1px solid color-mix(in srgb, var(--bdj-verde-tinta) 14%, transparent);
+  }
+
+  &__msg-boton {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3125rem;
+    padding: 0.1875rem 0.5rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, #ffffff 70%, transparent);
+    color: var(--bdj-verde-hondo);
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+
+  /* El que abre el formulario se distingue: es el que el negocio quiere ver si se usa. */
+  &__msg-boton--form {
+    background: var(--bdj-verde-hondo);
+    color: #ffffff;
+  }
+
+  /* «Tocó el botón»: un «sí» tocado no es lo mismo que uno escrito. */
+  &__msg-tocado {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-bottom: 0.125rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+  }
+
+  /* El formulario que llenó el cliente: tarjeta con sus campos, no un bloque de texto. */
+  &__form {
+    min-width: min(14rem, 100%);
+  }
+
+  &__form-titulo {
+    display: flex;
+    align-items: center;
+    gap: 0.3125rem;
+    margin: 0 0 0.375rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--bdj-verde-hondo);
+  }
+
+  &__form-campos {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.1875rem 0.625rem;
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+
+    dt {
+      color: var(--color-text-secondary);
+      font-weight: 600;
+    }
+
+    dd {
+      margin: 0;
+      color: var(--color-text-primary);
+      overflow-wrap: anywhere;
+    }
   }
 
   /* Foto, sticker, audio… del cliente. Ancho acotado para que una foto vertical no ocupe la

@@ -60,9 +60,9 @@
 
     <div class="bdj__top-acciones">
       @if (mostrarGestionarNumero()) {
-        <button type="button" class="bdj__chip" (click)="gestionarNumero.emit()">
+        <button type="button" class="bdj__chip" title="Gestionar número" (click)="gestionarNumero.emit()">
           <lucide-icon name="smartphone" [size]="14" aria-hidden="true" />
-          Gestionar número
+          <span class="bdj__accion-rotulo">Gestionar número</span>
         </button>
       }
       <!-- Pausa de emergencia: un clic y el asistente deja de contestar (2026-10-04). -->
@@ -91,11 +91,12 @@
           [class.bdj__chip--on]="ventanaAsistente() !== null"
           [class.bdj__chip--alerta]="(preparacion()?.criticos ?? 0) > 0"
           aria-haspopup="dialog"
+          title="Tu asistente"
           [attr.aria-expanded]="ventanaAsistente() !== null"
           (click)="abrirAsistente()"
         >
           <lucide-icon name="sparkles" [size]="14" aria-hidden="true" />
-          Tu asistente
+          <span class="bdj__accion-rotulo">Tu asistente</span>
           @if ((preparacion()?.pendientes ?? 0) > 0) {
             <span
               class="bdj__contador"
@@ -209,7 +210,7 @@
                     </span>
                   </span>
                   <span class="bdj__item-fila">
-                    <span class="bdj__item-texto">{{ c.ultimo_texto || '—' }}</span>
+                    <span class="bdj__item-texto">{{ sinMarcas(c.ultimo_texto) || '—' }}</span>
                     <!-- Cuántos mensajes seguidos mandó sin que nadie contestara. Con uno solo
                          no se pinta: «1» al lado de un mensaje sin responder no dice nada que
                          no diga ya el propio mensaje. Desde dos, sí: es alguien insistiendo. -->
@@ -423,8 +424,40 @@
                   <lucide-icon name="ban" [size]="13" aria-hidden="true" />
                   Mensaje eliminado
                 </p>
+              } @else if (m.formulario) {
+                <!-- El formulario de entrega que llenó el cliente, como tarjeta y no como texto. -->
+                <div class="bdj__form">
+                  <p class="bdj__form-titulo">
+                    <lucide-icon name="clipboard-list" [size]="14" aria-hidden="true" />
+                    Llenó el formulario
+                  </p>
+                  <dl class="bdj__form-campos">
+                    @for (c of camposFormulario(m.formulario); track c.clave) {
+                      <dt>{{ c.etiqueta }}</dt>
+                      <dd>{{ c.valor }}</dd>
+                    }
+                  </dl>
+                </div>
               } @else {
-                <p class="bdj__msg-texto">{{ m.contenido }}</p>
+                @if (m.de_boton) {
+                  <span class="bdj__msg-tocado">
+                    <lucide-icon name="mouse-pointer-click" [size]="12" aria-hidden="true" />
+                    Tocó el botón
+                  </span>
+                }
+                <p class="bdj__msg-texto" [innerHTML]="formatoWhatsapp(m.contenido)"></p>
+              }
+              @if (m.botones?.length) {
+                <!-- Los botones que vio el cliente con este mensaje. Aquí no se pueden tocar:
+                     son del cliente, no del negocio. -->
+                <div class="bdj__msg-botones" aria-label="Botones que vio el cliente">
+                  @for (b of m.botones; track $index) {
+                    <span class="bdj__msg-boton" [class.bdj__msg-boton--form]="b.formulario">
+                      <lucide-icon [name]="b.formulario ? 'clipboard-list' : 'reply'" [size]="13" aria-hidden="true" />
+                      {{ b.etiqueta }}
+                    </span>
+                  }
+                </div>
               }
               <span class="bdj__msg-pie">
                 @if (m.editado && !m.eliminado) {

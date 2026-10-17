@@ -21,6 +21,7 @@ import {
   MessageSquare, Send, Loader2, AlertCircle, Bot, Clock, TriangleAlert, RefreshCw, Inbox,
   Search, X, Check, Building2, CheckCheck, BotMessageSquare, Ban, BellOff,
   Flag, ShieldAlert, MessageCircle, User, FileText, Settings, Smartphone, Pause, Play, ChartColumn,
+  ClipboardList, MousePointerClick, Reply,
 } from 'lucide-angular';
 
 import { BandejaService } from '../../../core/services/bandeja.service';
@@ -162,6 +163,7 @@ const REFRESCO_MS = 5000;
         MessageSquare, Send, Loader2, AlertCircle, Bot, Clock, TriangleAlert,
         RefreshCw, Inbox, Search, X, Check, Building2, CheckCheck, BotMessageSquare, Ban, BellOff,
         Flag, ShieldAlert, MessageCircle, User, FileText, Settings, Smartphone, Pause, Play, ChartColumn,
+        ClipboardList, MousePointerClick, Reply,
       }),
     },
   ],
@@ -1364,5 +1366,64 @@ export class BandejaComponent implements OnInit, OnDestroy {
     if (m.estado_entrega === 'pendiente') return 'enviando…';
     if (m.estado_entrega === 'fallido') return 'no se entregó';
     return null;
+  }
+
+  /**
+   * El formulario de entrega, en el orden en que el cliente lo llenó y con nombres de persona.
+   * Lo que no esté en la lista (un campo nuevo) va al final con su clave tal cual.
+   */
+  camposFormulario(f: Record<string, string>): { clave: string; etiqueta: string; valor: string }[] {
+    const ORDEN: Record<string, string> = {
+      entrega: 'Cómo lo recibe',
+      barrio: 'Barrio',
+      direccion: 'Dirección',
+      indicaciones: 'Indicaciones',
+      telefono: 'Teléfono',
+      pago: 'Pago',
+    };
+    const VALORES: Record<string, string> = {
+      domicilio: 'A domicilio',
+      recoger: 'Pasa a recoger',
+      servir: 'Para servir en el local',
+    };
+    const claves = [
+      ...Object.keys(ORDEN).filter((k) => f[k]),
+      ...Object.keys(f).filter((k) => !(k in ORDEN) && f[k]),
+    ];
+    return claves.map((clave) => ({
+      clave,
+      etiqueta: ORDEN[clave] ?? clave.replace(/_/g, ' '),
+      valor: clave === 'entrega' ? (VALORES[f[clave]] ?? f[clave]) : f[clave],
+    }));
+  }
+
+  /**
+   * El texto con el formato de WhatsApp: *negrita*, _cursiva_ y ~tachado~, como lo ve el cliente.
+   *
+   * Se escapa TODO el HTML primero y luego se ponen solo esas tres marcas: el texto lo escribió
+   * un cliente o el modelo, y `innerHTML` con su texto crudo sería abrirle la página. Las marcas
+   * solo valen pegadas a una palabra y con espacio o signo alrededor: «Calle 16A n 43_61» no es
+   * una cursiva.
+   */
+  /** La vista previa de la lista, sin las marcas de formato («El Nequi es *323…*» → sin asteriscos). */
+  sinMarcas(texto: string | null | undefined): string {
+    return String(texto ?? '')
+      .replace(/(^|[\s(¡¿"'«-])([*_~])(?=\S)([^*_~\n]*?\S)\2(?=$|[\s.,;:!?)»"'-])/g, '$1$3')
+      .replace(/^📋 Formulario enviado/, '📋 Llenó el formulario');
+  }
+
+  formatoWhatsapp(texto: string | null | undefined): string {
+    const escapado = String(texto ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+    const marca = (s: string, signo: string, etiqueta: string): string =>
+      s.replace(
+        new RegExp(`(^|[\\s(¡¿"'«\\-])\\${signo}(?=\\S)([^${signo}\\n]*?\\S)\\${signo}(?=$|[\\s.,;:!?)»"'\\-])`, 'g'),
+        `$1<${etiqueta}>$2</${etiqueta}>`
+      );
+    return marca(marca(marca(escapado, '*', 'strong'), '_', 'em'), '~', 's');
   }
 }
