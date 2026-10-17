@@ -3,7 +3,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 
-import { AuthService, SesionRestaurante } from './auth.service';
+import { AuthService, SesionRestaurante, impersonadoPor } from './auth.service';
 import { environment } from '../../../environments/environment';
 
 /**
@@ -354,5 +354,22 @@ describe('AuthService — migración de las claves heredadas', () => {
     expect(auth.negocio()?.id_negocio).toBe(1);
     expect(localStorage.getItem('app_token')).toBe(jwtDe(36));
     http.verify();
+  });
+});
+
+// Zona Burger, 2026-10-16: un super admin «entrando como» el negocio caía al login cada hora.
+// Con un token de impersonación, cerrar sesión lleva al panel, que lo devuelve a su cuenta.
+describe('impersonadoPor', () => {
+  const token = (cuerpo: object) =>
+    `x.${btoa(JSON.stringify(cuerpo)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')}.y`;
+
+  it('reconoce el token de un super admin entrando como otro usuario', () => {
+    expect(impersonadoPor(token({ id_usuario: 2, impersonado_por: 1 }))).toBe(true);
+  });
+
+  it('un token normal, vacío o ilegible no es de impersonación', () => {
+    expect(impersonadoPor(token({ id_usuario: 2 }))).toBe(false);
+    expect(impersonadoPor('')).toBe(false);
+    expect(impersonadoPor('no-es-un-jwt')).toBe(false);
   });
 });

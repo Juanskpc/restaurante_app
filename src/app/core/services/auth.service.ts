@@ -161,6 +161,22 @@ function idUsuarioDelToken(token: string): number | null {
 }
 
 /**
+ * ¿El token es de un super admin «entrando como» este usuario? (`impersonado_por` en el cuerpo).
+ * Mismas reglas que `idUsuarioDelToken`: no valida la firma, solo decide adónde volver.
+ */
+export function impersonadoPor(token: string): boolean {
+  try {
+    const cuerpo = token.split('.')[1];
+    if (!cuerpo) return false;
+    const base64 = cuerpo.replace(/-/g, '+').replace(/_/g, '/');
+    const relleno = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+    return Boolean(JSON.parse(atob(relleno))?.impersonado_por);
+  } catch {
+    return false;
+  }
+}
+
+/**
  * ¿La sesión guardada pertenece al token guardado?
  *
  * ## Por qué hace falta
@@ -565,12 +581,20 @@ export class AuthService {
     }
   }
 
-  /** Cierra sesión y redirige al admin_app. */
+  /**
+   * Cierra sesión y redirige al admin_app.
+   *
+   * Si la sesión era de un super admin «entrando como» este negocio, va al panel y no al login:
+   * allí sigue guardada su cuenta propia, y el panel, al ver vencida la de impersonación, lo
+   * devuelve a ella sin pedirle la contraseña. Antes caía al login cada hora mientras vigilaba a
+   * un cliente (Zona Burger, 2026-10-16).
+   */
   logout(): void {
+    const impersonado = impersonadoPor(this.getAccessToken() ?? '');
     this.clearSession();
     const adminUrl = environment.adminUrl ?? 'http://localhost:4002';
     if (isPlatformBrowser(this.platformId)) {
-      window.location.href = `${adminUrl}/auth/login`;
+      window.location.href = impersonado ? `${adminUrl}/admin/dashboard` : `${adminUrl}/auth/login`;
     }
   }
 
