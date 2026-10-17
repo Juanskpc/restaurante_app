@@ -395,7 +395,13 @@
                         />
                       </a>
                     } @else if (a.tipo === 'audio') {
-                      <audio controls [src]="url"></audio>
+                      <audio controls preload="metadata" [src]="url"></audio>
+                      <!-- Las notas de voz de WhatsApp son OGG/Opus, y hay Safari (iPhone) que
+                           no las reproducen: así se pueden oír igual, con el reproductor del equipo. -->
+                      <a class="bdj__archivo-bajar" [href]="url" download="nota-de-voz.ogg">
+                        <lucide-icon name="download" [size]="12" aria-hidden="true" />
+                        Descargar audio
+                      </a>
                     } @else if (a.tipo === 'video') {
                       <video controls [src]="url"></video>
                     } @else {

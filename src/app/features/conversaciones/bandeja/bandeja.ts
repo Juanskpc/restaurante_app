@@ -21,7 +21,7 @@ import {
   MessageSquare, Send, Loader2, AlertCircle, Bot, Clock, TriangleAlert, RefreshCw, Inbox,
   Search, X, Check, Building2, CheckCheck, BotMessageSquare, Ban, BellOff,
   Flag, ShieldAlert, MessageCircle, User, FileText, Settings, Smartphone, Pause, Play, ChartColumn,
-  ClipboardList, MousePointerClick, Reply, Sparkles,
+  ClipboardList, MousePointerClick, Reply, Sparkles, Download,
 } from 'lucide-angular';
 
 import { BandejaService } from '../../../core/services/bandeja.service';
@@ -163,7 +163,7 @@ const REFRESCO_MS = 5000;
         MessageSquare, Send, Loader2, AlertCircle, Bot, Clock, TriangleAlert,
         RefreshCw, Inbox, Search, X, Check, Building2, CheckCheck, BotMessageSquare, Ban, BellOff,
         Flag, ShieldAlert, MessageCircle, User, FileText, Settings, Smartphone, Pause, Play, ChartColumn,
-        ClipboardList, MousePointerClick, Reply, Sparkles,
+        ClipboardList, MousePointerClick, Reply, Sparkles, Download,
       }),
     },
   ],
